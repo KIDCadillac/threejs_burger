@@ -52,3 +52,25 @@ test("the four-second sequence exposes named phases", () => {
   assert.equal(phaseAt(2200).name, "burst");
   assert.equal(phaseAt(3900).name, "settle");
 });
+
+test("reaction phases use the exact animation start times", () => {
+  assert.deepEqual(REACTION_PHASES.map(({ at }) => at), [
+    0,
+    180,
+    520,
+    1100,
+    1350,
+    1800,
+    2050,
+    2750,
+    3600,
+  ]);
+});
+
+test("every reaction phase has a non-empty Chinese caption", () => {
+  for (const { name, caption } of REACTION_PHASES) {
+    assert.equal(typeof caption, "string", `${name} caption should be a string`);
+    assert.notEqual(caption.trim(), "", `${name} caption should not be empty`);
+    assert.match(caption, /[\u3400-\u9fff]/, `${name} caption should contain Chinese text`);
+  }
+});
