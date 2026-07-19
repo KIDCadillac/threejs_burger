@@ -360,3 +360,23 @@ def test_mixing_disconnect_after_grace_releases_room() -> None:
     assert room.code not in service.rooms
     assert service.room_for("p1") is None
     assert service.room_for("p2") is None
+
+
+def test_practice_disconnect_after_grace_removes_active_room() -> None:
+    clock = FakeClock()
+    service = GameService(clock=clock)
+    room = service.start_practice("p1")
+    bot_id = room.bot_player_id
+    assert bot_id is not None
+    service.connect("p1")
+    service.lock_recipe("p1", 0, ("chili", "mustard"))
+    service.lock_recipe(bot_id, 1, ("sour", "sticky"))
+    service.disconnect("p1")
+    clock.advance(31)
+
+    changed = service.tick()
+
+    assert changed == [room]
+    assert room.code not in service.rooms
+    assert service.room_for("p1") is None
+    assert service.room_for(bot_id) is None

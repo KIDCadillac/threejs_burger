@@ -269,7 +269,9 @@ class GameService:
                 for player_id, disconnected_at in room.disconnected_at.items()
                 if now - disconnected_at > RECONNECT_GRACE_SECONDS
             ]
-            if timed_out_players and game.phase is Phase.MIXING:
+            if timed_out_players and (
+                room.mode == "practice" or game.phase is Phase.MIXING
+            ):
                 self._remove_room(room)
                 changed.append(room)
                 continue
