@@ -49,5 +49,9 @@ export function snackFor(key) {
 export function recipeTitle(sauces) {
   if (!sauces?.length) return "神秘配方";
   const names = sauces.map((sauce) => reactionFor(sauce).shortLabel);
-  return names[0] === names[1] ? `双倍${names[0]}` : names.join(" × ");
+  if (names.length > 1 && names.every((name) => name === names[0])) {
+    const multiplier = { 2: "双倍", 3: "三倍", 4: "四倍" }[names.length] ?? `${names.length}份`;
+    return `${multiplier}${names[0]}`;
+  }
+  return names.join(" × ");
 }

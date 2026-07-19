@@ -1,4 +1,5 @@
 import asyncio
+import secrets
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
@@ -19,6 +20,16 @@ BASE_DIR = Path(__file__).parent
 class ConnectionHub:
     def __init__(self) -> None:
         self.sockets: dict[str, WebSocket] = {}
+        self.credentials: dict[str, str] = {}
+
+    def authorize(self, player_id: str, credential: str) -> bool:
+        if len(credential) < 32:
+            return False
+        known = self.credentials.get(player_id)
+        if known is None:
+            self.credentials[player_id] = credential
+            return True
+        return secrets.compare_digest(known, credential)
 
     def register(self, player_id: str, socket: WebSocket) -> None:
         self.sockets[player_id] = socket
@@ -72,9 +83,11 @@ def create_app(service: GameService | None = None) -> FastAPI:
         return FileResponse(BASE_DIR / "static" / "index.html")
 
     @application.websocket("/ws")
-    async def websocket_endpoint(socket: WebSocket, player: str = "") -> None:
-        if not player:
-            await socket.close(code=1008, reason="缺少玩家标识")
+    async def websocket_endpoint(
+        socket: WebSocket, player: str = "", credential: str = ""
+    ) -> None:
+        if not player or not hub.authorize(player, credential):
+            await socket.close(code=1008, reason="玩家身份验证失败")
             return
         await socket.accept()
         hub.register(player, socket)

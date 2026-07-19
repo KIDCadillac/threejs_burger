@@ -4,6 +4,7 @@ import { inviteFriend } from "/static/platform.js";
 const app = document.querySelector("#app");
 const liveStatus = document.querySelector("#live-status");
 const playerId = getPlayerId();
+const playerCredential = getPlayerCredential();
 const requestedRoom = new URLSearchParams(location.search).get("room");
 
 let socket;
@@ -45,9 +46,18 @@ function getPlayerId() {
   return stored;
 }
 
+function getPlayerCredential() {
+  let stored = sessionStorage.getItem("witch-fries-credential");
+  if (!stored) {
+    stored = `${crypto.randomUUID()}-${crypto.randomUUID()}`;
+    sessionStorage.setItem("witch-fries-credential", stored);
+  }
+  return stored;
+}
+
 function connect() {
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-  socket = new WebSocket(`${protocol}//${location.host}/ws?player=${encodeURIComponent(playerId)}`);
+  socket = new WebSocket(`${protocol}//${location.host}/ws?player=${encodeURIComponent(playerId)}&credential=${encodeURIComponent(playerCredential)}`);
   setConnectionState("正在连接魔法餐桌…");
 
   socket.addEventListener("open", () => {
@@ -205,10 +215,10 @@ function renderMixing(state) {
           ${deploymentStep("4", "合回去", false, canLock)}
         </div>
         ${snackBoard(state, { action: "select-snack", secretPosition: selectedFry, interactive: true })}
-        ${selectedFry === null ? "" : `<section class="food-operation food-drop-target ${deploymentOpened ? "food-operation--open" : ""}" aria-label="食物操作区">
+        ${selectedFry === null ? "" : `<section class="food-operation ${deploymentOpened ? "food-operation--open" : ""}" aria-label="食物操作区">
           <div class="food-operation__board">
             <span class="food-operation__knife" aria-hidden="true"></span>
-            <div class="food-operation__food">${snackPiece(snackKind, true)}<i class="food-seam"></i><i class="food-filling"></i>${selectedSauces.map((key, index) => `<i class="sauce-layer sauce-layer--${index} sauce-layer--${key}"></i>`).join("")}</div>
+            <div class="food-operation__food food-drop-target" role="region" aria-label="食物内部调料投放区">${snackPiece(snackKind, true)}<i class="food-seam"></i><i class="food-filling"></i>${selectedSauces.map((key, index) => `<i class="sauce-layer sauce-layer--${index} sauce-layer--${key}"></i>`).join("")}</div>
             <div class="food-operation__hand food-operation__hand--left" aria-hidden="true"></div>
             <div class="food-operation__hand food-operation__hand--right" aria-hidden="true"></div>
           </div>

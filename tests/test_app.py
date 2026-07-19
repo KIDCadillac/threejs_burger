@@ -1,7 +1,9 @@
 import asyncio
 import importlib.util
 
+import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 import app.main as main_module
 from app.main import ConnectionHub, app, create_app
@@ -9,6 +11,16 @@ from app.service import GameService
 
 
 client = TestClient(app)
+
+PLAYER_CREDENTIALS = {
+    "p1": "p1-private-credential-1234567890abcdef",
+    "p2": "p2-private-credential-1234567890abcdef",
+}
+
+
+def ws_path(player_id: str, credential: str | None = None) -> str:
+    secret = credential or PLAYER_CREDENTIALS[player_id]
+    return f"/ws?player={player_id}&credential={secret}"
 
 
 def test_stale_socket_cannot_unregister_replacement() -> None:
@@ -47,14 +59,14 @@ def test_home_page_contains_game_title() -> None:
 def test_websocket_create_and_join_room() -> None:
     isolated_client = TestClient(create_app(GameService()))
 
-    with isolated_client.websocket_connect("/ws?player=p1") as ws1:
+    with isolated_client.websocket_connect(ws_path("p1")) as ws1:
         assert ws1.receive_json()["type"] == "home"
         ws1.send_json({"type": "room.create"})
         created = ws1.receive_json()
         code = created["room"]["code"]
         assert created["phase"] == "waiting"
 
-        with isolated_client.websocket_connect("/ws?player=p2") as ws2:
+        with isolated_client.websocket_connect(ws_path("p2")) as ws2:
             assert ws2.receive_json()["type"] == "home"
             ws2.send_json({"type": "room.join", "code": code})
 
@@ -115,7 +127,7 @@ def test_websocket_create_and_join_room() -> None:
 def test_websocket_rejects_unknown_command_without_closing() -> None:
     isolated_client = TestClient(create_app(GameService()))
 
-    with isolated_client.websocket_connect("/ws?player=p1") as socket:
+    with isolated_client.websocket_connect(ws_path("p1")) as socket:
         socket.receive_json()
         socket.send_json({"type": "room.explode"})
 
@@ -130,11 +142,11 @@ def test_websocket_rejects_unknown_command_without_closing() -> None:
 def test_leaving_room_returns_both_players_home() -> None:
     isolated_client = TestClient(create_app(GameService()))
 
-    with isolated_client.websocket_connect("/ws?player=p1") as ws1:
+    with isolated_client.websocket_connect(ws_path("p1")) as ws1:
         ws1.receive_json()
         ws1.send_json({"type": "room.create"})
         code = ws1.receive_json()["room"]["code"]
-        with isolated_client.websocket_connect("/ws?player=p2") as ws2:
+        with isolated_client.websocket_connect(ws_path("p2")) as ws2:
             ws2.receive_json()
             ws2.send_json({"type": "room.join", "code": code})
             ws2.receive_json()
@@ -197,9 +209,9 @@ def test_invite_auto_join_is_not_sent_blindly_on_socket_open() -> None:
 def test_reconnect_broadcasts_resumed_state_to_opponent() -> None:
     isolated_client = TestClient(create_app(GameService()))
 
-    with isolated_client.websocket_connect("/ws?player=p2") as ws2:
+    with isolated_client.websocket_connect(ws_path("p2")) as ws2:
         ws2.receive_json()
-        with isolated_client.websocket_connect("/ws?player=p1") as ws1:
+        with isolated_client.websocket_connect(ws_path("p1")) as ws1:
             ws1.receive_json()
             ws1.send_json({"type": "room.create"})
             code = ws1.receive_json()["room"]["code"]
@@ -220,7 +232,7 @@ def test_reconnect_broadcasts_resumed_state_to_opponent() -> None:
         paused = ws2.receive_json()
         assert paused["paused"] is True
 
-        with isolated_client.websocket_connect("/ws?player=p1") as reconnected:
+        with isolated_client.websocket_connect(ws_path("p1")) as reconnected:
             assert reconnected.receive_json()["paused"] is False
             ws2.send_json({"type": "room.explode"})
             resumed_for_opponent = ws2.receive_json()
@@ -228,10 +240,25 @@ def test_reconnect_broadcasts_resumed_state_to_opponent() -> None:
             assert resumed_for_opponent["paused"] is False
 
 
+def test_websocket_rejects_wrong_player_credential() -> None:
+    isolated_client = TestClient(create_app(GameService()))
+
+    with isolated_client.websocket_connect(ws_path("p1")) as owner:
+        assert owner.receive_json()["type"] == "home"
+
+        with pytest.raises(WebSocketDisconnect) as error:
+            with isolated_client.websocket_connect(
+                ws_path("p1", "attacker-credential-1234567890abcdef")
+            ) as attacker:
+                attacker.receive_json()
+
+        assert error.value.code == 1008
+
+
 def test_websocket_starts_practice_without_waiting() -> None:
     isolated_client = TestClient(create_app(GameService()))
 
-    with isolated_client.websocket_connect("/ws?player=p1") as socket:
+    with isolated_client.websocket_connect(ws_path("p1")) as socket:
         socket.receive_json()
         socket.send_json({"type": "practice.start"})
 
@@ -358,3 +385,20 @@ def test_client_supports_pointer_drag_and_four_sauce_layers() -> None:
         "sauce-layer--3",
     ):
         assert marker in script or marker in styles
+
+
+def test_drop_target_is_the_food_not_the_whole_operation_card() -> None:
+    script = client.get("/static/app.js").text
+
+    assert 'class="food-operation food-drop-target' not in script
+    assert 'class="food-operation__food food-drop-target"' in script
+    assert 'aria-label="食物内部调料投放区"' in script
+
+
+def test_recipe_title_counts_all_repeated_and_mixed_sauces() -> None:
+    effects = client.get("/static/effects.js").text
+
+    assert "names.every" in effects
+    assert '3: "三倍"' in effects
+    assert '4: "四倍"' in effects
+    assert 'return names.join(" × ")' in effects
