@@ -9,12 +9,16 @@ import {
   primeReactionAudio,
 } from "/static/reaction-feedback.mjs";
 import { inviteFriend } from "/static/platform.js";
+import { createViewNavigation } from "/static/view-navigation.mjs";
 
 const app = document.querySelector("#app");
 const liveStatus = document.querySelector("#live-status");
 const playerId = getPlayerId();
 const playerCredential = getPlayerCredential();
 const requestedRoom = new URLSearchParams(location.search).get("room");
+const viewNavigation = createViewNavigation({
+  scrollTo: (x, y) => window.scrollTo(x, y),
+});
 
 let socket;
 let reconnectAttempts = 0;
@@ -150,6 +154,7 @@ function syncRound(state) {
 }
 
 function renderHome() {
+  viewNavigation.enter("home");
   activeRound = null;
   replaceApp(`
     <section class="screen home-screen" aria-labelledby="game-title">
@@ -174,6 +179,7 @@ function renderHome() {
 }
 
 function renderMatching() {
+  viewNavigation.enter("matching");
   replaceApp(`
     <section class="screen center-screen">
       <p class="eyebrow">快速匹配</p>
@@ -193,6 +199,7 @@ function renderMatching() {
 }
 
 function renderWaitingRoom(state) {
+  viewNavigation.enter("waiting");
   const code = state.room.code;
   const url = new URL(location.href);
   url.search = "";
@@ -211,6 +218,7 @@ function renderWaitingRoom(state) {
 }
 
 function renderMixing(state) {
+  viewNavigation.enter("mixing-editor");
   const selectedSnack = selectedFry === null ? null : state.snacks?.[selectedFry];
   const snackKind = selectedSnack?.kind ?? "fry";
   const canLock = selectedFry !== null && deploymentOpened && selectedSauces.length >= 1 && selectedSauces.length <= MAX_SAUCES;
@@ -258,6 +266,7 @@ function renderMixing(state) {
 }
 
 function renderRecipeLocked(state) {
+  viewNavigation.enter("mixing-locked");
   const sauces = state.private.sauces;
   const snack = state.snacks?.[state.private.poisonPosition] ?? { kind: "fry" };
   const opponentReady = state.players.some((player) => player.id !== state.me && player.ready);
@@ -278,6 +287,7 @@ function renderRecipeLocked(state) {
 }
 
 function renderTurn(state) {
+  viewNavigation.enter("turn");
   const myTurn = state.currentPlayer === state.me && !state.paused;
   const poisonPosition = state.private?.active ? state.private.poisonPosition : null;
   const pending = state.pendingPick;
@@ -315,6 +325,7 @@ function renderTurn(state) {
 }
 
 function renderFinished(state) {
+  viewNavigation.enter("finished");
   const result = state.result ?? {};
   const sauces = result.recipe?.sauces ?? [];
   const replay = result.replay;
@@ -460,6 +471,7 @@ function recipeSlot(index, key) {
 }
 
 function renderPrivateDeployment(state, position, sauces) {
+  viewNavigation.enter("private-deployment");
   const snack = state.snacks?.[position] ?? { kind: "fry" };
   replaceApp(`
     <section class="screen game-screen deployment-screen">

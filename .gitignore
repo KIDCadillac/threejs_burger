@@ -5,5 +5,6 @@ __pycache__/
 *.pyc
 .venv/
 .playwright-cli/
+output/playwright/
 server.log
 server-error.log

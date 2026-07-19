@@ -202,6 +202,29 @@ test("bite feedback is short, finite, and lightly vibrates", () => {
   );
 });
 
+test("native haptics wait for a real user gesture", () => {
+  const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  const vibrations = [];
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    value: {
+      userActivation: { hasBeenActive: false },
+      vibrate: (pattern) => vibrations.push(pattern),
+    },
+  });
+
+  try {
+    handleReactionFeedback("bite", null, { audioContext: null });
+    assert.deepEqual(vibrations, []);
+  } finally {
+    if (originalNavigator) {
+      Object.defineProperty(globalThis, "navigator", originalNavigator);
+    } else {
+      delete globalThis.navigator;
+    }
+  }
+});
+
 test("finite sound nodes disconnect after playback ends", () => {
   const { context, events, oscillators } = fakeAudioContext();
 

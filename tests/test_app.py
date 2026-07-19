@@ -218,6 +218,23 @@ def test_invite_auto_join_is_not_sent_blindly_on_socket_open() -> None:
     assert "tryInviteAutoJoin" in script
 
 
+def test_client_resets_scroll_only_when_the_screen_flow_changes() -> None:
+    script = client.get("/static/app.js").text
+
+    assert 'from "/static/view-navigation.mjs"' in script
+    for view in (
+        "home",
+        "matching",
+        "waiting",
+        "mixing-editor",
+        "mixing-locked",
+        "private-deployment",
+        "turn",
+        "finished",
+    ):
+        assert f'viewNavigation.enter("{view}")' in script
+
+
 def test_reconnect_broadcasts_resumed_state_to_opponent() -> None:
     isolated_client = TestClient(create_app(GameService()))
 

@@ -169,6 +169,7 @@ function vibrateSafely(pattern, override) {
       return;
     }
     const navigatorObject = globalThis.navigator;
+    if (navigatorObject?.userActivation?.hasBeenActive === false) return;
     if (typeof navigatorObject?.vibrate === "function") {
       navigatorObject.vibrate(pattern);
     }
