@@ -7,6 +7,37 @@ from typing import Iterable
 
 FRY_COUNT = 12
 SAUCES = frozenset({"chili", "mustard", "sour", "sticky"})
+GESTURES = frozenset({"sneak", "mix", "sealed", "calm", "laugh", "point", "hurry"})
+SNACK_LAYOUTS = (
+    (
+        "fry",
+        "nugget",
+        "donut",
+        "cookie",
+        "onion-ring",
+        "mochi",
+        "donut",
+        "fry",
+        "mochi",
+        "nugget",
+        "cookie",
+        "onion-ring",
+    ),
+    (
+        "cookie",
+        "onion-ring",
+        "fry",
+        "mochi",
+        "nugget",
+        "donut",
+        "nugget",
+        "cookie",
+        "donut",
+        "onion-ring",
+        "mochi",
+        "fry",
+    ),
+)
 
 
 class Phase(str, Enum):
@@ -44,6 +75,20 @@ class PickOutcome:
 
 
 @dataclass(slots=True)
+class PendingPick:
+    picker: str
+    position: int
+    changed: bool = False
+    bluff: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class GestureEvent:
+    key: str
+    sequence: int
+
+
+@dataclass(slots=True)
 class GameState:
     room_code: str
     player_order: tuple[str, str]
@@ -59,6 +104,13 @@ class GameState:
     rematch_votes: set[str] = field(default_factory=set)
     round_number: int = 1
     paused: bool = False
+    pending_pick: PendingPick | None = None
+    gestures: dict[str, GestureEvent] = field(default_factory=dict)
+    gesture_sequence: int = 0
+
+    @property
+    def snacks(self) -> tuple[str, ...]:
+        return SNACK_LAYOUTS[(self.round_number - 1) % len(SNACK_LAYOUTS)]
 
     @classmethod
     def create(
@@ -114,6 +166,7 @@ class GameState:
         if position not in self.remaining_fries:
             raise RuleError("这根薯条已经被吃掉")
 
+        self.pending_pick = None
         self.remaining_fries.remove(position)
         opponent_id = self._opponent(player_id)
         opponent = self.players[opponent_id]
@@ -165,6 +218,58 @@ class GameState:
         self.current_player = opponent_id
         return outcome
 
+    def aim(self, player_id: str, position: int) -> PendingPick:
+        if self.phase is not Phase.TURN:
+            raise RuleError("当前不能选择零食")
+        if self.paused:
+            raise RuleError("对局暂时暂停")
+        self._player(player_id)
+        if self.current_player != player_id:
+            raise RuleError("还没轮到你")
+        if position not in self.remaining_fries:
+            raise RuleError("这件零食已经被吃掉")
+
+        if self.pending_pick is None:
+            self.pending_pick = PendingPick(picker=player_id, position=position)
+            return self.pending_pick
+        if self.pending_pick.picker != player_id:
+            raise RuleError("当前瞄准不属于你")
+        if self.pending_pick.position == position:
+            return self.pending_pick
+        if self.pending_pick.changed:
+            raise RuleError("本回合已经改选过一次")
+
+        self.pending_pick.position = position
+        self.pending_pick.changed = True
+        return self.pending_pick
+
+    def send_gesture(self, player_id: str, key: str) -> GestureEvent:
+        if self.phase is Phase.FINISHED:
+            raise RuleError("本局已经结束")
+        self._player(player_id)
+        if key not in GESTURES:
+            raise RuleError("未知搞怪动作")
+
+        self.gesture_sequence += 1
+        event = GestureEvent(key=key, sequence=self.gesture_sequence)
+        self.gestures[player_id] = event
+        if (
+            self.phase is Phase.TURN
+            and self.pending_pick is not None
+            and self.pending_pick.picker != player_id
+            and self.pending_pick.bluff is None
+        ):
+            self.pending_pick.bluff = key
+        return event
+
+    def confirm_pick(
+        self, player_id: str, *, automatic: bool = False
+    ) -> PickOutcome:
+        pending = self.pending_pick
+        if pending is None or pending.picker != player_id:
+            raise RuleError("请先瞄准一件零食")
+        return self.pick(player_id, pending.position, automatic=automatic)
+
     def finish_by_disconnect(self, loser_id: str) -> PickOutcome:
         if self.phase is not Phase.TURN:
             raise RuleError("当前对局不能按掉线结算")
@@ -200,6 +305,9 @@ class GameState:
         self.rematch_votes.clear()
         self.round_number += 1
         self.paused = False
+        self.pending_pick = None
+        self.gestures.clear()
+        self.gesture_sequence = 0
         for player in self.players.values():
             player.recipe = None
             player.poison_active = False
@@ -213,6 +321,7 @@ class GameState:
         self.result_reason = reason
         self.last_outcome = outcome
         self.paused = False
+        self.pending_pick = None
 
     def _player(self, player_id: str) -> PlayerState:
         try:

@@ -130,4 +130,72 @@ def test_pick_can_record_server_auto_selection() -> None:
     outcome = game.pick("p1", 3, automatic=True)
 
     assert outcome.automatic is True
+
+
+def test_round_exposes_one_shared_mixed_snack_layout() -> None:
+    game = GameState.create("ROOM01", ["p1", "p2"], first_player="p1")
+
+    assert len(game.snacks) == 12
+    assert set(game.snacks) == {
+        "fry",
+        "nugget",
+        "donut",
+        "cookie",
+        "onion-ring",
+        "mochi",
+    }
+    assert game.snacks is game.snacks
+
+
+def test_aim_is_public_intent_but_does_not_consume_snack() -> None:
+    game = locked_game()
+
+    pending = game.aim("p1", 3)
+
+    assert pending.picker == "p1"
+    assert pending.position == 3
+    assert pending.changed is False
+    assert 3 in game.remaining_fries
+    assert game.current_player == "p1"
+
+
+def test_picker_can_change_aim_once_then_must_confirm() -> None:
+    game = locked_game()
+    game.aim("p1", 3)
+
+    changed = game.aim("p1", 4)
+
+    assert changed.position == 4
+    assert changed.changed is True
+    with pytest.raises(RuleError):
+        game.aim("p1", 5)
+
+
+def test_opponent_gesture_becomes_first_bluff_without_recipe_data() -> None:
+    game = locked_game()
+    game.aim("p1", 3)
+
+    own_event = game.send_gesture("p1", "calm")
+    opponent_event = game.send_gesture("p2", "point")
+    game.send_gesture("p2", "laugh")
+
+    assert own_event.key == "calm"
+    assert opponent_event.sequence > own_event.sequence
+    assert game.pending_pick is not None
+    assert game.pending_pick.bluff == "point"
+    assert game.gestures["p2"].key == "laugh"
+
+
+def test_confirm_pick_consumes_final_aimed_snack() -> None:
+    game = locked_game()
+    game.aim("p1", 3)
+    game.aim("p1", 4)
+
+    outcome = game.confirm_pick("p1")
+
+    assert outcome.position == 4
+    assert outcome.kind == "safe"
+    assert 4 not in game.remaining_fries
+    assert game.pending_pick is None
+    assert game.current_player == "p2"
     assert game.last_outcome is outcome
