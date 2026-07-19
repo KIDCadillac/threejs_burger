@@ -1,3 +1,9 @@
+import {
+  REACTION_DURATION_MS,
+  REACTION_PHASES,
+  resolveReactionPlan,
+} from "./reaction-model.mjs";
+
 const FOOD_PATHS = Object.freeze({
   fry: "/static/art/foods/fry.png",
   nugget: "/static/art/foods/nugget.png",
@@ -16,6 +22,60 @@ const MARKUP_ESCAPES = Object.freeze({
 });
 
 let nextInstanceId = 0;
+
+export function createReactionSchedule() {
+  return [
+    ...REACTION_PHASES.map(({ name, at, caption }) => ({
+      phase: name,
+      at,
+      caption,
+    })),
+    { phase: "complete", at: REACTION_DURATION_MS },
+  ];
+}
+
+export function playCharacterReaction(root, sauces, options = {}) {
+  const {
+    scheduleTimeout = window.setTimeout.bind(window),
+    cancelTimeout = window.clearTimeout.bind(window),
+    onPhase = () => {},
+    onComplete = () => {},
+  } = options;
+  const plan = resolveReactionPlan(sauces);
+  const caption = root.querySelector("[data-reaction-caption]");
+  let cancelled = false;
+
+  root.dataset.primaryReaction = plan?.primary ?? "none";
+  root.dataset.primaryIntensity = String(plan?.primaryIntensity ?? 0);
+  root.dataset.secondaryReaction = plan?.secondary ?? "none";
+  root.dataset.secondaryIntensity = String(plan?.secondaryIntensity ?? 0);
+  root.dataset.foodBitten = "false";
+  root.dataset.phase = "notice";
+
+  const handles = createReactionSchedule().map((event) => (
+    scheduleTimeout(() => {
+      if (cancelled) return;
+
+      if (event.phase === "complete") {
+        onComplete();
+        return;
+      }
+
+      root.dataset.phase = event.phase;
+      if (event.phase === "bite") root.dataset.foodBitten = "true";
+      caption.textContent = event.caption;
+      onPhase(event.phase, plan);
+    }, event.at)
+  ));
+
+  return {
+    cancel() {
+      if (cancelled) return;
+      cancelled = true;
+      handles.forEach((handle) => cancelTimeout(handle));
+    },
+  };
+}
 
 function escapeMarkup(value) {
   return String(value ?? "").replace(/[&<>"']/g, (character) => (

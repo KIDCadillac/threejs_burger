@@ -1,8 +1,177 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { characterReactionMarkup } from "../app/static/character-reaction.mjs";
+import * as characterReaction from "../app/static/character-reaction.mjs";
 
+const { characterReactionMarkup } = characterReaction;
+
+function makeReactionHarness() {
+  const caption = { textContent: "initial caption" };
+  const scheduled = [];
+  const cancelled = [];
+  const phases = [];
+  const completions = [];
+  const root = {
+    dataset: {},
+    querySelector(selector) {
+      assert.equal(selector, "[data-reaction-caption]");
+      return caption;
+    },
+  };
+  const options = {
+    scheduleTimeout(callback, at) {
+      const handle = { callback, at };
+      scheduled.push(handle);
+      return handle;
+    },
+    cancelTimeout(handle) {
+      cancelled.push(handle);
+    },
+    onPhase(phase, plan) {
+      phases.push({ phase, plan });
+    },
+    onComplete(plan) {
+      completions.push(plan);
+    },
+  };
+
+  return {
+    root,
+    caption,
+    scheduled,
+    cancelled,
+    phases,
+    completions,
+    options,
+  };
+}
+
+test("the reaction schedule follows model phases and ends at four seconds", () => {
+  const schedule = characterReaction.createReactionSchedule();
+
+  assert.deepEqual(schedule[0], {
+    phase: "notice",
+    at: 0,
+    caption: "看起来还挺正常……",
+  });
+  assert.deepEqual(
+    schedule.find(({ phase }) => phase === "bite"),
+    { phase: "bite", at: 1100, caption: "咔嚓！" },
+  );
+  assert.deepEqual(
+    schedule.find(({ phase }) => phase === "burst"),
+    { phase: "burst", at: 2050, caption: "辣到喷火！" },
+  );
+  assert.deepEqual(schedule.at(-1), { phase: "complete", at: 4000 });
+});
+
+test("playing a mixed recipe initializes the reaction dataset", () => {
+  const { root, options } = makeReactionHarness();
+
+  characterReaction.playCharacterReaction(
+    root,
+    ["mustard", "chili", "chili", "sour"],
+    options,
+  );
+
+  assert.deepEqual(root.dataset, {
+    primaryReaction: "chili",
+    primaryIntensity: "2",
+    secondaryReaction: "mustard",
+    secondaryIntensity: "1",
+    foodBitten: "false",
+    phase: "notice",
+  });
+});
+
+test("the bite event updates the stage and reports its reaction plan", () => {
+  const { root, caption, scheduled, phases, options } = makeReactionHarness();
+  const expectedPlan = {
+    primary: "chili",
+    primaryIntensity: 2,
+    secondary: "mustard",
+    secondaryIntensity: 1,
+  };
+
+  characterReaction.playCharacterReaction(
+    root,
+    ["mustard", "chili", "chili", "sour"],
+    options,
+  );
+  const bite = scheduled.find(({ at }) => at === 1100);
+
+  assert.ok(bite, "bite callback should be scheduled");
+  bite.callback();
+  assert.equal(root.dataset.phase, "bite");
+  assert.equal(root.dataset.foodBitten, "true");
+  assert.equal(caption.textContent, "咔嚓！");
+  assert.deepEqual(phases, [{ phase: "bite", plan: expectedPlan }]);
+});
+
+test("the complete event calls only the completion callback once", () => {
+  const {
+    root,
+    caption,
+    scheduled,
+    phases,
+    completions,
+    options,
+  } = makeReactionHarness();
+
+  characterReaction.playCharacterReaction(root, ["chili"], options);
+  const complete = scheduled.find(({ at }) => at === 4000);
+
+  assert.ok(complete, "complete callback should be scheduled");
+  complete.callback();
+  assert.equal(completions.length, 1);
+  assert.deepEqual(phases, []);
+  assert.equal(root.dataset.phase, "notice");
+  assert.equal(caption.textContent, "initial caption");
+});
+
+test("cancelling clears every timer and invalidates saved callbacks", () => {
+  const {
+    root,
+    caption,
+    scheduled,
+    cancelled,
+    phases,
+    completions,
+    options,
+  } = makeReactionHarness();
+  const playback = characterReaction.playCharacterReaction(
+    root,
+    ["chili"],
+    options,
+  );
+
+  assert.equal(
+    scheduled.length,
+    characterReaction.createReactionSchedule().length,
+  );
+  playback.cancel();
+  playback.cancel();
+
+  assert.deepEqual(cancelled, scheduled);
+  scheduled.forEach(({ callback }) => callback());
+  assert.equal(root.dataset.phase, "notice");
+  assert.equal(root.dataset.foodBitten, "false");
+  assert.equal(caption.textContent, "initial caption");
+  assert.deepEqual(phases, []);
+  assert.deepEqual(completions, []);
+});
+
+test("an empty recipe initializes neutral reaction data without throwing", () => {
+  const { root, options } = makeReactionHarness();
+
+  assert.doesNotThrow(() => {
+    characterReaction.playCharacterReaction(root, [], options);
+  });
+  assert.equal(root.dataset.primaryReaction, "none");
+  assert.equal(root.dataset.primaryIntensity, "0");
+  assert.equal(root.dataset.secondaryReaction, "none");
+  assert.equal(root.dataset.secondaryIntensity, "0");
+});
 
 test("all supported foods render both whole and bitten images", () => {
   for (const snackKind of [
