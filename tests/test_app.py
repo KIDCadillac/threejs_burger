@@ -44,6 +44,28 @@ def test_websocket_create_and_join_room() -> None:
             assert p2_state["phase"] == "mixing"
             assert p1_state["room"]["code"] == p2_state["room"]["code"]
 
+            ws1.send_json(
+                {
+                    "type": "recipe.lock",
+                    "position": 1,
+                    "sauces": ["chili", "mustard"],
+                }
+            )
+            ws1.receive_json()
+            ws2.receive_json()
+            ws2.send_json(
+                {
+                    "type": "recipe.lock",
+                    "position": 7,
+                    "sauces": ["sour", "sticky"],
+                }
+            )
+            turn_for_p1 = ws1.receive_json()
+            turn_for_p2 = ws2.receive_json()
+            assert turn_for_p1["phase"] == "turn"
+            assert turn_for_p2["phase"] == "turn"
+            assert turn_for_p1["deadline"] is not None
+
 
 def test_websocket_rejects_unknown_command_without_closing() -> None:
     isolated_client = TestClient(create_app(GameService()))
@@ -69,3 +91,37 @@ def test_client_declares_private_state_and_four_reactions() -> None:
     assert effects_script.status_code == 200
     for effect in ("chili", "mustard", "sour", "sticky"):
         assert effect in effects_script.text
+
+
+def test_reconnect_broadcasts_resumed_state_to_opponent() -> None:
+    isolated_client = TestClient(create_app(GameService()))
+
+    with isolated_client.websocket_connect("/ws?player=p2") as ws2:
+        ws2.receive_json()
+        with isolated_client.websocket_connect("/ws?player=p1") as ws1:
+            ws1.receive_json()
+            ws1.send_json({"type": "room.create"})
+            code = ws1.receive_json()["room"]["code"]
+            ws2.send_json({"type": "room.join", "code": code})
+            ws2.receive_json()
+            ws1.receive_json()
+            ws1.send_json(
+                {"type": "recipe.lock", "position": 1, "sauces": ["chili", "mustard"]}
+            )
+            ws1.receive_json()
+            ws2.receive_json()
+            ws2.send_json(
+                {"type": "recipe.lock", "position": 7, "sauces": ["sour", "sticky"]}
+            )
+            ws2.receive_json()
+            ws1.receive_json()
+
+        paused = ws2.receive_json()
+        assert paused["paused"] is True
+
+        with isolated_client.websocket_connect("/ws?player=p1") as reconnected:
+            assert reconnected.receive_json()["paused"] is False
+            ws2.send_json({"type": "room.explode"})
+            resumed_for_opponent = ws2.receive_json()
+            assert resumed_for_opponent["type"] == "state"
+            assert resumed_for_opponent["paused"] is False

@@ -3,12 +3,15 @@ from __future__ import annotations
 import secrets
 import time
 from dataclasses import dataclass, field
+from collections.abc import Callable, Sequence
 from typing import Protocol
 
-from app.domain import GameState
+from app.domain import GameState, Phase, PickOutcome
 
 
 INVITE_TTL_SECONDS = 600
+TURN_SECONDS = 20
+RECONNECT_GRACE_SECONDS = 30
 
 
 class Clock(Protocol):
@@ -44,8 +47,14 @@ class QueueResult:
 
 
 class GameService:
-    def __init__(self, *, clock: Clock | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        clock: Clock | None = None,
+        random_choice: Callable[[Sequence[int]], int] | None = None,
+    ) -> None:
         self.clock = clock or SystemClock()
+        self.random_choice = random_choice or secrets.choice
         self.rooms: dict[str, Room] = {}
         self.player_rooms: dict[str, str] = {}
         self.queue: list[str] = []
@@ -117,6 +126,103 @@ class GameService:
         code = self.player_rooms.get(player_id)
         return self.rooms.get(code) if code is not None else None
 
+    def connect(self, player_id: str) -> Room | None:
+        room = self.room_for(player_id)
+        if room is None:
+            return None
+        room.connected.add(player_id)
+        room.disconnected_at.pop(player_id, None)
+        if (
+            room.game is not None
+            and room.game.phase is Phase.TURN
+            and not room.disconnected_at
+        ):
+            room.game.paused = False
+            room.turn_deadline = self.clock.now() + TURN_SECONDS
+        return room
+
+    def disconnect(self, player_id: str) -> Room | None:
+        room = self.room_for(player_id)
+        if room is None:
+            return None
+        room.connected.discard(player_id)
+        room.disconnected_at[player_id] = self.clock.now()
+        if room.game is not None and room.game.phase is Phase.TURN:
+            room.game.paused = True
+            room.turn_deadline = None
+        return room
+
+    def lock_recipe(
+        self, player_id: str, position: int, sauces: Sequence[str]
+    ) -> Room:
+        room = self._started_room(player_id)
+        room.game.lock_recipe(player_id, position, sauces)
+        if room.game.phase is Phase.TURN:
+            room.turn_deadline = self.clock.now() + TURN_SECONDS
+        return room
+
+    def pick(
+        self, player_id: str, position: int, *, automatic: bool = False
+    ) -> PickOutcome:
+        room = self._started_room(player_id)
+        outcome = room.game.pick(player_id, position, automatic=automatic)
+        room.turn_deadline = (
+            self.clock.now() + TURN_SECONDS
+            if room.game.phase is Phase.TURN
+            else None
+        )
+        return outcome
+
+    def request_rematch(self, player_id: str) -> bool:
+        room = self._started_room(player_id)
+        reset = room.game.request_rematch(player_id)
+        room.turn_deadline = None
+        return reset
+
+    def expire_turn(self, room_code: str) -> Room | None:
+        room = self.rooms.get(room_code)
+        if (
+            room is None
+            or room.game is None
+            or room.game.phase is not Phase.TURN
+            or room.game.paused
+            or room.game.current_player is None
+        ):
+            return None
+        options = sorted(room.game.remaining_fries)
+        if not options:
+            return None
+        position = self.random_choice(options)
+        self.pick(room.game.current_player, position, automatic=True)
+        return room
+
+    def tick(self) -> list[Room]:
+        self.cleanup()
+        now = self.clock.now()
+        changed: list[Room] = []
+        for room in list(self.rooms.values()):
+            game = room.game
+            if game is None or game.phase is not Phase.TURN:
+                continue
+            timed_out_players = [
+                player_id
+                for player_id, disconnected_at in room.disconnected_at.items()
+                if now - disconnected_at > RECONNECT_GRACE_SECONDS
+            ]
+            if timed_out_players:
+                game.finish_by_disconnect(timed_out_players[0])
+                room.turn_deadline = None
+                changed.append(room)
+                continue
+            if (
+                not game.paused
+                and room.turn_deadline is not None
+                and now >= room.turn_deadline
+            ):
+                if self.expire_turn(room.code) is not None:
+                    changed.append(room)
+        return changed
+
     def leave(self, player_id: str) -> None:
         self.cancel_queue(player_id)
         room = self.room_for(player_id)
@@ -138,6 +244,14 @@ class GameService:
         ]
         for room in expired:
             self._remove_room(room)
+
+    def _started_room(self, player_id: str) -> Room:
+        room = self.room_for(player_id)
+        if room is None:
+            raise RoomError("你还没有加入房间")
+        if room.game is None:
+            raise RoomError("正在等待另一名玩家")
+        return room
 
     def _require_available(self, player_id: str) -> None:
         if player_id in self.player_rooms:

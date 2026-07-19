@@ -1,3 +1,5 @@
+import asyncio
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 from typing import Any
@@ -41,7 +43,18 @@ class ConnectionHub:
 def create_app(service: GameService | None = None) -> FastAPI:
     game_service = service or GameService()
     hub = ConnectionHub()
-    application = FastAPI(title="Witch Fries Prototype")
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        timer_task = asyncio.create_task(_timer_loop(game_service, hub))
+        try:
+            yield
+        finally:
+            timer_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await timer_task
+
+    application = FastAPI(title="Witch Fries Prototype", lifespan=lifespan)
     application.state.game_service = game_service
     application.state.hub = hub
     application.mount(
@@ -63,10 +76,9 @@ def create_app(service: GameService | None = None) -> FastAPI:
             return
         await socket.accept()
         hub.register(player, socket)
-        room = game_service.room_for(player)
+        room = game_service.connect(player)
         if room is not None:
-            room.connected.add(player)
-            await hub.send(player, serialize_room(room, viewer_id=player))
+            await hub.broadcast_room(room)
         elif player in game_service.queue:
             await hub.send(player, {"type": "matching"})
         else:
@@ -88,9 +100,9 @@ def create_app(service: GameService | None = None) -> FastAPI:
                     )
         except WebSocketDisconnect:
             hub.unregister(player, socket)
-            connected_room = game_service.room_for(player)
+            connected_room = game_service.disconnect(player)
             if connected_room is not None:
-                connected_room.connected.discard(player)
+                await hub.broadcast_room(connected_room)
 
     return application
 
@@ -106,7 +118,7 @@ async def _dispatch(
 
     if kind == "room.create":
         room = service.create_room(player_id)
-        room.connected.add(player_id)
+        service.connect(player_id)
         await hub.broadcast_room(room)
         return
 
@@ -115,7 +127,7 @@ async def _dispatch(
         if not isinstance(code, str):
             raise ProtocolError("请输入六位房间码")
         room = service.join_room(player_id, code)
-        room.connected.add(player_id)
+        service.connect(player_id)
         await hub.broadcast_room(room)
         return
 
@@ -125,7 +137,8 @@ async def _dispatch(
             await hub.send(player_id, {"type": "matching"})
         else:
             room = _require_room(service, player_id)
-            room.connected.update(room.players)
+            for room_player in room.players:
+                service.connect(room_player)
             await hub.broadcast_room(room)
         return
 
@@ -135,22 +148,30 @@ async def _dispatch(
         return
 
     if kind == "recipe.lock":
-        room = _require_started_room(service, player_id)
-        room.game.lock_recipe(
-            player_id, int(payload.get("position")), payload.get("sauces", [])
+        position = payload.get("position")
+        if not isinstance(position, int):
+            raise ProtocolError("请选择一根薯条")
+        sauces = payload.get("sauces", [])
+        if not isinstance(sauces, list):
+            raise ProtocolError("调味料格式无效")
+        room = service.lock_recipe(
+            player_id, position, sauces
         )
         await hub.broadcast_room(room)
         return
 
     if kind == "fry.pick":
+        position = payload.get("position")
+        if not isinstance(position, int):
+            raise ProtocolError("请选择一根薯条")
         room = _require_started_room(service, player_id)
-        room.game.pick(player_id, int(payload.get("position")))
+        service.pick(player_id, position)
         await hub.broadcast_room(room)
         return
 
     if kind == "rematch.request":
         room = _require_started_room(service, player_id)
-        room.game.request_rematch(player_id)
+        service.request_rematch(player_id)
         await hub.broadcast_room(room)
         return
 
@@ -177,3 +198,10 @@ def _require_started_room(service: GameService, player_id: str) -> Room:
 
 
 app = create_app()
+
+
+async def _timer_loop(service: GameService, hub: ConnectionHub) -> None:
+    while True:
+        await asyncio.sleep(0.2)
+        for room in service.tick():
+            await hub.broadcast_room(room)
