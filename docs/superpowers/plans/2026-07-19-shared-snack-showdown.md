@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Upgrade the prototype to a shared mixed-snack board with private deployment animation, server-synchronized bluff/aim interaction, and hit replay with stronger facial reactions.
+**Goal:** Upgrade the prototype to a shared mixed-snack board with private deployment animation, public character gestures that leak no recipe data, server-synchronized bluff/aim interaction, and hit replay with stronger facial reactions.
 
 **Architecture:** Keep FastAPI/WebSocket and the server-authoritative `GameState`. Add public snack metadata and a small pending-pick state machine; keep recipes viewer-private until a hit. Rebuild the client board from server snack metadata and drive setup, bite, reaction, and replay as presentation-only animation stages.
 
@@ -12,7 +12,7 @@
 
 ## File map
 
-- `app/domain.py`: snack layouts, pending-pick rules, bluff validation, confirmed picks and rematch reset.
+- `app/domain.py`: snack layouts, pending-pick rules, safe public gestures, confirmed picks and rematch reset.
 - `app/protocol.py`: viewer-safe serialization for snacks, pending interaction and hit replay.
 - `app/service.py`: confirm aimed picks on timeout.
 - `app/main.py`: dispatch the three new WebSocket commands.
@@ -29,9 +29,9 @@
 
 **Files:** `tests/test_domain.py`, `app/domain.py`
 
-- [ ] Add failing tests proving both players share one snack layout, `aim()` exposes a pending position without consuming it, the opponent can bluff once, the picker can change once, and `confirm_pick()` consumes the final position.
-- [ ] Run `python -m pytest tests/test_domain.py -q` and verify failures mention missing `snacks`, `aim`, `send_bluff`, or `confirm_pick`.
-- [ ] Add `SNACK_LAYOUTS`, `PendingPick`, `GameState.pending_pick`, `aim()`, `send_bluff()`, and `confirm_pick()`; clear pending state inside `pick()`, finish, and rematch.
+- [ ] Add failing tests proving both players share one snack layout, `aim()` exposes a pending position without consuming it, the opponent can send one public gesture as the bluff, the picker can change once, and `confirm_pick()` consumes the final position.
+- [ ] Run `python -m pytest tests/test_domain.py -q` and verify failures mention missing `snacks`, `aim`, `send_gesture`, or `confirm_pick`.
+- [ ] Add `SNACK_LAYOUTS`, `PendingPick`, public gesture state, `GameState.pending_pick`, `aim()`, `send_gesture()`, and `confirm_pick()`; clear pending state inside `pick()`, finish, and rematch.
 - [ ] Run `python -m pytest tests/test_domain.py -q` and verify all domain tests pass.
 
 ### Task 2: Private protocol and timeout behavior
@@ -39,7 +39,7 @@
 **Files:** `tests/test_protocol.py`, `tests/test_service.py`, `app/protocol.py`, `app/service.py`, `app/main.py`
 
 - [ ] Add failing tests asserting `snacks` is shared/public, `pendingPick` contains no recipe, `result.replay` appears only after a hit, and timeout confirms an existing aim.
-- [ ] Add failing WebSocket coverage for `snack.aim`, `bluff.send`, and `snack.confirm` in `tests/test_app.py`.
+- [ ] Add failing WebSocket coverage for `snack.aim`, `gesture.send`, and `snack.confirm` in `tests/test_app.py`.
 - [ ] Run the focused protocol/service/app tests and verify they fail for the missing payload and dispatch behavior.
 - [ ] Serialize snack metadata and hit replay, add service methods, and dispatch validated integer positions and fixed bluff keys.
 - [ ] Run `python -m pytest tests/test_protocol.py tests/test_service.py tests/test_app.py -q` and verify all focused tests pass.
@@ -48,9 +48,9 @@
 
 **Files:** `tests/test_app.py`, `app/static/effects.js`, `app/static/app.js`, `app/static/styles.css`
 
-- [ ] Add failing static-contract tests for six snack types, private deployment stage, bluff controls, confirm control, editor caption, and replay control.
+- [ ] Add failing static-contract tests for six snack types, private deployment stage, opponent-safe setup poses, turn gesture controls, confirm control, editor caption, and replay control.
 - [ ] Run `python -m pytest tests/test_app.py -q` and verify the new assertions fail.
-- [ ] Export snack metadata; render the server-provided shared board; add the local deployment sequence before `recipe.lock`; render pending aim, one-change affordance and opponent bluff buttons.
+- [ ] Export snack metadata; render the server-provided shared board; add the local deployment sequence before `recipe.lock`; render opponent setup poses, pending aim, one-change affordance and gesture buttons.
 - [ ] Add bite suspense, safe micro-feedback, larger three-stage victim face, opponent peek, editor caption, automatic single-item deployment replay, and a replay button.
 - [ ] Run `python -m pytest tests/test_app.py -q` and verify the static and WebSocket tests pass.
 
