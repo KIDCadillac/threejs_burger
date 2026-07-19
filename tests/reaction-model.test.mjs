@@ -74,3 +74,36 @@ test("every reaction phase has a non-empty Chinese caption", () => {
     assert.match(caption, /[\u3400-\u9fff]/, `${name} caption should contain Chinese text`);
   }
 });
+
+test("reaction phase definitions are deeply immutable", () => {
+  assert.ok(Object.isFrozen(REACTION_PHASES), "phase collection should be frozen");
+  for (const phase of REACTION_PHASES) {
+    assert.ok(Object.isFrozen(phase), `${phase.name} phase should be frozen`);
+  }
+});
+
+test("every phase starts at its exact boundary", () => {
+  const expectedPhases = [
+    ["notice", 0],
+    ["reach", 180],
+    ["lift", 520],
+    ["bite", 1100],
+    ["chew", 1350],
+    ["brace", 1800],
+    ["burst", 2050],
+    ["recover", 2750],
+    ["settle", 3600],
+  ];
+
+  expectedPhases.forEach(([name, at], index) => {
+    assert.equal(phaseAt(at).name, name, `${name} should start at ${at}ms`);
+    if (index > 0) {
+      const previousName = expectedPhases[index - 1][0];
+      assert.equal(
+        phaseAt(at - 1).name,
+        previousName,
+        `${previousName} should remain active at ${at - 1}ms`,
+      );
+    }
+  });
+});
