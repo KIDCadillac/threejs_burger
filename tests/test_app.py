@@ -157,6 +157,29 @@ def test_client_declares_private_state_and_four_reactions() -> None:
     assert "🫧" not in effects_script.text
 
 
+def test_client_contains_mixed_snacks_gestures_and_hit_replay() -> None:
+    app_script = client.get("/static/app.js").text
+    effects_script = client.get("/static/effects.js").text
+    styles = client.get("/static/styles.css").text
+
+    assert "export const SNACKS" in effects_script
+    for snack in ("fry", "nugget", "donut", "cookie", "onion-ring", "mochi"):
+        assert f'"{snack}"' in effects_script
+        assert f".snack--{snack}" in styles
+    for marker in (
+        "deployment-stage",
+        "opponent-pose",
+        "gesture-bar",
+        'type: "snack.aim"',
+        'type: "gesture.send"',
+        'type: "snack.confirm"',
+        'data-action="replay-deployment"',
+        "reaction-caption",
+        "deployment-replay",
+    ):
+        assert marker in app_script or marker in styles
+
+
 def test_invite_auto_join_is_not_sent_blindly_on_socket_open() -> None:
     script = client.get("/static/app.js").text
     open_handler = script.split('socket.addEventListener("open"', 1)[1].split(
