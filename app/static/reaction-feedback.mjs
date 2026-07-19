@@ -37,6 +37,35 @@ function resumeSafely(context) {
   }
 }
 
+function suspendSafely(context) {
+  try {
+    if (typeof context?.suspend !== "function") return;
+    const result = context.suspend();
+    if (result && typeof result.catch === "function") result.catch(() => {});
+  } catch {
+    // The poisoned context reference is discarded regardless of suspension.
+  }
+}
+
+function discardPoisonedAudioContext(context) {
+  if (!context) return;
+  if (audioContext === context) audioContext = null;
+  if (resumeContext === context) forgetResumeOperation();
+
+  try {
+    if (typeof context.close !== "function") {
+      suspendSafely(context);
+      return;
+    }
+    const result = context.close();
+    if (result && typeof result.catch === "function") {
+      result.catch(() => suspendSafely(context));
+    }
+  } catch {
+    suspendSafely(context);
+  }
+}
+
 export function primeReactionAudio(options = {}) {
   const hasExplicitClass = Object.hasOwn(options, "AudioContextClass");
   const AudioContextClass = hasExplicitClass
@@ -124,6 +153,7 @@ function playTone(context, {
           // Disconnecting below still makes a broken source inaudible.
         }
         disconnectNodes();
+        discardPoisonedAudioContext(context);
       }
     }
   } catch {

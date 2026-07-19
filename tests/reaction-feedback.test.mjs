@@ -11,6 +11,8 @@ function fakeAudioContext({
   throwOnOscillator = false,
   throwOnStart = false,
   stopFailures = 0,
+  closeRejects = false,
+  onStopAttempt = () => {},
 } = {}) {
   const events = [];
   const oscillators = [];
@@ -20,8 +22,22 @@ function fakeAudioContext({
     currentTime: 4,
     destination: {},
     resumeCalls: 0,
+    closeCalls: 0,
+    suspendCalls: 0,
     resume() {
       this.resumeCalls += 1;
+      return Promise.resolve();
+    },
+    close() {
+      this.closeCalls += 1;
+      events.push(["context-close"]);
+      return closeRejects
+        ? Promise.reject(new Error("close unavailable"))
+        : Promise.resolve();
+    },
+    suspend() {
+      this.suspendCalls += 1;
+      events.push(["context-suspend"]);
       return Promise.resolve();
     },
     createOscillator() {
@@ -58,6 +74,7 @@ function fakeAudioContext({
             throw error;
           }
           this.stopAttempts += 1;
+          onStopAttempt(this.stopAttempts);
           if (this.stopAttempts <= stopFailures) throw new Error("stop unavailable");
           this.stopped = true;
           events.push(["stop", at]);
@@ -224,19 +241,93 @@ test("a failed scheduled stop retries an immediate finite stop", () => {
   );
 });
 
-test("a permanently failing stop is muted and disconnected", () => {
-  const { context, events, oscillators, gains } = fakeAudioContext({
+test("a permanently failing stop poisons the current context and rebuilds later", async () => {
+  const oldAudio = fakeAudioContext({
     stopFailures: Number.POSITIVE_INFINITY,
   });
+  const replacement = fakeAudioContext();
+  const contexts = [oldAudio.context, replacement.context];
+  let constructions = 0;
+  class RebuiltAudioContext {
+    constructor() {
+      constructions += 1;
+      return contexts.shift();
+    }
+  }
 
-  handleReactionFeedback("bite", null, { audioContext: context });
+  primeReactionAudio({ AudioContextClass: RebuiltAudioContext, forceNew: true });
+  handleReactionFeedback("bite", null);
+  await Promise.resolve();
 
-  assert.equal(oscillators[0].started, true);
-  assert.equal(oscillators[0].stopped, false);
-  assert.equal(oscillators[0].disconnected, true);
-  assert.equal(gains[0].disconnected, true);
-  assert.ok(events.some(([name]) => name === "gain-cancel"));
-  assert.ok(events.some(([name, value]) => name === "gain" && value === 0.0001));
+  assert.equal(oldAudio.context.closeCalls, 1);
+  assert.equal(oldAudio.oscillators[0].disconnected, true);
+  assert.equal(oldAudio.gains[0].disconnected, true);
+  assert.ok(oldAudio.events.some(([name]) => name === "gain-cancel"));
+  assert.ok(oldAudio.events.some(
+    ([name, value]) => name === "gain" && value === 0.0001,
+  ));
+  assert.equal(
+    primeReactionAudio({ AudioContextClass: RebuiltAudioContext }),
+    replacement.context,
+  );
+  assert.equal(constructions, 2);
+});
+
+test("a rejected poisoned-context close falls back to suspend", async () => {
+  const oldAudio = fakeAudioContext({
+    stopFailures: Number.POSITIVE_INFINITY,
+    closeRejects: true,
+  });
+  const replacement = fakeAudioContext();
+  const contexts = [oldAudio.context, replacement.context];
+  class RebuiltAudioContext {
+    constructor() {
+      return contexts.shift();
+    }
+  }
+
+  primeReactionAudio({ AudioContextClass: RebuiltAudioContext, forceNew: true });
+  handleReactionFeedback("bite", null);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(oldAudio.context.closeCalls, 1);
+  assert.equal(oldAudio.context.suspendCalls, 1);
+  assert.equal(
+    primeReactionAudio({ AudioContextClass: RebuiltAudioContext }),
+    replacement.context,
+  );
+});
+
+test("poisoning an old context never clears a concurrently installed replacement", () => {
+  let replaceDuringStop = () => {};
+  const oldAudio = fakeAudioContext({
+    stopFailures: Number.POSITIVE_INFINITY,
+    onStopAttempt: () => replaceDuringStop(),
+  });
+  const replacement = fakeAudioContext();
+  const contexts = [oldAudio.context, replacement.context];
+  let constructions = 0;
+  class RacingAudioContext {
+    constructor() {
+      constructions += 1;
+      return contexts.shift();
+    }
+  }
+  let replaced = false;
+  replaceDuringStop = () => {
+    if (replaced) return;
+    replaced = true;
+    primeReactionAudio({ AudioContextClass: RacingAudioContext, forceNew: true });
+  };
+
+  primeReactionAudio({ AudioContextClass: RacingAudioContext, forceNew: true });
+  handleReactionFeedback("bite", null);
+
+  assert.equal(
+    primeReactionAudio({ AudioContextClass: RacingAudioContext }),
+    replacement.context,
+  );
+  assert.equal(constructions, 2);
 });
 
 test("chili burst has a stronger finite sound and segmented vibration", () => {
