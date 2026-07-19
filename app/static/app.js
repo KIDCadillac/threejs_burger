@@ -306,7 +306,7 @@ function renderFinished(state) {
 }
 
 function gameHeader(state, label) {
-  return `<header class="game-header"><div><span class="game-header__brand">🍽️ 女巫毒药</span><small>${label}</small></div><span class="room-chip">#${state.room.code}</span></header>`;
+  return `<header class="game-header"><div class="game-header__identity"><span class="game-header__brand">🍽️ 女巫毒药</span><small>${label}</small></div><div class="game-header__tools"><span class="room-chip">#${state.room.code}</span><button class="game-header__leave" type="button" data-action="leave-room" aria-label="退出本局">退出</button></div></header>`;
 }
 
 function playerRibbon(state) {

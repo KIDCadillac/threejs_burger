@@ -277,3 +277,13 @@ def test_client_offers_practice_from_home_and_matching() -> None:
     assert "单人练习" in script
     assert "没人？和电脑玩" in script
     assert "电脑女巫" in script
+
+
+def test_game_header_offers_a_leave_action_during_play() -> None:
+    script = client.get("/static/app.js").text
+    header_source = script.split("function gameHeader", 1)[1].split(
+        "function playerRibbon", 1
+    )[0]
+
+    assert 'data-action="leave-room"' in header_source
+    assert "退出本局" in header_source
