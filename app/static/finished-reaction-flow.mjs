@@ -2,6 +2,7 @@ export function createFinishedReactionFlow(options) {
   const {
     querySelector,
     playReaction,
+    onReactionPhase = () => {},
     scheduleTimeout = globalThis.setTimeout.bind(globalThis),
     cancelTimeout = globalThis.clearTimeout.bind(globalThis),
   } = options;
@@ -110,7 +111,7 @@ export function createFinishedReactionFlow(options) {
 
     setResultVisibility(false);
     playback = playReaction(stage, sauces, {
-      onPhase: () => {},
+      onPhase: onReactionPhase,
       onComplete: () => {
         playback = null;
         showReplayAndResult(false);

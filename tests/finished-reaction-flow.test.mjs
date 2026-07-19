@@ -70,6 +70,7 @@ function fixture() {
   const timers = [];
   const frames = [];
   const playbacks = [];
+  const reactionPhases = [];
   const flow = createFinishedReactionFlow({
     querySelector: (selector) => elements.get(selector) ?? null,
     playReaction: (root, sauces, options) => {
@@ -101,10 +102,36 @@ function fixture() {
     cancelFrame: (handle) => {
       handle.cancelled = true;
     },
+    onReactionPhase: (phase, plan) => reactionPhases.push({ phase, plan }),
   });
 
-  return { flow, stageContainer, stage, replay, result, timers, frames, playbacks };
+  return {
+    flow,
+    stageContainer,
+    stage,
+    replay,
+    result,
+    timers,
+    frames,
+    playbacks,
+    reactionPhases,
+  };
 }
+
+test("fresh playback and replay both forward phase feedback", () => {
+  const { flow, playbacks, reactionPhases } = fixture();
+  const plan = { primary: "chili", primaryIntensity: 2 };
+
+  flow.beginOutcome("round-1", ["chili", "chili"], { snackKind: "nugget" });
+  playbacks[0].options.onPhase("bite", plan);
+  flow.replay(["chili", "chili"], { snackKind: "nugget" });
+  playbacks[1].options.onPhase("burst", plan);
+
+  assert.deepEqual(reactionPhases, [
+    { phase: "bite", plan },
+    { phase: "burst", plan },
+  ]);
+});
 
 test("same-outcome websocket updates preserve the mounted playback", () => {
   const { flow, playbacks } = fixture();

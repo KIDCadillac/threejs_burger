@@ -547,3 +547,29 @@ def test_finished_result_focus_state_and_shared_giggle_animation_are_preserved()
         "replaceApp(`"
     )
     assert "@keyframes giggle" in styles
+
+
+def test_reaction_feedback_is_optional_phase_driven_and_wired_to_user_gestures() -> None:
+    feedback = client.get("/static/reaction-feedback.mjs")
+    script = client.get("/static/app.js").text
+    flow = client.get("/static/finished-reaction-flow.mjs").text
+
+    assert feedback.status_code == 200
+    assert feedback.headers["content-type"].startswith("text/javascript")
+    for marker in (
+        "primeReactionAudio",
+        "handleReactionFeedback",
+        'phase === "bite"',
+        'phase === "burst"',
+        'plan?.primary === "chili"',
+        "vibrate",
+    ):
+        assert marker in feedback.text
+
+    assert 'from "/static/reaction-feedback.mjs"' in script
+    assert "primeReactionAudio" in script
+    assert "handleReactionFeedback" in script
+    assert 'app.addEventListener("pointerdown"' in script
+    assert 'app.addEventListener("click"' in script
+    assert "onReactionPhase: handleReactionFeedback" in script
+    assert "onReactionPhase" in flow

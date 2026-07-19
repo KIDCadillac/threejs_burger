@@ -4,6 +4,10 @@ import {
   playCharacterReaction,
 } from "/static/character-reaction.mjs";
 import { createFinishedReactionFlow } from "/static/finished-reaction-flow.mjs";
+import {
+  handleReactionFeedback,
+  primeReactionAudio,
+} from "/static/reaction-feedback.mjs";
 import { inviteFriend } from "/static/platform.js";
 
 const app = document.querySelector("#app");
@@ -32,6 +36,7 @@ let gestureLockedUntil = 0;
 const finishedReactionFlow = createFinishedReactionFlow({
   querySelector: (selector) => document.querySelector(selector),
   playReaction: playCharacterReaction,
+  onReactionPhase: handleReactionFeedback,
 });
 
 const GESTURES = Object.freeze({
@@ -595,6 +600,7 @@ function finishSauceDrag(event) {
 }
 
 app.addEventListener("pointerdown", (event) => {
+  primeReactionAudio();
   const source = event.target.closest(".sauce-button");
   if (!source || source.disabled || !deploymentOpened || selectedSauces.length >= MAX_SAUCES) return;
   event.preventDefault();
@@ -617,6 +623,7 @@ window.addEventListener("pointercancel", (event) => {
 });
 
 app.addEventListener("click", async (event) => {
+  primeReactionAudio();
   const target = event.target.closest("[data-action]");
   if (!target || target.disabled) return;
   const action = target.dataset.action;
