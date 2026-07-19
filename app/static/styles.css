@@ -133,7 +133,11 @@ h1 { margin: 0; font-size: clamp(2.2rem, 10vw, 3.25rem); line-height: 1; letter-
 .button:hover { filter: brightness(1.06); transform: translateY(-1px); }
 .button:active { transform: translateY(1px) scale(0.99); }
 .button__icon { font-size: 1.15rem; }
+.button__copy { display: grid; gap: 0.12rem; text-align: left; }
+.button__copy strong { font-size: 1rem; }
+.button__copy small { color: rgba(255, 244, 216, 0.72); font-size: 0.7rem; font-weight: 700; }
 .button--primary { background: linear-gradient(135deg, var(--tomato), var(--tomato-dark)); box-shadow: 0 12px 28px rgba(217, 54, 66, 0.34); }
+.button--practice { border: 1px solid rgba(255, 201, 64, 0.48); background: linear-gradient(135deg, #7048d8, #9c72ff 58%, #c15fb8); box-shadow: 0 12px 30px rgba(112, 72, 216, 0.36); }
 .button--secondary { border: 1px solid rgba(255, 201, 64, 0.42); background: linear-gradient(135deg, rgba(255, 201, 64, 0.19), rgba(156, 114, 255, 0.16)); }
 .button--small { min-width: 5rem; min-height: 2.9rem; background: var(--mustard); color: var(--ink); }
 .button--ghost { margin-top: 1rem; border: 1px solid var(--line); background: rgba(255,255,255,0.045); color: var(--cream-muted); }
@@ -167,6 +171,8 @@ h1 { margin: 0; font-size: clamp(2.2rem, 10vw, 3.25rem); line-height: 1; letter-
 .search-orbit i { position: absolute; inset: -0.45rem; border: 3px solid transparent; border-top-color: var(--lake); border-radius: 50%; animation: spin 1.2s linear infinite; }
 
 .player-slots { display: flex; width: 100%; align-items: center; justify-content: center; gap: 0.8rem; margin: 1rem 0; }
+.matching-actions { display: grid; width: 100%; gap: 0.65rem; }
+.matching-actions .button--ghost { margin-top: 0; }
 .player-slot { display: grid; width: 7rem; min-height: 6.8rem; place-items: center; align-content: center; gap: 0.5rem; border: 1px solid var(--line); border-radius: 1.25rem; background: var(--card); }
 .player-slot--me { border-color: rgba(255, 90, 79, 0.42); }
 .player-slot--search { border-style: dashed; color: var(--cream-muted); }

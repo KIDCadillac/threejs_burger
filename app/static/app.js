@@ -124,6 +124,7 @@ function renderHome() {
       <p class="subtitle">零食乱斗篇</p>
       <p class="tagline">同一盘零食，各自秘密埋伏。</p>
       <div class="home-actions">
+        <button class="button button--practice" type="button" data-action="start-practice"><span class="button__icon">🧙</span><span class="button__copy"><strong>单人练习</strong><small>立即对战电脑女巫</small></span></button>
         <button class="button button--primary" type="button" data-action="quick-match"><span class="button__icon">⚡</span><span>快速匹配</span></button>
         <button class="button button--secondary" type="button" data-action="create-room"><span class="button__icon">✦</span><span>邀请好友</span></button>
       </div>
@@ -149,7 +150,10 @@ function renderMatching() {
         <span class="versus">VS</span>
         <div class="player-slot player-slot--search"><span class="dot-pulse">···</span><strong>搜索中</strong></div>
       </div>
-      <button class="button button--ghost" type="button" data-action="cancel-match">取消匹配</button>
+      <div class="matching-actions">
+        <button class="button button--practice" type="button" data-action="start-practice"><span class="button__icon">🧙</span><span class="button__copy"><strong>没人？和电脑玩</strong><small>不用等待，立即开局</small></span></button>
+        <button class="button button--ghost" type="button" data-action="cancel-match">取消匹配</button>
+      </div>
     </section>`;
 }
 
@@ -309,7 +313,9 @@ function playerRibbon(state) {
   return `<div class="player-ribbon">${state.players.map((player, index) => {
     const isMe = player.id === state.me;
     const current = state.currentPlayer === player.id;
-    return `<div class="ribbon-player ribbon-player--${index} ${current ? "is-current" : ""}"><span class="ribbon-face">${index === 0 ? "●ᴗ●" : "●▽●"}</span><div><strong>${isMe ? "你" : "对手"}</strong><small>${player.ready ? "已调制" : "调制中"}${player.online === false ? " · 离线" : ""}</small></div></div>`;
+    const name = isMe ? "你" : player.computer ? (player.name ?? "电脑女巫") : "对手";
+    const offline = player.online === false && !player.computer ? " · 离线" : "";
+    return `<div class="ribbon-player ribbon-player--${index} ${current ? "is-current" : ""}"><span class="ribbon-face">${player.computer ? "🧙" : index === 0 ? "●ᴗ●" : "●▽●"}</span><div><strong>${name}</strong><small>${player.ready ? "已调制" : "调制中"}${offline}</small></div></div>`;
   }).join('<span class="ribbon-vs">VS</span>')}</div>`;
 }
 
@@ -509,6 +515,7 @@ app.addEventListener("click", async (event) => {
   if (!target || target.disabled) return;
   const action = target.dataset.action;
 
+  if (action === "start-practice") send({ type: "practice.start" });
   if (action === "quick-match") send({ type: "match.join" });
   if (action === "create-room") send({ type: "room.create" });
   if (action === "cancel-match") send({ type: "match.cancel" });

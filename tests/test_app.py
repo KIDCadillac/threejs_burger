@@ -265,3 +265,15 @@ def test_removed_tick_room_returns_connected_players_home() -> None:
 
     assert hub.sent == [("p1", {"type": "home"})]
     assert hub.broadcasted == []
+
+
+def test_client_offers_practice_from_home_and_matching() -> None:
+    page = client.get("/").text
+    script = client.get("/static/app.js").text
+
+    assert 'data-action="start-practice"' in page
+    assert script.count('data-action="start-practice"') >= 2
+    assert 'type: "practice.start"' in script
+    assert "单人练习" in script
+    assert "没人？和电脑玩" in script
+    assert "电脑女巫" in script
