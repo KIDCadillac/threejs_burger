@@ -1,17 +1,39 @@
 let audioContext = null;
+let resumeContext = null;
+let resumeOperation = null;
 
-function swallowAsyncFailure(value) {
-  if (value && typeof value.catch === "function") value.catch(() => {});
+function forgetResumeOperation() {
+  resumeContext = null;
+  resumeOperation = null;
 }
 
 function resumeSafely(context) {
-  if (!context || context.state !== "suspended" || typeof context.resume !== "function") {
-    return;
+  if (
+    !context
+    || context.state === "running"
+    || context.state === "closed"
+    || typeof context.resume !== "function"
+  ) {
+    return null;
   }
+  if (resumeContext === context && resumeOperation) return resumeOperation;
+
   try {
-    swallowAsyncFailure(context.resume());
+    const result = context.resume();
+    if (!result || typeof result.then !== "function") return null;
+
+    let trackedOperation;
+    trackedOperation = Promise.resolve(result)
+      .catch(() => {})
+      .finally(() => {
+        if (resumeOperation === trackedOperation) forgetResumeOperation();
+      });
+    resumeContext = context;
+    resumeOperation = trackedOperation;
+    return trackedOperation;
   } catch {
     // Audio feedback is optional; browsers may reject resume outside a gesture.
+    return null;
   }
 }
 
@@ -24,6 +46,7 @@ export function primeReactionAudio(options = {}) {
 
   try {
     if (options.forceNew || !audioContext || audioContext.state === "closed") {
+      forgetResumeOperation();
       audioContext = new AudioContextClass();
     }
     resumeSafely(audioContext);
@@ -40,10 +63,12 @@ function playTone(context, {
   type,
   gain,
 }) {
-  if (!context || context.state === "closed") return;
+  if (!context || context.state !== "running") {
+    resumeSafely(context);
+    return;
+  }
 
   try {
-    resumeSafely(context);
     const now = Number.isFinite(context.currentTime) ? context.currentTime : 0;
     const oscillator = context.createOscillator();
     const volume = context.createGain();
@@ -61,8 +86,20 @@ function playTone(context, {
     volume.gain.exponentialRampToValueAtTime(0.0001, now + duration);
     oscillator.connect(volume);
     volume.connect(context.destination);
-    oscillator.start(now);
+    oscillator.onended = () => {
+      try {
+        oscillator.disconnect();
+      } catch {
+        // A partial Web Audio implementation may omit disconnect().
+      }
+      try {
+        volume.disconnect();
+      } catch {
+        // The node is already finite; cleanup remains best-effort.
+      }
+    };
     oscillator.stop(now + duration);
+    oscillator.start(now);
   } catch {
     // Some embedded browsers expose partial Web Audio implementations.
   }
