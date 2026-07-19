@@ -149,6 +149,18 @@ test("body and head phases have continuous transform endpoints", () => {
   )?.[1].trim();
   assert.match(chewHeadAnimation ?? "", /\b2 both$/);
 
+  const chewMouthRule = cssRules.find(({ selector }) => (
+    selector === '.character-reaction[data-phase="chew"] .rig-mouth--open'
+  ));
+  const chewMouthAnimation = chewMouthRule?.declarations.match(
+    /\banimation:\s*([^;]+);/,
+  )?.[1].trim();
+  assert.match(chewMouthAnimation ?? "", /\b2 both$/);
+  assert.equal(
+    keyframeTransformAt("reaction-chew", "100%"),
+    keyframeTransformAt("reaction-chew", "0%"),
+  );
+
   const biteEnd = keyframeTransformAt("reaction-head-bite", "100%");
   const chewStart = keyframeTransformAt("reaction-head-chew", "0%");
   const chewEnd = keyframeTransformAt("reaction-head-chew", "100%");

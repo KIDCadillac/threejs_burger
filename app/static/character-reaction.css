@@ -341,7 +341,7 @@
 }
 
 .character-reaction[data-phase="chew"] .rig-mouth--open {
-  animation: reaction-chew 210ms ease-in-out 2;
+  animation: reaction-chew 210ms ease-in-out 2 both;
 }
 
 .character-reaction[data-phase="brace"] [data-bone="torso"] {
