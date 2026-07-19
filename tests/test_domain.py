@@ -17,15 +17,34 @@ def test_create_requires_exactly_two_distinct_players() -> None:
         GameState.create("ROOM01", ["p1", "p1"], first_player="p1")
 
 
-def test_recipe_requires_valid_position_and_two_known_sauces() -> None:
+def test_recipe_requires_valid_position_and_known_sauces() -> None:
     game = GameState.create("ROOM01", ["p1", "p2"], first_player="p1")
 
     with pytest.raises(RuleError, match="薯条位置无效"):
         game.lock_recipe("p1", 12, ("chili", "mustard"))
-    with pytest.raises(RuleError, match="必须选择两份调味料"):
-        game.lock_recipe("p1", 1, ("chili",))
+    with pytest.raises(RuleError, match="必须选择 1 到 4 份调味料"):
+        game.lock_recipe("p1", 1, ())
+    with pytest.raises(RuleError, match="必须选择 1 到 4 份调味料"):
+        game.lock_recipe("p1", 1, ("chili", "mustard", "sour", "sticky", "chili"))
     with pytest.raises(RuleError, match="未知调味料"):
         game.lock_recipe("p1", 1, ("chili", "pepper"))
+
+
+def test_recipe_accepts_one_to_four_ordered_sauces() -> None:
+    one = GameState.create("ONE", ["p1", "p2"], first_player="p1")
+    one.lock_recipe("p1", 0, ("chili",))
+    assert one.players["p1"].recipe is not None
+    assert one.players["p1"].recipe.sauces == ("chili",)
+
+    four = GameState.create("FOUR", ["p1", "p2"], first_player="p1")
+    four.lock_recipe("p1", 0, ("chili", "mustard", "sour", "sticky"))
+    assert four.players["p1"].recipe is not None
+    assert four.players["p1"].recipe.sauces == (
+        "chili",
+        "mustard",
+        "sour",
+        "sticky",
+    )
 
 
 def test_both_recipes_move_game_into_turn_phase() -> None:

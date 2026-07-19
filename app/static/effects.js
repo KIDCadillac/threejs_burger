@@ -31,11 +31,11 @@ export const REACTIONS = Object.freeze({
 
 export const SNACKS = Object.freeze({
   "fry": { label: "薯条", emoji: "🍟" },
-  "nugget": { label: "鸡块", emoji: "🍗" },
+  "nugget": { label: "汉堡", emoji: "🍔" },
   "donut": { label: "甜甜圈", emoji: "🍩" },
   "cookie": { label: "曲奇", emoji: "🍪" },
-  "onion-ring": { label: "洋葱圈", emoji: "🧅" },
-  "mochi": { label: "糯米团", emoji: "🍡" },
+  "onion-ring": { label: "三明治", emoji: "🥪" },
+  "mochi": { label: "果冻", emoji: "🍮" },
 });
 
 export function reactionFor(key) {

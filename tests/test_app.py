@@ -333,3 +333,28 @@ def test_home_page_defines_an_inline_favicon() -> None:
 
     assert 'rel="icon"' in page
     assert 'href="data:image/svg+xml,' in page
+
+
+def test_realistic_food_assets_are_served_and_rendered() -> None:
+    for kind in ("fry", "nugget", "donut", "cookie", "onion-ring", "mochi"):
+        response = client.get(f"/static/art/foods/{kind}.png")
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "image/png"
+
+    assert "snack-piece__image" in client.get("/static/app.js").text
+
+
+def test_client_supports_pointer_drag_and_four_sauce_layers() -> None:
+    script = client.get("/static/app.js").text
+    styles = client.get("/static/styles.css").text
+
+    for marker in (
+        "MAX_SAUCES = 4",
+        "pointerdown",
+        "pointermove",
+        "pointerup",
+        "sauce-drag-ghost",
+        "food-drop-target",
+        "sauce-layer--3",
+    ):
+        assert marker in script or marker in styles

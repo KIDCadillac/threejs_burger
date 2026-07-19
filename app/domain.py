@@ -53,7 +53,7 @@ class RuleError(ValueError):
 @dataclass(frozen=True, slots=True)
 class Recipe:
     position: int
-    sauces: tuple[str, str]
+    sauces: tuple[str, ...]
 
 
 @dataclass(slots=True)
@@ -141,12 +141,12 @@ class GameState:
             raise RuleError("薯条位置无效")
 
         sauce_tuple = tuple(sauces)
-        if len(sauce_tuple) != 2:
-            raise RuleError("必须选择两份调味料")
+        if not 1 <= len(sauce_tuple) <= 4:
+            raise RuleError("必须选择 1 到 4 份调味料")
         if any(sauce not in SAUCES for sauce in sauce_tuple):
             raise RuleError("包含未知调味料")
 
-        player.recipe = Recipe(position=position, sauces=(sauce_tuple[0], sauce_tuple[1]))
+        player.recipe = Recipe(position=position, sauces=sauce_tuple)
         player.poison_active = True
 
         if all(candidate.recipe is not None for candidate in self.players.values()):

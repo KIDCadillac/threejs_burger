@@ -13,6 +13,9 @@ let autoJoinSent = false;
 let selectedFry = null;
 let selectedSauces = [];
 let deploymentOpened = false;
+const MAX_SAUCES = 4;
+let sauceDrag = null;
+let ignoreSauceClickUntil = 0;
 let activeRound = null;
 let countdownHandle = null;
 let reactionHandles = [];
@@ -180,7 +183,7 @@ function renderWaitingRoom(state) {
 function renderMixing(state) {
   const selectedSnack = selectedFry === null ? null : state.snacks?.[selectedFry];
   const snackKind = selectedSnack?.kind ?? "fry";
-  const canLock = selectedFry !== null && deploymentOpened && selectedSauces.length === 2;
+  const canLock = selectedFry !== null && deploymentOpened && selectedSauces.length >= 1 && selectedSauces.length <= MAX_SAUCES;
   app.innerHTML = `
     <section class="screen game-screen mixing-screen immersive-game-screen">
       ${gameHeader(state, "秘密调制")}
@@ -198,26 +201,26 @@ function renderMixing(state) {
         <div class="deployment-steps" aria-label="部署步骤">
           ${deploymentStep("1", "选食物", selectedFry !== null, selectedFry === null)}
           ${deploymentStep("2", "切开/打开", deploymentOpened, selectedFry !== null && !deploymentOpened)}
-          ${deploymentStep("3", "放调料", selectedSauces.length === 2, deploymentOpened && selectedSauces.length < 2)}
+          ${deploymentStep("3", "放调料", selectedSauces.length >= 1, deploymentOpened && selectedSauces.length < MAX_SAUCES)}
           ${deploymentStep("4", "合回去", false, canLock)}
         </div>
         ${snackBoard(state, { action: "select-snack", secretPosition: selectedFry, interactive: true })}
-        ${selectedFry === null ? "" : `<section class="food-operation ${deploymentOpened ? "food-operation--open" : ""}" aria-label="食物操作区">
+        ${selectedFry === null ? "" : `<section class="food-operation food-drop-target ${deploymentOpened ? "food-operation--open" : ""}" aria-label="食物操作区">
           <div class="food-operation__board">
             <span class="food-operation__knife" aria-hidden="true"></span>
-            <div class="food-operation__food">${snackPiece(snackKind, true)}<i class="food-seam"></i><i class="food-filling"></i></div>
+            <div class="food-operation__food">${snackPiece(snackKind, true)}<i class="food-seam"></i><i class="food-filling"></i>${selectedSauces.map((key, index) => `<i class="sauce-layer sauce-layer--${index} sauce-layer--${key}"></i>`).join("")}</div>
             <div class="food-operation__hand food-operation__hand--left" aria-hidden="true"></div>
             <div class="food-operation__hand food-operation__hand--right" aria-hidden="true"></div>
           </div>
-          <div class="food-operation__copy"><strong>${deploymentOpened ? `${snackFor(snackKind).label}已经打开` : openInstruction(snackKind)}</strong><small>${deploymentOpened ? "现在把调料挤进里面，外面看不出来" : "点击后会露出内部夹层"}</small></div>
+          <div class="food-operation__copy"><strong>${deploymentOpened ? `${snackFor(snackKind).label}已经打开` : openInstruction(snackKind)}</strong><small>${deploymentOpened ? "按住调料瓶拖到食物内部，松手才会加入" : "点击后会露出内部夹层"}</small></div>
           ${deploymentOpened ? "" : `<button class="button button--open-food" type="button" data-action="open-snack">${openInstruction(snackKind)}</button>`}
         </section>`}
       </div>
       <section class="sauce-lab sauce-rack ${deploymentOpened ? "sauce-rack--ready" : ""}" aria-labelledby="sauce-title">
-        <div class="section-heading"><h2 id="sauce-title">${deploymentOpened ? "往食物里面放两份调料" : "先把食物打开"}</h2><span>${selectedSauces.length}/2</span></div>
+        <div class="section-heading"><h2 id="sauce-title">${deploymentOpened ? "拖入 1～4 份调料" : "先把食物打开"}</h2><span>${selectedSauces.length}/${MAX_SAUCES}</span></div>
         <div class="sauce-grid">${Object.entries(REACTIONS).map(([key, effect]) => sauceButton(key, effect, deploymentOpened)).join("")}</div>
         <div class="recipe-slots" aria-label="当前配方">
-          ${[0, 1].map((index) => recipeSlot(index, selectedSauces[index])).join("")}
+          ${Array.from({ length: MAX_SAUCES }, (_, index) => recipeSlot(index, selectedSauces[index])).join("")}
         </div>
       </section>
       <button class="button button--primary lock-button" type="button" data-action="lock-recipe" ${canLock ? "" : "disabled"}>合上食物，完成伪装</button>
@@ -379,8 +382,8 @@ function tutorialCoach(state, phase) {
   if (state.room?.mode !== "practice" || localStorage.getItem("witch-food-tutorial") === "done") return "";
   let copy = "先点公共餐台上的一件食物。你和电脑看到的是同一盘。";
   if (phase === "mixing" && selectedFry !== null && !deploymentOpened) copy = "很好。现在把食物切开或打开，调料要藏在内部。";
-  if (phase === "mixing" && deploymentOpened && selectedSauces.length < 2) copy = "选择两份调料。电脑看不到食物和调料，只看得到你的表情。";
-  if (phase === "mixing" && selectedSauces.length === 2) copy = "最后把食物合回去伪装，桌面上不会留下提示。";
+  if (phase === "mixing" && deploymentOpened && selectedSauces.length < 1) copy = "按住调料瓶拖进食物里；可以加入一到四份，电脑看不到配方。";
+  if (phase === "mixing" && selectedSauces.length >= 1) copy = "已经可以完成伪装，也可以继续拖入调料，最多四份。";
   if (phase === "turn") copy = "先点一件零食试探电脑；观察它的动作后，再确认是否真的吃下。";
   return `<aside class="tutorial-coach"><span class="tutorial-coach__witch">🧙</span><div><strong>首局边玩边学</strong><p>${copy}</p></div><button type="button" data-action="skip-tutorial">跳过</button></aside>`;
 }
@@ -408,12 +411,12 @@ function snackBoard(state, { action, secretPosition = null, aimedPosition = null
 }
 
 function snackPiece(kind, large = false) {
-  return `<span class="snack-piece snack--${kind} ${large ? "snack-piece--large" : ""}" aria-hidden="true"><i></i><i></i><i></i></span>`;
+  return `<span class="snack-piece snack-piece--art snack--${kind} ${large ? "snack-piece--large" : ""}" aria-hidden="true"><img class="snack-piece__image" src="/static/art/foods/${kind}.png" alt=""><i></i><i></i><i></i></span>`;
 }
 
 function sauceButton(key, effect, enabled = true) {
   const count = selectedSauces.filter((sauce) => sauce === key).length;
-  return `<button class="sauce-button sauce-button--${key}" type="button" data-action="select-sauce" data-sauce="${key}" ${!enabled || selectedSauces.length >= 2 ? "disabled" : ""}><span>${effect.emoji}</span><strong>${effect.shortLabel}</strong>${count ? `<i>${count}</i>` : ""}</button>`;
+  return `<button class="sauce-button sauce-button--${key}" type="button" data-action="select-sauce" data-sauce="${key}" aria-label="按住拖动${effect.shortLabel}到食物" ${!enabled || selectedSauces.length >= MAX_SAUCES ? "disabled" : ""}><span>${effect.emoji}</span><strong>${effect.shortLabel}</strong>${count ? `<i>${count}</i>` : ""}</button>`;
 }
 
 function recipeSlot(index, key) {
@@ -441,7 +444,7 @@ function renderPrivateDeployment(state, position, sauces) {
 }
 
 function startPrivateDeployment(state) {
-  if (selectedFry === null || !deploymentOpened || selectedSauces.length !== 2 || deploymentPlaying) return;
+  if (selectedFry === null || !deploymentOpened || selectedSauces.length < 1 || selectedSauces.length > MAX_SAUCES || deploymentPlaying) return;
   deploymentPlaying = true;
   const position = selectedFry;
   const sauces = [...selectedSauces];
@@ -471,9 +474,9 @@ function playHitSequence(sauces, hasReplay) {
     if (caption) caption.textContent = "《好像有一点不对劲》";
   }, 650));
   reactionHandles.push(window.setTimeout(() => {
-    const second = reactionFor(sauces[1]);
-    stage.classList.add(second.className, "reaction--broken");
-    if (sauces[0] === sauces[1]) stage.classList.add("reaction--double");
+    sauces.slice(1).forEach((key) => stage.classList.add(reactionFor(key).className));
+    stage.classList.add("reaction--broken");
+    if (sauces.length > 1 && sauces.every((key) => key === sauces[0])) stage.classList.add("reaction--double");
     const caption = document.querySelector("#reaction-caption");
     if (caption) caption.textContent = "《表情管理彻底失败》";
   }, 1350));
@@ -561,6 +564,64 @@ function biteAndConfirm() {
   window.setTimeout(() => send({ type: "snack.confirm" }), 520);
 }
 
+function sauceDropTargetAt(x, y) {
+  return document.elementFromPoint(x, y)?.closest(".food-drop-target") ?? null;
+}
+
+function moveSauceDrag(event) {
+  if (!sauceDrag || event.pointerId !== sauceDrag.pointerId) return;
+  event.preventDefault();
+  sauceDrag.ghost.style.left = `${event.clientX}px`;
+  sauceDrag.ghost.style.top = `${event.clientY}px`;
+  const dropTarget = sauceDropTargetAt(event.clientX, event.clientY);
+  document.querySelector(".food-drop-target")?.classList.toggle("is-drag-over", Boolean(dropTarget));
+}
+
+function clearSauceDrag() {
+  sauceDrag?.ghost.remove();
+  document.body.classList.remove("is-dragging-sauce");
+  document.querySelector(".food-drop-target")?.classList.remove("is-drag-ready", "is-drag-over");
+  sauceDrag = null;
+}
+
+function finishSauceDrag(event) {
+  if (!sauceDrag || event.pointerId !== sauceDrag.pointerId) return;
+  const { source, pointerId, key } = sauceDrag;
+  const droppedOnFood = sauceDropTargetAt(event.clientX, event.clientY);
+  if (source.hasPointerCapture(pointerId)) source.releasePointerCapture(pointerId);
+  const accepted = Boolean(droppedOnFood) && selectedSauces.length < MAX_SAUCES;
+  if (accepted) {
+    selectedSauces.push(key);
+    navigator.vibrate?.(28);
+    showToast(`${reactionFor(key).shortLabel}已经挤进食物里`, false, 850);
+  }
+  ignoreSauceClickUntil = Date.now() + 350;
+  clearSauceDrag();
+  if (accepted) render(lastMessage);
+}
+
+app.addEventListener("pointerdown", (event) => {
+  const source = event.target.closest(".sauce-button");
+  if (!source || source.disabled || !deploymentOpened || selectedSauces.length >= MAX_SAUCES) return;
+  event.preventDefault();
+  const key = source.dataset.sauce;
+  const ghost = document.createElement("div");
+  ghost.className = `sauce-drag-ghost sauce-drag-ghost--${key}`;
+  ghost.innerHTML = `<span>${reactionFor(key).emoji}</span><small>${reactionFor(key).shortLabel}</small>`;
+  document.body.append(ghost);
+  source.setPointerCapture(event.pointerId);
+  sauceDrag = { key, pointerId: event.pointerId, source, ghost };
+  document.body.classList.add("is-dragging-sauce");
+  document.querySelector(".food-drop-target")?.classList.add("is-drag-ready");
+  moveSauceDrag(event);
+});
+
+window.addEventListener("pointermove", moveSauceDrag, { passive: false });
+window.addEventListener("pointerup", finishSauceDrag);
+window.addEventListener("pointercancel", (event) => {
+  if (sauceDrag?.pointerId === event.pointerId) clearSauceDrag();
+});
+
 app.addEventListener("click", async (event) => {
   const target = event.target.closest("[data-action]");
   if (!target || target.disabled) return;
@@ -586,7 +647,7 @@ app.addEventListener("click", async (event) => {
     render(lastMessage);
     send({ type: "gesture.send", key: "mix" });
   }
-  if (action === "select-sauce" && deploymentOpened && selectedSauces.length < 2) {
+  if (action === "select-sauce" && Date.now() >= ignoreSauceClickUntil && deploymentOpened && selectedSauces.length < MAX_SAUCES) {
     selectedSauces.push(target.dataset.sauce);
     render(lastMessage);
     send({ type: "gesture.send", key: "mix" });
