@@ -4,5 +4,6 @@ __pycache__/
 .pytest_cache/
 *.pyc
 .venv/
+.playwright-cli/
 server.log
 server-error.log

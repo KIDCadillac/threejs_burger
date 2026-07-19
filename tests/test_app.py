@@ -287,3 +287,49 @@ def test_game_header_offers_a_leave_action_during_play() -> None:
 
     assert 'data-action="leave-room"' in header_source
     assert "退出本局" in header_source
+
+
+def test_client_contains_interactive_deployment_and_shared_table() -> None:
+    script = client.get("/static/app.js").text
+    styles = client.get("/static/styles.css").text
+
+    for marker in (
+        "deploymentOpened",
+        'data-action="open-snack"',
+        "prep-workbench",
+        "shared-table-scene",
+        "tutorial-coach",
+        "trap-cutaway",
+    ):
+        assert marker in script or marker in styles
+
+
+def test_cartoon_real_scene_assets_are_served() -> None:
+    for path in (
+        "/static/art/deployment-counter.png",
+        "/static/art/shared-table.png",
+    ):
+        response = client.get(path)
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "image/png"
+
+
+def test_first_run_tutorial_finishes_after_confirming_food() -> None:
+    script = client.get("/static/app.js").text
+    deployment_source = script.split("function startPrivateDeployment", 1)[1].split(
+        "function playHitSequence", 1
+    )[0]
+    confirm_source = script.split("function biteAndConfirm", 1)[1].split(
+        'app.addEventListener("click"', 1
+    )[0]
+
+    assert 'localStorage.setItem("witch-food-tutorial", "done")' not in deployment_source
+    assert 'localStorage.setItem("witch-food-tutorial", "done")' in confirm_source
+
+
+def test_home_page_defines_an_inline_favicon() -> None:
+    page = client.get("/").text
+
+    assert 'rel="icon"' in page
+    assert 'href="data:image/svg+xml,' in page

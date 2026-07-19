@@ -12,6 +12,7 @@ let lastMessage = { type: "home" };
 let autoJoinSent = false;
 let selectedFry = null;
 let selectedSauces = [];
+let deploymentOpened = false;
 let activeRound = null;
 let countdownHandle = null;
 let reactionHandles = [];
@@ -109,6 +110,7 @@ function syncRound(state) {
   activeRound = state.roundNumber;
   selectedFry = null;
   selectedSauces = [];
+  deploymentOpened = false;
   lastOutcomeKey = "";
   deploymentPlaying = false;
   clearReactionTimers();
@@ -176,26 +178,49 @@ function renderWaitingRoom(state) {
 }
 
 function renderMixing(state) {
-  const canLock = selectedFry !== null && selectedSauces.length === 2;
+  const selectedSnack = selectedFry === null ? null : state.snacks?.[selectedFry];
+  const snackKind = selectedSnack?.kind ?? "fry";
+  const canLock = selectedFry !== null && deploymentOpened && selectedSauces.length === 2;
   app.innerHTML = `
-    <section class="screen game-screen mixing-screen">
+    <section class="screen game-screen mixing-screen immersive-game-screen">
       ${gameHeader(state, "秘密调制")}
       ${playerRibbon(state)}
-      ${opponentPose(state, "mixing")}
-      <div class="stage-copy">
-        <p class="step-pill">第 1 步</p>
-        <h1 class="game-title">从公共盘挑一个，偷偷加料</h1>
-        <p class="private-note"><span>◉</span> 只有你能看见位置和配方</p>
+      ${tutorialCoach(state, "mixing")}
+      <div class="prep-workbench">
+        <div class="prep-workbench__art" role="img" aria-label="卡通写实女巫料理操作台"></div>
+        <div class="prep-privacy"><span>◉</span><strong>秘密部署</strong><small>对手只看得到你的表情</small></div>
+        ${opponentPose(state, "mixing")}
+        <div class="stage-copy prep-title">
+          <p class="step-pill">部署阶段</p>
+          <h1 class="game-title">${selectedFry === null ? "先从公共餐台挑一件食物" : deploymentOpened ? `已经打开${snackFor(snackKind).label}` : `准备处理${snackFor(snackKind).label}`}</h1>
+          <p class="private-note"><span>◉</span> 食物位置和配方只有你能看见</p>
+        </div>
+        <div class="deployment-steps" aria-label="部署步骤">
+          ${deploymentStep("1", "选食物", selectedFry !== null, selectedFry === null)}
+          ${deploymentStep("2", "切开/打开", deploymentOpened, selectedFry !== null && !deploymentOpened)}
+          ${deploymentStep("3", "放调料", selectedSauces.length === 2, deploymentOpened && selectedSauces.length < 2)}
+          ${deploymentStep("4", "合回去", false, canLock)}
+        </div>
+        ${snackBoard(state, { action: "select-snack", secretPosition: selectedFry, interactive: true })}
+        ${selectedFry === null ? "" : `<section class="food-operation ${deploymentOpened ? "food-operation--open" : ""}" aria-label="食物操作区">
+          <div class="food-operation__board">
+            <span class="food-operation__knife" aria-hidden="true"></span>
+            <div class="food-operation__food">${snackPiece(snackKind, true)}<i class="food-seam"></i><i class="food-filling"></i></div>
+            <div class="food-operation__hand food-operation__hand--left" aria-hidden="true"></div>
+            <div class="food-operation__hand food-operation__hand--right" aria-hidden="true"></div>
+          </div>
+          <div class="food-operation__copy"><strong>${deploymentOpened ? `${snackFor(snackKind).label}已经打开` : openInstruction(snackKind)}</strong><small>${deploymentOpened ? "现在把调料挤进里面，外面看不出来" : "点击后会露出内部夹层"}</small></div>
+          ${deploymentOpened ? "" : `<button class="button button--open-food" type="button" data-action="open-snack">${openInstruction(snackKind)}</button>`}
+        </section>`}
       </div>
-      ${snackBoard(state, { action: "select-snack", secretPosition: selectedFry, interactive: true })}
-      <section class="sauce-lab" aria-labelledby="sauce-title">
-        <div class="section-heading"><h2 id="sauce-title">选两份调味料</h2><span>${selectedSauces.length}/2</span></div>
-        <div class="sauce-grid">${Object.entries(REACTIONS).map(([key, effect]) => sauceButton(key, effect)).join("")}</div>
+      <section class="sauce-lab sauce-rack ${deploymentOpened ? "sauce-rack--ready" : ""}" aria-labelledby="sauce-title">
+        <div class="section-heading"><h2 id="sauce-title">${deploymentOpened ? "往食物里面放两份调料" : "先把食物打开"}</h2><span>${selectedSauces.length}/2</span></div>
+        <div class="sauce-grid">${Object.entries(REACTIONS).map(([key, effect]) => sauceButton(key, effect, deploymentOpened)).join("")}</div>
         <div class="recipe-slots" aria-label="当前配方">
           ${[0, 1].map((index) => recipeSlot(index, selectedSauces[index])).join("")}
         </div>
       </section>
-      <button class="button button--primary lock-button" type="button" data-action="lock-recipe" ${canLock ? "" : "disabled"}>开始秘密下料</button>
+      <button class="button button--primary lock-button" type="button" data-action="lock-recipe" ${canLock ? "" : "disabled"}>合上食物，完成伪装</button>
     </section>`;
 }
 
@@ -237,13 +262,17 @@ function renderTurn(state) {
     <section class="screen game-screen turn-screen ${myTurn ? "is-my-turn" : ""}">
       ${gameHeader(state, `第 ${state.roundNumber} 局`)}
       ${playerRibbon(state)}
-      ${opponentPose(state, "turn")}
-      <div class="turn-callout">
-        <div class="timer" id="turn-timer" aria-label="回合剩余时间"><strong>20</strong><span>秒</span></div>
-        <div><p class="step-pill">${myTurn ? (pending ? "正在试探" : "轮到你") : "对手选择中"}</p><h1 class="game-title">${turnPrompt(state, pending, myTurn)}</h1></div>
-      </div>
+      ${tutorialCoach(state, "turn")}
       ${state.paused ? `<div class="pause-banner">对手掉线，对局暂时冻结</div>` : ""}
-      ${snackBoard(state, { action: "aim-snack", secretPosition: poisonPosition, aimedPosition: pending?.position, interactive: canAim })}
+      <section class="shared-table-scene" aria-label="两名女巫共用的零食餐桌">
+        <div class="shared-table-scene__art" role="img" aria-label="两名卡通女巫面对面观察公共零食"></div>
+        ${opponentPose(state, "turn")}
+        <div class="turn-callout">
+          <div class="timer" id="turn-timer" aria-label="回合剩余时间"><strong>20</strong><span>秒</span></div>
+          <div><p class="step-pill">${myTurn ? (pending ? "正在试探" : "轮到你") : "对手选择中"}</p><h1 class="game-title">${turnPrompt(state, pending, myTurn)}</h1></div>
+        </div>
+        ${snackBoard(state, { action: "aim-snack", secretPosition: poisonPosition, aimedPosition: pending?.position, interactive: canAim })}
+      </section>
       ${iAmPicker ? `<div class="aim-confirm"><div><strong>${bluff ? `${bluff.emoji} 对手说：“${bluff.bubble}”` : "正在观察对手表情…"}</strong><small>${pending.changed ? "已经改选过，接下来只能吃" : "可以改选一次，也可以坚持"}</small></div><button class="button button--primary" type="button" data-action="confirm-snack">就吃这个</button></div>` : ""}
       ${gestureBar(state)}
       <div class="legend"><span><i class="legend__secret"></i>你的秘密陷阱</span><span><i class="legend__aim"></i>正在瞄准</span></div>
@@ -282,7 +311,7 @@ function renderFinished(state) {
       ${hit ? `<div class="deployment-replay" id="deployment-replay">
         <p class="eyebrow">下料回放</p>
         <h2>原来开局的时候……</h2>
-        <div class="replay-counter">${snackPiece(replay.snackKind, true)}${replay.sauces.map((key, index) => `<span class="replay-sauce replay-sauce--${index}">${reactionFor(key).emoji}</span>`).join("")}<i class="replay-spark">✦</i></div>
+        <div class="replay-counter trap-cutaway">${snackPiece(replay.snackKind, true)}<span class="trap-cutaway__inside"></span>${replay.sauces.map((key, index) => `<span class="replay-sauce replay-sauce--${index}">${reactionFor(key).emoji}</span>`).join("")}<i class="replay-spark">✦</i></div>
         <p><strong>${won ? "你" : "对手"}</strong>偷偷把 ${recipeTitle(replay.sauces)} 藏进了${snackFor(replay.snackKind).label}</p>
       </div>` : ""}
       <div class="result-card ${hit ? "result-card--delayed" : "result-card--visible"}" id="result-card">
@@ -346,6 +375,27 @@ function turnPrompt(state, pending, myTurn) {
   return pending.picker === state.me ? `真的要吃这个${label}？` : `对手盯上了${label}…`;
 }
 
+function tutorialCoach(state, phase) {
+  if (state.room?.mode !== "practice" || localStorage.getItem("witch-food-tutorial") === "done") return "";
+  let copy = "先点公共餐台上的一件食物。你和电脑看到的是同一盘。";
+  if (phase === "mixing" && selectedFry !== null && !deploymentOpened) copy = "很好。现在把食物切开或打开，调料要藏在内部。";
+  if (phase === "mixing" && deploymentOpened && selectedSauces.length < 2) copy = "选择两份调料。电脑看不到食物和调料，只看得到你的表情。";
+  if (phase === "mixing" && selectedSauces.length === 2) copy = "最后把食物合回去伪装，桌面上不会留下提示。";
+  if (phase === "turn") copy = "先点一件零食试探电脑；观察它的动作后，再确认是否真的吃下。";
+  return `<aside class="tutorial-coach"><span class="tutorial-coach__witch">🧙</span><div><strong>首局边玩边学</strong><p>${copy}</p></div><button type="button" data-action="skip-tutorial">跳过</button></aside>`;
+}
+
+function deploymentStep(number, label, complete, active) {
+  return `<span class="deployment-step ${complete ? "is-complete" : ""} ${active ? "is-active" : ""}"><i>${complete ? "✓" : number}</i><small>${label}</small></span>`;
+}
+
+function openInstruction(kind) {
+  if (["fry"].includes(kind)) return "撕开包装";
+  if (["donut", "cookie", "nugget"].includes(kind)) return "沿中间切开";
+  if (kind === "mochi") return "轻轻掰开";
+  return "切开食物";
+}
+
 function snackBoard(state, { action, secretPosition = null, aimedPosition = null, interactive = false }) {
   const snacks = state.snacks ?? Array.from({ length: 12 }, (_, position) => ({ position, kind: "fry", available: state.remainingFries.includes(position) }));
   return `<div class="plate-wrap"><div class="plate" role="group" aria-label="公共零食餐盘">${snacks.map((snack) => {
@@ -361,9 +411,9 @@ function snackPiece(kind, large = false) {
   return `<span class="snack-piece snack--${kind} ${large ? "snack-piece--large" : ""}" aria-hidden="true"><i></i><i></i><i></i></span>`;
 }
 
-function sauceButton(key, effect) {
+function sauceButton(key, effect, enabled = true) {
   const count = selectedSauces.filter((sauce) => sauce === key).length;
-  return `<button class="sauce-button sauce-button--${key}" type="button" data-action="select-sauce" data-sauce="${key}" ${selectedSauces.length >= 2 ? "disabled" : ""}><span>${effect.emoji}</span><strong>${effect.shortLabel}</strong>${count ? `<i>${count}</i>` : ""}</button>`;
+  return `<button class="sauce-button sauce-button--${key}" type="button" data-action="select-sauce" data-sauce="${key}" ${!enabled || selectedSauces.length >= 2 ? "disabled" : ""}><span>${effect.emoji}</span><strong>${effect.shortLabel}</strong>${count ? `<i>${count}</i>` : ""}</button>`;
 }
 
 function recipeSlot(index, key) {
@@ -384,14 +434,14 @@ function renderPrivateDeployment(state, position, sauces) {
       <div class="deployment-stage">
         <p class="eyebrow">对手看不到目标零食</p>
         <h1 class="game-title">嘘——动作小一点</h1>
-        <div class="deployment-counter">${snackPiece(snack.kind, true)}${sauces.map((key, index) => `<span class="deployment-sauce deployment-sauce--${index}">${reactionFor(key).emoji}</span>`).join("")}<i>✦</i></div>
+        <div class="deployment-counter trap-cutaway">${snackPiece(snack.kind, true)}<span class="trap-cutaway__inside"></span>${sauces.map((key, index) => `<span class="deployment-sauce deployment-sauce--${index}">${reactionFor(key).emoji}</span>`).join("")}<i>✦</i></div>
         <div class="deployment-witch"><span>🤫</span><strong>鬼鬼祟祟下料中</strong><small>只有你能看到 ${snackFor(snack.kind).label} 和配方</small></div>
       </div>
     </section>`;
 }
 
 function startPrivateDeployment(state) {
-  if (selectedFry === null || selectedSauces.length !== 2 || deploymentPlaying) return;
+  if (selectedFry === null || !deploymentOpened || selectedSauces.length !== 2 || deploymentPlaying) return;
   deploymentPlaying = true;
   const position = selectedFry;
   const sauces = [...selectedSauces];
@@ -507,6 +557,7 @@ function biteAndConfirm() {
   target?.classList.add("snack-space--biting");
   document.querySelectorAll(".snack-space, .aim-confirm button").forEach((button) => { button.disabled = true; });
   showToast("拿起来了……咔嚓！", false, 900);
+  localStorage.setItem("witch-food-tutorial", "done");
   window.setTimeout(() => send({ type: "snack.confirm" }), 520);
 }
 
@@ -521,11 +572,21 @@ app.addEventListener("click", async (event) => {
   if (action === "cancel-match") send({ type: "match.cancel" });
   if (action === "leave-room") send({ type: "room.leave" });
   if (action === "select-snack") {
-    selectedFry = Number(target.dataset.position);
+    const nextPosition = Number(target.dataset.position);
+    if (selectedFry !== nextPosition) {
+      selectedFry = nextPosition;
+      deploymentOpened = false;
+      selectedSauces = [];
+    }
     render(lastMessage);
     send({ type: "gesture.send", key: "sneak" });
   }
-  if (action === "select-sauce" && selectedSauces.length < 2) {
+  if (action === "open-snack" && selectedFry !== null) {
+    deploymentOpened = true;
+    render(lastMessage);
+    send({ type: "gesture.send", key: "mix" });
+  }
+  if (action === "select-sauce" && deploymentOpened && selectedSauces.length < 2) {
     selectedSauces.push(target.dataset.sauce);
     render(lastMessage);
     send({ type: "gesture.send", key: "mix" });
@@ -549,6 +610,10 @@ app.addEventListener("click", async (event) => {
   if (action === "skip-effect") {
     clearReactionTimers();
     showReplayAndResult(false);
+  }
+  if (action === "skip-tutorial") {
+    localStorage.setItem("witch-food-tutorial", "done");
+    render(lastMessage);
   }
   if (action === "replay-deployment") replayDeployment();
   if (action === "copy-invite") {
