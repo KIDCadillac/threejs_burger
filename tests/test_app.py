@@ -58,3 +58,14 @@ def test_websocket_rejects_unknown_command_without_closing() -> None:
 
         socket.send_json({"type": "room.create"})
         assert socket.receive_json()["phase"] == "waiting"
+
+
+def test_client_declares_private_state_and_four_reactions() -> None:
+    app_script = client.get("/static/app.js")
+    effects_script = client.get("/static/effects.js")
+
+    assert app_script.status_code == 200
+    assert "只有你能看见" in app_script.text
+    assert effects_script.status_code == 200
+    for effect in ("chili", "mustard", "sour", "sticky"):
+        assert effect in effects_script.text
