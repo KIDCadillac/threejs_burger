@@ -64,8 +64,11 @@ C:\Users\KID\AppData\Local\Programs\Python\Python313\python.exe -m uvicorn app.m
 ```powershell
 C:\Users\KID\AppData\Local\Programs\Python\Python313\python.exe -m pytest -q
 $nodeTests = Get-ChildItem tests -Filter *.test.mjs | ForEach-Object { $_.FullName }
-node --test @nodeTests
+$nodeExe = 'C:\Users\KID\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
+& $nodeExe --test @nodeTests
 ```
+
+如果已经把系统 Node.js 加入 `PATH`，最后一行也可以直接使用 `node --test @nodeTests`。
 
 ## 原型边界
 
