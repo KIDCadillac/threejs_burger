@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   REACTION_DURATION_MS,
   REACTION_PHASES,
+  captionForPhase,
   phaseAt,
   resolveReactionPlan,
 } from "../app/static/reaction-model.mjs";
@@ -73,6 +74,36 @@ test("every reaction phase has a non-empty Chinese caption", () => {
     assert.notEqual(caption.trim(), "", `${name} caption should not be empty`);
     assert.match(caption, /[\u3400-\u9fff]/, `${name} caption should contain Chinese text`);
   }
+});
+
+test("burst and recovery captions describe each primary reaction accurately", () => {
+  const expectations = {
+    chili: [/喷火/, /降温/],
+    mustard: [/喷嚏/, /鼻子/],
+    sour: [/酸/, /缓一缓/],
+    sticky: [/黏/, /挣脱/],
+  };
+
+  for (const [primary, [burst, recover]] of Object.entries(expectations)) {
+    const plan = { primary, primaryIntensity: 1, secondary: null, secondaryIntensity: 0 };
+    assert.match(captionForPhase("burst", plan), burst);
+    assert.match(captionForPhase("recover", plan), recover);
+  }
+  for (const primary of ["mustard", "sour", "sticky"]) {
+    const plan = { primary, primaryIntensity: 1, secondary: null, secondaryIntensity: 0 };
+    assert.doesNotMatch(captionForPhase("burst", plan), /辣|喷火|降温/);
+    assert.doesNotMatch(captionForPhase("recover", plan), /辣|喷火|降温/);
+  }
+});
+
+test("recovery caption consumes the secondary reaction as a readable follow-up", () => {
+  const plan = {
+    primary: "chili",
+    primaryIntensity: 2,
+    secondary: "mustard",
+    secondaryIntensity: 1,
+  };
+  assert.match(captionForPhase("recover", plan), /还混了芥末/);
 });
 
 test("reaction phase definitions are deeply immutable", () => {

@@ -359,7 +359,7 @@ function renderFinished(state) {
         <div class="replay-counter trap-cutaway">${snackPiece(replay.snackKind, true)}<span class="trap-cutaway__inside"></span>${replay.sauces.map((key, index) => `<span class="replay-sauce replay-sauce--${index}">${reactionFor(key).emoji}</span>`).join("")}<i class="replay-spark">✦</i></div>
         <p><strong>${won ? "你" : "对手"}</strong>偷偷把 ${recipeTitle(replay.sauces)} 藏进了${snackFor(replay.snackKind).label}</p>
       </div>` : ""}
-      <div class="result-card ${hit ? "result-card--delayed" : "result-card--visible"}" id="result-card" ${hit ? 'hidden aria-hidden="true" inert' : 'aria-hidden="false"'}>
+      <div class="result-card ${hit ? "result-card--delayed" : "result-card--visible"}" id="result-card" role="status" aria-live="polite" tabindex="-1" ${hit ? 'hidden aria-hidden="true" inert' : 'aria-hidden="false"'}>
         <p class="eyebrow">${won ? "WIN" : draw ? "DRAW" : "OOPS"}</p>
         <h1 class="screen-title">${title}</h1>
         <p class="muted">${summary}</p>

@@ -1,17 +1,10 @@
 import {
   REACTION_DURATION_MS,
   REACTION_PHASES,
+  captionForPhase,
   resolveReactionPlan,
 } from "./reaction-model.mjs";
-
-const FOOD_PATHS = Object.freeze({
-  fry: "/static/art/foods/fry.png",
-  nugget: "/static/art/foods/nugget.png",
-  donut: "/static/art/foods/donut.png",
-  cookie: "/static/art/foods/cookie.png",
-  "onion-ring": "/static/art/foods/onion-ring.png",
-  mochi: "/static/art/foods/mochi.png",
-});
+import { foodAssemblyMarkup } from "./food-assembly.mjs";
 
 const MARKUP_ESCAPES = Object.freeze({
   "&": "&amp;",
@@ -48,6 +41,7 @@ export function playCharacterReaction(root, sauces, options = {}) {
   root.dataset.primaryIntensity = String(plan?.primaryIntensity ?? 0);
   root.dataset.secondaryReaction = plan?.secondary ?? "none";
   root.dataset.secondaryIntensity = String(plan?.secondaryIntensity ?? 0);
+  root.dataset.secondaryConsumed = "false";
   root.dataset.foodBitten = "false";
   root.dataset.phase = "notice";
 
@@ -66,8 +60,11 @@ export function playCharacterReaction(root, sauces, options = {}) {
 
       root.dataset.phase = event.phase;
       if (event.phase === "bite") root.dataset.foodBitten = "true";
+      if (event.phase === "recover" && plan?.secondary) {
+        root.dataset.secondaryConsumed = "true";
+      }
       const caption = root.querySelector("[data-reaction-caption]");
-      if (caption) caption.textContent = event.caption;
+      if (caption) caption.textContent = captionForPhase(event.phase, plan);
       onPhase(event.phase, plan);
     }, event.at);
     handles.add(handle);
@@ -90,15 +87,12 @@ function escapeMarkup(value) {
 }
 
 export function characterReactionMarkup({ victim, snackKind }) {
-  const foodPath = Object.hasOwn(FOOD_PATHS, snackKind)
-    ? FOOD_PATHS[snackKind]
-    : FOOD_PATHS.nugget;
+  const foodMarkup = foodAssemblyMarkup(snackKind);
   const safeVictim = escapeMarkup(victim);
   const instancePrefix = `character-reaction-${nextInstanceId += 1}`;
   const skinId = `${instancePrefix}-skin`;
   const hoodieId = `${instancePrefix}-hoodie`;
   const fireId = `${instancePrefix}-fire`;
-  const bittenFoodMaskId = `${instancePrefix}-bitten-food-mask`;
   const titleId = `${instancePrefix}-title`;
 
   return `
@@ -120,11 +114,6 @@ export function characterReactionMarkup({ victim, snackKind }) {
             <stop offset=".45" stop-color="#ffae32"/>
             <stop offset="1" stop-color="#f0442f"/>
           </radialGradient>
-          <mask id="${bittenFoodMaskId}" maskUnits="userSpaceOnUse" x="28" y="314" width="96" height="96">
-            <rect x="28" y="314" width="96" height="96" fill="white"/>
-            <circle cx="104" cy="326" r="22" fill="black"/>
-            <circle cx="119" cy="344" r="18" fill="black"/>
-          </mask>
         </defs>
 
         <ellipse class="rig-shadow" cx="198" cy="472" rx="102" ry="16"/>
@@ -154,14 +143,18 @@ export function characterReactionMarkup({ victim, snackKind }) {
                 <path class="fire-outer" fill="url(#${fireId})" d="M237 203 C286 171 301 215 359 180 C335 229 367 249 293 252 C266 248 246 235 229 218Z"/>
                 <path class="fire-core" d="M246 209 C282 195 297 221 330 205 C309 235 280 236 246 220Z"/>
               </g>
+              <g data-effect="sneeze">
+                <path d="M230 185 Q267 165 295 183"/><path d="M238 193 Q274 186 303 203"/>
+                <circle cx="281" cy="174" r="5"/><circle cx="307" cy="198" r="4"/>
+              </g>
+              <g data-effect="sticky-strands">
+                <path d="M181 207 Q157 223 145 251"/><path d="M211 208 Q237 225 247 252"/>
+              </g>
             </g>
           </g>
 
           <g data-bone="left-arm">
             <path class="rig-sleeve" fill="url(#${hoodieId})" d="M138 251 Q95 266 79 327 L112 341 Q132 303 166 283Z"/>
-            <g data-bone="left-hand">
-              <path class="rig-hand" fill="url(#${skinId})" d="M78 319 Q59 321 56 340 Q60 358 79 354 L107 337Z"/>
-            </g>
           </g>
 
           <g data-bone="right-arm">
@@ -180,8 +173,14 @@ export function characterReactionMarkup({ victim, snackKind }) {
         </g>
 
         <g data-prop="food">
-          <image data-food-state="whole" href="${foodPath}" x="28" y="314" width="96" height="96" preserveAspectRatio="xMidYMid slice"/>
-          <image data-food-state="bitten" href="${foodPath}" x="28" y="314" width="96" height="96" preserveAspectRatio="xMidYMid slice" mask="url(#${bittenFoodMaskId})"/>
+          <g data-hand-layer="back">
+            <path class="rig-hand" fill="url(#${skinId})" d="M91 328 Q111 316 126 331 Q135 350 120 369 Q109 380 94 367 Q101 347 91 328Z"/>
+          </g>
+          ${foodMarkup}
+          <g data-hand-layer="front">
+            <path class="rig-finger" fill="url(#${skinId})" d="M96 341 Q111 335 121 343 Q124 351 116 356 Q106 350 97 357Z"/>
+            <path class="rig-finger" fill="url(#${skinId})" d="M93 358 Q108 353 119 361 Q121 369 113 373 Q103 367 94 374Z"/>
+          </g>
           <g class="food-crumbs">
             <circle cx="70" cy="336" r="4"/>
             <circle cx="91" cy="347" r="3"/>
@@ -195,6 +194,16 @@ export function characterReactionMarkup({ victim, snackKind }) {
         </g>
         <g data-effect="sweat">
           <path d="M274 161 Q294 185 275 200 Q256 184 274 161Z"/>
+        </g>
+        <g data-effect="sour-wave">
+          <path d="M116 139 Q92 160 116 181 Q140 202 116 223"/>
+          <path d="M278 139 Q302 160 278 181 Q254 202 278 223"/>
+        </g>
+        <g data-effect="secondary">
+          <g data-secondary-effect="chili"><path d="M287 235 Q307 216 322 239 Q306 255 287 235Z"/></g>
+          <g data-secondary-effect="mustard"><circle cx="289" cy="174" r="8"/><circle cx="308" cy="165" r="4"/></g>
+          <g data-secondary-effect="sour"><path d="M111 203 Q91 219 111 235"/></g>
+          <g data-secondary-effect="sticky"><path d="M155 216 Q135 239 151 258"/></g>
         </g>
       </svg>
       <p class="victim-label">${safeVictim}正在努力表情管理</p>

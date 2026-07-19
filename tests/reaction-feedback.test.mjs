@@ -369,17 +369,23 @@ test("chili burst has a stronger finite sound and segmented vibration", () => {
   assert.ok(stops.every(([, at]) => at - context.currentTime <= 0.65));
 });
 
-test("non-chili burst does not impersonate the fire reaction", () => {
-  const { context, events } = fakeAudioContext();
-  const vibrations = [];
-
-  handleReactionFeedback("burst", { primary: "mustard" }, {
-    audioContext: context,
-    vibrate: (pattern) => vibrations.push(pattern),
-  });
-
-  assert.deepEqual(vibrations, []);
-  assert.deepEqual(events, []);
+test("four burst reactions have distinct finite low-intensity feedback", () => {
+  const signatures = new Set();
+  for (const primary of ["chili", "mustard", "sour", "sticky"]) {
+    const { context, events } = fakeAudioContext();
+    const vibrations = [];
+    handleReactionFeedback("burst", { primary, primaryIntensity: 1 }, {
+      audioContext: context,
+      vibrate: (pattern) => vibrations.push(pattern),
+    });
+    const frequency = events.find(([name]) => name === "frequency")?.[1];
+    const stop = events.find(([name]) => name === "stop")?.[1];
+    assert.ok(frequency, `${primary} should have a tone`);
+    assert.ok(stop - context.currentTime <= 0.65, `${primary} must stay finite`);
+    assert.equal(vibrations.length, 1, `${primary} should have one short haptic`);
+    signatures.add(`${frequency}:${JSON.stringify(vibrations[0])}`);
+  }
+  assert.equal(signatures.size, 4);
 });
 
 test("a rejected resume never schedules stale bite audio", async () => {

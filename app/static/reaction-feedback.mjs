@@ -2,6 +2,49 @@ let audioContext = null;
 let resumeContext = null;
 let resumeOperation = null;
 
+const BURST_FEEDBACK = Object.freeze({
+  chili: Object.freeze({
+    tone: Object.freeze({
+      frequency: 105,
+      endFrequency: 58,
+      duration: 0.52,
+      type: "sawtooth",
+      gain: 0.035,
+    }),
+    vibration: Object.freeze([35, 30, 45]),
+  }),
+  mustard: Object.freeze({
+    tone: Object.freeze({
+      frequency: 620,
+      endFrequency: 910,
+      duration: 0.18,
+      type: "triangle",
+      gain: 0.022,
+    }),
+    vibration: Object.freeze([18, 28, 18]),
+  }),
+  sour: Object.freeze({
+    tone: Object.freeze({
+      frequency: 330,
+      endFrequency: 220,
+      duration: 0.26,
+      type: "sine",
+      gain: 0.021,
+    }),
+    vibration: Object.freeze([12, 18, 12]),
+  }),
+  sticky: Object.freeze({
+    tone: Object.freeze({
+      frequency: 150,
+      endFrequency: 95,
+      duration: 0.34,
+      type: "triangle",
+      gain: 0.024,
+    }),
+    vibration: Object.freeze([28, 45, 12]),
+  }),
+});
+
 function forgetResumeOperation() {
   resumeContext = null;
   resumeOperation = null;
@@ -193,14 +236,11 @@ export function handleReactionFeedback(phase, plan, options = {}) {
     return;
   }
 
-  if (phase === "burst" && plan?.primary === "chili") {
-    playTone(context, {
-      frequency: 105,
-      endFrequency: 58,
-      duration: 0.52,
-      type: "sawtooth",
-      gain: 0.035,
-    });
-    vibrateSafely([35, 30, 45], options.vibrate);
-  }
+  if (phase !== "burst") return;
+
+  const burstFeedback = BURST_FEEDBACK[plan?.primary];
+
+  if (!burstFeedback) return;
+  playTone(context, burstFeedback.tone);
+  vibrateSafely(burstFeedback.vibration, options.vibrate);
 }

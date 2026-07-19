@@ -208,7 +208,11 @@
 .reaction-rig .food-crumbs,
 .reaction-rig [data-effect="fire"],
 .reaction-rig [data-effect="heat"],
-.reaction-rig [data-effect="sweat"] {
+.reaction-rig [data-effect="sweat"],
+.reaction-rig [data-effect="sneeze"],
+.reaction-rig [data-effect="sour-wave"],
+.reaction-rig [data-effect="sticky-strands"],
+.reaction-rig [data-effect="secondary"] {
   opacity: 0;
   visibility: hidden;
 }
@@ -222,10 +226,79 @@
 
 .reaction-rig [data-effect="fire"],
 .reaction-rig [data-effect="heat"],
-.reaction-rig [data-effect="sweat"] {
+.reaction-rig [data-effect="sweat"],
+.reaction-rig [data-effect="sneeze"],
+.reaction-rig [data-effect="sour-wave"],
+.reaction-rig [data-effect="sticky-strands"],
+.reaction-rig [data-effect="secondary"] {
   pointer-events: none;
   transform-box: fill-box;
 }
+
+.reaction-rig [data-food-assembly] {
+  overflow: visible;
+}
+
+.reaction-rig [data-food-assembly] path,
+.reaction-rig [data-food-assembly] ellipse {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.reaction-rig [data-hand-layer] .rig-hand,
+.reaction-rig [data-hand-layer] .rig-finger {
+  stroke: var(--reaction-ink);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.reaction-rig [data-hand-layer="front"] {
+  filter: drop-shadow(0 2px 2px rgba(44, 20, 30, 0.3));
+}
+
+.reaction-rig [data-effect="sneeze"] {
+  fill: #ffe36b;
+  stroke: #d69d21;
+  stroke-width: 5;
+  stroke-linecap: round;
+  transform-origin: left center;
+  filter: drop-shadow(0 0 6px rgba(255, 218, 63, 0.72));
+}
+
+.reaction-rig [data-effect="sour-wave"] {
+  fill: none;
+  stroke: #a8e55c;
+  stroke-width: 7;
+  stroke-linecap: round;
+  transform-origin: center;
+  filter: drop-shadow(0 0 6px rgba(121, 213, 78, 0.65));
+}
+
+.reaction-rig [data-effect="sticky-strands"] {
+  fill: none;
+  stroke: #c987e8;
+  stroke-width: 6;
+  stroke-linecap: round;
+  transform-origin: center;
+  filter: drop-shadow(0 0 5px rgba(172, 91, 213, 0.66));
+}
+
+.reaction-rig [data-effect="secondary"] {
+  transform-origin: center;
+}
+
+.reaction-rig [data-secondary-effect] {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.reaction-rig [data-secondary-effect="chili"] { fill: #ff6c3d; stroke: #8b2f2b; stroke-width: 3; }
+.reaction-rig [data-secondary-effect="mustard"] { fill: #ffe36b; stroke: #bb8521; stroke-width: 3; }
+.reaction-rig [data-secondary-effect="sour"] { fill: none; stroke: #a8e55c; stroke-width: 6; stroke-linecap: round; }
+.reaction-rig [data-secondary-effect="sticky"] { fill: none; stroke: #c987e8; stroke-width: 6; stroke-linecap: round; }
 
 .reaction-rig [data-effect="fire"] {
   transform-origin: left center;
@@ -352,7 +425,7 @@
   animation: reaction-head-brace 220ms cubic-bezier(0.4, 0, 0.35, 1) both;
 }
 
-.character-reaction[data-phase="brace"] .rig-face {
+.character-reaction[data-primary-reaction="chili"][data-phase="brace"] .rig-face {
   filter: saturate(1.72) sepia(0.26) hue-rotate(-18deg) drop-shadow(0 0 12px rgba(255, 68, 52, 0.38));
 }
 
@@ -406,22 +479,113 @@
   transform: translate(154px, 292px) rotate(52deg) scale(0.48);
 }
 
-.character-reaction[data-phase="recover"] [data-bone="left-arm"] {
+.character-reaction[data-primary-reaction="chili"][data-phase="recover"] [data-bone="left-arm"] {
   animation: reaction-mouth-fan-left 180ms ease-in-out 4 alternate both;
 }
 
-.character-reaction[data-phase="recover"] [data-bone="right-arm"] {
+.character-reaction[data-primary-reaction="chili"][data-phase="recover"] [data-bone="right-arm"] {
   animation: reaction-mouth-fan-right 180ms 40ms ease-in-out 4 alternate both;
 }
 
-.character-reaction[data-phase="recover"] [data-effect="heat"] {
+.character-reaction[data-primary-reaction="chili"][data-phase="recover"] [data-effect="heat"] {
   visibility: visible;
   animation: reaction-heat-rise 200ms ease-out 4 both;
 }
 
-.character-reaction[data-phase="recover"] [data-effect="sweat"] {
+.character-reaction[data-primary-reaction="chili"][data-phase="recover"] [data-effect="sweat"] {
   visibility: visible;
   animation: reaction-sweat-drop 300ms 80ms ease-in 2 both;
+}
+
+.character-reaction[data-primary-reaction="mustard"][data-phase="burst"] [data-bone="torso"] {
+  animation: reaction-sneeze-body 580ms cubic-bezier(0.28, 0.75, 0.24, 1) both;
+}
+.character-reaction[data-primary-reaction="mustard"][data-phase="burst"] [data-bone="head"] {
+  animation: reaction-sneeze-head 580ms cubic-bezier(0.28, 0.75, 0.24, 1) both;
+}
+.character-reaction[data-primary-reaction="mustard"][data-phase="burst"] [data-bone="left-arm"] {
+  animation: reaction-cover-nose-left 560ms ease-out both;
+}
+.character-reaction[data-primary-reaction="mustard"][data-phase="burst"] [data-bone="right-arm"] {
+  animation: reaction-cover-nose-right 560ms ease-out both;
+}
+.character-reaction[data-primary-reaction="mustard"][data-phase="burst"] [data-effect="sneeze"] {
+  visibility: visible;
+  animation: reaction-sneeze-puff 500ms 70ms ease-out both;
+}
+.character-reaction[data-primary-reaction="mustard"][data-phase="recover"] [data-bone="head"] {
+  animation: reaction-nose-shake 180ms ease-in-out 3 both;
+}
+.character-reaction[data-primary-reaction="mustard"][data-phase="recover"] [data-bone="left-arm"] {
+  animation: reaction-mustard-recover-left 620ms ease-in-out both;
+}
+.character-reaction[data-primary-reaction="mustard"][data-phase="recover"] [data-bone="right-arm"] {
+  animation: reaction-mustard-recover-right 620ms ease-in-out both;
+}
+
+.character-reaction[data-primary-reaction="sour"][data-phase="burst"] [data-bone="torso"] {
+  animation: reaction-sour-shiver 570ms linear both;
+}
+.character-reaction[data-primary-reaction="sour"][data-phase="burst"] [data-bone="head"] {
+  animation: reaction-sour-face 560ms ease-in-out both;
+}
+.character-reaction[data-primary-reaction="sour"][data-phase="burst"] [data-effect="sour-wave"] {
+  visibility: visible;
+  animation: reaction-sour-wave 560ms ease-out both;
+}
+.character-reaction[data-primary-reaction="sour"][data-phase="recover"] [data-bone="torso"] {
+  animation: reaction-sour-recover 560ms ease-in-out both;
+}
+.character-reaction[data-primary-reaction="sour"][data-phase="recover"] [data-bone="head"] {
+  animation: reaction-sour-head-recover 620ms ease-out both;
+}
+
+.character-reaction[data-primary-reaction="sticky"][data-phase="burst"] [data-bone="torso"] {
+  animation: reaction-sticky-struggle 600ms ease-in-out both;
+}
+.character-reaction[data-primary-reaction="sticky"][data-phase="burst"] [data-bone="head"] {
+  animation: reaction-sticky-face 600ms ease-in-out both;
+}
+.character-reaction[data-primary-reaction="sticky"][data-phase="burst"] [data-bone="left-arm"] {
+  animation: reaction-sticky-pull-left 600ms ease-in-out both;
+}
+.character-reaction[data-primary-reaction="sticky"][data-phase="burst"] [data-bone="right-arm"] {
+  animation: reaction-sticky-pull-right 600ms ease-in-out both;
+}
+.character-reaction[data-primary-reaction="sticky"][data-phase="burst"] [data-effect="sticky-strands"] {
+  visibility: visible;
+  animation: reaction-sticky-stretch 620ms ease-in-out both;
+}
+.character-reaction[data-primary-reaction="sticky"][data-phase="recover"] [data-bone="left-arm"] {
+  animation: reaction-sticky-break-left 180ms ease-in-out 4 both;
+}
+.character-reaction[data-primary-reaction="sticky"][data-phase="recover"] [data-bone="right-arm"] {
+  animation: reaction-sticky-break-right 180ms ease-in-out 4 both;
+}
+.character-reaction[data-primary-reaction="sticky"][data-phase="recover"] [data-bone="head"] {
+  animation: reaction-sticky-head-recover 700ms ease-out both;
+}
+.character-reaction[data-primary-reaction="sticky"]:is([data-phase="burst"], [data-phase="recover"]) .rig-mouth--open {
+  opacity: 0;
+  visibility: hidden;
+}
+.character-reaction[data-primary-reaction="sticky"]:is([data-phase="burst"], [data-phase="recover"]) .rig-mouth--closed {
+  opacity: 1;
+  visibility: visible;
+}
+
+.character-reaction[data-secondary-consumed="true"][data-secondary-reaction="chili"][data-phase="recover"] [data-effect="secondary"],
+.character-reaction[data-secondary-consumed="true"][data-secondary-reaction="mustard"][data-phase="recover"] [data-effect="secondary"],
+.character-reaction[data-secondary-consumed="true"][data-secondary-reaction="sour"][data-phase="recover"] [data-effect="secondary"],
+.character-reaction[data-secondary-consumed="true"][data-secondary-reaction="sticky"][data-phase="recover"] [data-effect="secondary"] {
+  visibility: visible;
+  animation: reaction-secondary-pop 520ms ease-out both;
+}
+.character-reaction[data-secondary-consumed="true"][data-secondary-reaction="chili"][data-phase="recover"] [data-secondary-effect="chili"],
+.character-reaction[data-secondary-consumed="true"][data-secondary-reaction="mustard"][data-phase="recover"] [data-secondary-effect="mustard"],
+.character-reaction[data-secondary-consumed="true"][data-secondary-reaction="sour"][data-phase="recover"] [data-secondary-effect="sour"],
+.character-reaction[data-secondary-consumed="true"][data-secondary-reaction="sticky"][data-phase="recover"] [data-secondary-effect="sticky"] {
+  opacity: 1;
 }
 
 .character-reaction[data-phase="settle"] .rig-person {
@@ -548,6 +712,154 @@
   100% { opacity: 0; transform: translate(8px, 22px) scale(1); }
 }
 
+@keyframes reaction-sneeze-body {
+  0% { transform: translateY(9px) scaleX(0.95) scaleY(1.015); }
+  28% { transform: translate(3px, -7px) rotate(4deg) scaleY(1.03); }
+  48% { transform: translate(-8px, 14px) rotate(-7deg) scaleY(0.92); }
+  72% { transform: translate(4px, -3px) rotate(3deg); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-sneeze-head {
+  0% { transform: translateY(6px) scale(0.97); }
+  28% { transform: translate(7px, -11px) rotate(9deg); }
+  48% { transform: translate(-14px, 11px) rotate(-12deg) scale(0.96); }
+  72% { transform: translate(5px, -4px) rotate(5deg); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-cover-nose-left {
+  0% { transform: rotate(-179deg); }
+  42% { transform: translate(21px, -16px) rotate(-198deg); }
+  68% { transform: translate(15px, -11px) rotate(-190deg); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-cover-nose-right {
+  0% { transform: none; }
+  42% { transform: translate(-31px, -20px) rotate(-154deg); }
+  68% { transform: translate(-24px, -14px) rotate(-148deg); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-sneeze-puff {
+  0% { opacity: 0; transform: translateX(-12px) scale(0.35); }
+  32% { opacity: 1; transform: translateX(0) scale(1); }
+  100% { opacity: 0; transform: translate(32px, -8px) scale(1.28); }
+}
+
+@keyframes reaction-nose-shake {
+  0%, 100% { transform: none; }
+  50% { transform: translateX(7px) rotate(3deg); }
+}
+
+@keyframes reaction-mustard-recover-left {
+  0%, 100% { transform: none; }
+  42%, 62% { transform: translate(20px, -14px) rotate(-190deg); }
+}
+
+@keyframes reaction-mustard-recover-right {
+  0%, 100% { transform: none; }
+  42%, 62% { transform: translate(-23px, -12px) rotate(-148deg); }
+}
+
+@keyframes reaction-sour-shiver {
+  0% { transform: translateY(9px) scaleX(0.95) scaleY(1.015); }
+  12% { transform: translate(-5px, 9px) scale(0.94, 1.02); }
+  24% { transform: translate(6px, 8px) scale(0.91, 1.04); }
+  36% { transform: translate(-7px, 10px) scale(0.89, 1.05); }
+  48% { transform: translate(7px, 8px) scale(0.9, 1.04); }
+  62% { transform: translate(-5px, 6px) scale(0.93, 1.03); }
+  78% { transform: translate(3px, 3px) scale(0.97, 1.01); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-sour-face {
+  0% { transform: translateY(6px) scale(0.97); }
+  35% { transform: translateY(10px) scale(0.86, 0.91); }
+  55% { transform: translate(-4px, 8px) rotate(-3deg) scale(0.84, 0.9); }
+  76% { transform: translate(3px, 5px) rotate(2deg) scale(0.9, 0.94); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-sour-wave {
+  0% { opacity: 0; transform: scale(0.72); }
+  25%, 62% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.2); }
+}
+
+@keyframes reaction-sour-recover {
+  0%, 100% { transform: none; }
+  15% { transform: translateX(-3px) scaleX(0.98); }
+  30% { transform: translateX(4px) scaleX(0.97); }
+  45% { transform: translateX(-3px); }
+  60% { transform: translateX(2px); }
+}
+
+@keyframes reaction-sour-head-recover {
+  0% { transform: none; }
+  38% { transform: translateY(5px) scale(0.93); }
+  68% { transform: translateY(2px) scale(0.97); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-sticky-struggle {
+  0% { transform: translateY(9px) scaleX(0.95) scaleY(1.015); }
+  35% { transform: translateY(6px) scaleX(1.04) scaleY(0.98); }
+  65% { transform: translateY(3px) scaleX(0.98) scaleY(1.02); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-sticky-face {
+  0% { transform: translateY(6px) scale(0.97); }
+  38% { transform: translateY(4px) scaleX(1.08) scaleY(0.94); }
+  68% { transform: translateY(2px) scaleX(0.96) scaleY(1.02); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-sticky-pull-left {
+  0% { transform: rotate(-179deg); }
+  38% { transform: translate(18px, -8px) rotate(-190deg); }
+  68% { transform: translate(30px, -4px) rotate(-204deg); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-sticky-pull-right {
+  0% { transform: none; }
+  38% { transform: translate(-20px, -10px) rotate(-154deg); }
+  68% { transform: translate(-33px, -5px) rotate(-140deg); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-sticky-stretch {
+  0% { opacity: 0; transform: scaleX(0.5); }
+  32%, 72% { opacity: 1; transform: scaleX(1.2); }
+  100% { opacity: 0; transform: scaleX(1.45); }
+}
+
+@keyframes reaction-sticky-break-left {
+  0%, 100% { transform: none; }
+  50% { transform: translate(24px, -6px) rotate(-198deg); }
+}
+
+@keyframes reaction-sticky-break-right {
+  0%, 100% { transform: none; }
+  50% { transform: translate(-26px, -7px) rotate(-145deg); }
+}
+
+@keyframes reaction-sticky-head-recover {
+  0% { transform: none; }
+  38% { transform: translateY(4px) scaleX(1.06) scaleY(0.96); }
+  72% { transform: translateY(1px) scaleX(0.98) scaleY(1.01); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-secondary-pop {
+  0% { opacity: 0; transform: translateY(8px) scale(0.4); }
+  28%, 68% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-12px) scale(1.12); }
+}
+
 @keyframes reaction-settle {
   0% { transform: translateY(-4px) scaleY(1.02); }
   38% { transform: translateY(15px) scaleY(0.95); }
@@ -568,7 +880,7 @@
 
   .character-reaction .reaction-caption,
   .character-reaction .victim-label {
-    font-size: 0.6rem;
+    font-size: 0.8rem;
   }
 }
 
@@ -594,9 +906,18 @@
     transform: scale(var(--reaction-fire-scale), 0.9) !important;
   }
 
-  .character-reaction[data-phase="recover"] [data-effect="heat"],
-  .character-reaction[data-phase="recover"] [data-effect="sweat"] {
+  .character-reaction[data-primary-reaction="chili"][data-phase="recover"] [data-effect="heat"],
+  .character-reaction[data-primary-reaction="chili"][data-phase="recover"] [data-effect="sweat"] {
     opacity: 0.82 !important;
+    visibility: visible !important;
+    transform: none !important;
+  }
+
+  .character-reaction[data-primary-reaction="mustard"][data-phase="burst"] [data-effect="sneeze"],
+  .character-reaction[data-primary-reaction="sour"][data-phase="burst"] [data-effect="sour-wave"],
+  .character-reaction[data-primary-reaction="sticky"][data-phase="burst"] [data-effect="sticky-strands"],
+  .character-reaction[data-secondary-consumed="true"][data-phase="recover"] [data-effect="secondary"] {
+    opacity: 0.88 !important;
     visibility: visible !important;
     transform: none !important;
   }

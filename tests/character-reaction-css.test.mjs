@@ -209,3 +209,27 @@ test("the narrow rig keeps a side gutter while chili intensity scales upward", (
   )].map((match) => Number(match[1]));
   assert.deepEqual(fireScales, [0.82, 0.96, 1.08, 1.18]);
 });
+
+test("each primary reaction has its own burst and recovery language", () => {
+  for (const [reaction, effect] of [
+    ["chili", "fire"],
+    ["mustard", "sneeze"],
+    ["sour", "sour-wave"],
+    ["sticky", "sticky-strands"],
+  ]) {
+    assert.match(css, new RegExp(`data-primary-reaction="${reaction}"[^\\n]*data-phase="burst"`));
+    assert.match(css, new RegExp(`data-primary-reaction="${reaction}"[^\\n]*data-phase="recover"`));
+    assert.match(css, new RegExp(`data-effect="${effect}"`));
+  }
+  assert.match(css, /data-primary-reaction="chili"[^\n]*data-effect="fire"/);
+  assert.doesNotMatch(css, /data-primary-reaction="(?:mustard|sour|sticky)"[^\n]*data-effect="fire"/);
+});
+
+test("secondary reactions appear only after the recover phase consumes them", () => {
+  for (const reaction of ["chili", "mustard", "sour", "sticky"]) {
+    assert.match(
+      css,
+      new RegExp(`data-secondary-consumed="true"[^\\n]*data-secondary-reaction="${reaction}"[^\\n]*data-phase="recover"`),
+    );
+  }
+});

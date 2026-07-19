@@ -439,6 +439,8 @@ def test_home_page_defines_an_inline_favicon() -> None:
 
     assert 'rel="icon"' in page
     assert 'href="data:image/svg+xml,' in page
+    assert "餐盘" in page or "%E9%A4%90%E7%9B%98" in page
+    assert "M13 37 32 8l19 29" not in page
 
 
 def test_realistic_food_assets_are_served_and_rendered() -> None:
@@ -485,6 +487,7 @@ def test_recipe_title_counts_all_repeated_and_mixed_sauces() -> None:
 
 def test_character_reaction_stage_is_served_as_an_articulated_svg() -> None:
     response = client.get("/static/character-reaction.mjs")
+    food = client.get("/static/food-assembly.mjs")
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith(
@@ -498,10 +501,14 @@ def test_character_reaction_stage_is_served_as_an_articulated_svg() -> None:
         'data-bone="left-arm"',
         'data-bone="right-arm"',
         'data-prop="food"',
-        'data-food-state="bitten"',
         'data-effect="fire"',
     ):
         assert marker in response.text
+    assert food.status_code == 200
+    assert 'data-food-state="${state}"' in food.text
+    assert 'build("bitten")' in food.text
+    assert "/static/art/foods/" not in response.text
+    assert "/static/art/foods/" not in food.text
     assert 'id="character-reaction"' not in response.text
 
 
@@ -628,6 +635,19 @@ def test_finished_result_focus_state_and_shared_giggle_animation_are_preserved()
     assert "@keyframes giggle" in styles
 
 
+def test_finished_result_is_a_live_focus_target_for_explicit_skip_only() -> None:
+    script = client.get("/static/app.js").text
+    flow = client.get("/static/finished-reaction-flow.mjs").text
+    finished = script.split("function renderFinished", 1)[1].split(
+        "function syncFinishedControls", 1
+    )[0]
+
+    assert 'role="status"' in finished
+    assert 'aria-live="polite"' in finished
+    assert 'tabindex="-1"' in finished
+    assert "preventScroll: true" in flow
+
+
 def test_reaction_feedback_is_optional_phase_driven_and_wired_to_user_gestures() -> None:
     feedback = client.get("/static/reaction-feedback.mjs")
     script = client.get("/static/app.js").text
@@ -639,8 +659,10 @@ def test_reaction_feedback_is_optional_phase_driven_and_wired_to_user_gestures()
         "primeReactionAudio",
         "handleReactionFeedback",
         'phase === "bite"',
-        'phase === "burst"',
-        'plan?.primary === "chili"',
+        'phase !== "burst"',
+        "mustard:",
+        "sour:",
+        "sticky:",
         "vibrate",
     ):
         assert marker in feedback.text

@@ -97,6 +97,7 @@ test("playing a mixed recipe initializes the reaction dataset", () => {
     primaryIntensity: "2",
     secondaryReaction: "mustard",
     secondaryIntensity: "1",
+    secondaryConsumed: "false",
     foodBitten: "false",
     phase: "notice",
   });
@@ -278,7 +279,7 @@ test("Node default timers can be cancelled immediately", () => {
   });
 });
 
-test("all supported foods render both whole and bitten images", () => {
+test("all supported foods render code-native whole and bitten assemblies", () => {
   for (const snackKind of [
     "fry",
     "nugget",
@@ -288,10 +289,39 @@ test("all supported foods render both whole and bitten images", () => {
     "mochi",
   ]) {
     const markup = characterReactionMarkup({ victim: "玩家", snackKind });
-    const foodPath = `/static/art/foods/${snackKind}.png`;
-
-    assert.equal(markup.split(foodPath).length - 1, 2, snackKind);
+    assert.match(markup, /data-food-assembly/, snackKind);
+    assert.match(markup, /data-food-state="whole"/, snackKind);
+    assert.match(markup, /data-food-state="bitten"/, snackKind);
+    assert.doesNotMatch(markup, /<image\b|\/static\/art\/foods\//, snackKind);
   }
+});
+
+test("the gripping hand sandwiches the food assembly without masking the hand", () => {
+  const markup = characterReactionMarkup({ victim: "玩家", snackKind: "nugget" });
+  const back = markup.indexOf('data-hand-layer="back"');
+  const food = markup.indexOf("data-food-assembly");
+  const front = markup.indexOf('data-hand-layer="front"');
+  assert.ok(back !== -1 && food !== -1 && front !== -1);
+  assert.ok(back < food && food < front);
+  assert.doesNotMatch(markup, /bitten-food-mask/);
+});
+
+test("all four reactions and secondary overlays have dedicated SVG effect layers", () => {
+  const markup = characterReactionMarkup({ victim: "玩家", snackKind: "nugget" });
+  for (const effect of ["fire", "sneeze", "sour-wave", "sticky-strands"]) {
+    assert.match(markup, new RegExp(`data-effect="${effect}"`));
+  }
+  for (const reaction of ["chili", "mustard", "sour", "sticky"]) {
+    assert.match(markup, new RegExp(`data-secondary-effect="${reaction}"`));
+  }
+});
+
+test("recover marks a secondary reaction consumed and announces it", () => {
+  const { root, caption, scheduled, options } = makeReactionHarness();
+  characterReaction.playCharacterReaction(root, ["chili", "chili", "mustard"], options);
+  scheduled.find(({ at }) => at === 2750).callback();
+  assert.equal(root.dataset.secondaryConsumed, "true");
+  assert.match(caption.textContent, /还混了芥末/);
 });
 
 test("the fire effect is mouth-anchored inside the articulated head", () => {
@@ -312,11 +342,8 @@ test("unknown and inherited snack keys fall back to nugget", () => {
   for (const snackKind of ["unknown", "constructor", "__proto__"]) {
     const markup = characterReactionMarkup({ victim: "玩家", snackKind });
 
-    assert.equal(
-      markup.split("/static/art/foods/nugget.png").length - 1,
-      2,
-      snackKind,
-    );
+    assert.match(markup, /data-snack-kind="nugget"/, snackKind);
+    assert.match(markup, /data-food-layer="patty"/, snackKind);
   }
 });
 
@@ -355,9 +382,9 @@ test("each stage owns unique and internally consistent SVG resource ids", () => 
     assert.ok(section[1].includes("data-character-reaction"));
     assert.equal(section[1].includes(" id="), false);
   }
-  assert.equal(firstIds.length, 4);
-  assert.equal(secondIds.length, 4);
-  for (const suffix of ["skin", "hoodie", "fire", "bitten-food-mask"]) {
+  assert.equal(firstIds.length, 3);
+  assert.equal(secondIds.length, 3);
+  for (const suffix of ["skin", "hoodie", "fire"]) {
     assert.ok(firstIds.some((id) => id.endsWith(`-${suffix}`)), suffix);
     assert.ok(secondIds.some((id) => id.endsWith(`-${suffix}`)), suffix);
   }

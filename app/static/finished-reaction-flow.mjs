@@ -32,7 +32,7 @@ export function createFinishedReactionFlow(options) {
     secondResultFrame = null;
   }
 
-  function setResultVisibility(visible) {
+  function setResultVisibility(visible, focusResult = false) {
     cancelResultFrames();
     const card = querySelector("#result-card");
     if (!card) return;
@@ -42,6 +42,13 @@ export function createFinishedReactionFlow(options) {
     if (visible) {
       card.removeAttribute("inert");
       card.classList.remove("result-card--visible");
+      if (focusResult && typeof card.focus === "function") {
+        try {
+          card.focus({ preventScroll: true });
+        } catch {
+          // Focus is progressive enhancement in older embedded browsers.
+        }
+      }
       const generation = resultFrameGeneration;
       firstResultFrame = scheduleFrame(() => {
         firstResultFrame = null;
@@ -80,7 +87,7 @@ export function createFinishedReactionFlow(options) {
     cancelResultFrames();
   }
 
-  function showReplayAndResult(immediate = false) {
+  function showReplayAndResult(immediate = false, focusResult = false) {
     setStageVisibility(false);
     const replay = querySelector("#deployment-replay");
     replay?.classList.add("deployment-replay--active");
@@ -88,7 +95,7 @@ export function createFinishedReactionFlow(options) {
     if (revealHandle !== null) cancelTimeout(revealHandle);
     revealHandle = null;
     if (immediate || !replay) {
-      setResultVisibility(true);
+      setResultVisibility(true, focusResult);
       return;
     }
 
@@ -136,7 +143,7 @@ export function createFinishedReactionFlow(options) {
 
     skip() {
       cancelPlayback();
-      showReplayAndResult(true);
+      showReplayAndResult(true, true);
     },
 
     replay(sauces, replay) {

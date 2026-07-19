@@ -28,6 +28,8 @@ class FakeElement {
     this.attributes = new Map();
     this.hidden = false;
     this.scrollCount = 0;
+    this.focusCount = 0;
+    this.focusOptions = [];
     this.container = null;
   }
 
@@ -49,6 +51,11 @@ class FakeElement {
 
   scrollIntoView() {
     this.scrollCount += 1;
+  }
+
+  focus(options) {
+    this.focusCount += 1;
+    this.focusOptions.push(options);
   }
 }
 
@@ -168,12 +175,33 @@ test("skip cancels playback and immediately exposes an accessible result", () =>
   assert.equal(result.classList.contains("result-card--visible"), false);
   assert.equal(timers.length, 0);
   assert.equal(frames.length, 1);
+  assert.equal(result.focusCount, 1);
+  assert.deepEqual(result.focusOptions, [{ preventScroll: true }]);
 
   frames[0].callback();
   assert.equal(result.classList.contains("result-card--visible"), false);
   assert.equal(frames.length, 2);
   frames[1].callback();
   assert.equal(result.classList.contains("result-card--visible"), true);
+});
+
+test("natural completion reveals the live result without stealing focus", () => {
+  const { flow, result, playbacks, timers } = fixture();
+  flow.beginOutcome("round-1", ["chili"], { snackKind: "nugget" });
+  playbacks[0].options.onComplete();
+  timers[0].callback();
+  assert.equal(result.hidden, false);
+  assert.equal(result.focusCount, 0);
+});
+
+test("skip safely tolerates a result card without focus support", () => {
+  const setup = fixture();
+  setup.result.focus = undefined;
+  assert.doesNotThrow(() => setup.flow.skip());
+
+  const throwing = fixture();
+  throwing.result.focus = () => { throw new Error("embedded browser focus failure"); };
+  assert.doesNotThrow(() => throwing.flow.skip());
 });
 
 test("replay resets the bite, hides inert result content, and starts fresh playback", () => {
