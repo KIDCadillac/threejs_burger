@@ -1,0 +1,2 @@
+"""Witch Fries web prototype."""
+
