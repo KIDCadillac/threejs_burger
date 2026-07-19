@@ -174,6 +174,7 @@ class GameService:
         return room
 
     def disconnect(self, player_id: str) -> Room | None:
+        self.cancel_queue(player_id)
         room = self.room_for(player_id)
         if room is None:
             return None

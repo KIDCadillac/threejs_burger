@@ -55,6 +55,17 @@ def test_cancelled_player_is_not_matched() -> None:
     assert service.room_for("p1") is None
 
 
+def test_disconnected_queued_player_is_not_matched() -> None:
+    service = GameService(clock=FakeClock())
+    service.join_queue("p1")
+
+    assert service.disconnect("p1") is None
+
+    assert "p1" not in service.queue
+    assert service.join_queue("p2").status == "waiting"
+    assert service.room_for("p1") is None
+
+
 def test_invite_room_accepts_code_then_rejects_third_player() -> None:
     service = GameService(clock=FakeClock())
     room = service.create_room("p1")
