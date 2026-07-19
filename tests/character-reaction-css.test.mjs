@@ -253,14 +253,60 @@ test("food reach and lift share an identical transform handoff", () => {
   assert.match(grab, /to\s*\{[^}]*rotate\(var\(--reaction-food-to-rotation/);
 });
 
-test("food-only drop and hide rules never target the base hand", () => {
-  const phaseRules = cssRules.filter(({ selector }) => (
-    selector.includes('[data-phase="burst"]')
-      || selector.includes('[data-phase="recover"]')
-      || selector.includes('[data-phase="settle"]')
+test("drop animation targets only the assembly and never either hand layer", () => {
+  const dropRules = cssRules.filter(({ declarations }) => (
+    declarations.includes("reaction-food-drop")
   ));
+  assert.equal(dropRules.length, 1);
+  assert.match(dropRules[0].selector, /data-food-assembly/);
+  assert.doesNotMatch(dropRules[0].selector, /data-prop="food"|data-hand-layer/);
+});
+
+test("base and temporary grip hands are mutually exclusive across phases", () => {
+  const holding = cssRules.filter(({ selector }) => (
+    selector.includes('[data-phase="reach"]')
+      && selector.includes('[data-phase="lift"]')
+      && selector.includes('[data-phase="bite"]')
+      && selector.includes('[data-phase="chew"]')
+      && selector.includes('[data-phase="brace"]')
+  ));
+  const resting = cssRules.filter(({ selector }) => (
+    selector.includes('[data-phase="notice"]')
+      && selector.includes('[data-phase="burst"]')
+      && selector.includes('[data-phase="recover"]')
+      && selector.includes('[data-phase="settle"]')
+  ));
+  const find = (rules, marker) => rules.find(({ selector }) => selector.includes(marker));
+
+  const hiddenBase = find(holding, '[data-hand-layer="base"]');
+  const visibleBack = find(holding, '[data-hand-layer="back"]');
+  const visibleFront = find(holding, '[data-hand-layer="front"]');
+  assert.match(hiddenBase?.declarations ?? "", /opacity:\s*0;/);
+  assert.match(hiddenBase?.declarations ?? "", /visibility:\s*hidden;/);
+  for (const rule of [visibleBack, visibleFront]) {
+    assert.match(rule?.declarations ?? "", /opacity:\s*1;/);
+    assert.match(rule?.declarations ?? "", /visibility:\s*visible;/);
+  }
+
+  const visibleBase = find(resting, '[data-hand-layer="base"]');
+  const hiddenBack = find(resting, '[data-hand-layer="back"]');
+  const hiddenFront = find(resting, '[data-hand-layer="front"]');
+  assert.match(visibleBase?.declarations ?? "", /opacity:\s*1;/);
+  assert.match(visibleBase?.declarations ?? "", /visibility:\s*visible;/);
+  for (const rule of [hiddenBack, hiddenFront]) {
+    assert.match(rule?.declarations ?? "", /opacity:\s*0;/);
+    assert.match(rule?.declarations ?? "", /visibility:\s*hidden;/);
+  }
+});
+
+test("recovery and reduced-motion positioning never reveal temporary hands", () => {
+  const assemblyRules = cssRules.filter(({ selector }) => (
+    selector.includes('[data-food-assembly]')
+  ));
+  assert.ok(assemblyRules.some(({ selector }) => selector.includes('[data-phase="recover"]')));
+  assert.ok(assemblyRules.some(({ selector }) => selector.includes('[data-phase="settle"]')));
   assert.doesNotMatch(
-    phaseRules.map(({ selector, declarations }) => `${selector}{${declarations}}`).join("\n"),
-    /data-hand-layer="base"[^}]*?(?:opacity:\s*0|visibility:\s*hidden)/,
+    css.match(/@media \(prefers-reduced-motion: reduce\)[\s\S]*$/)?.[0] ?? "",
+    /data-prop="food"[^}]*opacity:\s*0\.7/,
   );
 });
