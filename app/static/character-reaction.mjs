@@ -96,7 +96,7 @@ export function characterReactionMarkup({ victim, snackKind }) {
   const titleId = `${instancePrefix}-title`;
 
   return `
-    <section class="character-reaction" data-character-reaction data-phase="notice" data-food-bitten="false">
+    <section class="character-reaction" data-character-reaction data-phase="notice" data-food-bitten="false" tabindex="-1">
       <p class="reaction-caption" data-reaction-caption>看起来还挺正常……</p>
       <svg class="reaction-rig" viewBox="0 0 390 500" role="img" aria-labelledby="${titleId}">
         <title id="${titleId}">${safeVictim}的完整进食动画</title>
@@ -155,6 +155,10 @@ export function characterReactionMarkup({ victim, snackKind }) {
 
           <g data-bone="left-arm">
             <path class="rig-sleeve" fill="url(#${hoodieId})" d="M138 251 Q95 266 79 327 L112 341 Q132 303 166 283Z"/>
+            <g data-bone="left-hand" data-hand-layer="base">
+              <path class="rig-hand" fill="url(#${skinId})" d="M78 319 Q59 321 56 340 Q60 358 79 354 L107 337Z"/>
+              <path class="rig-finger" fill="url(#${skinId})" d="M65 329 Q78 324 91 333"/>
+            </g>
           </g>
 
           <g data-bone="right-arm">

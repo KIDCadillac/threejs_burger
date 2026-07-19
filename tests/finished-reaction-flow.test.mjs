@@ -56,6 +56,7 @@ class FakeElement {
   focus(options) {
     this.focusCount += 1;
     this.focusOptions.push(options);
+    if (this.focusState) this.focusState.activeElement = this;
   }
 }
 
@@ -65,6 +66,12 @@ function fixture() {
   stage.container = stageContainer;
   const replay = new FakeElement("deployment-replay");
   const result = new FakeElement("result-card", "result-card--delayed");
+  const skip = new FakeElement("skip-effect");
+  const replayButton = new FakeElement("replay-reaction");
+  const focusState = { activeElement: null };
+  for (const element of [stage, replay, result, skip, replayButton]) {
+    element.focusState = focusState;
+  }
   result.hidden = true;
   result.setAttribute("aria-hidden", "true");
   result.setAttribute("inert", "");
@@ -73,6 +80,7 @@ function fixture() {
     ["[data-character-reaction]", stage],
     ["#deployment-replay", replay],
     ["#result-card", result],
+    ['[data-action="skip-effect"]', skip],
   ]);
   const timers = [];
   const frames = [];
@@ -118,6 +126,9 @@ function fixture() {
     stage,
     replay,
     result,
+    skip,
+    replayButton,
+    focusState,
     timers,
     frames,
     playbacks,
@@ -205,9 +216,14 @@ test("skip safely tolerates a result card without focus support", () => {
 });
 
 test("replay resets the bite, hides inert result content, and starts fresh playback", () => {
-  const { flow, stageContainer, stage, replay, result, playbacks, timers, frames } = fixture();
+  const {
+    flow, stageContainer, stage, replay, result, skip, replayButton, focusState,
+    playbacks, timers, frames,
+  } = fixture();
   flow.beginOutcome("round-1", ["chili"], { snackKind: "nugget" });
   flow.skip();
+  replayButton.focus();
+  assert.equal(focusState.activeElement, replayButton);
 
   assert.equal(flow.replay(["chili"], { snackKind: "nugget" }), true);
 
@@ -223,6 +239,9 @@ test("replay resets the bite, hides inert result content, and starts fresh playb
   assert.equal(result.getAttribute("aria-hidden"), "true");
   assert.equal(result.getAttribute("inert"), "");
   assert.equal(result.classList.contains("result-card--visible"), false);
+  assert.equal(skip.focusCount, 1);
+  assert.deepEqual(skip.focusOptions, [{ preventScroll: true }]);
+  assert.equal(focusState.activeElement, skip);
   assert.equal(stage.scrollCount, 1);
 
   playbacks[1].options.onComplete();
@@ -235,6 +254,17 @@ test("replay resets the bite, hides inert result content, and starts fresh playb
   frames[1].callback();
   frames[2].callback();
   assert.equal(result.classList.contains("result-card--visible"), true);
+});
+
+test("replay focus falls back to the reaction stage when skip control is missing", () => {
+  const setup = fixture();
+  setup.flow.beginOutcome("round-1", ["chili"], { snackKind: "nugget" });
+  setup.flow.skip();
+  setup.skip.focus = undefined;
+
+  assert.equal(setup.flow.replay(["chili"], { snackKind: "nugget" }), true);
+  assert.equal(setup.stage.focusCount, 1);
+  assert.deepEqual(setup.stage.focusOptions, [{ preventScroll: true }]);
 });
 
 test("route transition cancels both playback and delayed reveal", () => {

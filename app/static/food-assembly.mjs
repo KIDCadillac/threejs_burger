@@ -57,36 +57,49 @@ function cookie(state) {
   </g>`;
 }
 
-function onionRing(state) {
+function sandwich(state) {
   const bite = state === "bitten";
-  return `<g class="food-shape food-shape--ring" data-food-state="${state}">
-    <path d="M35 351 Q38 315 76 310 Q109 311 ${bite ? "111 328 Q100 336 109 345 Q99 354 109 362 Q102 373 110 379" : "118 350"} Q115 388 76 394 Q38 390 35 351Z M56 351 Q58 369 77 372 Q94 369 98 350 Q95 331 76 330 Q58 333 56 351Z" fill="#e4a94b" fill-rule="evenodd" stroke="#724022" stroke-width="4"/>
-    ${bite ? '<path data-bite-cross-section d="M108 327 Q117 337 107 346 Q118 355 108 365" fill="none" stroke="#f4d08a" stroke-width="5"/>' : ""}
+  const edge = bite
+    ? "L100 337 Q110 343 101 350 Q111 357 100 365"
+    : "L117 340 L116 366";
+  return `<g class="food-shape food-shape--sandwich" data-food-state="${state}">
+    <path data-food-layer="bread-bottom" d="M38 363 L76 340 ${bite ? "L101 356 Q111 362 101 370" : "L116 362"} L77 393 L38 376Z" fill="#d69a4f" stroke="#65402a" stroke-width="3"/>
+    <path data-food-layer="sandwich-filling" d="M38 353 L76 333 ${bite ? "L102 348 Q111 354 101 360" : "L116 353 L116 364"} L78 383 L38 367Z" fill="#68a94d" stroke="#315d31" stroke-width="4"/>
+    <path d="M42 357 L76 342 ${bite ? "L99 353" : "L111 357"}" fill="none" stroke="#e95744" stroke-width="7" stroke-linecap="round"/>
+    <path data-food-layer="bread-top" d="M37 340 L76 309 ${edge} L76 371 L37 354Z" fill="#efc77a" stroke="#65402a" stroke-width="3"/>
+    <path d="M47 339 L76 318 ${bite ? "L97 338" : "L107 340"}" fill="none" stroke="#ffe1a0" stroke-width="5" opacity=".8"/>
+    ${bite ? `<g data-bite-cross-section>
+      <path data-cross-section-layer="bread" d="M99 336 Q111 343 101 350" fill="none" stroke="#fff0bd" stroke-width="7"/>
+      <path data-cross-section-layer="vegetable" d="M101 350 Q111 356 100 362" fill="none" stroke="#73bb55" stroke-width="6"/>
+      <path data-cross-section-layer="tomato" d="M101 358 Q110 364 100 370" fill="none" stroke="#e95744" stroke-width="4"/>
+    </g>` : ""}
   </g>`;
 }
 
-function mochi(state) {
+function jellyCup(state) {
   const bite = state === "bitten";
-  return `<g class="food-shape food-shape--mochi" data-food-state="${state}">
-    <path d="M38 370 Q40 323 75 315 Q108 318 ${bite ? "109 333 Q99 340 108 349 Q99 357 109 366 Q103 374 108 382" : "116 370"} Q105 396 76 398 Q47 396 38 370Z" fill="#e9d7bd" stroke="#684936" stroke-width="3"/>
-    <path d="M48 374 Q76 386 ${bite ? "102 374" : "108 372"}" fill="none" stroke="#bd4e6d" stroke-width="8"/>
-    ${bite ? '<path data-bite-cross-section d="M107 331 Q116 340 106 349 Q116 358 107 367" fill="none" stroke="#fff3dc" stroke-width="6"/>' : ""}
+  return `<g class="food-shape food-shape--jelly-cup" data-food-state="${state}">
+    <path data-food-layer="jelly-cup" d="M39 333 Q76 324 113 333 L105 394 Q76 406 47 394Z" fill="#d9f5ef" fill-opacity=".42" stroke="#416d73" stroke-width="3"/>
+    <path data-food-layer="jelly" d="M46 339 Q76 332 ${bite ? "101 339 Q111 347 102 355 Q111 363 101 371" : "107 339 L103 379"} Q76 391 49 380Z" fill="#9f70da" opacity=".68" stroke="#65418f" stroke-width="3"/>
+    <ellipse cx="76" cy="333" rx="38" ry="10" fill="#eefbf7" fill-opacity=".55" stroke="#416d73" stroke-width="3"/>
+    <path d="M55 350 Q59 370 57 383" fill="none" stroke="#ffffff" stroke-width="5" opacity=".55" stroke-linecap="round"/>
+    ${bite ? '<path data-bite-cross-section d="M101 338 Q112 347 102 355 Q112 363 101 371" fill="none" stroke="#d8b6ff" stroke-width="6"/>' : ""}
   </g>`;
 }
 
 const BUILDERS = Object.freeze({
-  fry: fries,
-  nugget: hamburger,
-  donut,
-  cookie,
-  "onion-ring": onionRing,
-  mochi,
+  fry: Object.freeze({ variant: "fries", build: fries }),
+  nugget: Object.freeze({ variant: "hamburger", build: hamburger }),
+  donut: Object.freeze({ variant: "donut", build: donut }),
+  cookie: Object.freeze({ variant: "cookie", build: cookie }),
+  "onion-ring": Object.freeze({ variant: "sandwich", build: sandwich }),
+  mochi: Object.freeze({ variant: "jelly-cup", build: jellyCup }),
 });
 
 export function foodAssemblyMarkup(snackKind) {
   const safeKind = Object.hasOwn(BUILDERS, snackKind) ? snackKind : "nugget";
-  const build = BUILDERS[safeKind];
-  return `<g data-food-assembly data-snack-kind="${safeKind}">
+  const { build, variant } = BUILDERS[safeKind];
+  return `<g data-food-assembly data-snack-kind="${safeKind}" data-food-variant="${variant}">
     ${build("whole")}
     ${build("bitten")}
   </g>`;

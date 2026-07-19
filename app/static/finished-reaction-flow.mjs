@@ -79,6 +79,16 @@ export function createFinishedReactionFlow(options) {
     }
   }
 
+  function focusSafely(element) {
+    if (typeof element?.focus !== "function") return false;
+    try {
+      element.focus({ preventScroll: true });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function cancelPlayback() {
     playback?.cancel();
     playback = null;
@@ -157,7 +167,11 @@ export function createFinishedReactionFlow(options) {
       stage.dataset.phase = "notice";
       stage.dataset.foodBitten = "false";
       const started = startPlayback(sauces, replay);
-      if (started) stage.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (started) {
+        const skipControl = querySelector('[data-action="skip-effect"]');
+        if (!focusSafely(skipControl)) focusSafely(stage);
+        stage.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
       return started;
     },
 

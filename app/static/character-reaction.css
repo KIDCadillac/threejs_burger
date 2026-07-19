@@ -373,6 +373,8 @@
   --reaction-food-to-y: -8px;
   --reaction-food-from-scale: 1;
   --reaction-food-to-scale: 0.94;
+  --reaction-food-from-rotation: 0deg;
+  --reaction-food-to-rotation: -7deg;
   animation: reaction-food-grab 320ms cubic-bezier(0.2, 0.78, 0.25, 1) both;
 }
 
@@ -389,6 +391,8 @@
   --reaction-food-to-y: var(--food-mouth-y);
   --reaction-food-from-scale: 0.94;
   --reaction-food-to-scale: 0.68;
+  --reaction-food-from-rotation: -7deg;
+  --reaction-food-to-rotation: -7deg;
   animation: reaction-food-grab 390ms cubic-bezier(0.22, 0.72, 0.18, 1) both;
 }
 
@@ -606,10 +610,10 @@
 
 @keyframes reaction-food-grab {
   from {
-    transform: translate(var(--reaction-food-from-x, 0), var(--reaction-food-from-y, 0)) scale(var(--reaction-food-from-scale, 1));
+    transform: translate(var(--reaction-food-from-x, 0), var(--reaction-food-from-y, 0)) rotate(var(--reaction-food-from-rotation, 0deg)) scale(var(--reaction-food-from-scale, 1));
   }
   to {
-    transform: translate(var(--reaction-food-to-x, 4px), var(--reaction-food-to-y, -8px)) rotate(-7deg) scale(var(--reaction-food-to-scale, 0.94));
+    transform: translate(var(--reaction-food-to-x, 4px), var(--reaction-food-to-y, -8px)) rotate(var(--reaction-food-to-rotation, -7deg)) scale(var(--reaction-food-to-scale, 0.94));
   }
 }
 

@@ -306,6 +306,20 @@ test("the gripping hand sandwiches the food assembly without masking the hand", 
   assert.doesNotMatch(markup, /bitten-food-mask/);
 });
 
+test("the character keeps a base left hand outside the dropping food prop", () => {
+  const markup = characterReactionMarkup({ victim: "玩家", snackKind: "nugget" });
+  const leftArm = extractSvgGroup(markup, 'data-bone="left-arm"');
+  const baseHand = leftArm.indexOf('data-hand-layer="base"');
+  const foodProp = markup.indexOf('data-prop="food"');
+
+  assert.notEqual(baseHand, -1);
+  assert.ok(markup.indexOf('data-hand-layer="base"') < foodProp);
+  assert.doesNotMatch(
+    markup.slice(foodProp),
+    /data-hand-layer="base"/,
+  );
+});
+
 test("all four reactions and secondary overlays have dedicated SVG effect layers", () => {
   const markup = characterReactionMarkup({ victim: "玩家", snackKind: "nugget" });
   for (const effect of ["fire", "sneeze", "sour-wave", "sticky-strands"]) {
@@ -380,6 +394,7 @@ test("each stage owns unique and internally consistent SVG resource ids", () => 
     assert.ok(section);
     assert.ok(section[1].includes('class="character-reaction"'));
     assert.ok(section[1].includes("data-character-reaction"));
+    assert.ok(section[1].includes('tabindex="-1"'));
     assert.equal(section[1].includes(" id="), false);
   }
   assert.equal(firstIds.length, 3);

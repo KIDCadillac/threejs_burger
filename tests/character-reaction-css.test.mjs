@@ -233,3 +233,34 @@ test("secondary reactions appear only after the recover phase consumes them", ()
     );
   }
 });
+
+test("food reach and lift share an identical transform handoff", () => {
+  const rule = (phase) => cssRules.find(({ selector }) => (
+    selector.includes(`[data-phase="${phase}"]`)
+      && selector.includes('[data-prop="food"]')
+  ))?.declarations ?? "";
+  const property = (declarations, name) => declarations.match(
+    new RegExp(`--reaction-food-${name}:\\s*([^;]+);`),
+  )?.[1].trim();
+  const reach = rule("reach");
+  const lift = rule("lift");
+
+  for (const axis of ["x", "y", "scale", "rotation"]) {
+    assert.equal(property(reach, `to-${axis}`), property(lift, `from-${axis}`), axis);
+  }
+  const grab = extractBlock("@keyframes reaction-food-grab");
+  assert.match(grab, /from\s*\{[^}]*rotate\(var\(--reaction-food-from-rotation/);
+  assert.match(grab, /to\s*\{[^}]*rotate\(var\(--reaction-food-to-rotation/);
+});
+
+test("food-only drop and hide rules never target the base hand", () => {
+  const phaseRules = cssRules.filter(({ selector }) => (
+    selector.includes('[data-phase="burst"]')
+      || selector.includes('[data-phase="recover"]')
+      || selector.includes('[data-phase="settle"]')
+  ));
+  assert.doesNotMatch(
+    phaseRules.map(({ selector, declarations }) => `${selector}{${declarations}}`).join("\n"),
+    /data-hand-layer="base"[^}]*?(?:opacity:\s*0|visibility:\s*hidden)/,
+  );
+});
