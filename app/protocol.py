@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.domain import GameState, Phase, PickOutcome
+from app.domain import GameState, Phase, PickOutcome, SNACK_LAYOUTS
 from app.service import Room
 
 
@@ -44,11 +44,34 @@ def serialize_game(game: GameState, *, viewer_id: str) -> dict[str, Any]:
                 result["recipe"] = {
                     "sauces": list(game.last_outcome.recipe.sauces)
                 }
+                result["replay"] = {
+                    "position": game.last_outcome.position,
+                    "snackKind": game.snacks[game.last_outcome.position],
+                    "sauces": list(game.last_outcome.recipe.sauces),
+                    "creator": game.last_outcome.winner,
+                }
+
+    pending_pick: dict[str, Any] | None = None
+    if game.pending_pick is not None:
+        pending_pick = {
+            "picker": game.pending_pick.picker,
+            "position": game.pending_pick.position,
+            "changed": game.pending_pick.changed,
+            "bluff": game.pending_pick.bluff,
+        }
 
     return {
         "phase": game.phase.value,
         "currentPlayer": game.current_player,
         "remainingFries": sorted(game.remaining_fries),
+        "snacks": [
+            {
+                "position": position,
+                "kind": kind,
+                "available": position in game.remaining_fries,
+            }
+            for position, kind in enumerate(game.snacks)
+        ],
         "roundNumber": game.round_number,
         "paused": game.paused,
         "players": [
@@ -60,6 +83,16 @@ def serialize_game(game: GameState, *, viewer_id: str) -> dict[str, Any]:
             for index, player_id in enumerate(game.player_order)
         ],
         "private": private,
+        "pendingPick": pending_pick,
+        "gestures": [
+            {
+                "player": player_id,
+                "key": game.gestures[player_id].key,
+                "sequence": game.gestures[player_id].sequence,
+            }
+            for player_id in game.player_order
+            if player_id in game.gestures
+        ],
         "lastOutcome": _serialize_outcome(game.last_outcome),
         "result": result,
         "rematchVotes": sorted(game.rematch_votes),
@@ -77,6 +110,10 @@ def serialize_room(room: Room, *, viewer_id: str) -> dict[str, Any]:
             "phase": "waiting",
             "currentPlayer": None,
             "remainingFries": list(range(12)),
+            "snacks": [
+                {"position": position, "kind": kind, "available": True}
+                for position, kind in enumerate(SNACK_LAYOUTS[0])
+            ],
             "roundNumber": 0,
             "paused": False,
             "players": [
@@ -89,6 +126,8 @@ def serialize_room(room: Room, *, viewer_id: str) -> dict[str, Any]:
                 for index, player_id in enumerate(room.players)
             ],
             "private": None,
+            "pendingPick": None,
+            "gestures": [],
             "lastOutcome": None,
             "result": None,
             "rematchVotes": [],

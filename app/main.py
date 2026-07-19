@@ -171,6 +171,28 @@ async def _dispatch(
         await hub.broadcast_room(room)
         return
 
+    if kind == "snack.aim":
+        position = payload.get("position")
+        if not isinstance(position, int):
+            raise ProtocolError("请选择一件零食")
+        room = service.aim(player_id, position)
+        await hub.broadcast_room(room)
+        return
+
+    if kind == "gesture.send":
+        key = payload.get("key")
+        if not isinstance(key, str):
+            raise ProtocolError("动作格式无效")
+        room = service.send_gesture(player_id, key)
+        await hub.broadcast_room(room)
+        return
+
+    if kind == "snack.confirm":
+        room = _require_started_room(service, player_id)
+        service.confirm_pick(player_id)
+        await hub.broadcast_room(room)
+        return
+
     if kind == "rematch.request":
         room = _require_started_room(service, player_id)
         service.request_rematch(player_id)

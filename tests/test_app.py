@@ -84,6 +84,31 @@ def test_websocket_create_and_join_room() -> None:
             assert turn_for_p2["phase"] == "turn"
             assert turn_for_p1["deadline"] is not None
 
+            ws1.send_json({"type": "snack.aim", "position": 3})
+            aimed_for_p1 = ws1.receive_json()
+            assert aimed_for_p1["type"] == "state"
+            aimed_for_p2 = ws2.receive_json()
+            assert aimed_for_p1["pendingPick"]["position"] == 3
+            assert aimed_for_p2["pendingPick"] == aimed_for_p1["pendingPick"]
+
+            ws2.send_json({"type": "gesture.send", "key": "point"})
+            gesture_for_p2 = ws2.receive_json()
+            gesture_for_p1 = ws1.receive_json()
+            assert gesture_for_p1["pendingPick"]["bluff"] == "point"
+            assert gesture_for_p2["gestures"] == gesture_for_p1["gestures"]
+
+            ws1.send_json({"type": "snack.aim", "position": 4})
+            changed_for_p1 = ws1.receive_json()
+            changed_for_p2 = ws2.receive_json()
+            assert changed_for_p1["pendingPick"]["changed"] is True
+            assert changed_for_p2["pendingPick"]["position"] == 4
+
+            ws1.send_json({"type": "snack.confirm"})
+            confirmed_for_p1 = ws1.receive_json()
+            confirmed_for_p2 = ws2.receive_json()
+            assert confirmed_for_p1["lastOutcome"]["position"] == 4
+            assert confirmed_for_p2["currentPlayer"] == "p2"
+
 
 def test_websocket_rejects_unknown_command_without_closing() -> None:
     isolated_client = TestClient(create_app(GameService()))

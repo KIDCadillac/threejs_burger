@@ -173,6 +173,28 @@ class GameService:
         )
         return outcome
 
+    def aim(self, player_id: str, position: int) -> Room:
+        room = self._started_room(player_id)
+        room.game.aim(player_id, position)
+        return room
+
+    def send_gesture(self, player_id: str, key: str) -> Room:
+        room = self._started_room(player_id)
+        room.game.send_gesture(player_id, key)
+        return room
+
+    def confirm_pick(
+        self, player_id: str, *, automatic: bool = False
+    ) -> PickOutcome:
+        room = self._started_room(player_id)
+        outcome = room.game.confirm_pick(player_id, automatic=automatic)
+        room.turn_deadline = (
+            self.clock.now() + TURN_SECONDS
+            if room.game.phase is Phase.TURN
+            else None
+        )
+        return outcome
+
     def request_rematch(self, player_id: str) -> bool:
         room = self._started_room(player_id)
         reset = room.game.request_rematch(player_id)
@@ -192,8 +214,14 @@ class GameService:
         options = sorted(room.game.remaining_fries)
         if not options:
             return None
-        position = self.random_choice(options)
-        self.pick(room.game.current_player, position, automatic=True)
+        if (
+            room.game.pending_pick is not None
+            and room.game.pending_pick.picker == room.game.current_player
+        ):
+            self.confirm_pick(room.game.current_player, automatic=True)
+        else:
+            position = self.random_choice(options)
+            self.pick(room.game.current_player, position, automatic=True)
         return room
 
     def tick(self) -> list[Room]:

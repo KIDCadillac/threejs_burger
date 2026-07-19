@@ -149,6 +149,22 @@ def test_turn_timeout_uses_only_remaining_fries() -> None:
     assert room.game.last_outcome.automatic is True
 
 
+def test_turn_timeout_confirms_existing_aim_instead_of_randomizing() -> None:
+    random_calls: list[object] = []
+    service, room = started_room(
+        random_choice=lambda values: random_calls.append(values) or values[0]
+    )
+    service.aim("p1", 4)
+
+    changed = service.expire_turn(room.code)
+
+    assert changed is room
+    assert random_calls == []
+    assert room.game.last_outcome.position == 4
+    assert room.game.last_outcome.automatic is True
+    assert room.game.pending_pick is None
+
+
 def test_tick_expires_due_turn() -> None:
     clock = FakeClock()
     service, room = started_room(clock=clock, random_choice=lambda values: values[0])

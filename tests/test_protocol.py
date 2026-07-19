@@ -33,6 +33,27 @@ def test_safe_outcome_does_not_reveal_recipe() -> None:
     assert "recipe" not in view["lastOutcome"]
 
 
+def test_shared_snacks_and_public_interaction_never_reveal_opponent_recipe() -> None:
+    game = locked_game()
+    game.aim("p1", 3)
+    game.send_gesture("p2", "point")
+
+    p1_view = serialize_game(game, viewer_id="p1")
+    p2_view = serialize_game(game, viewer_id="p2")
+
+    assert p1_view["snacks"] == p2_view["snacks"]
+    assert len(p1_view["snacks"]) == 12
+    assert p1_view["pendingPick"] == {
+        "picker": "p1",
+        "position": 3,
+        "changed": False,
+        "bluff": "point",
+    }
+    assert p1_view["gestures"] == p2_view["gestures"]
+    assert "sour" not in json.dumps(p1_view)
+    assert "chili" not in json.dumps(p2_view)
+
+
 def test_hit_result_reveals_only_triggered_recipe() -> None:
     game = locked_game()
     game.pick("p1", 7)
@@ -44,6 +65,12 @@ def test_hit_result_reveals_only_triggered_recipe() -> None:
         "winner": "p2",
         "loser": "p1",
         "recipe": {"sauces": ["sour", "sticky"]},
+        "replay": {
+            "position": 7,
+            "snackKind": game.snacks[7],
+            "sauces": ["sour", "sticky"],
+            "creator": "p2",
+        },
     }
 
 
