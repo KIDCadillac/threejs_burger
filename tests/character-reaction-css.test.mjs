@@ -76,13 +76,18 @@ function extractBlock(marker) {
   assert.fail(`unclosed CSS block: ${marker}`);
 }
 
-function keyframeTransformAt(animationName, percentagePattern) {
+function keyframeTransformAt(animationName, percentage) {
   const keyframes = extractBlock(`@keyframes ${animationName}`);
-  const match = keyframes.match(
-    new RegExp(`${percentagePattern}\\s*\\{[^{}]*transform:\\s*([^;]+);`),
-  );
-  assert.ok(match, `missing ${animationName} transform at ${percentagePattern}`);
-  return match[1].trim();
+  for (const match of keyframes.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const offsets = match[1].split(",").map((offset) => offset.trim());
+    if (!offsets.includes(percentage)) continue;
+
+    const transform = match[2].match(/\btransform:\s*([^;]+);/)?.[1].trim();
+    assert.ok(transform, `missing ${animationName} transform at ${percentage}`);
+    return transform;
+  }
+
+  assert.fail(`missing ${animationName} keyframe at ${percentage}`);
 }
 
 test("phase animations finish inside their model-derived timeline windows", () => {
@@ -111,11 +116,18 @@ test("phase animations finish inside their model-derived timeline windows", () =
   );
 });
 
-test("brace recoil and recovery arms have continuous endpoints", () => {
-  const braceEnd = keyframeTransformAt(
-    "reaction-brace",
-    "(?:\\d+%,\\s*)*100%",
-  );
+test("the head uses a fixed view-box neck pivot", () => {
+  const headRule = cssRules.find(({ selector }) => (
+    selector === '.reaction-rig [data-bone="head"]'
+  ));
+  assert.ok(headRule);
+  assert.match(headRule.declarations, /transform-box:\s*view-box;/);
+  assert.match(headRule.declarations, /transform-origin:\s*195px 241px;/);
+  assert.doesNotMatch(headRule.declarations, /transform-origin:\s*\d+%/);
+});
+
+test("body and head phases have continuous transform endpoints", () => {
+  const braceEnd = keyframeTransformAt("reaction-brace", "100%");
   const recoilStart = keyframeTransformAt("reaction-recoil", "0%");
   assert.equal(recoilStart, braceEnd);
 
@@ -123,14 +135,39 @@ test("brace recoil and recovery arms have continuous endpoints", () => {
     selector.includes('[data-phase="brace"]')
       && selector.includes('[data-bone="head"]')
   ));
-  const braceHeadTransform = braceHeadRule?.declarations.match(
-    /\btransform:\s*([^;]+);/,
+  const braceHeadAnimation = braceHeadRule?.declarations.match(
+    /\banimation:\s*([^;]+);/,
   )?.[1].trim();
-  assert.ok(braceHeadTransform);
-  assert.equal(
-    keyframeTransformAt("reaction-head-recoil", "0%"),
-    braceHeadTransform,
-  );
+  assert.match(braceHeadAnimation ?? "", /^reaction-head-brace 220ms\b/);
+
+  const chewHeadRule = cssRules.find(({ selector }) => (
+    selector.includes('[data-phase="chew"]')
+      && selector.includes('[data-bone="head"]')
+  ));
+  const chewHeadAnimation = chewHeadRule?.declarations.match(
+    /\banimation:\s*([^;]+);/,
+  )?.[1].trim();
+  assert.match(chewHeadAnimation ?? "", /\b2 both$/);
+
+  const biteEnd = keyframeTransformAt("reaction-head-bite", "100%");
+  const chewStart = keyframeTransformAt("reaction-head-chew", "0%");
+  const chewEnd = keyframeTransformAt("reaction-head-chew", "100%");
+  const headBraceStart = keyframeTransformAt("reaction-head-brace", "0%");
+  const headBraceEnd = keyframeTransformAt("reaction-head-brace", "100%");
+  const headRecoilStart = keyframeTransformAt("reaction-head-recoil", "0%");
+  assert.equal(chewStart, biteEnd);
+  assert.equal(chewEnd, biteEnd);
+  assert.equal(headBraceStart, chewEnd);
+  assert.equal(headRecoilStart, headBraceEnd);
+
+  for (const animationName of [
+    "reaction-recoil",
+    "reaction-head-recoil",
+    "reaction-hair-whip",
+    "reaction-arm-release",
+  ]) {
+    assert.equal(keyframeTransformAt(animationName, "100%"), "none");
+  }
 
   for (const animationName of [
     "reaction-mouth-fan-left",
