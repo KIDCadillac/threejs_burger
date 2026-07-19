@@ -17,6 +17,7 @@ from app.service import GameService, Room, RoomError
 
 BASE_DIR = Path(__file__).parent
 mimetypes.add_type("text/javascript", ".mjs")
+mimetypes.add_type("image/webp", ".webp")
 
 
 class ConnectionHub:

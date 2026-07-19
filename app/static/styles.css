@@ -433,14 +433,15 @@ h1 { margin: 0; font-size: clamp(2.2rem, 10vw, 3.25rem); line-height: 1; letter-
   box-shadow: inset 0 0 35px rgba(255,206,137,.09), 0 16px 34px rgba(0,0,0,.28);
 }
 .prep-workbench__art {
-  height: 12.5rem;
+  aspect-ratio: 9 / 5;
+  height: auto;
   margin: -0.65rem -0.65rem 0.55rem;
   border-bottom: 1px solid rgba(255,255,255,.16);
   background-color: #704d3a;
-  background-image: linear-gradient(180deg, transparent 65%, rgba(31,18,28,.94)), url('/static/art/deployment-counter.png');
+  background-image: linear-gradient(180deg, transparent 65%, rgba(31,18,28,.94)), url('/static/art/deployment-counter.webp');
   background-repeat: no-repeat;
-  background-position: center, center 43%;
-  background-size: cover, 100% auto;
+  background-position: center, center;
+  background-size: cover, cover;
 }
 .prep-privacy { position: absolute; z-index: 2; left: 0.75rem; top: 0.7rem; display: grid; grid-template-columns:auto auto; align-items:center; gap:0.12rem 0.3rem; border:1px solid rgba(255,255,255,.32); border-radius:0.8rem; padding:0.42rem 0.55rem; background:rgba(28,18,36,.82); backdrop-filter:blur(8px); }
 .prep-privacy span { grid-row:1/3; color:var(--lake); }.prep-privacy strong{font-size:.64rem}.prep-privacy small{color:var(--cream-muted);font-size:.48rem}
@@ -472,7 +473,17 @@ h1 { margin: 0; font-size: clamp(2.2rem, 10vw, 3.25rem); line-height: 1; letter-
 .sauce-rack { background:linear-gradient(180deg,rgba(112,75,52,.42),rgba(0,0,0,.18));box-shadow:inset 0 1px rgba(255,255,255,.08) }.sauce-rack--ready{border-color:rgba(255,201,64,.4)}
 
 .shared-table-scene { position:relative;overflow:hidden;margin:.55rem -.15rem 0;border:1px solid rgba(255,201,64,.25);border-radius:1.35rem;padding:.65rem;background:linear-gradient(180deg,#39243e,#21152c 45%,#171020);box-shadow:0 16px 34px rgba(0,0,0,.3); }
-.shared-table-scene__art { height:12rem;margin:-.65rem -.65rem .5rem;border-bottom:1px solid rgba(255,255,255,.12);background-color:#49333f;background-image:linear-gradient(180deg,transparent 58%,rgba(33,21,44,.96)),url('/static/art/shared-table.png');background-repeat:no-repeat;background-position:center,center 25%;background-size:cover,100% auto; }
+.shared-table-scene__art {
+  aspect-ratio: 9 / 5;
+  height: auto;
+  margin: -.65rem -.65rem .5rem;
+  border-bottom: 1px solid rgba(255,255,255,.12);
+  background-color: #49333f;
+  background-image: linear-gradient(180deg,transparent 58%,rgba(33,21,44,.96)),url('/static/art/shared-table.webp');
+  background-repeat: no-repeat;
+  background-position: center, center;
+  background-size: cover, cover;
+}
 .shared-table-scene .opponent-pose { margin-top:-.05rem;background:rgba(27,17,35,.78);backdrop-filter:blur(8px) }
 .shared-table-scene .turn-callout { margin:.55rem 0 .3rem }.shared-table-scene .game-title{font-size:1.25rem}
 .shared-table-scene .plate { min-height:13.4rem;grid-template-columns:repeat(4,1fr);border-width:.42rem;padding:.75rem .5rem;background:radial-gradient(circle at 45% 35%,#fffdf1,#e9d1a4 72%); }

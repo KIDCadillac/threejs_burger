@@ -1,6 +1,5 @@
 import asyncio
 import importlib.util
-import struct
 
 import pytest
 from fastapi.testclient import TestClient
@@ -55,6 +54,18 @@ def test_home_page_contains_game_title() -> None:
     assert 'data-action="quick-match"' in response.text
     assert 'data-action="create-room"' in response.text
     assert 'data-action="join-room"' in response.text
+
+
+def test_static_home_matches_the_current_mixed_snack_mode_before_javascript_loads() -> None:
+    page = client.get("/").text
+    script = client.get("/static/app.js").text
+
+    for source in (page, script):
+        assert "零食乱斗篇" in source
+        assert "同一盘公共零食，各自秘密埋伏。" in source
+        assert "薯条篇" not in source
+        assert "调一根整蛊薯条" not in source
+    assert '<div class="brand-mark" aria-hidden="true"><span>🍽️</span></div>' in page
 
 
 def test_websocket_create_and_join_room() -> None:
@@ -354,18 +365,43 @@ def test_client_contains_interactive_deployment_and_shared_table() -> None:
         assert marker in script or marker in styles
 
 
-def test_mode_neutral_scene_assets_are_valid_portrait_pngs() -> None:
+def test_mode_neutral_scene_assets_are_small_decodable_landscape_webps() -> None:
     for path in (
-        "/static/art/deployment-counter.png",
-        "/static/art/shared-table.png",
+        "/static/art/deployment-counter.webp",
+        "/static/art/shared-table.webp",
     ):
         response = client.get(path)
+        content = response.content
 
         assert response.status_code == 200
-        assert response.headers["content-type"] == "image/png"
-        assert response.content[:8] == b"\x89PNG\r\n\x1a\n"
-        assert response.content[12:16] == b"IHDR"
-        assert struct.unpack(">II", response.content[16:24]) == (941, 1672)
+        assert response.headers["content-type"] == "image/webp"
+        assert len(content) < 150 * 1024
+        assert content[:4] == b"RIFF"
+        assert content[8:16] == b"WEBPVP8 "
+        assert int.from_bytes(content[4:8], "little") + 8 == len(content)
+        assert content[23:26] == b"\x9d\x01\x2a"
+        width = int.from_bytes(content[26:28], "little") & 0x3FFF
+        height = int.from_bytes(content[28:30], "little") & 0x3FFF
+        assert (width, height) == (720, 400)
+
+    assert client.get("/static/art/deployment-counter.png").status_code == 404
+    assert client.get("/static/art/shared-table.png").status_code == 404
+
+
+def test_scene_art_uses_a_nine_by_five_mobile_viewport_without_cropping_bias() -> None:
+    styles = client.get("/static/styles.css").text
+
+    assert "deployment-counter.png" not in styles
+    assert "shared-table.png" not in styles
+    for selector, filename in (
+        (".prep-workbench__art", "deployment-counter.webp"),
+        (".shared-table-scene__art", "shared-table.webp"),
+    ):
+        rule = styles.split(f"{selector} {{", 1)[1].split("}", 1)[0]
+        assert f"url('/static/art/{filename}')" in rule
+        assert "aspect-ratio: 9 / 5" in rule
+        assert "background-position: center, center" in rule
+        assert "background-size: cover, cover" in rule
 
 
 def test_first_run_tutorial_finishes_after_confirming_food() -> None:

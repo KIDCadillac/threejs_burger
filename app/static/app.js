@@ -157,7 +157,7 @@ function renderHome() {
       <div class="brand-mark" aria-hidden="true"><span>🍽️</span></div>
       <h1 id="game-title">女巫的毒药</h1>
       <p class="subtitle">零食乱斗篇</p>
-      <p class="tagline">同一盘零食，各自秘密埋伏。</p>
+      <p class="tagline">同一盘公共零食，各自秘密埋伏。</p>
       <div class="home-actions">
         <button class="button button--practice" type="button" data-action="start-practice"><span class="button__icon">🎮</span><span class="button__copy"><strong>单人练习</strong><small>立即对战电脑吃货</small></span></button>
         <button class="button button--primary" type="button" data-action="quick-match"><span class="button__icon">⚡</span><span>快速匹配</span></button>
