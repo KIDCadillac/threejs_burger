@@ -219,3 +219,28 @@ def test_pick_rearms_deadline_and_rematch_clears_it() -> None:
     service.request_rematch("p2")
     assert room.game.phase is Phase.MIXING
     assert room.turn_deadline is None
+
+
+def test_start_practice_creates_immediate_game_with_unique_bot() -> None:
+    service = GameService(clock=FakeClock())
+
+    room = service.start_practice("p1")
+
+    assert room.mode == "practice"
+    assert room.players[0] == "p1"
+    assert room.players[1].startswith("bot-")
+    assert room.game is not None
+    assert room.game.phase is Phase.MIXING
+    assert service.room_for("p1") is room
+
+
+def test_start_practice_cancels_matchmaking_and_is_idempotent() -> None:
+    service = GameService(clock=FakeClock())
+    service.join_queue("p1")
+
+    first = service.start_practice("p1")
+    second = service.start_practice("p1")
+
+    assert first is second
+    assert "p1" not in service.queue
+    assert len(service.rooms) == 1

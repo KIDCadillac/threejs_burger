@@ -1,7 +1,8 @@
 import json
 
 from app.domain import GameState
-from app.protocol import serialize_game
+from app.protocol import serialize_game, serialize_room
+from app.service import GameService
 
 
 def locked_game() -> GameState:
@@ -83,3 +84,19 @@ def test_view_for_non_player_is_rejected() -> None:
         assert str(error) == "无权查看这个房间"
     else:
         raise AssertionError("non-player view should fail")
+
+
+def test_practice_room_marks_computer_online_without_revealing_recipe() -> None:
+    service = GameService()
+    room = service.start_practice("p1")
+    bot_id = room.bot_player_id
+    assert bot_id is not None
+    room.game.lock_recipe(bot_id, 7, ("sour", "sticky"))
+
+    view = serialize_room(room, viewer_id="p1")
+
+    bot = next(player for player in view["players"] if player["computer"])
+    assert bot["id"] == bot_id
+    assert bot["name"] == "电脑女巫"
+    assert bot["online"] is True
+    assert "sour" not in json.dumps(view)

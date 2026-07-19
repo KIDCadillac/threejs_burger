@@ -38,6 +38,10 @@ class Room:
     connected: set[str] = field(default_factory=set)
     disconnected_at: dict[str, float] = field(default_factory=dict)
     turn_deadline: float | None = None
+    bot_player_id: str | None = None
+    bot_due_at: float | None = None
+    bot_step: str | None = None
+    bot_target: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +95,29 @@ class GameService:
             room.code, room.players, first_player=room.players[0]
         )
         self.player_rooms[player_id] = room.code
+        return room
+
+    def start_practice(self, player_id: str) -> Room:
+        self.cancel_queue(player_id)
+        existing = self.room_for(player_id)
+        if existing is not None and existing.mode == "practice":
+            return existing
+        self._require_available(player_id)
+
+        code = self._new_code()
+        bot_id = f"bot-{code}"
+        room = Room(
+            code=code,
+            mode="practice",
+            players=[player_id, bot_id],
+            created_at=self.clock.now(),
+            expires_at=None,
+            bot_player_id=bot_id,
+        )
+        room.game = GameState.create(code, room.players, first_player=player_id)
+        self.rooms[code] = room
+        self.player_rooms[player_id] = code
+        self.player_rooms[bot_id] = code
         return room
 
     def join_queue(self, player_id: str) -> QueueResult:
