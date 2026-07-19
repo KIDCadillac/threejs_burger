@@ -36,14 +36,13 @@ export function createReactionSchedule() {
 
 export function playCharacterReaction(root, sauces, options = {}) {
   const {
-    scheduleTimeout = window.setTimeout.bind(window),
-    cancelTimeout = window.clearTimeout.bind(window),
+    scheduleTimeout = globalThis.setTimeout.bind(globalThis),
+    cancelTimeout = globalThis.clearTimeout.bind(globalThis),
     onPhase = () => {},
     onComplete = () => {},
   } = options;
   const plan = resolveReactionPlan(sauces);
-  const caption = root.querySelector("[data-reaction-caption]");
-  let cancelled = false;
+  let stopped = false;
 
   root.dataset.primaryReaction = plan?.primary ?? "none";
   root.dataset.primaryIntensity = String(plan?.primaryIntensity ?? 0);
@@ -52,27 +51,34 @@ export function playCharacterReaction(root, sauces, options = {}) {
   root.dataset.foodBitten = "false";
   root.dataset.phase = "notice";
 
-  const handles = createReactionSchedule().map((event) => (
-    scheduleTimeout(() => {
-      if (cancelled) return;
+  const handles = new Set();
+  createReactionSchedule().forEach((event) => {
+    let handle;
+    handle = scheduleTimeout(() => {
+      handles.delete(handle);
+      if (stopped) return;
 
       if (event.phase === "complete") {
+        stopped = true;
         onComplete();
         return;
       }
 
       root.dataset.phase = event.phase;
       if (event.phase === "bite") root.dataset.foodBitten = "true";
-      caption.textContent = event.caption;
+      const caption = root.querySelector("[data-reaction-caption]");
+      if (caption) caption.textContent = event.caption;
       onPhase(event.phase, plan);
-    }, event.at)
-  ));
+    }, event.at);
+    handles.add(handle);
+  });
 
   return {
     cancel() {
-      if (cancelled) return;
-      cancelled = true;
+      if (stopped) return;
+      stopped = true;
       handles.forEach((handle) => cancelTimeout(handle));
+      handles.clear();
     },
   };
 }
