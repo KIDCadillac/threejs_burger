@@ -2,3 +2,4 @@ fastapi>=0.115,<0.116
 uvicorn>=0.34,<0.35
 pytest>=8,<9
 httpx>=0.28,<1
+websockets>=14,<16

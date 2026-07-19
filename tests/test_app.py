@@ -1,10 +1,28 @@
+import importlib.util
+
 from fastapi.testclient import TestClient
 
-from app.main import app, create_app
+from app.main import ConnectionHub, app, create_app
 from app.service import GameService
 
 
 client = TestClient(app)
+
+
+def test_stale_socket_cannot_unregister_replacement() -> None:
+    hub = ConnectionHub()
+    old_socket = object()
+    replacement_socket = object()
+    hub.register("p1", old_socket)
+    hub.register("p1", replacement_socket)
+
+    assert hub.unregister("p1", old_socket) is False
+    assert hub.sockets["p1"] is replacement_socket
+    assert hub.unregister("p1", replacement_socket) is True
+
+
+def test_real_server_has_websocket_runtime() -> None:
+    assert importlib.util.find_spec("websockets") is not None
 
 
 def test_health() -> None:
@@ -82,6 +100,25 @@ def test_websocket_rejects_unknown_command_without_closing() -> None:
         assert socket.receive_json()["phase"] == "waiting"
 
 
+def test_leaving_room_returns_both_players_home() -> None:
+    isolated_client = TestClient(create_app(GameService()))
+
+    with isolated_client.websocket_connect("/ws?player=p1") as ws1:
+        ws1.receive_json()
+        ws1.send_json({"type": "room.create"})
+        code = ws1.receive_json()["room"]["code"]
+        with isolated_client.websocket_connect("/ws?player=p2") as ws2:
+            ws2.receive_json()
+            ws2.send_json({"type": "room.join", "code": code})
+            ws2.receive_json()
+            ws1.receive_json()
+
+            ws1.send_json({"type": "room.leave"})
+
+            assert ws1.receive_json()["type"] == "home"
+            assert ws2.receive_json()["type"] == "home"
+
+
 def test_client_declares_private_state_and_four_reactions() -> None:
     app_script = client.get("/static/app.js")
     effects_script = client.get("/static/effects.js")
@@ -91,6 +128,20 @@ def test_client_declares_private_state_and_four_reactions() -> None:
     assert effects_script.status_code == 200
     for effect in ("chili", "mustard", "sour", "sticky"):
         assert effect in effects_script.text
+    assert "🍯" in effects_script.text
+    assert "🫧" not in effects_script.text
+
+
+def test_invite_auto_join_is_not_sent_blindly_on_socket_open() -> None:
+    script = client.get("/static/app.js").text
+    open_handler = script.split('socket.addEventListener("open"', 1)[1].split(
+        'socket.addEventListener("message"', 1
+    )[0]
+
+    assert 'type: "room.join"' not in open_handler
+    assert "connect();\nrenderHome();" in script
+    assert "connect();\nrender(lastMessage);" not in script
+    assert "tryInviteAutoJoin" in script
 
 
 def test_reconnect_broadcasts_resumed_state_to_opponent() -> None:

@@ -86,6 +86,18 @@ def test_leaving_waiting_room_releases_player_and_room() -> None:
     assert room.code not in service.rooms
 
 
+def test_leaving_started_room_releases_both_players_and_room() -> None:
+    service = GameService(clock=FakeClock())
+    room = service.create_room("p1")
+    service.join_room("p2", room.code)
+
+    service.leave("p1")
+
+    assert service.room_for("p1") is None
+    assert service.room_for("p2") is None
+    assert room.code not in service.rooms
+
+
 def test_room_codes_are_six_digits_and_unique() -> None:
     service = GameService(clock=FakeClock())
 

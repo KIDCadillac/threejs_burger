@@ -18,7 +18,7 @@ let reactionHandles = [];
 let lastOutcomeKey = "";
 
 connect();
-render(lastMessage);
+renderHome();
 
 function getPlayerId() {
   let stored = sessionStorage.getItem("witch-fries-player");
@@ -37,10 +37,6 @@ function connect() {
   socket.addEventListener("open", () => {
     reconnectAttempts = 0;
     setConnectionState("");
-    if (requestedRoom && !autoJoinSent) {
-      autoJoinSent = true;
-      send({ type: "room.join", code: requestedRoom });
-    }
   });
 
   socket.addEventListener("message", (event) => {
@@ -71,7 +67,11 @@ function send(payload) {
 
 function render(message) {
   clearCountdown();
-  if (message.type === "home") return renderHome();
+  if (message.type === "home") {
+    renderHome();
+    tryInviteAutoJoin();
+    return;
+  }
   if (message.type === "matching") return renderMatching();
   if (message.type !== "state") return;
 
@@ -82,6 +82,12 @@ function render(message) {
   }
   if (message.phase === "turn") return renderTurn(message);
   if (message.phase === "finished") return renderFinished(message);
+}
+
+function tryInviteAutoJoin() {
+  if (!requestedRoom || autoJoinSent) return;
+  autoJoinSent = true;
+  send({ type: "room.join", code: requestedRoom });
 }
 
 function syncRound(state) {

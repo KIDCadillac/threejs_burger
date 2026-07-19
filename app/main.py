@@ -23,9 +23,11 @@ class ConnectionHub:
     def register(self, player_id: str, socket: WebSocket) -> None:
         self.sockets[player_id] = socket
 
-    def unregister(self, player_id: str, socket: WebSocket) -> None:
+    def unregister(self, player_id: str, socket: WebSocket) -> bool:
         if self.sockets.get(player_id) is socket:
             self.sockets.pop(player_id, None)
+            return True
+        return False
 
     async def send(self, player_id: str, payload: dict[str, Any]) -> None:
         socket = self.sockets.get(player_id)
@@ -99,10 +101,10 @@ def create_app(service: GameService | None = None) -> FastAPI:
                         player, {"type": "error", "message": str(error)}
                     )
         except WebSocketDisconnect:
-            hub.unregister(player, socket)
-            connected_room = game_service.disconnect(player)
-            if connected_room is not None:
-                await hub.broadcast_room(connected_room)
+            if hub.unregister(player, socket):
+                connected_room = game_service.disconnect(player)
+                if connected_room is not None:
+                    await hub.broadcast_room(connected_room)
 
     return application
 
@@ -176,8 +178,10 @@ async def _dispatch(
         return
 
     if kind == "room.leave":
-        service.leave(player_id)
-        await hub.send(player_id, {"type": "home"})
+        room = service.leave(player_id)
+        affected_players = room.players if room is not None else [player_id]
+        for affected_player in affected_players:
+            await hub.send(affected_player, {"type": "home"})
         return
 
     raise ProtocolError(f"不支持的操作：{kind}")

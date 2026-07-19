@@ -23,7 +23,7 @@ export const REACTIONS = Object.freeze({
   sticky: {
     label: "拉丝黏黏酱",
     shortLabel: "黏酱",
-    emoji: "🫧",
+    emoji: "🍯",
     className: "reaction--sticky",
     particles: ["◌", "✧", "◌"],
   },

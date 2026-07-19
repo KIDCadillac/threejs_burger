@@ -223,17 +223,13 @@ class GameService:
                     changed.append(room)
         return changed
 
-    def leave(self, player_id: str) -> None:
+    def leave(self, player_id: str) -> Room | None:
         self.cancel_queue(player_id)
         room = self.room_for(player_id)
         if room is None:
-            return
-        self.player_rooms.pop(player_id, None)
-        if room.game is None:
-            self._remove_room(room)
-            return
-        if not any(candidate in self.player_rooms for candidate in room.players):
-            self._remove_room(room)
+            return None
+        self._remove_room(room)
+        return room
 
     def cleanup(self) -> None:
         now = self.clock.now()
