@@ -9,6 +9,21 @@ import {
 
 const { characterReactionMarkup } = characterReaction;
 
+function extractSvgGroup(markup, attribute) {
+  const start = markup.indexOf(`<g ${attribute}>`);
+  assert.notEqual(start, -1, `missing SVG group: ${attribute}`);
+
+  let depth = 0;
+  for (const match of markup.slice(start).matchAll(/<\/?g\b[^>]*>/g)) {
+    depth += match[0].startsWith("</") ? -1 : 1;
+    if (depth === 0) {
+      return markup.slice(start, start + match.index + match[0].length);
+    }
+  }
+
+  assert.fail(`unclosed SVG group: ${attribute}`);
+}
+
 function makeReactionHarness() {
   const caption = { textContent: "initial caption" };
   const scheduled = [];
@@ -277,6 +292,20 @@ test("all supported foods render both whole and bitten images", () => {
 
     assert.equal(markup.split(foodPath).length - 1, 2, snackKind);
   }
+});
+
+test("the fire effect is mouth-anchored inside the articulated head", () => {
+  const markup = characterReactionMarkup({ victim: "玩家", snackKind: "fry" });
+  const head = extractSvgGroup(markup, 'data-bone="head"');
+  const mouthAnchor = extractSvgGroup(head, 'data-effect="mouth-anchor"');
+  const fire = extractSvgGroup(mouthAnchor, 'data-effect="fire"');
+  const fireGradientId = markup.match(
+    /<radialGradient id="([^"]+-fire)"/,
+  )?.[1];
+
+  assert.equal(markup.match(/data-effect="fire"/g)?.length, 1);
+  assert.ok(fireGradientId);
+  assert.ok(fire.includes(`fill="url(#${fireGradientId})"`));
 });
 
 test("unknown and inherited snack keys fall back to nugget", () => {

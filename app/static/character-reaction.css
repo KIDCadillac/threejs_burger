@@ -2,17 +2,19 @@
 .character-reaction {
   --reaction-ink: #281f35;
   --reaction-cream: #fff4d8;
-  --reaction-fire-scale: 0.88;
-  --reaction-fire-duration: 620ms;
+  --reaction-fire-scale: 0.82;
+  --reaction-fire-duration: 520ms;
   --food-mouth-x: 118px;
   --food-mouth-y: -142px;
   position: relative;
+  box-sizing: border-box;
   isolation: isolate;
   display: grid;
   min-height: 31rem;
   place-items: center;
   align-content: center;
   gap: 0.25rem;
+  padding-inline: 1.375rem;
   overflow: hidden;
   border-radius: 1.5rem;
   background:
@@ -40,7 +42,7 @@
 
 .reaction-rig {
   display: block;
-  width: min(100%, 24rem);
+  width: min(calc(100% - 2.75rem), 24rem);
   height: auto;
   max-height: 33rem;
   overflow: visible;
@@ -325,12 +327,12 @@
 }
 
 .character-reaction[data-phase="bite"] [data-bone="head"] {
-  animation: reaction-head-bite 300ms cubic-bezier(0.25, 0.72, 0.28, 1) both;
+  animation: reaction-head-bite 220ms cubic-bezier(0.25, 0.72, 0.28, 1) both;
 }
 
 .character-reaction[data-phase="bite"] .food-crumbs {
   visibility: visible;
-  animation: reaction-crumb-pop 360ms ease-out both;
+  animation: reaction-crumb-pop 230ms ease-out both;
 }
 
 .character-reaction[data-phase="chew"] [data-bone="head"] {
@@ -342,7 +344,7 @@
 }
 
 .character-reaction[data-phase="brace"] [data-bone="torso"] {
-  animation: reaction-brace 360ms cubic-bezier(0.4, 0, 0.35, 1) both;
+  animation: reaction-brace 220ms cubic-bezier(0.4, 0, 0.35, 1) both;
 }
 
 .character-reaction[data-phase="brace"] [data-bone="head"] {
@@ -358,18 +360,18 @@
 }
 
 .character-reaction[data-primary-intensity="2"] {
-  --reaction-fire-scale: 0.9;
-  --reaction-fire-duration: 620ms;
+  --reaction-fire-scale: 0.96;
+  --reaction-fire-duration: 560ms;
 }
 
 .character-reaction[data-primary-intensity="3"] {
   --reaction-fire-scale: 1.08;
-  --reaction-fire-duration: 690ms;
+  --reaction-fire-duration: 620ms;
 }
 
 .character-reaction[data-primary-intensity="4"] {
-  --reaction-fire-scale: 1.28;
-  --reaction-fire-duration: 760ms;
+  --reaction-fire-scale: 1.18;
+  --reaction-fire-duration: 680ms;
 }
 
 .character-reaction[data-primary-reaction="chili"][data-phase="burst"] [data-bone="torso"] {
@@ -404,27 +406,27 @@
 }
 
 .character-reaction[data-phase="recover"] [data-bone="left-arm"] {
-  animation: reaction-mouth-fan-left 260ms ease-in-out 4 alternate both;
+  animation: reaction-mouth-fan-left 180ms ease-in-out 4 alternate both;
 }
 
 .character-reaction[data-phase="recover"] [data-bone="right-arm"] {
-  animation: reaction-mouth-fan-right 260ms 40ms ease-in-out 4 alternate both;
+  animation: reaction-mouth-fan-right 180ms 40ms ease-in-out 4 alternate both;
 }
 
 .character-reaction[data-phase="recover"] [data-effect="heat"] {
   visibility: visible;
-  animation: reaction-heat-rise 560ms ease-out 3 both;
+  animation: reaction-heat-rise 200ms ease-out 4 both;
 }
 
 .character-reaction[data-phase="recover"] [data-effect="sweat"] {
   visibility: visible;
-  animation: reaction-sweat-drop 620ms 80ms ease-in 2 both;
+  animation: reaction-sweat-drop 300ms 80ms ease-in 2 both;
 }
 
 .character-reaction[data-phase="settle"] .rig-person {
   transform-box: fill-box;
   transform-origin: center bottom;
-  animation: reaction-settle 680ms cubic-bezier(0.24, 0.74, 0.2, 1) both;
+  animation: reaction-settle 360ms cubic-bezier(0.24, 0.74, 0.2, 1) both;
 }
 
 .character-reaction[data-phase="settle"] .rig-shadow {
@@ -475,13 +477,13 @@
 }
 
 @keyframes reaction-recoil {
-  0% { transform: translate(0) rotate(0); }
+  0% { transform: translateY(9px) scaleX(0.95) scaleY(1.015); }
   36% { transform: translate(6px, 9px) rotate(7deg) scaleY(0.96); }
   72%, 100% { transform: translate(3px, 5px) rotate(4deg); }
 }
 
 @keyframes reaction-head-recoil {
-  0% { transform: translate(0) rotate(0); }
+  0% { transform: translateY(6px) scale(0.97); }
   38% { transform: translate(12px, -13px) rotate(14deg) scale(1.035); }
   72%, 100% { transform: translate(7px, -8px) rotate(9deg); }
 }
@@ -515,13 +517,13 @@
 }
 
 @keyframes reaction-mouth-fan-left {
-  0% { transform: translate(4px, -4px) rotate(168deg); }
+  0% { transform: none; }
   50% { transform: translate(15px, 5px) rotate(184deg) scale(1.03); }
   100% { transform: translate(-2px, -7px) rotate(160deg); }
 }
 
 @keyframes reaction-mouth-fan-right {
-  0% { transform: translate(-8px, -5px) rotate(-169deg); }
+  0% { transform: none; }
   50% { transform: translate(-18px, 5px) rotate(-184deg) scale(1.03); }
   100% { transform: translate(1px, -8px) rotate(-160deg); }
 }
@@ -552,7 +554,7 @@
   }
 
   .reaction-rig {
-    width: min(86vw, 19.5rem);
+    width: min(calc(100% - 2.75rem), 19.5rem);
     max-height: 24rem;
   }
 

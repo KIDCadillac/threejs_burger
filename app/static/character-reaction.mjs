@@ -149,6 +149,12 @@ export function characterReactionMarkup({ victim, snackKind }) {
             <path class="rig-brow rig-brow--right" d="M210 137 Q229 126 244 139"/>
             <path class="rig-mouth rig-mouth--closed" d="M177 205 Q196 215 216 204"/>
             <ellipse class="rig-mouth rig-mouth--open" cx="197" cy="207" rx="25" ry="19"/>
+            <g data-effect="mouth-anchor">
+              <g data-effect="fire">
+                <path class="fire-outer" fill="url(#${fireId})" d="M237 203 C286 171 301 215 359 180 C335 229 367 249 293 252 C266 248 246 235 229 218Z"/>
+                <path class="fire-core" d="M246 209 C282 195 297 221 330 205 C309 235 280 236 246 220Z"/>
+              </g>
+            </g>
           </g>
 
           <g data-bone="left-arm">
@@ -183,10 +189,6 @@ export function characterReactionMarkup({ victim, snackKind }) {
           </g>
         </g>
 
-        <g data-effect="fire">
-          <path class="fire-outer" fill="url(#${fireId})" d="M237 203 C286 171 301 215 359 180 C335 229 367 249 293 252 C266 248 246 235 229 218Z"/>
-          <path class="fire-core" d="M246 209 C282 195 297 221 330 205 C309 235 280 236 246 220Z"/>
-        </g>
         <g data-effect="heat">
           <path d="M260 83 Q282 57 270 32"/>
           <path d="M292 105 Q320 80 306 51"/>
