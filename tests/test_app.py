@@ -447,3 +447,80 @@ def test_character_reaction_styles_define_food_and_full_body_motion() -> None:
         "prefers-reduced-motion",
     ):
         assert marker in styles
+
+
+def test_finished_round_uses_character_playback_instead_of_static_face() -> None:
+    script = client.get("/static/app.js").text
+
+    assert 'from "/static/character-reaction.mjs"' in script
+    assert "characterReactionMarkup" in script
+    assert "playCharacterReaction" in script
+    assert 'data-action="replay-reaction"' in script
+
+    finished = script.split("function renderFinished", 1)[1].split(
+        "function gameHeader", 1
+    )[0]
+    assert "characterReactionMarkup({ victim, snackKind: replay.snackKind })" in finished
+    assert "cartoon-face" not in finished
+    assert "brave-face" not in finished
+
+
+def test_character_reaction_playback_can_be_cancelled_skipped_and_replayed() -> None:
+    script = client.get("/static/app.js").text
+
+    playback = script.split("function playHitSequence", 1)[1].split(
+        "function showReplayAndResult", 1
+    )[0]
+    assert 'document.querySelector("[data-character-reaction]")' in playback
+    assert "playCharacterReaction(stage, sauces" in playback
+    assert "onComplete: () => showReplayAndResult(false)" in playback
+
+    cleanup = script.split("function clearReactionTimers", 1)[1].split(
+        "function startCountdown", 1
+    )[0]
+    assert "reactionPlayback?.cancel()" in cleanup
+    assert "reactionPlayback = null" in cleanup
+
+    replay = script.split("function replayCharacterReaction", 1)[1].split(
+        "function clearReactionTimers", 1
+    )[0]
+    assert 'document.querySelector("[data-character-reaction]")' in replay
+    assert 'stage.dataset.phase = "notice"' in replay
+    assert 'stage.dataset.foodBitten = "false"' in replay
+    assert 'classList.remove("deployment-replay--active")' in replay
+    assert "stage.scrollIntoView" in replay
+
+    click_handler = script.split('app.addEventListener("click"', 1)[1].split(
+        'app.addEventListener("submit"', 1
+    )[0]
+    assert 'action === "skip-effect"' in click_handler
+    assert "clearReactionTimers();" in click_handler
+    assert "showReplayAndResult(true);" in click_handler
+    assert 'action === "replay-reaction"' in click_handler
+    assert "replayCharacterReaction();" in click_handler
+
+
+def test_legacy_static_face_styles_are_removed_without_losing_reveal_layout() -> None:
+    styles = client.get("/static/styles.css").text
+
+    for obsolete in (
+        ".cartoon-face",
+        ".face__",
+        ".brave-button",
+        ".reaction--chili",
+        ".reaction--mustard",
+        ".reaction--sour",
+        ".reaction--sticky",
+    ):
+        assert obsolete not in styles
+
+    for shared in (
+        ".reaction-stage",
+        ".reaction-stage--hidden",
+        ".reaction-caption",
+        ".victim-label",
+        ".deployment-replay",
+        ".result-card",
+        ".skip-effect",
+    ):
+        assert shared in styles

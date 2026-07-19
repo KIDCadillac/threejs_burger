@@ -1,4 +1,8 @@
 import { REACTIONS, reactionFor, recipeTitle, snackFor } from "/static/effects.js";
+import {
+  characterReactionMarkup,
+  playCharacterReaction,
+} from "/static/character-reaction.mjs";
 import { inviteFriend } from "/static/platform.js";
 
 const app = document.querySelector("#app");
@@ -20,6 +24,7 @@ let ignoreSauceClickUntil = 0;
 let activeRound = null;
 let countdownHandle = null;
 let reactionHandles = [];
+let reactionPlayback = null;
 let lastOutcomeKey = "";
 let deploymentPlaying = false;
 let gestureLockedUntil = 0;
@@ -310,17 +315,10 @@ function renderFinished(state) {
   app.innerHTML = `
     <section class="screen reveal-screen ${won ? "reveal-screen--win" : "reveal-screen--loss"}" data-reveal-key="${key}">
       ${gameHeader(state, "配方揭晓")}
-      <div class="reaction-stage ${hit ? "" : "reaction-stage--hidden"}" id="reaction-stage">
-        <p class="reaction-caption" id="reaction-caption">《还在努力表情管理》</p>
-        <div class="reaction-burst" aria-hidden="true"></div>
-        <div class="reaction-particles" aria-hidden="true">${reactionParticles(sauces)}</div>
-        <div class="cartoon-face" aria-label="${victim}的夸张反应">
-          <span class="face__hair">〰</span><span class="face__eye face__eye--left">●</span><span class="face__eye face__eye--right">●</span><span class="face__tear face__tear--left">◆</span><span class="face__tear face__tear--right">◆</span><span class="face__mouth">﹏</span><span class="face__steam">〽</span>
-        </div>
-        <div class="winner-peek" aria-hidden="true"><span>≧▽≦</span><small>${won ? "你在偷笑" : "对手在偷笑"}</small></div>
-        <p class="victim-label">${draw ? "平局" : `${victim}的表情`}</p>
-        ${hit ? `<button class="brave-button" type="button" data-action="brave-face">😤 我没事</button><button class="skip-effect" type="button" data-action="skip-effect">直接看回放</button>` : ""}
-      </div>
+      ${hit ? `<div class="reaction-stage">
+        ${characterReactionMarkup({ victim, snackKind: replay.snackKind })}
+        <button class="skip-effect" type="button" data-action="skip-effect">跳过动画，直接看结果</button>
+      </div>` : ""}
       ${hit ? `<div class="deployment-replay" id="deployment-replay">
         <p class="eyebrow">下料回放</p>
         <h2>原来开局的时候……</h2>
@@ -332,7 +330,7 @@ function renderFinished(state) {
         <h1 class="screen-title">${title}</h1>
         <p class="muted">${summary}</p>
         ${sauces.length ? `<div class="result-recipe">${sauces.map((key) => `<span>${reactionFor(key).emoji} ${reactionFor(key).label}</span>`).join("")}</div>` : ""}
-        ${hit ? `<button class="button button--secondary" type="button" data-action="replay-deployment">再看一次下料回放</button>` : ""}
+        ${hit ? `<button class="button button--secondary" type="button" data-action="replay-reaction">再看一次吃掉反应</button><button class="button button--secondary" type="button" data-action="replay-deployment">再看一次下料回放</button>` : ""}
         <button class="button button--primary" type="button" data-action="rematch" ${requested ? "disabled" : ""}>${requested ? "等待对手同意…" : "再来一局"}</button>
         <button class="text-button" type="button" data-action="leave-room">返回首页</button>
       </div>
@@ -340,9 +338,9 @@ function renderFinished(state) {
 
   if (key !== lastOutcomeKey) {
     lastOutcomeKey = key;
-    playHitSequence(sauces, Boolean(hit));
-  } else if (sauces.length) {
-    applyReactionClasses(sauces, true);
+    playHitSequence(sauces, replay);
+  } else if (hit) {
+    clearReactionTimers();
     showReplayAndResult(true);
   }
 }
@@ -435,10 +433,6 @@ function recipeSlot(index, key) {
   return `<button class="recipe-slot recipe-slot--filled" type="button" data-action="remove-sauce" data-index="${index}"><span>${effect.emoji}</span><strong>${effect.shortLabel}</strong><i>×</i></button>`;
 }
 
-function reactionParticles(sauces) {
-  return sauces.flatMap((key) => reactionFor(key).particles).map((particle, index) => `<span style="--particle:${index}">${particle}</span>`).join("");
-}
-
 function renderPrivateDeployment(state, position, sauces) {
   const snack = state.snacks?.[position] ?? { kind: "fry" };
   app.innerHTML = `
@@ -468,33 +462,22 @@ function startPrivateDeployment(state) {
   }, 1650));
 }
 
-function playHitSequence(sauces, hasReplay) {
+function playHitSequence(sauces, replay) {
   clearReactionTimers();
-  if (!sauces.length || !hasReplay) {
+  const stage = document.querySelector("[data-character-reaction]");
+  if (!sauces.length || !replay || !stage) {
     document.querySelector("#result-card")?.classList.add("result-card--visible");
     return;
   }
-  const stage = document.querySelector("#reaction-stage");
-  if (!stage) return;
-  const first = reactionFor(sauces[0]);
-  stage.classList.add(first.className, "reaction-active", "reaction--bracing");
-  reactionHandles.push(window.setTimeout(() => {
-    stage.classList.add("reaction--cracking");
-    const caption = document.querySelector("#reaction-caption");
-    if (caption) caption.textContent = "《好像有一点不对劲》";
-  }, 650));
-  reactionHandles.push(window.setTimeout(() => {
-    sauces.slice(1).forEach((key) => stage.classList.add(reactionFor(key).className));
-    stage.classList.add("reaction--broken");
-    if (sauces.length > 1 && sauces.every((key) => key === sauces[0])) stage.classList.add("reaction--double");
-    const caption = document.querySelector("#reaction-caption");
-    if (caption) caption.textContent = "《表情管理彻底失败》";
-  }, 1350));
-  reactionHandles.push(window.setTimeout(() => showReplayAndResult(false), 2900));
+  reactionPlayback = playCharacterReaction(stage, sauces, {
+    onPhase: () => {},
+    onComplete: () => showReplayAndResult(false),
+  });
 }
 
 function showReplayAndResult(immediate = false) {
-  document.querySelector("#reaction-stage")?.classList.add("reaction-stage--hidden");
+  const stage = document.querySelector("[data-character-reaction]");
+  stage?.closest(".reaction-stage")?.classList.add("reaction-stage--hidden");
   const replay = document.querySelector("#deployment-replay");
   replay?.classList.add("deployment-replay--active");
   const revealResult = () => document.querySelector("#result-card")?.classList.add("result-card--visible");
@@ -511,15 +494,23 @@ function replayDeployment() {
   replay.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
-function applyReactionClasses(sauces, settled) {
-  const stage = document.querySelector("#reaction-stage");
-  if (!stage) return;
-  sauces.forEach((key) => stage.classList.add(reactionFor(key).className));
-  if (sauces[0] === sauces[1]) stage.classList.add("reaction--double");
-  if (settled) stage.classList.add("reaction--settled");
+function replayCharacterReaction() {
+  const stage = document.querySelector("[data-character-reaction]");
+  const result = lastMessage?.result;
+  if (!stage || !result?.replay) return;
+
+  document.querySelector("#deployment-replay")?.classList.remove("deployment-replay--active");
+  document.querySelector("#result-card")?.classList.remove("result-card--visible");
+  stage.closest(".reaction-stage")?.classList.remove("reaction-stage--hidden");
+  stage.dataset.phase = "notice";
+  stage.dataset.foodBitten = "false";
+  playHitSequence(result.recipe?.sauces ?? [], result.replay);
+  stage.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function clearReactionTimers() {
+  reactionPlayback?.cancel();
+  reactionPlayback = null;
   reactionHandles.forEach(window.clearTimeout);
   reactionHandles = [];
 }
@@ -671,21 +662,15 @@ app.addEventListener("click", async (event) => {
   if (action === "confirm-snack") biteAndConfirm();
   if (action === "send-gesture") sendGesture(target.dataset.gesture);
   if (action === "rematch") send({ type: "rematch.request" });
-  if (action === "brave-face") {
-    const stage = document.querySelector("#reaction-stage");
-    stage?.classList.add("reaction--brave");
-    const caption = document.querySelector("#reaction-caption");
-    if (caption) caption.textContent = "《嘴硬：我真的没事》";
-    reactionHandles.push(window.setTimeout(() => stage?.classList.add("reaction--broken"), 620));
-  }
   if (action === "skip-effect") {
     clearReactionTimers();
-    showReplayAndResult(false);
+    showReplayAndResult(true);
   }
   if (action === "skip-tutorial") {
     localStorage.setItem("witch-food-tutorial", "done");
     render(lastMessage);
   }
+  if (action === "replay-reaction") replayCharacterReaction();
   if (action === "replay-deployment") replayDeployment();
   if (action === "copy-invite") {
     const result = await inviteFriend({ code: target.dataset.code, url: target.dataset.url });
