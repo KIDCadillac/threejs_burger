@@ -1,7 +1,9 @@
+import asyncio
 import importlib.util
 
 from fastapi.testclient import TestClient
 
+import app.main as main_module
 from app.main import ConnectionHub, app, create_app
 from app.service import GameService
 
@@ -224,3 +226,42 @@ def test_reconnect_broadcasts_resumed_state_to_opponent() -> None:
             resumed_for_opponent = ws2.receive_json()
             assert resumed_for_opponent["type"] == "state"
             assert resumed_for_opponent["paused"] is False
+
+
+def test_websocket_starts_practice_without_waiting() -> None:
+    isolated_client = TestClient(create_app(GameService()))
+
+    with isolated_client.websocket_connect("/ws?player=p1") as socket:
+        socket.receive_json()
+        socket.send_json({"type": "practice.start"})
+
+        state = socket.receive_json()
+
+        assert state["phase"] == "mixing"
+        assert state["room"]["mode"] == "practice"
+        assert any(player["computer"] for player in state["players"])
+
+
+def test_removed_tick_room_returns_connected_players_home() -> None:
+    assert hasattr(main_module, "_publish_tick_room")
+
+    class FakeHub:
+        def __init__(self) -> None:
+            self.sent = []
+            self.broadcasted = []
+
+        async def send(self, player_id, payload) -> None:
+            self.sent.append((player_id, payload))
+
+        async def broadcast_room(self, room) -> None:
+            self.broadcasted.append(room)
+
+    service = GameService()
+    room = service.create_room("p1")
+    service.leave("p1")
+    hub = FakeHub()
+
+    asyncio.run(main_module._publish_tick_room(service, hub, room))
+
+    assert hub.sent == [("p1", {"type": "home"})]
+    assert hub.broadcasted == []

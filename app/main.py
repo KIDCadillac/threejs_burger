@@ -133,6 +133,12 @@ async def _dispatch(
         await hub.broadcast_room(room)
         return
 
+    if kind == "practice.start":
+        room = service.start_practice(player_id)
+        service.connect(player_id)
+        await hub.broadcast_room(room)
+        return
+
     if kind == "match.join":
         result = service.join_queue(player_id)
         if result.status == "waiting":
@@ -226,8 +232,18 @@ def _require_started_room(service: GameService, player_id: str) -> Room:
 app = create_app()
 
 
+async def _publish_tick_room(
+    service: GameService, hub: ConnectionHub, room: Room
+) -> None:
+    if service.rooms.get(room.code) is room:
+        await hub.broadcast_room(room)
+        return
+    for player_id in room.players:
+        await hub.send(player_id, {"type": "home"})
+
+
 async def _timer_loop(service: GameService, hub: ConnectionHub) -> None:
     while True:
         await asyncio.sleep(0.2)
         for room in service.tick():
-            await hub.broadcast_room(room)
+            await _publish_tick_room(service, hub, room)

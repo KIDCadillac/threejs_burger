@@ -320,3 +320,43 @@ def test_practice_bot_turn_aims_then_changes_then_confirms() -> None:
     clock.advance(1)
     service.tick()
     assert room.game.current_player == "p1" or room.game.phase is Phase.FINISHED
+
+
+def test_practice_rematch_restarts_after_human_vote() -> None:
+    service = GameService(clock=FakeClock())
+    room = service.start_practice("p1")
+    bot_id = room.bot_player_id
+    assert bot_id is not None
+    service.lock_recipe("p1", 0, ("chili", "mustard"))
+    service.lock_recipe(bot_id, 1, ("sour", "sticky"))
+    service.pick("p1", 1)
+
+    assert service.request_rematch("p1") is True
+    assert room.game.phase is Phase.MIXING
+    assert room.game.round_number == 2
+
+
+def test_human_room_still_requires_two_rematch_votes() -> None:
+    service, room = started_room()
+    service.pick("p1", 7)
+
+    assert service.request_rematch("p1") is False
+    assert room.game.phase is Phase.FINISHED
+
+
+def test_mixing_disconnect_after_grace_releases_room() -> None:
+    clock = FakeClock()
+    service = GameService(clock=clock)
+    room = service.create_room("p1")
+    service.join_room("p2", room.code)
+    service.connect("p1")
+    service.connect("p2")
+    service.disconnect("p2")
+    clock.advance(31)
+
+    changed = service.tick()
+
+    assert changed == [room]
+    assert room.code not in service.rooms
+    assert service.room_for("p1") is None
+    assert service.room_for("p2") is None

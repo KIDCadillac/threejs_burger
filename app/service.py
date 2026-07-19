@@ -221,7 +221,16 @@ class GameService:
     def request_rematch(self, player_id: str) -> bool:
         room = self._started_room(player_id)
         reset = room.game.request_rematch(player_id)
-        room.turn_deadline = None
+        if (
+            not reset
+            and room.mode == "practice"
+            and room.bot_player_id is not None
+        ):
+            reset = room.game.request_rematch(room.bot_player_id)
+        if reset:
+            self._after_game_change(room)
+        else:
+            room.turn_deadline = None
         return reset
 
     def expire_turn(self, room_code: str) -> Room | None:
@@ -253,20 +262,26 @@ class GameService:
         changed: list[Room] = []
         for room in list(self.rooms.values()):
             game = room.game
-            if room.mode == "practice" and self._advance_practice(room):
-                changed.append(room)
-                continue
-            if game is None or game.phase is not Phase.TURN:
+            if game is None:
                 continue
             timed_out_players = [
                 player_id
                 for player_id, disconnected_at in room.disconnected_at.items()
                 if now - disconnected_at > RECONNECT_GRACE_SECONDS
             ]
-            if timed_out_players:
+            if timed_out_players and game.phase is Phase.MIXING:
+                self._remove_room(room)
+                changed.append(room)
+                continue
+            if timed_out_players and game.phase is Phase.TURN:
                 game.finish_by_disconnect(timed_out_players[0])
                 room.turn_deadline = None
                 changed.append(room)
+                continue
+            if room.mode == "practice" and self._advance_practice(room):
+                changed.append(room)
+                continue
+            if game.phase is not Phase.TURN:
                 continue
             if (
                 not game.paused
