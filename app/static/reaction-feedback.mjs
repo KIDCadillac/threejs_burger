@@ -68,10 +68,26 @@ function playTone(context, {
     return;
   }
 
+  let oscillator = null;
+  let volume = null;
+  const disconnectNodes = () => {
+    try {
+      oscillator.onended = null;
+      oscillator.disconnect();
+    } catch {
+      // A partial Web Audio implementation may omit disconnect().
+    }
+    try {
+      volume.disconnect();
+    } catch {
+      // Finite nodes are still eligible for collection after playback.
+    }
+  };
+
   try {
     const now = Number.isFinite(context.currentTime) ? context.currentTime : 0;
-    const oscillator = context.createOscillator();
-    const volume = context.createGain();
+    oscillator = context.createOscillator();
+    volume = context.createGain();
 
     oscillator.type = type;
     oscillator.frequency.setValueAtTime(frequency, now);
@@ -86,21 +102,32 @@ function playTone(context, {
     volume.gain.exponentialRampToValueAtTime(0.0001, now + duration);
     oscillator.connect(volume);
     volume.connect(context.destination);
-    oscillator.onended = () => {
+    oscillator.onended = disconnectNodes;
+
+    try {
+      oscillator.start(now);
+    } catch {
+      disconnectNodes();
+      return;
+    }
+
+    try {
+      oscillator.stop(now + duration);
+    } catch {
       try {
-        oscillator.disconnect();
+        oscillator.stop(now);
       } catch {
-        // A partial Web Audio implementation may omit disconnect().
+        try {
+          volume.gain.cancelScheduledValues(now);
+          volume.gain.setValueAtTime(0.0001, now);
+        } catch {
+          // Disconnecting below still makes a broken source inaudible.
+        }
+        disconnectNodes();
       }
-      try {
-        volume.disconnect();
-      } catch {
-        // The node is already finite; cleanup remains best-effort.
-      }
-    };
-    oscillator.stop(now + duration);
-    oscillator.start(now);
+    }
   } catch {
+    disconnectNodes();
     // Some embedded browsers expose partial Web Audio implementations.
   }
 }

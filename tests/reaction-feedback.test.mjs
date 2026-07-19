@@ -9,10 +9,12 @@ import {
 function fakeAudioContext({
   state = "running",
   throwOnOscillator = false,
-  throwOnStop = false,
+  throwOnStart = false,
+  stopFailures = 0,
 } = {}) {
   const events = [];
   const oscillators = [];
+  const gains = [];
   const context = {
     state,
     currentTime: 4,
@@ -26,6 +28,10 @@ function fakeAudioContext({
       if (throwOnOscillator) throw new Error("audio unavailable");
       const oscillator = {
         type: "sine",
+        started: false,
+        stopped: false,
+        disconnected: false,
+        stopAttempts: 0,
         frequency: {
           setValueAtTime(value, at) {
             events.push(["frequency", value, at]);
@@ -39,19 +45,34 @@ function fakeAudioContext({
           return target;
         },
         start(at) {
+          events.push(["start-call", at]);
+          if (throwOnStart) throw new Error("start unavailable");
+          this.started = true;
           events.push(["start", at]);
         },
         stop(at) {
-          if (throwOnStop) throw new Error("stop unavailable");
+          events.push(["stop-call", at]);
+          if (!this.started) {
+            const error = new Error("source has not started");
+            error.name = "InvalidStateError";
+            throw error;
+          }
+          this.stopAttempts += 1;
+          if (this.stopAttempts <= stopFailures) throw new Error("stop unavailable");
+          this.stopped = true;
           events.push(["stop", at]);
         },
       };
-      oscillator.disconnect = () => events.push(["oscillator-disconnect"]);
+      oscillator.disconnect = function disconnect() {
+        this.disconnected = true;
+        events.push(["oscillator-disconnect"]);
+      };
       oscillators.push(oscillator);
       return oscillator;
     },
     createGain() {
       const gainNode = {
+        disconnected: false,
         gain: {
           setValueAtTime(value, at) {
             events.push(["gain", value, at]);
@@ -59,19 +80,24 @@ function fakeAudioContext({
           exponentialRampToValueAtTime(value, at) {
             events.push(["gain-ramp", value, at]);
           },
+          cancelScheduledValues(at) {
+            events.push(["gain-cancel", at]);
+          },
         },
         connect(target) {
           events.push(["gain-connect", target]);
           return target;
         },
         disconnect() {
+          this.disconnected = true;
           events.push(["gain-disconnect"]);
         },
       };
+      gains.push(gainNode);
       return gainNode;
     },
   };
-  return { context, events, oscillators };
+  return { context, events, oscillators, gains };
 }
 
 test("unsupported audio priming is a silent no-op", () => {
@@ -152,6 +178,11 @@ test("bite feedback is short, finite, and lightly vibrates", () => {
   const stop = events.find(([name]) => name === "stop");
   assert.ok(stop, "bite oscillator must schedule a stop");
   assert.ok(stop[1] - context.currentTime <= 0.12);
+  assert.ok(
+    events.findIndex(([name]) => name === "start-call")
+      < events.findIndex(([name]) => name === "stop-call"),
+    "Web Audio sources must start before stop is scheduled",
+  );
 });
 
 test("finite sound nodes disconnect after playback ends", () => {
@@ -165,13 +196,47 @@ test("finite sound nodes disconnect after playback ends", () => {
   assert.ok(events.some(([name]) => name === "gain-disconnect"));
 });
 
-test("a tone never starts when a finite stop cannot be scheduled", () => {
-  const { context, events } = fakeAudioContext({ throwOnStop: true });
+test("a failed source start disconnects nodes without calling stop", () => {
+  const { context, events, oscillators, gains } = fakeAudioContext({
+    throwOnStart: true,
+  });
 
   assert.doesNotThrow(() => {
     handleReactionFeedback("bite", null, { audioContext: context });
   });
   assert.equal(events.some(([name]) => name === "start"), false);
+  assert.equal(events.some(([name]) => name === "stop-call"), false);
+  assert.equal(oscillators[0].disconnected, true);
+  assert.equal(gains[0].disconnected, true);
+});
+
+test("a failed scheduled stop retries an immediate finite stop", () => {
+  const { context, events, oscillators } = fakeAudioContext({ stopFailures: 1 });
+
+  handleReactionFeedback("bite", null, { audioContext: context });
+
+  assert.equal(oscillators[0].started, true);
+  assert.equal(oscillators[0].stopped, true);
+  assert.equal(oscillators[0].stopAttempts, 2);
+  assert.deepEqual(
+    events.filter(([name]) => name === "stop-call").map(([, at]) => at),
+    [context.currentTime + 0.08, context.currentTime],
+  );
+});
+
+test("a permanently failing stop is muted and disconnected", () => {
+  const { context, events, oscillators, gains } = fakeAudioContext({
+    stopFailures: Number.POSITIVE_INFINITY,
+  });
+
+  handleReactionFeedback("bite", null, { audioContext: context });
+
+  assert.equal(oscillators[0].started, true);
+  assert.equal(oscillators[0].stopped, false);
+  assert.equal(oscillators[0].disconnected, true);
+  assert.equal(gains[0].disconnected, true);
+  assert.ok(events.some(([name]) => name === "gain-cancel"));
+  assert.ok(events.some(([name, value]) => name === "gain" && value === 0.0001));
 });
 
 test("chili burst has a stronger finite sound and segmented vibration", () => {
