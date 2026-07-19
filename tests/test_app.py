@@ -429,6 +429,7 @@ def test_character_reaction_stage_is_served_as_an_articulated_svg() -> None:
 def test_character_reaction_styles_define_food_and_full_body_motion() -> None:
     page = client.get("/").text
     response = client.get("/static/character-reaction.css")
+    styles = response.text
 
     assert response.status_code == 200
     assert 'href="/static/character-reaction.css"' in page
@@ -461,4 +462,18 @@ def test_character_reaction_styles_define_food_and_full_body_motion() -> None:
         'reaction-settle',
         'prefers-reduced-motion',
     ):
-        assert marker in response.text
+        assert marker in styles
+
+    reach_arm = styles.split(
+        '.character-reaction[data-phase="reach"] [data-bone="left-arm"]', 1
+    )[1].split("}", 1)[0]
+    reach_food = styles.split(
+        '.character-reaction[data-phase="reach"] [data-prop="food"]', 1
+    )[1].split("}", 1)[0]
+    assert "--reaction-arm-to: -12deg" in reach_arm
+    assert "--reaction-food-to-x: 4px" in reach_food
+    assert "--reaction-arm-to: 34deg" not in styles
+    assert "--reaction-food-to-x: 30px" not in styles
+    assert "--reaction-arm-from: -12deg" in styles
+    assert "--reaction-arm-to: -179deg" in styles
+    assert "transform: rotate(-179deg)" in styles

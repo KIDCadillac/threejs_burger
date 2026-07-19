@@ -286,29 +286,29 @@
 /* Reach and lift use the same keyed motion with different endpoints. */
 .character-reaction[data-phase="reach"] [data-bone="left-arm"] {
   --reaction-arm-from: 0deg;
-  --reaction-arm-to: 34deg;
+  --reaction-arm-to: -12deg;
   animation: reaction-reach 320ms cubic-bezier(0.2, 0.78, 0.25, 1) both;
 }
 
 .character-reaction[data-phase="reach"] [data-prop="food"] {
   --reaction-food-from-x: 0px;
   --reaction-food-from-y: 0px;
-  --reaction-food-to-x: 30px;
-  --reaction-food-to-y: -12px;
+  --reaction-food-to-x: 4px;
+  --reaction-food-to-y: -8px;
   --reaction-food-from-scale: 1;
   --reaction-food-to-scale: 0.94;
   animation: reaction-food-grab 320ms cubic-bezier(0.2, 0.78, 0.25, 1) both;
 }
 
 .character-reaction[data-phase="lift"] [data-bone="left-arm"] {
-  --reaction-arm-from: 34deg;
-  --reaction-arm-to: 181deg;
+  --reaction-arm-from: -12deg;
+  --reaction-arm-to: -179deg;
   animation: reaction-reach 390ms cubic-bezier(0.22, 0.72, 0.18, 1) both;
 }
 
 .character-reaction[data-phase="lift"] [data-prop="food"] {
-  --reaction-food-from-x: 30px;
-  --reaction-food-from-y: -12px;
+  --reaction-food-from-x: 4px;
+  --reaction-food-from-y: -8px;
   --reaction-food-to-x: var(--food-mouth-x);
   --reaction-food-to-y: var(--food-mouth-y);
   --reaction-food-from-scale: 0.94;
@@ -317,7 +317,7 @@
 }
 
 .character-reaction:is([data-phase="bite"], [data-phase="chew"], [data-phase="brace"]) [data-bone="left-arm"] {
-  transform: rotate(181deg);
+  transform: rotate(-179deg);
 }
 
 .character-reaction:is([data-phase="bite"], [data-phase="chew"], [data-phase="brace"]) [data-prop="food"] {
@@ -434,7 +434,7 @@
 
 @keyframes reaction-reach {
   from { transform: rotate(var(--reaction-arm-from, 0deg)); }
-  to { transform: rotate(var(--reaction-arm-to, 34deg)); }
+  to { transform: rotate(var(--reaction-arm-to, -12deg)); }
 }
 
 @keyframes reaction-food-grab {
@@ -442,7 +442,7 @@
     transform: translate(var(--reaction-food-from-x, 0), var(--reaction-food-from-y, 0)) scale(var(--reaction-food-from-scale, 1));
   }
   to {
-    transform: translate(var(--reaction-food-to-x, 30px), var(--reaction-food-to-y, -12px)) rotate(-7deg) scale(var(--reaction-food-to-scale, 0.94));
+    transform: translate(var(--reaction-food-to-x, 4px), var(--reaction-food-to-y, -8px)) rotate(-7deg) scale(var(--reaction-food-to-scale, 0.94));
   }
 }
 
@@ -494,7 +494,7 @@
 }
 
 @keyframes reaction-arm-release {
-  0%, 15% { transform: rotate(181deg); }
+  0%, 15% { transform: rotate(-179deg); }
   100% { transform: translate(-3px, 5px) rotate(28deg); }
 }
 
