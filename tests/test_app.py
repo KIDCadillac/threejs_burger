@@ -429,6 +429,7 @@ def test_character_reaction_stage_is_served_as_an_articulated_svg() -> None:
 def test_character_reaction_styles_define_food_and_full_body_motion() -> None:
     page = client.get("/").text
     response = client.get("/static/character-reaction.css")
+    styles = response.text
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/css")
@@ -436,3 +437,13 @@ def test_character_reaction_styles_define_food_and_full_body_motion() -> None:
     assert page.index('href="/static/styles.css"') < page.index(
         'href="/static/character-reaction.css"'
     )
+    for marker in (
+        '[data-phase="reach"]',
+        '[data-phase="bite"]',
+        '[data-phase="burst"]',
+        '[data-phase="recover"]',
+        "reaction-fire-burst",
+        "reaction-mouth-fan",
+        "prefers-reduced-motion",
+    ):
+        assert marker in styles
