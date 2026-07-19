@@ -29,39 +29,39 @@
 
 **Files:** `tests/test_domain.py`, `app/domain.py`
 
-- [ ] Add failing tests proving both players share one snack layout, `aim()` exposes a pending position without consuming it, the opponent can send one public gesture as the bluff, the picker can change once, and `confirm_pick()` consumes the final position.
-- [ ] Run `python -m pytest tests/test_domain.py -q` and verify failures mention missing `snacks`, `aim`, `send_gesture`, or `confirm_pick`.
-- [ ] Add `SNACK_LAYOUTS`, `PendingPick`, public gesture state, `GameState.pending_pick`, `aim()`, `send_gesture()`, and `confirm_pick()`; clear pending state inside `pick()`, finish, and rematch.
-- [ ] Run `python -m pytest tests/test_domain.py -q` and verify all domain tests pass.
+- [x] Add failing tests proving both players share one snack layout, `aim()` exposes a pending position without consuming it, the opponent can send one public gesture as the bluff, the picker can change once, and `confirm_pick()` consumes the final position.
+- [x] Run `python -m pytest tests/test_domain.py -q` and verify failures mention missing `snacks`, `aim`, `send_gesture`, or `confirm_pick`.
+- [x] Add `SNACK_LAYOUTS`, `PendingPick`, public gesture state, `GameState.pending_pick`, `aim()`, `send_gesture()`, and `confirm_pick()`; clear pending state inside `pick()`, finish, and rematch.
+- [x] Run `python -m pytest tests/test_domain.py -q` and verify all domain tests pass.
 
 ### Task 2: Private protocol and timeout behavior
 
 **Files:** `tests/test_protocol.py`, `tests/test_service.py`, `app/protocol.py`, `app/service.py`, `app/main.py`
 
-- [ ] Add failing tests asserting `snacks` is shared/public, `pendingPick` contains no recipe, `result.replay` appears only after a hit, and timeout confirms an existing aim.
-- [ ] Add failing WebSocket coverage for `snack.aim`, `gesture.send`, and `snack.confirm` in `tests/test_app.py`.
-- [ ] Run the focused protocol/service/app tests and verify they fail for the missing payload and dispatch behavior.
-- [ ] Serialize snack metadata and hit replay, add service methods, and dispatch validated integer positions and fixed bluff keys.
-- [ ] Run `python -m pytest tests/test_protocol.py tests/test_service.py tests/test_app.py -q` and verify all focused tests pass.
+- [x] Add failing tests asserting `snacks` is shared/public, `pendingPick` contains no recipe, `result.replay` appears only after a hit, and timeout confirms an existing aim.
+- [x] Add failing WebSocket coverage for `snack.aim`, `gesture.send`, and `snack.confirm` in `tests/test_app.py`.
+- [x] Run the focused protocol/service/app tests and verify they fail for the missing payload and dispatch behavior.
+- [x] Serialize snack metadata and hit replay, add service methods, and dispatch validated integer positions and fixed bluff keys.
+- [x] Run `python -m pytest tests/test_protocol.py tests/test_service.py tests/test_app.py -q` and verify all focused tests pass.
 
 ### Task 3: Mixed-snack and performance UI
 
 **Files:** `tests/test_app.py`, `app/static/effects.js`, `app/static/app.js`, `app/static/styles.css`
 
-- [ ] Add failing static-contract tests for six snack types, private deployment stage, opponent-safe setup poses, turn gesture controls, confirm control, editor caption, and replay control.
-- [ ] Run `python -m pytest tests/test_app.py -q` and verify the new assertions fail.
-- [ ] Export snack metadata; render the server-provided shared board; add the local deployment sequence before `recipe.lock`; render opponent setup poses, pending aim, one-change affordance and gesture buttons.
-- [ ] Add bite suspense, safe micro-feedback, larger three-stage victim face, opponent peek, editor caption, automatic single-item deployment replay, and a replay button.
-- [ ] Run `python -m pytest tests/test_app.py -q` and verify the static and WebSocket tests pass.
+- [x] Add failing static-contract tests for six snack types, private deployment stage, opponent-safe setup poses, turn gesture controls, confirm control, editor caption, and replay control.
+- [x] Run `python -m pytest tests/test_app.py -q` and verify the new assertions fail.
+- [x] Export snack metadata; render the server-provided shared board; add the local deployment sequence before `recipe.lock`; render opponent setup poses, pending aim, one-change affordance and gesture buttons.
+- [x] Add bite suspense, safe micro-feedback, larger three-stage victim face, opponent peek, editor caption, automatic single-item deployment replay, and a replay button.
+- [x] Run `python -m pytest tests/test_app.py -q` and verify the static and WebSocket tests pass.
 
 ### Task 4: Documentation and complete verification
 
 **Files:** `README.md`, `docs/游戏创意/女巫的毒药-薯条篇.md`
 
-- [ ] Update the rules and acceptance guide to say one shared mixed-snack plate, private deployment, aim/bluff/confirm, and hit replay.
-- [ ] Run `python -m pytest -q` and require zero failures.
-- [ ] Start the local server and complete a two-player browser round at 390px width: private setup, shared layout, aim, bluff, one change, hit, reaction, replay, and rematch.
-- [ ] Inspect browser console and horizontal overflow, then restart the phone tunnel and practice bot against the verified build.
+- [x] Update the rules and acceptance guide to say one shared mixed-snack plate, private deployment, aim/bluff/confirm, and hit replay.
+- [x] Run `python -m pytest -q` and require zero failures.
+- [x] Start the local server and complete a two-player browser round at 390px width: private setup, shared layout, aim, bluff, one change, hit, reaction, replay, and rematch.
+- [x] Inspect browser console and horizontal overflow, verify the existing phone tunnel, and restart the practice bot against the verified build.
 
 ## Self-review
 
