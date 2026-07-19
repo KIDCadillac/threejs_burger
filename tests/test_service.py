@@ -1,3 +1,6 @@
+import importlib
+import importlib.util
+
 import pytest
 
 from app.domain import Phase
@@ -13,6 +16,20 @@ class FakeClock:
 
     def advance(self, seconds: float) -> None:
         self.value += seconds
+
+
+class FixedBotPolicy:
+    def choose_position(self, positions):
+        return positions[-1]
+
+    def choose_sauces(self, sauces):
+        return (sauces[0], sauces[1])
+
+    def choose_gesture(self, gestures):
+        return gestures[1]
+
+    def should_change(self, option_count):
+        return option_count > 1
 
 
 def test_two_quick_match_players_share_room() -> None:
@@ -244,3 +261,62 @@ def test_start_practice_cancels_matchmaking_and_is_idempotent() -> None:
     assert first is second
     assert "p1" not in service.queue
     assert len(service.rooms) == 1
+
+
+def test_practice_bot_policy_uses_only_supplied_public_options() -> None:
+    spec = importlib.util.find_spec("app.bot")
+    assert spec is not None
+    module = importlib.import_module("app.bot")
+    policy = module.PracticeBotPolicy(randbelow=lambda size: size - 1)
+
+    assert policy.choose_position((2, 5, 9)) == 9
+    assert policy.choose_sauces(("chili", "mustard")) == (
+        "mustard",
+        "mustard",
+    )
+    assert policy.choose_gesture(("calm", "laugh")) == "laugh"
+
+
+def test_practice_bot_deploys_in_visible_stages() -> None:
+    clock = FakeClock()
+    service = GameService(clock=clock, bot_policy=FixedBotPolicy())
+    room = service.start_practice("p1")
+    bot_id = room.bot_player_id
+    assert bot_id is not None
+
+    clock.advance(1)
+    assert service.tick() == [room]
+    assert room.game.gestures[bot_id].key == "mix"
+    assert room.game.players[bot_id].recipe is None
+
+    clock.advance(1)
+    service.tick()
+    assert room.game.gestures[bot_id].key == "sealed"
+
+    clock.advance(1)
+    service.tick()
+    assert room.game.players[bot_id].recipe is not None
+
+
+def test_practice_bot_turn_aims_then_changes_then_confirms() -> None:
+    clock = FakeClock()
+    service = GameService(clock=clock, bot_policy=FixedBotPolicy())
+    room = service.start_practice("p1")
+    service.lock_recipe("p1", 0, ("chili", "mustard"))
+    for _ in range(3):
+        clock.advance(1)
+        service.tick()
+    service.pick("p1", 1)
+
+    clock.advance(1)
+    service.tick()
+    first_target = room.game.pending_pick.position
+    clock.advance(1)
+    service.tick()
+    clock.advance(1)
+    service.tick()
+    assert room.game.pending_pick.changed is True
+    assert room.game.pending_pick.position != first_target
+    clock.advance(1)
+    service.tick()
+    assert room.game.current_player == "p1" or room.game.phase is Phase.FINISHED

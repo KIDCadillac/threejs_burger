@@ -6,12 +6,14 @@ from dataclasses import dataclass, field
 from collections.abc import Callable, Sequence
 from typing import Protocol
 
-from app.domain import GameState, Phase, PickOutcome
+from app.bot import PracticeBotPolicy
+from app.domain import GameState, Phase, PickOutcome, SAUCES
 
 
 INVITE_TTL_SECONDS = 600
 TURN_SECONDS = 20
 RECONNECT_GRACE_SECONDS = 30
+BOT_ACTION_DELAY_SECONDS = 0.8
 
 
 class Clock(Protocol):
@@ -56,9 +58,11 @@ class GameService:
         *,
         clock: Clock | None = None,
         random_choice: Callable[[Sequence[int]], int] | None = None,
+        bot_policy: PracticeBotPolicy | None = None,
     ) -> None:
         self.clock = clock or SystemClock()
         self.random_choice = random_choice or secrets.choice
+        self.bot_policy = bot_policy or PracticeBotPolicy()
         self.rooms: dict[str, Room] = {}
         self.player_rooms: dict[str, str] = {}
         self.queue: list[str] = []
@@ -118,6 +122,7 @@ class GameService:
         self.rooms[code] = room
         self.player_rooms[player_id] = code
         self.player_rooms[bot_id] = code
+        self._sync_practice_schedule(room)
         return room
 
     def join_queue(self, player_id: str) -> QueueResult:
@@ -165,7 +170,7 @@ class GameService:
             and not room.disconnected_at
         ):
             room.game.paused = False
-            room.turn_deadline = self.clock.now() + TURN_SECONDS
+            self._after_game_change(room)
         return room
 
     def disconnect(self, player_id: str) -> Room | None:
@@ -184,8 +189,7 @@ class GameService:
     ) -> Room:
         room = self._started_room(player_id)
         room.game.lock_recipe(player_id, position, sauces)
-        if room.game.phase is Phase.TURN:
-            room.turn_deadline = self.clock.now() + TURN_SECONDS
+        self._after_game_change(room)
         return room
 
     def pick(
@@ -193,11 +197,7 @@ class GameService:
     ) -> PickOutcome:
         room = self._started_room(player_id)
         outcome = room.game.pick(player_id, position, automatic=automatic)
-        room.turn_deadline = (
-            self.clock.now() + TURN_SECONDS
-            if room.game.phase is Phase.TURN
-            else None
-        )
+        self._after_game_change(room)
         return outcome
 
     def aim(self, player_id: str, position: int) -> Room:
@@ -215,11 +215,7 @@ class GameService:
     ) -> PickOutcome:
         room = self._started_room(player_id)
         outcome = room.game.confirm_pick(player_id, automatic=automatic)
-        room.turn_deadline = (
-            self.clock.now() + TURN_SECONDS
-            if room.game.phase is Phase.TURN
-            else None
-        )
+        self._after_game_change(room)
         return outcome
 
     def request_rematch(self, player_id: str) -> bool:
@@ -257,6 +253,9 @@ class GameService:
         changed: list[Room] = []
         for room in list(self.rooms.values()):
             game = room.game
+            if room.mode == "practice" and self._advance_practice(room):
+                changed.append(room)
+                continue
             if game is None or game.phase is not Phase.TURN:
                 continue
             timed_out_players = [
@@ -319,3 +318,143 @@ class GameService:
         self.rooms.pop(room.code, None)
         for player_id in room.players:
             self.player_rooms.pop(player_id, None)
+
+    def _schedule_bot(
+        self,
+        room: Room,
+        step: str,
+        delay: float = BOT_ACTION_DELAY_SECONDS,
+    ) -> None:
+        room.bot_step = step
+        room.bot_due_at = self.clock.now() + delay
+
+    def _clear_bot_schedule(self, room: Room) -> None:
+        room.bot_step = None
+        room.bot_due_at = None
+        room.bot_target = None
+
+    def _sync_practice_schedule(self, room: Room) -> None:
+        game = room.game
+        bot_id = room.bot_player_id
+        if game is None or bot_id is None or room.bot_step is not None:
+            return
+        if game.phase is Phase.MIXING and game.players[bot_id].recipe is None:
+            self._schedule_bot(room, "deploy-mix")
+        elif game.phase is Phase.TURN and game.current_player == bot_id:
+            self._schedule_bot(room, "turn-aim")
+        elif game.phase is Phase.TURN:
+            self._schedule_bot(room, "human-bluff")
+
+    def _after_game_change(self, room: Room) -> None:
+        game = room.game
+        if game is None:
+            room.turn_deadline = None
+            return
+
+        is_bot_turn = (
+            room.bot_player_id is not None
+            and game.current_player == room.bot_player_id
+        )
+        room.turn_deadline = (
+            self.clock.now() + TURN_SECONDS
+            if game.phase is Phase.TURN and not is_bot_turn
+            else None
+        )
+        if room.mode != "practice":
+            return
+
+        bot_id = room.bot_player_id
+        bot_still_deploying = (
+            game.phase is Phase.MIXING
+            and bot_id is not None
+            and game.players[bot_id].recipe is None
+        )
+        if not bot_still_deploying:
+            self._clear_bot_schedule(room)
+        self._sync_practice_schedule(room)
+
+    def _advance_practice(self, room: Room) -> bool:
+        game = room.game
+        bot_id = room.bot_player_id
+        step = room.bot_step
+        if (
+            game is None
+            or bot_id is None
+            or step is None
+            or room.bot_due_at is None
+            or self.clock.now() < room.bot_due_at
+            or game.paused
+        ):
+            return False
+
+        room.bot_step = None
+        room.bot_due_at = None
+        if step == "deploy-mix" and game.phase is Phase.MIXING:
+            game.send_gesture(bot_id, "mix")
+            self._schedule_bot(room, "deploy-seal")
+        elif step == "deploy-seal" and game.phase is Phase.MIXING:
+            game.send_gesture(bot_id, "sealed")
+            self._schedule_bot(room, "deploy-lock")
+        elif step == "deploy-lock" and game.phase is Phase.MIXING:
+            position = self.bot_policy.choose_position(
+                tuple(sorted(game.remaining_fries))
+            )
+            sauces = self.bot_policy.choose_sauces(tuple(sorted(SAUCES)))
+            game.lock_recipe(bot_id, position, sauces)
+            self._after_game_change(room)
+        elif (
+            step == "human-bluff"
+            and game.phase is Phase.TURN
+            and game.current_player != bot_id
+        ):
+            gesture = self.bot_policy.choose_gesture(
+                ("calm", "laugh", "point", "hurry")
+            )
+            game.send_gesture(bot_id, gesture)
+            room.bot_step = "idle-human"
+        elif (
+            step == "turn-aim"
+            and game.phase is Phase.TURN
+            and game.current_player == bot_id
+        ):
+            target = self.bot_policy.choose_position(
+                tuple(sorted(game.remaining_fries))
+            )
+            game.aim(bot_id, target)
+            room.bot_target = target
+            self._schedule_bot(room, "turn-gesture")
+        elif (
+            step == "turn-gesture"
+            and game.phase is Phase.TURN
+            and game.current_player == bot_id
+        ):
+            gesture = self.bot_policy.choose_gesture(
+                ("calm", "laugh", "point", "hurry")
+            )
+            game.send_gesture(bot_id, gesture)
+            next_step = (
+                "turn-change"
+                if self.bot_policy.should_change(len(game.remaining_fries))
+                else "turn-confirm"
+            )
+            self._schedule_bot(room, next_step)
+        elif (
+            step == "turn-change"
+            and game.phase is Phase.TURN
+            and game.current_player == bot_id
+        ):
+            current = game.pending_pick.position
+            options = tuple(sorted(game.remaining_fries - {current}))
+            if options:
+                game.aim(bot_id, self.bot_policy.choose_position(options))
+            self._schedule_bot(room, "turn-confirm")
+        elif (
+            step == "turn-confirm"
+            and game.phase is Phase.TURN
+            and game.current_player == bot_id
+        ):
+            game.confirm_pick(bot_id)
+            self._after_game_change(room)
+        else:
+            self._after_game_change(room)
+        return True
