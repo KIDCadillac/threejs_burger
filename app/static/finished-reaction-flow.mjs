@@ -5,16 +5,34 @@ export function createFinishedReactionFlow(options) {
     scheduleTimeout = globalThis.setTimeout.bind(globalThis),
     cancelTimeout = globalThis.clearTimeout.bind(globalThis),
   } = options;
+  const scheduleFrame = options.scheduleFrame
+    ?? globalThis.requestAnimationFrame?.bind(globalThis)
+    ?? ((callback) => scheduleTimeout(callback, 16));
+  const cancelFrame = options.cancelFrame
+    ?? globalThis.cancelAnimationFrame?.bind(globalThis)
+    ?? cancelTimeout;
 
   let currentOutcomeKey = null;
   let playback = null;
   let revealHandle = null;
+  let firstResultFrame = null;
+  let secondResultFrame = null;
+  let resultFrameGeneration = 0;
 
   function stageElement() {
     return querySelector("[data-character-reaction]");
   }
 
+  function cancelResultFrames() {
+    resultFrameGeneration += 1;
+    if (firstResultFrame !== null) cancelFrame(firstResultFrame);
+    if (secondResultFrame !== null) cancelFrame(secondResultFrame);
+    firstResultFrame = null;
+    secondResultFrame = null;
+  }
+
   function setResultVisibility(visible) {
+    cancelResultFrames();
     const card = querySelector("#result-card");
     if (!card) return;
 
@@ -22,7 +40,17 @@ export function createFinishedReactionFlow(options) {
     card.setAttribute("aria-hidden", visible ? "false" : "true");
     if (visible) {
       card.removeAttribute("inert");
-      card.classList.add("result-card--visible");
+      card.classList.remove("result-card--visible");
+      const generation = resultFrameGeneration;
+      firstResultFrame = scheduleFrame(() => {
+        firstResultFrame = null;
+        if (generation !== resultFrameGeneration) return;
+        secondResultFrame = scheduleFrame(() => {
+          secondResultFrame = null;
+          if (generation !== resultFrameGeneration) return;
+          card.classList.add("result-card--visible");
+        });
+      });
     } else {
       card.setAttribute("inert", "");
       card.classList.remove("result-card--visible");
@@ -48,6 +76,7 @@ export function createFinishedReactionFlow(options) {
     playback = null;
     if (revealHandle !== null) cancelTimeout(revealHandle);
     revealHandle = null;
+    cancelResultFrames();
   }
 
   function showReplayAndResult(immediate = false) {

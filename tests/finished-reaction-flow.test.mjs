@@ -68,6 +68,7 @@ function fixture() {
     ["#result-card", result],
   ]);
   const timers = [];
+  const frames = [];
   const playbacks = [];
   const flow = createFinishedReactionFlow({
     querySelector: (selector) => elements.get(selector) ?? null,
@@ -92,9 +93,17 @@ function fixture() {
     cancelTimeout: (handle) => {
       handle.cancelled = true;
     },
+    scheduleFrame: (callback) => {
+      const handle = { callback, cancelled: false };
+      frames.push(handle);
+      return handle;
+    },
+    cancelFrame: (handle) => {
+      handle.cancelled = true;
+    },
   });
 
-  return { flow, stageContainer, stage, replay, result, timers, playbacks };
+  return { flow, stageContainer, stage, replay, result, timers, frames, playbacks };
 }
 
 test("same-outcome websocket updates preserve the mounted playback", () => {
@@ -116,7 +125,7 @@ test("same-outcome websocket updates preserve the mounted playback", () => {
 });
 
 test("skip cancels playback and immediately exposes an accessible result", () => {
-  const { flow, stageContainer, replay, result, playbacks, timers } = fixture();
+  const { flow, stageContainer, replay, result, playbacks, timers, frames } = fixture();
   flow.beginOutcome("round-1", ["chili"], { snackKind: "nugget" });
 
   flow.skip();
@@ -129,18 +138,26 @@ test("skip cancels playback and immediately exposes an accessible result", () =>
   assert.equal(result.hidden, false);
   assert.equal(result.getAttribute("aria-hidden"), "false");
   assert.equal(result.getAttribute("inert"), null);
-  assert.equal(result.classList.contains("result-card--visible"), true);
+  assert.equal(result.classList.contains("result-card--visible"), false);
   assert.equal(timers.length, 0);
+  assert.equal(frames.length, 1);
+
+  frames[0].callback();
+  assert.equal(result.classList.contains("result-card--visible"), false);
+  assert.equal(frames.length, 2);
+  frames[1].callback();
+  assert.equal(result.classList.contains("result-card--visible"), true);
 });
 
 test("replay resets the bite, hides inert result content, and starts fresh playback", () => {
-  const { flow, stageContainer, stage, replay, result, playbacks, timers } = fixture();
+  const { flow, stageContainer, stage, replay, result, playbacks, timers, frames } = fixture();
   flow.beginOutcome("round-1", ["chili"], { snackKind: "nugget" });
   flow.skip();
 
   assert.equal(flow.replay(["chili"], { snackKind: "nugget" }), true);
 
   assert.equal(playbacks.length, 2);
+  assert.equal(frames[0].cancelled, true);
   assert.equal(stage.dataset.phase, "notice");
   assert.equal(stage.dataset.foodBitten, "false");
   assert.equal(stageContainer.classList.contains("reaction-stage--hidden"), false);
@@ -159,6 +176,10 @@ test("replay resets the bite, hides inert result content, and starts fresh playb
   timers[0].callback();
   assert.equal(result.hidden, false);
   assert.equal(result.getAttribute("aria-hidden"), "false");
+  assert.equal(result.classList.contains("result-card--visible"), false);
+  frames[1].callback();
+  frames[2].callback();
+  assert.equal(result.classList.contains("result-card--visible"), true);
 });
 
 test("route transition cancels both playback and delayed reveal", () => {
@@ -179,6 +200,22 @@ test("route transition cancels both playback and delayed reveal", () => {
 
   assert.equal(timers[0].cancelled, true);
   assert.equal(flow.isCurrentOutcome("round-2"), false);
+});
+
+test("route transition cancels a result reveal waiting on animation frames", () => {
+  const { flow, result, frames } = fixture();
+  flow.beginOutcome("round-1", ["chili"], { snackKind: "nugget" });
+  flow.skip();
+
+  assert.equal(frames.length, 1);
+  assert.equal(result.classList.contains("result-card--visible"), false);
+
+  flow.leaveRoute();
+
+  assert.equal(frames[0].cancelled, true);
+  frames[0].callback();
+  assert.equal(frames.length, 1);
+  assert.equal(result.classList.contains("result-card--visible"), false);
 });
 
 test("missing result, replay, or stage nodes are safe during teardown", () => {
