@@ -424,3 +424,41 @@ def test_character_reaction_stage_is_served_as_an_articulated_svg() -> None:
     ):
         assert marker in response.text
     assert 'id="character-reaction"' not in response.text
+
+
+def test_character_reaction_styles_define_food_and_full_body_motion() -> None:
+    page = client.get("/").text
+    response = client.get("/static/character-reaction.css")
+
+    assert response.status_code == 200
+    assert 'href="/static/character-reaction.css"' in page
+    assert page.index('href="/static/styles.css"') < page.index(
+        'href="/static/character-reaction.css"'
+    )
+
+    for marker in (
+        '.character-reaction',
+        '.reaction-rig',
+        '[data-bone]',
+        '[data-prop="food"]',
+        '[data-food-bitten="true"]',
+        '[data-phase="reach"]',
+        '[data-phase="bite"]',
+        '[data-phase="burst"]',
+        '[data-phase="recover"]',
+        'reaction-reach',
+        'reaction-food-grab',
+        'reaction-head-bite',
+        'reaction-chew',
+        'reaction-recoil',
+        'reaction-head-recoil',
+        'reaction-hair-whip',
+        'reaction-food-drop',
+        'reaction-fire-burst',
+        'reaction-mouth-fan-left',
+        'reaction-mouth-fan-right',
+        'reaction-heat-rise',
+        'reaction-settle',
+        'prefers-reduced-motion',
+    ):
+        assert marker in response.text
