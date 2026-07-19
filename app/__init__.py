@@ -1,2 +1,1 @@
 """Witch Fries web prototype."""
-

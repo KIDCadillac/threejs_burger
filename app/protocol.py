@@ -123,4 +123,3 @@ def _serialize_outcome(outcome: PickOutcome | None) -> dict[str, Any] | None:
         "loser": outcome.loser,
         "automatic": outcome.automatic,
     }
-
