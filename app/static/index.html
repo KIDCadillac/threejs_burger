@@ -2,12 +2,39 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#211634">
     <title>女巫的毒药：薯条篇</title>
+    <link rel="stylesheet" href="/static/styles.css">
   </head>
   <body>
-    <main>
-      <h1>女巫的毒药：薯条篇</h1>
+    <div class="ambient ambient--one" aria-hidden="true"></div>
+    <div class="ambient ambient--two" aria-hidden="true"></div>
+    <main class="game-shell" id="app">
+      <section class="screen home-screen" aria-labelledby="game-title">
+        <p class="eyebrow">双人心理战 · 一局两分钟</p>
+        <div class="brand-mark" aria-hidden="true"><span>🍟</span></div>
+        <h1 id="game-title">女巫的毒药</h1>
+        <p class="subtitle">薯条篇</p>
+        <p class="tagline">调一根整蛊薯条，看谁先吃到。</p>
+        <div class="home-actions">
+          <button class="button button--primary" type="button" data-action="quick-match">
+            <span class="button__icon">⚡</span><span>快速匹配</span>
+          </button>
+          <button class="button button--secondary" type="button" data-action="create-room">
+            <span class="button__icon">✦</span><span>邀请好友</span>
+          </button>
+        </div>
+        <form class="join-form" data-action="join-room">
+          <label for="room-code">已有房间码</label>
+          <div class="join-form__row">
+            <input id="room-code" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="输入 6 位数字" autocomplete="off" required>
+            <button class="button button--small" type="submit">加入</button>
+          </div>
+        </form>
+      </section>
     </main>
+    <p class="toast" id="live-status" role="status" aria-live="polite"></p>
+    <script type="module" src="/static/app.js"></script>
   </body>
 </html>

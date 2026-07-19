@@ -19,6 +19,9 @@ def test_home_page_contains_game_title() -> None:
 
     assert response.status_code == 200
     assert "女巫的毒药" in response.text
+    assert 'data-action="quick-match"' in response.text
+    assert 'data-action="create-room"' in response.text
+    assert 'data-action="join-room"' in response.text
 
 
 def test_websocket_create_and_join_room() -> None:
