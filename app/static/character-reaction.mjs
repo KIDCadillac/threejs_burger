@@ -1,0 +1,108 @@
+const FOOD_PATHS = Object.freeze({
+  fry: "/static/art/foods/fry.png",
+  nugget: "/static/art/foods/nugget.png",
+  donut: "/static/art/foods/donut.png",
+  cookie: "/static/art/foods/cookie.png",
+  "onion-ring": "/static/art/foods/onion-ring.png",
+  mochi: "/static/art/foods/mochi.png",
+});
+
+export function characterReactionMarkup({ victim, snackKind }) {
+  const foodPath = FOOD_PATHS[snackKind] ?? FOOD_PATHS.nugget;
+
+  return `
+    <section class="character-reaction" id="character-reaction" data-phase="notice" data-food-bitten="false" aria-label="${victim}拿起食物并产生夸张反应">
+      <p class="reaction-caption" data-reaction-caption>看起来还挺正常……</p>
+      <svg class="reaction-rig" viewBox="0 0 390 500" role="img" aria-label="${victim}的完整进食动画">
+        <defs>
+          <linearGradient id="skin" x1="0" y1="0" x2="1" y2="1">
+            <stop stop-color="#ffd5b5"/>
+            <stop offset="1" stop-color="#d98e70"/>
+          </linearGradient>
+          <linearGradient id="hoodie" x1="0" y1="0" x2="1" y2="1">
+            <stop stop-color="#738a67"/>
+            <stop offset="1" stop-color="#344b3b"/>
+          </linearGradient>
+          <radialGradient id="fire" cx="30%" cy="50%" r="70%">
+            <stop stop-color="#fff49a"/>
+            <stop offset=".45" stop-color="#ffae32"/>
+            <stop offset="1" stop-color="#f0442f"/>
+          </radialGradient>
+          <mask id="bitten-food-mask" maskUnits="userSpaceOnUse" x="28" y="314" width="96" height="96">
+            <rect x="28" y="314" width="96" height="96" fill="white"/>
+            <circle cx="104" cy="326" r="22" fill="black"/>
+            <circle cx="119" cy="344" r="18" fill="black"/>
+          </mask>
+        </defs>
+
+        <ellipse class="rig-shadow" cx="198" cy="472" rx="102" ry="16"/>
+        <g class="rig-person">
+          <g data-bone="torso">
+            <path class="rig-hoodie" d="M126 237 Q194 205 262 237 L282 405 Q198 438 108 405Z"/>
+            <path class="rig-pocket" d="M151 345 Q195 369 239 345 L230 392 Q195 408 160 392Z"/>
+            <path class="rig-hoodie-string" d="M179 237 L176 280 M211 237 L214 280"/>
+          </g>
+
+          <g data-bone="head">
+            <ellipse class="rig-neck" cx="195" cy="241" rx="28" ry="37"/>
+            <path class="rig-face" d="M121 116 Q194 53 270 115 L258 217 Q196 270 132 216Z"/>
+            <g data-bone="hair">
+              <path class="rig-hair" d="M119 132 Q113 54 178 66 Q222 28 274 83 Q301 119 263 151 Q251 106 216 105 Q164 119 126 166Z"/>
+            </g>
+            <g class="rig-eyes">
+              <ellipse cx="165" cy="160" rx="9" ry="13"/>
+              <ellipse cx="226" cy="160" rx="9" ry="13"/>
+            </g>
+            <path class="rig-brow rig-brow--left" d="M147 137 Q165 126 181 137"/>
+            <path class="rig-brow rig-brow--right" d="M210 137 Q229 126 244 139"/>
+            <path class="rig-mouth rig-mouth--closed" d="M177 205 Q196 215 216 204"/>
+            <ellipse class="rig-mouth rig-mouth--open" cx="197" cy="207" rx="25" ry="19"/>
+          </g>
+
+          <g data-bone="left-arm">
+            <path class="rig-sleeve" d="M138 251 Q95 266 79 327 L112 341 Q132 303 166 283Z"/>
+            <g data-bone="left-hand">
+              <path class="rig-hand" d="M78 319 Q59 321 56 340 Q60 358 79 354 L107 337Z"/>
+            </g>
+          </g>
+
+          <g data-bone="right-arm">
+            <path class="rig-sleeve" d="M252 249 Q296 264 314 324 L282 340 Q263 303 230 283Z"/>
+            <g data-bone="right-hand">
+              <path class="rig-hand" d="M308 316 Q328 318 331 337 Q327 356 307 352 L280 335Z"/>
+            </g>
+          </g>
+
+          <g class="rig-legs">
+            <path class="rig-pants" d="M132 397 L188 397 L178 466 L120 466Z"/>
+            <path class="rig-pants" d="M204 397 L259 397 L270 466 L212 466Z"/>
+            <path class="rig-shoe" d="M119 449 Q150 445 180 463 L179 478 L107 478 Q105 462 119 449Z"/>
+            <path class="rig-shoe" d="M211 463 Q241 445 271 450 Q286 462 284 478 L212 478Z"/>
+          </g>
+        </g>
+
+        <g data-prop="food">
+          <image data-food-state="whole" href="${foodPath}" x="28" y="314" width="96" height="96" preserveAspectRatio="xMidYMid slice"/>
+          <image data-food-state="bitten" href="${foodPath}" x="28" y="314" width="96" height="96" preserveAspectRatio="xMidYMid slice" mask="url(#bitten-food-mask)"/>
+          <g class="food-crumbs">
+            <circle cx="70" cy="336" r="4"/>
+            <circle cx="91" cy="347" r="3"/>
+            <circle cx="104" cy="330" r="2"/>
+          </g>
+        </g>
+
+        <g data-effect="fire">
+          <path class="fire-outer" fill="url(#fire)" d="M237 203 C286 171 301 215 359 180 C335 229 367 249 293 252 C266 248 246 235 229 218Z"/>
+          <path class="fire-core" d="M246 209 C282 195 297 221 330 205 C309 235 280 236 246 220Z"/>
+        </g>
+        <g data-effect="heat">
+          <path d="M260 83 Q282 57 270 32"/>
+          <path d="M292 105 Q320 80 306 51"/>
+        </g>
+        <g data-effect="sweat">
+          <path d="M274 161 Q294 185 275 200 Q256 184 274 161Z"/>
+        </g>
+      </svg>
+      <p class="victim-label">${victim}正在努力表情管理</p>
+    </section>`;
+}

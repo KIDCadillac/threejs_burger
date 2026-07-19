@@ -402,3 +402,20 @@ def test_recipe_title_counts_all_repeated_and_mixed_sauces() -> None:
     assert '3: "三倍"' in effects
     assert '4: "四倍"' in effects
     assert 'return names.join(" × ")' in effects
+
+
+def test_character_reaction_stage_is_served_as_an_articulated_svg() -> None:
+    response = client.get("/static/character-reaction.mjs")
+
+    assert response.status_code == 200
+    for marker in (
+        "characterReactionMarkup",
+        'data-bone="torso"',
+        'data-bone="head"',
+        'data-bone="left-arm"',
+        'data-bone="right-arm"',
+        'data-prop="food"',
+        'data-food-state="bitten"',
+        'data-effect="fire"',
+    ):
+        assert marker in response.text
