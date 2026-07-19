@@ -73,7 +73,7 @@ function getPlayerCredential() {
 function connect() {
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
   socket = new WebSocket(`${protocol}//${location.host}/ws?player=${encodeURIComponent(playerId)}&credential=${encodeURIComponent(playerCredential)}`);
-  setConnectionState("正在连接魔法餐桌…");
+  setConnectionState("正在连接零食餐桌…");
 
   socket.addEventListener("open", () => {
     reconnectAttempts = 0;
@@ -159,7 +159,7 @@ function renderHome() {
       <p class="subtitle">零食乱斗篇</p>
       <p class="tagline">同一盘零食，各自秘密埋伏。</p>
       <div class="home-actions">
-        <button class="button button--practice" type="button" data-action="start-practice"><span class="button__icon">🧙</span><span class="button__copy"><strong>单人练习</strong><small>立即对战电脑女巫</small></span></button>
+        <button class="button button--practice" type="button" data-action="start-practice"><span class="button__icon">🎮</span><span class="button__copy"><strong>单人练习</strong><small>立即对战电脑吃货</small></span></button>
         <button class="button button--primary" type="button" data-action="quick-match"><span class="button__icon">⚡</span><span>快速匹配</span></button>
         <button class="button button--secondary" type="button" data-action="create-room"><span class="button__icon">✦</span><span>邀请好友</span></button>
       </div>
@@ -186,7 +186,7 @@ function renderMatching() {
         <div class="player-slot player-slot--search"><span class="dot-pulse">···</span><strong>搜索中</strong></div>
       </div>
       <div class="matching-actions">
-        <button class="button button--practice" type="button" data-action="start-practice"><span class="button__icon">🧙</span><span class="button__copy"><strong>没人？和电脑玩</strong><small>不用等待，立即开局</small></span></button>
+        <button class="button button--practice" type="button" data-action="start-practice"><span class="button__icon">🎮</span><span class="button__copy"><strong>没人？和电脑玩</strong><small>不用等待，立即开局</small></span></button>
         <button class="button button--ghost" type="button" data-action="cancel-match">取消匹配</button>
       </div>
     </section>`);
@@ -220,7 +220,7 @@ function renderMixing(state) {
       ${playerRibbon(state)}
       ${tutorialCoach(state, "mixing")}
       <div class="prep-workbench">
-        <div class="prep-workbench__art" role="img" aria-label="卡通写实女巫料理操作台"></div>
+        <div class="prep-workbench__art" role="img" aria-label="休闲零食操作台"></div>
         <div class="prep-privacy"><span>◉</span><strong>秘密部署</strong><small>对手只看得到你的表情</small></div>
         ${opponentPose(state, "mixing")}
         <div class="stage-copy prep-title">
@@ -297,8 +297,8 @@ function renderTurn(state) {
       ${playerRibbon(state)}
       ${tutorialCoach(state, "turn")}
       ${state.paused ? `<div class="pause-banner">对手掉线，对局暂时冻结</div>` : ""}
-      <section class="shared-table-scene" aria-label="两名女巫共用的零食餐桌">
-        <div class="shared-table-scene__art" role="img" aria-label="两名卡通女巫面对面观察公共零食"></div>
+      <section class="shared-table-scene" aria-label="两名玩家共用的零食餐桌">
+        <div class="shared-table-scene__art" role="img" aria-label="两名玩家面对面观察公共零食"></div>
         ${opponentPose(state, "turn")}
         <div class="turn-callout">
           <div class="timer" id="turn-timer" aria-label="回合剩余时间"><strong>20</strong><span>秒</span></div>
@@ -379,9 +379,9 @@ function playerRibbon(state) {
   return `<div class="player-ribbon">${state.players.map((player, index) => {
     const isMe = player.id === state.me;
     const current = state.currentPlayer === player.id;
-    const name = isMe ? "你" : player.computer ? (player.name ?? "电脑女巫") : "对手";
+    const name = isMe ? "你" : player.computer ? (player.name ?? "电脑吃货") : "对手";
     const offline = player.online === false && !player.computer ? " · 离线" : "";
-    return `<div class="ribbon-player ribbon-player--${index} ${current ? "is-current" : ""}"><span class="ribbon-face">${player.computer ? "🧙" : index === 0 ? "●ᴗ●" : "●▽●"}</span><div><strong>${name}</strong><small>${player.ready ? "已调制" : "调制中"}${offline}</small></div></div>`;
+    return `<div class="ribbon-player ribbon-player--${index} ${current ? "is-current" : ""}"><span class="ribbon-face">${player.computer ? "🎮" : index === 0 ? "●ᴗ●" : "●▽●"}</span><div><strong>${name}</strong><small>${player.ready ? "已调制" : "调制中"}${offline}</small></div></div>`;
   }).join('<span class="ribbon-vs">VS</span>')}</div>`;
 }
 
@@ -419,7 +419,7 @@ function tutorialCoach(state, phase) {
   if (phase === "mixing" && deploymentOpened && selectedSauces.length < 1) copy = "按住调料瓶拖进食物里；可以加入一到四份，电脑看不到配方。";
   if (phase === "mixing" && selectedSauces.length >= 1) copy = "已经可以完成伪装，也可以继续拖入调料，最多四份。";
   if (phase === "turn") copy = "先点一件零食试探电脑；观察它的动作后，再确认是否真的吃下。";
-  return `<aside class="tutorial-coach"><span class="tutorial-coach__witch">🧙</span><div><strong>首局边玩边学</strong><p>${copy}</p></div><button type="button" data-action="skip-tutorial">跳过</button></aside>`;
+  return `<aside class="tutorial-coach"><span class="tutorial-coach__witch">🎮</span><div><strong>首局边玩边学</strong><p>${copy}</p></div><button type="button" data-action="skip-tutorial">跳过</button></aside>`;
 }
 
 function deploymentStep(number, label, complete, active) {

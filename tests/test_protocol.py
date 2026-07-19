@@ -2,7 +2,7 @@ import json
 
 from app.domain import GameState
 from app.protocol import serialize_game, serialize_room
-from app.service import GameService
+from app.service import GameService, Room
 
 
 def locked_game() -> GameState:
@@ -97,6 +97,24 @@ def test_practice_room_marks_computer_online_without_revealing_recipe() -> None:
 
     bot = next(player for player in view["players"] if player["computer"])
     assert bot["id"] == bot_id
-    assert bot["name"] == "电脑女巫"
+    assert bot["name"] == "电脑吃货"
     assert bot["online"] is True
     assert "sour" not in json.dumps(view)
+
+
+def test_waiting_practice_room_uses_the_same_neutral_computer_name() -> None:
+    room = Room(
+        code="BOT001",
+        mode="practice",
+        players=["p1", "bot-1"],
+        created_at=0,
+        expires_at=None,
+        connected={"p1"},
+        bot_player_id="bot-1",
+    )
+
+    view = serialize_room(room, viewer_id="p1")
+
+    bot = next(player for player in view["players"] if player["computer"])
+    assert bot["name"] == "电脑吃货"
+    assert bot["online"] is True

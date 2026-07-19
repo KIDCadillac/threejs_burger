@@ -127,7 +127,7 @@ def serialize_room(room: Room, *, viewer_id: str) -> dict[str, Any]:
                     ),
                     "computer": player_id == room.bot_player_id,
                     "name": (
-                        "电脑女巫"
+                        "电脑吃货"
                         if player_id == room.bot_player_id
                         else None
                     ),
@@ -158,7 +158,7 @@ def serialize_room(room: Room, *, viewer_id: str) -> dict[str, Any]:
         is_computer = player["id"] == room.bot_player_id
         player["online"] = player["id"] in online or is_computer
         player["computer"] = is_computer
-        player["name"] = "电脑女巫" if is_computer else None
+        player["name"] = "电脑吃货" if is_computer else None
     return payload
 
 

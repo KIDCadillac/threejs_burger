@@ -1,5 +1,6 @@
 import asyncio
 import importlib.util
+import struct
 
 import pytest
 from fastapi.testclient import TestClient
@@ -303,7 +304,29 @@ def test_client_offers_practice_from_home_and_matching() -> None:
     assert 'type: "practice.start"' in script
     assert "单人练习" in script
     assert "没人？和电脑玩" in script
-    assert "电脑女巫" in script
+    assert "电脑吃货" in page
+    assert "电脑吃货" in script
+
+
+def test_mode_name_does_not_force_witch_characters() -> None:
+    page = client.get("/").text
+    script = client.get("/static/app.js").text
+
+    assert "女巫的毒药" in page
+    assert 'button__icon">🎮' in page
+    assert 'button__icon">🎮' in script
+    assert 'aria-label="休闲零食操作台"' in script
+    assert 'aria-label="两名玩家面对面观察公共零食"' in script
+    for forced_character_copy in (
+        "电脑女巫",
+        "两名女巫",
+        "卡通写实女巫",
+        "两名卡通女巫",
+        "🧙",
+        "魔法餐桌",
+    ):
+        assert forced_character_copy not in page
+        assert forced_character_copy not in script
 
 
 def test_game_header_offers_a_leave_action_during_play() -> None:
@@ -331,7 +354,7 @@ def test_client_contains_interactive_deployment_and_shared_table() -> None:
         assert marker in script or marker in styles
 
 
-def test_cartoon_real_scene_assets_are_served() -> None:
+def test_mode_neutral_scene_assets_are_valid_portrait_pngs() -> None:
     for path in (
         "/static/art/deployment-counter.png",
         "/static/art/shared-table.png",
@@ -340,6 +363,9 @@ def test_cartoon_real_scene_assets_are_served() -> None:
 
         assert response.status_code == 200
         assert response.headers["content-type"] == "image/png"
+        assert response.content[:8] == b"\x89PNG\r\n\x1a\n"
+        assert response.content[12:16] == b"IHDR"
+        assert struct.unpack(">II", response.content[16:24]) == (941, 1672)
 
 
 def test_first_run_tutorial_finishes_after_confirming_food() -> None:
