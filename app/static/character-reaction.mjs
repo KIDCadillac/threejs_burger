@@ -7,28 +7,54 @@ const FOOD_PATHS = Object.freeze({
   mochi: "/static/art/foods/mochi.png",
 });
 
+const MARKUP_ESCAPES = Object.freeze({
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+});
+
+let nextInstanceId = 0;
+
+function escapeMarkup(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => (
+    MARKUP_ESCAPES[character]
+  ));
+}
+
 export function characterReactionMarkup({ victim, snackKind }) {
-  const foodPath = FOOD_PATHS[snackKind] ?? FOOD_PATHS.nugget;
+  const foodPath = Object.hasOwn(FOOD_PATHS, snackKind)
+    ? FOOD_PATHS[snackKind]
+    : FOOD_PATHS.nugget;
+  const safeVictim = escapeMarkup(victim);
+  const instancePrefix = `character-reaction-${nextInstanceId += 1}`;
+  const skinId = `${instancePrefix}-skin`;
+  const hoodieId = `${instancePrefix}-hoodie`;
+  const fireId = `${instancePrefix}-fire`;
+  const bittenFoodMaskId = `${instancePrefix}-bitten-food-mask`;
+  const titleId = `${instancePrefix}-title`;
 
   return `
-    <section class="character-reaction" id="character-reaction" data-phase="notice" data-food-bitten="false" aria-label="${victim}拿起食物并产生夸张反应">
+    <section class="character-reaction" id="character-reaction" data-phase="notice" data-food-bitten="false">
       <p class="reaction-caption" data-reaction-caption>看起来还挺正常……</p>
-      <svg class="reaction-rig" viewBox="0 0 390 500" role="img" aria-label="${victim}的完整进食动画">
+      <svg class="reaction-rig" viewBox="0 0 390 500" role="img" aria-labelledby="${titleId}">
+        <title id="${titleId}">${safeVictim}的完整进食动画</title>
         <defs>
-          <linearGradient id="skin" x1="0" y1="0" x2="1" y2="1">
+          <linearGradient id="${skinId}" x1="0" y1="0" x2="1" y2="1">
             <stop stop-color="#ffd5b5"/>
             <stop offset="1" stop-color="#d98e70"/>
           </linearGradient>
-          <linearGradient id="hoodie" x1="0" y1="0" x2="1" y2="1">
+          <linearGradient id="${hoodieId}" x1="0" y1="0" x2="1" y2="1">
             <stop stop-color="#738a67"/>
             <stop offset="1" stop-color="#344b3b"/>
           </linearGradient>
-          <radialGradient id="fire" cx="30%" cy="50%" r="70%">
+          <radialGradient id="${fireId}" cx="30%" cy="50%" r="70%">
             <stop stop-color="#fff49a"/>
             <stop offset=".45" stop-color="#ffae32"/>
             <stop offset="1" stop-color="#f0442f"/>
           </radialGradient>
-          <mask id="bitten-food-mask" maskUnits="userSpaceOnUse" x="28" y="314" width="96" height="96">
+          <mask id="${bittenFoodMaskId}" maskUnits="userSpaceOnUse" x="28" y="314" width="96" height="96">
             <rect x="28" y="314" width="96" height="96" fill="white"/>
             <circle cx="104" cy="326" r="22" fill="black"/>
             <circle cx="119" cy="344" r="18" fill="black"/>
@@ -38,14 +64,14 @@ export function characterReactionMarkup({ victim, snackKind }) {
         <ellipse class="rig-shadow" cx="198" cy="472" rx="102" ry="16"/>
         <g class="rig-person">
           <g data-bone="torso">
-            <path class="rig-hoodie" d="M126 237 Q194 205 262 237 L282 405 Q198 438 108 405Z"/>
+            <path class="rig-hoodie" fill="url(#${hoodieId})" d="M126 237 Q194 205 262 237 L282 405 Q198 438 108 405Z"/>
             <path class="rig-pocket" d="M151 345 Q195 369 239 345 L230 392 Q195 408 160 392Z"/>
             <path class="rig-hoodie-string" d="M179 237 L176 280 M211 237 L214 280"/>
           </g>
 
           <g data-bone="head">
-            <ellipse class="rig-neck" cx="195" cy="241" rx="28" ry="37"/>
-            <path class="rig-face" d="M121 116 Q194 53 270 115 L258 217 Q196 270 132 216Z"/>
+            <ellipse class="rig-neck" fill="url(#${skinId})" cx="195" cy="241" rx="28" ry="37"/>
+            <path class="rig-face" fill="url(#${skinId})" d="M121 116 Q194 53 270 115 L258 217 Q196 270 132 216Z"/>
             <g data-bone="hair">
               <path class="rig-hair" d="M119 132 Q113 54 178 66 Q222 28 274 83 Q301 119 263 151 Q251 106 216 105 Q164 119 126 166Z"/>
             </g>
@@ -60,16 +86,16 @@ export function characterReactionMarkup({ victim, snackKind }) {
           </g>
 
           <g data-bone="left-arm">
-            <path class="rig-sleeve" d="M138 251 Q95 266 79 327 L112 341 Q132 303 166 283Z"/>
+            <path class="rig-sleeve" fill="url(#${hoodieId})" d="M138 251 Q95 266 79 327 L112 341 Q132 303 166 283Z"/>
             <g data-bone="left-hand">
-              <path class="rig-hand" d="M78 319 Q59 321 56 340 Q60 358 79 354 L107 337Z"/>
+              <path class="rig-hand" fill="url(#${skinId})" d="M78 319 Q59 321 56 340 Q60 358 79 354 L107 337Z"/>
             </g>
           </g>
 
           <g data-bone="right-arm">
-            <path class="rig-sleeve" d="M252 249 Q296 264 314 324 L282 340 Q263 303 230 283Z"/>
+            <path class="rig-sleeve" fill="url(#${hoodieId})" d="M252 249 Q296 264 314 324 L282 340 Q263 303 230 283Z"/>
             <g data-bone="right-hand">
-              <path class="rig-hand" d="M308 316 Q328 318 331 337 Q327 356 307 352 L280 335Z"/>
+              <path class="rig-hand" fill="url(#${skinId})" d="M308 316 Q328 318 331 337 Q327 356 307 352 L280 335Z"/>
             </g>
           </g>
 
@@ -83,7 +109,7 @@ export function characterReactionMarkup({ victim, snackKind }) {
 
         <g data-prop="food">
           <image data-food-state="whole" href="${foodPath}" x="28" y="314" width="96" height="96" preserveAspectRatio="xMidYMid slice"/>
-          <image data-food-state="bitten" href="${foodPath}" x="28" y="314" width="96" height="96" preserveAspectRatio="xMidYMid slice" mask="url(#bitten-food-mask)"/>
+          <image data-food-state="bitten" href="${foodPath}" x="28" y="314" width="96" height="96" preserveAspectRatio="xMidYMid slice" mask="url(#${bittenFoodMaskId})"/>
           <g class="food-crumbs">
             <circle cx="70" cy="336" r="4"/>
             <circle cx="91" cy="347" r="3"/>
@@ -92,7 +118,7 @@ export function characterReactionMarkup({ victim, snackKind }) {
         </g>
 
         <g data-effect="fire">
-          <path class="fire-outer" fill="url(#fire)" d="M237 203 C286 171 301 215 359 180 C335 229 367 249 293 252 C266 248 246 235 229 218Z"/>
+          <path class="fire-outer" fill="url(#${fireId})" d="M237 203 C286 171 301 215 359 180 C335 229 367 249 293 252 C266 248 246 235 229 218Z"/>
           <path class="fire-core" d="M246 209 C282 195 297 221 330 205 C309 235 280 236 246 220Z"/>
         </g>
         <g data-effect="heat">
@@ -103,6 +129,6 @@ export function characterReactionMarkup({ victim, snackKind }) {
           <path d="M274 161 Q294 185 275 200 Q256 184 274 161Z"/>
         </g>
       </svg>
-      <p class="victim-label">${victim}正在努力表情管理</p>
+      <p class="victim-label">${safeVictim}正在努力表情管理</p>
     </section>`;
 }

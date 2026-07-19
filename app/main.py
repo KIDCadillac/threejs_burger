@@ -1,4 +1,5 @@
 import asyncio
+import mimetypes
 import secrets
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
@@ -15,6 +16,7 @@ from app.service import GameService, Room, RoomError
 
 
 BASE_DIR = Path(__file__).parent
+mimetypes.add_type("text/javascript", ".mjs")
 
 
 class ConnectionHub:

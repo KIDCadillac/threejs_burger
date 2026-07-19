@@ -408,6 +408,9 @@ def test_character_reaction_stage_is_served_as_an_articulated_svg() -> None:
     response = client.get("/static/character-reaction.mjs")
 
     assert response.status_code == 200
+    assert response.headers["content-type"].startswith(
+        ("text/javascript", "application/javascript")
+    )
     for marker in (
         "characterReactionMarkup",
         'data-bone="torso"',
