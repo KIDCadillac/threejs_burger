@@ -490,6 +490,7 @@ h1 { margin: 0; font-size: clamp(2.2rem, 10vw, 3.25rem); line-height: 1; letter-
 @keyframes biteLift { 50% { transform: translateY(-3.5rem) scale(1.35) rotate(-8deg); } 100% { transform: translateY(-6rem) scale(0.25) rotate(12deg); opacity: 0; } }
 @keyframes sneakLook { to { transform: translateX(0.25rem) rotate(5deg); } }
 @keyframes mixBob { to { transform: translateY(-0.18rem) rotate(-4deg); } }
+@keyframes giggle { to { transform: rotate(-6deg) translateY(-0.1rem); } }
 @keyframes hurryBounce { to { transform: translateY(-0.3rem) scale(1.04); } }
 @keyframes deploySnack { 0% { transform: translateY(5rem) scale(0.5); opacity: 0; } 22%, 72% { transform: translateY(0) scale(1); opacity: 1; } 100% { transform: scale(0.92); filter: drop-shadow(0 0 18px var(--purple)); } }
 @keyframes replaySnack { 0% { transform: translateY(2rem) scale(0.72); opacity: 0; } 22%, 76% { transform: translateY(0) scale(1); opacity: 1; } 100% { transform: scale(0.94); filter: drop-shadow(0 0 16px var(--purple)); } }

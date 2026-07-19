@@ -467,37 +467,41 @@ def test_finished_round_uses_character_playback_instead_of_static_face() -> None
 
 def test_character_reaction_playback_can_be_cancelled_skipped_and_replayed() -> None:
     script = client.get("/static/app.js").text
+    flow_script = client.get("/static/finished-reaction-flow.mjs")
 
     playback = script.split("function playHitSequence", 1)[1].split(
-        "function showReplayAndResult", 1
+        "function replayDeployment", 1
     )[0]
-    assert 'document.querySelector("[data-character-reaction]")' in playback
-    assert "playCharacterReaction(stage, sauces" in playback
-    assert "onComplete: () => showReplayAndResult(false)" in playback
+    assert "finishedReactionFlow.beginOutcome(outcomeKey, sauces, replay)" in playback
 
     cleanup = script.split("function clearReactionTimers", 1)[1].split(
         "function startCountdown", 1
     )[0]
-    assert "reactionPlayback?.cancel()" in cleanup
-    assert "reactionPlayback = null" in cleanup
+    assert "finishedReactionFlow.leaveRoute()" in cleanup
+    assert "finishedReactionFlow.cancelPlayback()" in cleanup
 
     replay = script.split("function replayCharacterReaction", 1)[1].split(
         "function clearReactionTimers", 1
     )[0]
-    assert 'document.querySelector("[data-character-reaction]")' in replay
-    assert 'stage.dataset.phase = "notice"' in replay
-    assert 'stage.dataset.foodBitten = "false"' in replay
-    assert 'classList.remove("deployment-replay--active")' in replay
-    assert "stage.scrollIntoView" in replay
+    assert "finishedReactionFlow.replay" in replay
 
     click_handler = script.split('app.addEventListener("click"', 1)[1].split(
         'app.addEventListener("submit"', 1
     )[0]
     assert 'action === "skip-effect"' in click_handler
-    assert "clearReactionTimers();" in click_handler
-    assert "showReplayAndResult(true);" in click_handler
+    assert "finishedReactionFlow.skip();" in click_handler
     assert 'action === "replay-reaction"' in click_handler
     assert "replayCharacterReaction();" in click_handler
+
+    assert flow_script.status_code == 200
+    for marker in (
+        'querySelector("[data-character-reaction]")',
+        'stage.dataset.phase = "notice"',
+        'stage.dataset.foodBitten = "false"',
+        'classList.remove("deployment-replay--active")',
+        "stage.scrollIntoView",
+    ):
+        assert marker in flow_script.text
 
 
 def test_legacy_static_face_styles_are_removed_without_losing_reveal_layout() -> None:
@@ -524,3 +528,22 @@ def test_legacy_static_face_styles_are_removed_without_losing_reveal_layout() ->
         ".skip-effect",
     ):
         assert shared in styles
+
+
+def test_finished_result_focus_state_and_shared_giggle_animation_are_preserved() -> None:
+    script = client.get("/static/app.js").text
+    styles = client.get("/static/styles.css").text
+
+    assert 'hidden aria-hidden="true" inert' in script
+    assert "createFinishedReactionFlow" in script
+    assert "replaceApp" in script
+    assert "syncFinishedControls" in script
+    assert script.count("app.innerHTML =") == 1
+    assert script.count("replaceApp(`") == 8
+    finished = script.split("function renderFinished", 1)[1].split(
+        "function syncFinishedControls", 1
+    )[0]
+    assert finished.index("finishedReactionFlow.isCurrentOutcome") < finished.index(
+        "replaceApp(`"
+    )
+    assert "@keyframes giggle" in styles

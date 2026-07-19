@@ -3,6 +3,7 @@ import {
   characterReactionMarkup,
   playCharacterReaction,
 } from "/static/character-reaction.mjs";
+import { createFinishedReactionFlow } from "/static/finished-reaction-flow.mjs";
 import { inviteFriend } from "/static/platform.js";
 
 const app = document.querySelector("#app");
@@ -24,10 +25,14 @@ let ignoreSauceClickUntil = 0;
 let activeRound = null;
 let countdownHandle = null;
 let reactionHandles = [];
-let reactionPlayback = null;
 let lastOutcomeKey = "";
 let deploymentPlaying = false;
 let gestureLockedUntil = 0;
+
+const finishedReactionFlow = createFinishedReactionFlow({
+  querySelector: (selector) => document.querySelector(selector),
+  playReaction: playCharacterReaction,
+});
 
 const GESTURES = Object.freeze({
   calm: { emoji: "😌", label: "装镇定", bubble: "我一点都不慌" },
@@ -96,6 +101,11 @@ function send(payload) {
   socket.send(JSON.stringify(payload));
 }
 
+function replaceApp(markup) {
+  clearReactionTimers({ leaveRoute: true });
+  app.innerHTML = markup;
+}
+
 function render(message) {
   clearCountdown();
   if (message.type === "home") {
@@ -136,7 +146,7 @@ function syncRound(state) {
 
 function renderHome() {
   activeRound = null;
-  app.innerHTML = `
+  replaceApp(`
     <section class="screen home-screen" aria-labelledby="game-title">
       <p class="eyebrow">双人心理战 · 一局两分钟</p>
       <div class="brand-mark" aria-hidden="true"><span>🍽️</span></div>
@@ -155,11 +165,11 @@ function renderHome() {
           <button class="button button--small" type="submit">加入</button>
         </div>
       </form>
-    </section>`;
+    </section>`);
 }
 
 function renderMatching() {
-  app.innerHTML = `
+  replaceApp(`
     <section class="screen center-screen">
       <p class="eyebrow">快速匹配</p>
       <div class="search-orbit" aria-hidden="true"><span>🍟</span><i></i></div>
@@ -174,7 +184,7 @@ function renderMatching() {
         <button class="button button--practice" type="button" data-action="start-practice"><span class="button__icon">🧙</span><span class="button__copy"><strong>没人？和电脑玩</strong><small>不用等待，立即开局</small></span></button>
         <button class="button button--ghost" type="button" data-action="cancel-match">取消匹配</button>
       </div>
-    </section>`;
+    </section>`);
 }
 
 function renderWaitingRoom(state) {
@@ -182,7 +192,7 @@ function renderWaitingRoom(state) {
   const url = new URL(location.href);
   url.search = "";
   url.searchParams.set("room", code);
-  app.innerHTML = `
+  replaceApp(`
     <section class="screen center-screen room-screen">
       <p class="eyebrow">好友约战</p>
       <div class="potion-seal" aria-hidden="true">✦</div>
@@ -192,14 +202,14 @@ function renderWaitingRoom(state) {
       <button class="button button--primary" type="button" data-action="copy-invite" data-code="${code}" data-url="${url.toString()}">复制邀请链接</button>
       <div class="waiting-friend"><span class="dot-pulse">···</span><span>等待好友加入</span></div>
       <button class="text-button" type="button" data-action="leave-room">返回首页</button>
-    </section>`;
+    </section>`);
 }
 
 function renderMixing(state) {
   const selectedSnack = selectedFry === null ? null : state.snacks?.[selectedFry];
   const snackKind = selectedSnack?.kind ?? "fry";
   const canLock = selectedFry !== null && deploymentOpened && selectedSauces.length >= 1 && selectedSauces.length <= MAX_SAUCES;
-  app.innerHTML = `
+  replaceApp(`
     <section class="screen game-screen mixing-screen immersive-game-screen">
       ${gameHeader(state, "秘密调制")}
       ${playerRibbon(state)}
@@ -239,14 +249,14 @@ function renderMixing(state) {
         </div>
       </section>
       <button class="button button--primary lock-button" type="button" data-action="lock-recipe" ${canLock ? "" : "disabled"}>合上食物，完成伪装</button>
-    </section>`;
+    </section>`);
 }
 
 function renderRecipeLocked(state) {
   const sauces = state.private.sauces;
   const snack = state.snacks?.[state.private.poisonPosition] ?? { kind: "fry" };
   const opponentReady = state.players.some((player) => player.id !== state.me && player.ready);
-  app.innerHTML = `
+  replaceApp(`
     <section class="screen center-screen locked-screen">
       ${gameHeader(state, "配方已封装")}
       ${opponentPose(state, "mixing")}
@@ -259,7 +269,7 @@ function renderRecipeLocked(state) {
       </div>
       <p class="private-note"><span>◉</span> 只有你能看见</p>
       <div class="waiting-friend"><span class="dot-pulse">···</span><span>${opponentReady ? "双方已准备，正在开餐" : "对手还在秘密下料"}</span></div>
-    </section>`;
+    </section>`);
 }
 
 function renderTurn(state) {
@@ -276,7 +286,7 @@ function renderTurn(state) {
     const copy = state.lastOutcome.automatic ? "超时！系统替玩家吃了一件" : safeCopies[state.lastOutcome.position % safeCopies.length];
     window.setTimeout(() => showToast(copy), 80);
   }
-  app.innerHTML = `
+  replaceApp(`
     <section class="screen game-screen turn-screen ${myTurn ? "is-my-turn" : ""}">
       ${gameHeader(state, `第 ${state.roundNumber} 局`)}
       ${playerRibbon(state)}
@@ -295,7 +305,7 @@ function renderTurn(state) {
       ${gestureBar(state)}
       <div class="legend"><span><i class="legend__secret"></i>你的秘密陷阱</span><span><i class="legend__aim"></i>正在瞄准</span></div>
       <p class="turn-tip">公共盘双方共用；吃掉自己的陷阱不会中招，但埋伏会失效。</p>
-    </section>`;
+    </section>`);
   startCountdown(state.deadline);
 }
 
@@ -312,7 +322,15 @@ function renderFinished(state) {
   const summary = draw ? "这局平分秋色" : hit ? `${victim}吃到了 ${recipeTitle(sauces)}${snackFor(replay.snackKind).label}` : "本局因掉线结束";
   const key = `${state.roundNumber}-${result.reason}-${result.winner}`;
 
-  app.innerHTML = `
+  if (
+    finishedReactionFlow.isCurrentOutcome(key)
+    && app.querySelector(".reveal-screen")?.dataset.revealKey === key
+  ) {
+    syncFinishedControls(state);
+    return;
+  }
+
+  replaceApp(`
     <section class="screen reveal-screen ${won ? "reveal-screen--win" : "reveal-screen--loss"}" data-reveal-key="${key}">
       ${gameHeader(state, "配方揭晓")}
       ${hit ? `<div class="reaction-stage">
@@ -325,7 +343,7 @@ function renderFinished(state) {
         <div class="replay-counter trap-cutaway">${snackPiece(replay.snackKind, true)}<span class="trap-cutaway__inside"></span>${replay.sauces.map((key, index) => `<span class="replay-sauce replay-sauce--${index}">${reactionFor(key).emoji}</span>`).join("")}<i class="replay-spark">✦</i></div>
         <p><strong>${won ? "你" : "对手"}</strong>偷偷把 ${recipeTitle(replay.sauces)} 藏进了${snackFor(replay.snackKind).label}</p>
       </div>` : ""}
-      <div class="result-card ${hit ? "result-card--delayed" : "result-card--visible"}" id="result-card">
+      <div class="result-card ${hit ? "result-card--delayed" : "result-card--visible"}" id="result-card" ${hit ? 'hidden aria-hidden="true" inert' : 'aria-hidden="false"'}>
         <p class="eyebrow">${won ? "WIN" : draw ? "DRAW" : "OOPS"}</p>
         <h1 class="screen-title">${title}</h1>
         <p class="muted">${summary}</p>
@@ -334,15 +352,18 @@ function renderFinished(state) {
         <button class="button button--primary" type="button" data-action="rematch" ${requested ? "disabled" : ""}>${requested ? "等待对手同意…" : "再来一局"}</button>
         <button class="text-button" type="button" data-action="leave-room">返回首页</button>
       </div>
-    </section>`;
+    </section>`);
 
-  if (key !== lastOutcomeKey) {
-    lastOutcomeKey = key;
-    playHitSequence(sauces, replay);
-  } else if (hit) {
-    clearReactionTimers();
-    showReplayAndResult(true);
-  }
+  lastOutcomeKey = key;
+  playHitSequence(key, sauces, replay);
+}
+
+function syncFinishedControls(state) {
+  const requested = state.rematchVotes.includes(state.me);
+  const rematchButton = app.querySelector('[data-action="rematch"]');
+  if (!rematchButton) return;
+  rematchButton.disabled = requested;
+  rematchButton.textContent = requested ? "等待对手同意…" : "再来一局";
 }
 
 function gameHeader(state, label) {
@@ -435,7 +456,7 @@ function recipeSlot(index, key) {
 
 function renderPrivateDeployment(state, position, sauces) {
   const snack = state.snacks?.[position] ?? { kind: "fry" };
-  app.innerHTML = `
+  replaceApp(`
     <section class="screen game-screen deployment-screen">
       ${gameHeader(state, "私人下料中")}
       <div class="deployment-stage">
@@ -444,7 +465,7 @@ function renderPrivateDeployment(state, position, sauces) {
         <div class="deployment-counter trap-cutaway">${snackPiece(snack.kind, true)}<span class="trap-cutaway__inside"></span>${sauces.map((key, index) => `<span class="deployment-sauce deployment-sauce--${index}">${reactionFor(key).emoji}</span>`).join("")}<i>✦</i></div>
         <div class="deployment-witch"><span>🤫</span><strong>鬼鬼祟祟下料中</strong><small>只有你能看到 ${snackFor(snack.kind).label} 和配方</small></div>
       </div>
-    </section>`;
+    </section>`);
 }
 
 function startPrivateDeployment(state) {
@@ -462,27 +483,8 @@ function startPrivateDeployment(state) {
   }, 1650));
 }
 
-function playHitSequence(sauces, replay) {
-  clearReactionTimers();
-  const stage = document.querySelector("[data-character-reaction]");
-  if (!sauces.length || !replay || !stage) {
-    document.querySelector("#result-card")?.classList.add("result-card--visible");
-    return;
-  }
-  reactionPlayback = playCharacterReaction(stage, sauces, {
-    onPhase: () => {},
-    onComplete: () => showReplayAndResult(false),
-  });
-}
-
-function showReplayAndResult(immediate = false) {
-  const stage = document.querySelector("[data-character-reaction]");
-  stage?.closest(".reaction-stage")?.classList.add("reaction-stage--hidden");
-  const replay = document.querySelector("#deployment-replay");
-  replay?.classList.add("deployment-replay--active");
-  const revealResult = () => document.querySelector("#result-card")?.classList.add("result-card--visible");
-  if (immediate || !replay) revealResult();
-  else reactionHandles.push(window.setTimeout(revealResult, 1900));
+function playHitSequence(outcomeKey, sauces, replay) {
+  finishedReactionFlow.beginOutcome(outcomeKey, sauces, replay);
 }
 
 function replayDeployment() {
@@ -495,22 +497,13 @@ function replayDeployment() {
 }
 
 function replayCharacterReaction() {
-  const stage = document.querySelector("[data-character-reaction]");
   const result = lastMessage?.result;
-  if (!stage || !result?.replay) return;
-
-  document.querySelector("#deployment-replay")?.classList.remove("deployment-replay--active");
-  document.querySelector("#result-card")?.classList.remove("result-card--visible");
-  stage.closest(".reaction-stage")?.classList.remove("reaction-stage--hidden");
-  stage.dataset.phase = "notice";
-  stage.dataset.foodBitten = "false";
-  playHitSequence(result.recipe?.sauces ?? [], result.replay);
-  stage.scrollIntoView({ behavior: "smooth", block: "center" });
+  finishedReactionFlow.replay(result?.recipe?.sauces ?? [], result?.replay);
 }
 
-function clearReactionTimers() {
-  reactionPlayback?.cancel();
-  reactionPlayback = null;
+function clearReactionTimers({ leaveRoute = false } = {}) {
+  if (leaveRoute) finishedReactionFlow.leaveRoute();
+  else finishedReactionFlow.cancelPlayback();
   reactionHandles.forEach(window.clearTimeout);
   reactionHandles = [];
 }
@@ -663,8 +656,7 @@ app.addEventListener("click", async (event) => {
   if (action === "send-gesture") sendGesture(target.dataset.gesture);
   if (action === "rematch") send({ type: "rematch.request" });
   if (action === "skip-effect") {
-    clearReactionTimers();
-    showReplayAndResult(true);
+    finishedReactionFlow.skip();
   }
   if (action === "skip-tutorial") {
     localStorage.setItem("witch-food-tutorial", "done");
