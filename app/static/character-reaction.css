@@ -42,7 +42,7 @@
 
 .reaction-rig {
   display: block;
-  width: min(calc(100% - 2.75rem), 24rem);
+  width: min(100%, 24rem);
   height: auto;
   max-height: 33rem;
   overflow: visible;
@@ -554,7 +554,7 @@
   }
 
   .reaction-rig {
-    width: min(calc(100% - 2.75rem), 19.5rem);
+    width: min(100%, 19.5rem);
     max-height: 24rem;
   }
 

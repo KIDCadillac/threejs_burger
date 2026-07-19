@@ -150,8 +150,9 @@ test("the narrow rig keeps a side gutter while chili intensity scales upward", (
   assert.match(stageRule.declarations, /overflow:\s*hidden;/);
   assert.match(
     rigRule.declarations,
-    /width:\s*min\(calc\(100% - 2\.75rem\),\s*24rem\);/,
+    /width:\s*min\(100%,\s*24rem\);/,
   );
+  assert.doesNotMatch(css, /width:\s*min\(calc\(100% - 2\.75rem\),/);
   assert.match(rigRule.declarations, /overflow:\s*visible;/);
 
   const fireScales = [...css.matchAll(
