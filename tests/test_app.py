@@ -413,6 +413,7 @@ def test_character_reaction_stage_is_served_as_an_articulated_svg() -> None:
     )
     for marker in (
         "characterReactionMarkup",
+        "data-character-reaction",
         'data-bone="torso"',
         'data-bone="head"',
         'data-bone="left-arm"',
@@ -422,3 +423,4 @@ def test_character_reaction_stage_is_served_as_an_articulated_svg() -> None:
         'data-effect="fire"',
     ):
         assert marker in response.text
+    assert 'id="character-reaction"' not in response.text

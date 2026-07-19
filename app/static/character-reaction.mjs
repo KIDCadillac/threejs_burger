@@ -36,7 +36,7 @@ export function characterReactionMarkup({ victim, snackKind }) {
   const titleId = `${instancePrefix}-title`;
 
   return `
-    <section class="character-reaction" id="character-reaction" data-phase="notice" data-food-bitten="false">
+    <section class="character-reaction" data-character-reaction data-phase="notice" data-food-bitten="false">
       <p class="reaction-caption" data-reaction-caption>看起来还挺正常……</p>
       <svg class="reaction-rig" viewBox="0 0 390 500" role="img" aria-labelledby="${titleId}">
         <title id="${titleId}">${safeVictim}的完整进食动画</title>

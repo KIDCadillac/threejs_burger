@@ -46,12 +46,27 @@ test("victim text is escaped before being used in markup", () => {
 test("each stage owns unique and internally consistent SVG resource ids", () => {
   const first = characterReactionMarkup({ victim: "甲", snackKind: "fry" });
   const second = characterReactionMarkup({ victim: "乙", snackKind: "fry" });
+  const allIds = (markup) =>
+    [...markup.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1]);
   const resourceIds = (markup) =>
     [...markup.matchAll(/<(?:linearGradient|radialGradient|mask) id="([^"]+)"/g)]
       .map((match) => match[1]);
+  const firstAllIds = allIds(first);
+  const secondAllIds = allIds(second);
   const firstIds = resourceIds(first);
   const secondIds = resourceIds(second);
 
+  assert.deepEqual(
+    firstAllIds.filter((id) => secondAllIds.includes(id)),
+    [],
+  );
+  for (const markup of [first, second]) {
+    const section = markup.match(/<section\b([^>]*)>/);
+    assert.ok(section);
+    assert.ok(section[1].includes('class="character-reaction"'));
+    assert.ok(section[1].includes("data-character-reaction"));
+    assert.equal(section[1].includes(" id="), false);
+  }
   assert.equal(firstIds.length, 4);
   assert.equal(secondIds.length, 4);
   for (const suffix of ["skin", "hoodie", "fire", "bitten-food-mask"]) {
@@ -62,10 +77,6 @@ test("each stage owns unique and internally consistent SVG resource ids", () => 
     const owner = firstIds.includes(id) ? first : second;
     assert.ok(owner.includes(`url(#${id})`), id);
   }
-  assert.deepEqual(
-    firstIds.filter((id) => secondIds.includes(id)),
-    [],
-  );
 });
 
 test("the SVG title provides the stage accessible name without section duplication", () => {
