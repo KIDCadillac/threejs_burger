@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>真实 3D 汉堡</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:radial-gradient(circle at 50% 35%,#35302c 0,#161412 55%,#090909 100%);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+.ui{position:fixed;left:16px;right:16px;bottom:max(18px,env(safe-area-inset-bottom));display:flex;gap:10px;z-index:3}
+button{flex:1;border:0;border-radius:14px;padding:14px 10px;font-size:16px;font-weight:800;background:rgba(255,255,255,.92);color:#222;box-shadow:0 8px 28px #0008}
+button:first-child{background:#ffb83e}
+.title{position:fixed;top:max(16px,env(safe-area-inset-top));left:0;right:0;text-align:center;color:#fff;z-index:3;pointer-events:none;text-shadow:0 2px 12px #000;font-weight:800;font-size:22px}
+.title small{display:block;font-weight:500;font-size:12px;opacity:.75;margin-top:4px}
+#error{position:fixed;inset:0;display:none;align-items:center;justify-content:center;color:#fff;padding:30px;text-align:center}
+</style>
+</head>
+<body>
+<div class="title">🍔 真实 3D 汉堡<small>手指拖动旋转 · 双指缩放</small></div>
+<canvas id="gl"></canvas><div id="error"></div>
+<div class="ui"><button id="explode">展开汉堡</button><button id="spin">暂停旋转</button></div>
+<script>
+(()=>{
+const canvas=document.getElementById('gl'), gl=canvas.getContext('webgl',{antialias:true,alpha:true});
+if(!gl){const e=document.getElementById('error');e.style.display='flex';e.textContent='当前预览器没有开启 WebGL，请点右上角分享，用 Safari 打开。';return;}
+const vs=`attribute vec3 p,n;uniform mat4 mvp,m;varying vec3 N,P;void main(){vec4 wp=m*vec4(p,1.);P=wp.xyz;N=mat3(m)*n;gl_Position=mvp*vec4(p,1.);}`;
+const fs=`precision mediump float;varying vec3 N,P;uniform vec3 color;void main(){vec3 n=normalize(N);vec3 l=normalize(vec3(-.4,.9,.65));float d=max(dot(n,l),0.);float rim=pow(1.-max(dot(n,normalize(vec3(0.,.2,1.))),0.),2.);vec3 c=color*(.28+.82*d)+vec3(.15,.10,.06)*rim;gl_FragColor=vec4(c,1.);}`;
+function sh(type,src){let s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw gl.getShaderInfoLog(s);return s}
+let prog=gl.createProgram();gl.attachShader(prog,sh(gl.VERTEX_SHADER,vs));gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(prog);gl.useProgram(prog);
+const ap=gl.getAttribLocation(prog,'p'),an=gl.getAttribLocation(prog,'n'),umvp=gl.getUniformLocation(prog,'mvp'),um=gl.getUniformLocation(prog,'m'),uc=gl.getUniformLocation(prog,'color');
+function M(){return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1])}
+function mul(a,b){let o=new Float32Array(16);for(let c=0;c<4;c++)for(let r=0;r<4;r++)o[c*4+r]=a[r]*b[c*4]+a[4+r]*b[c*4+1]+a[8+r]*b[c*4+2]+a[12+r]*b[c*4+3];return o}
+function tr(x,y,z){let o=M();o[12]=x;o[13]=y;o[14]=z;return o}
+function sc(x,y,z){let o=M();o[0]=x;o[5]=y;o[10]=z;return o}
+function rx(a){let c=Math.cos(a),s=Math.sin(a),o=M();o[5]=c;o[6]=s;o[9]=-s;o[10]=c;return o}
+function ry(a){let c=Math.cos(a),s=Math.sin(a),o=M();o[0]=c;o[2]=-s;o[8]=s;o[10]=c;return o}
+function persp(f,a,n,fa){let t=1/Math.tan(f/2),o=new Float32Array(16);o[0]=t/a;o[5]=t;o[10]=(fa+n)/(n-fa);o[11]=-1;o[14]=2*fa*n/(n-fa);return o}
+function mesh(v,idx){let vao={cnt:idx.length};vao.v=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,vao.v);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(v),gl.STATIC_DRAW);vao.i=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,vao.i);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(idx),gl.STATIC_DRAW);return vao}
+function lathe(profile,seg=64,wave=0){let v=[],ind=[];for(let j=0;j<profile.length;j++){let [r,y]=profile[j];for(let i=0;i<=seg;i++){let a=i/seg*Math.PI*2,rr=r*(1+wave*Math.sin(a*7+j*.8));let x=Math.cos(a)*rr,z=Math.sin(a)*rr;let jp=Math.min(profile.length-1,j+1),jm=Math.max(0,j-1),dr=profile[jp][0]-profile[jm][0],dy=profile[jp][1]-profile[jm][1];let nx=dy*Math.cos(a),ny=-dr,nz=dy*Math.sin(a),L=Math.hypot(nx,ny,nz)||1;v.push(x,y,z,nx/L,ny/L,nz/L)}}for(let j=0;j<profile.length-1;j++)for(let i=0;i<seg;i++){let a=j*(seg+1)+i,b=a+seg+1;ind.push(a,b,a+1,b,b+1,a+1)}return mesh(v,ind)}
+function box(w,h,d){let p=[[-w,-h,d],[w,-h,d],[w,h,d],[-w,h,d],[-w,-h,-d],[-w,h,-d],[w,h,-d],[w,-h,-d]],f=[[0,1,2,3,0,0,1],[7,4,5,6,0,0,-1],[4,0,3,5,-1,0,0],[1,7,6,2,1,0,0],[3,2,6,5,0,1,0],[4,7,1,0,0,-1,0]],v=[],i=[];f.forEach((q,k)=>{let b=v.length/6;for(let j=0;j<4;j++){let P=p[q[j]];v.push(...P,q[4],q[5],q[6])}i.push(b,b+1,b+2,b,b+2,b+3)});return mesh(v,i)}
+const bunBottom=lathe([[0,-.26],[1.65,-.26],[1.78,-.1],[1.72,.18],[1.48,.34],[0,.38]]);
+const bunTop=lathe([[0,.72],[.48,.68],[1.08,.53],[1.55,.28],[1.75,.02],[1.68,-.18],[0,-.22]]);
+const patty=lathe([[0,-.18],[1.7,-.18],[1.8,-.08],[1.77,.12],[1.62,.2],[0,.2]],64,.035);
+const tomato=lathe([[0,-.08],[1.55,-.08],[1.62,0],[1.54,.09],[0,.09]],64,.015);
+const lettuce=lathe([[0,-.07],[1.55,-.07],[1.92,0],[1.52,.08],[0,.08]],96,.09);
+const onion=lathe([[1.2,-.06],[1.58,-.06],[1.63,0],[1.56,.06],[1.2,.06]],64,.035);
+const cheese=box(1.55,.09,1.55);
+const plate=lathe([[0,-.08],[2.4,-.08],[2.65,0],[2.5,.08],[0,.08]],64);
+const items=[
+ {g:plate,y:-2.35,c:[.9,.9,.86],s:[1,1,1]},
+ {g:bunBottom,y:-1.85,c:[.86,.43,.12]},
+ {g:lettuce,y:-1.38,c:[.25,.68,.13]},
+ {g:patty,y:-1.03,c:[.25,.075,.025]},
+ {g:cheese,y:-.61,c:[1,.63,.02],rot:.12},
+ {g:tomato,y:-.28,c:[.85,.07,.035]},
+ {g:onion,y:.02,c:[.82,.68,.88]},
+ {g:lettuce,y:.28,c:[.31,.76,.16]},
+ {g:patty,y:.64,c:[.29,.085,.025]},
+ {g:cheese,y:1.06,c:[1,.68,.025],rot:-.16},
+ {g:tomato,y:1.38,c:[.9,.08,.035]},
+ {g:lettuce,y:1.64,c:[.3,.72,.14]},
+ {g:bunTop,y:2.18,c:[.92,.49,.16]}
+];
+// sesame seeds
+const seed=lathe([[0,-.06],[.13,-.05],[.18,0],[.13,.05],[0,.06]],20);for(let k=0;k<34;k++){let a=k*2.399,r=.25+1.15*Math.sqrt((k+.4)/34),yy=2.55+.25*(1-r/1.5);items.push({g:seed,y:yy,x:Math.cos(a)*r,z:Math.sin(a)*r,c:[1,.85,.52],sx:.65,sz:.65,rot:a})}
+let ax=-.24,ay=.5,zoom=10.2,spin=true,exploded=false,explodeT=0;
+function draw(obj,viewproj,root){gl.bindBuffer(gl.ARRAY_BUFFER,obj.g.v);gl.enableVertexAttribArray(ap);gl.vertexAttribPointer(ap,3,gl.FLOAT,false,24,0);gl.enableVertexAttribArray(an);gl.vertexAttribPointer(an,3,gl.FLOAT,false,24,12);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,obj.g.i);let m=mul(root,tr(obj.x||0,obj.y+(obj.offset||0),obj.z||0));if(obj.rot)m=mul(m,ry(obj.rot));if(obj.sx)m=mul(m,sc(obj.sx,1,obj.sz||obj.sx));gl.uniformMatrix4fv(um,false,m);gl.uniformMatrix4fv(umvp,false,mul(viewproj,m));gl.uniform3fv(uc,obj.c);gl.drawElements(gl.TRIANGLES,obj.g.cnt,gl.UNSIGNED_SHORT,0)}
+function resize(){let d=Math.min(devicePixelRatio||1,2),w=innerWidth,h=innerHeight;canvas.width=w*d;canvas.height=h*d;gl.viewport(0,0,canvas.width,canvas.height)}addEventListener('resize',resize);resize();
+gl.enable(gl.DEPTH_TEST);gl.enable(gl.CULL_FACE);
+let last=performance.now();function frame(t){let dt=Math.min(.05,(t-last)/1000);last=t;if(spin)ay+=dt*.35;explodeT+=( (exploded?1:0)-explodeT)*Math.min(1,dt*5);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);let pr=persp(.62,canvas.width/canvas.height,.1,100),view=tr(0,-.15,-zoom),root=mul(rx(ax),ry(ay)),vp=mul(pr,view);let layers=items.filter(o=>o.g!==plate&&o.g!==seed);layers.forEach((o,i)=>o.offset=(i-(layers.length-1)/2)*.72*explodeT);items.forEach(o=>draw(o,vp,root));requestAnimationFrame(frame)}requestAnimationFrame(frame);
+let pts=new Map(),lastDist=0;canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);pts.set(e.pointerId,[e.clientX,e.clientY])});canvas.addEventListener('pointermove',e=>{if(!pts.has(e.pointerId))return;let old=pts.get(e.pointerId),now=[e.clientX,e.clientY];pts.set(e.pointerId,now);if(pts.size===1){ay+=(now[0]-old[0])*.009;ax+=(now[1]-old[1])*.009;ax=Math.max(-1.1,Math.min(.8,ax))}else{let a=[...pts.values()],d=Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]);if(lastDist)zoom*=lastDist/d;zoom=Math.max(7,Math.min(15,zoom));lastDist=d}});function up(e){pts.delete(e.pointerId);lastDist=0}canvas.addEventListener('pointerup',up);canvas.addEventListener('pointercancel',up);canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(7,Math.min(15,zoom+e.deltaY*.01))},{passive:false});
+document.getElementById('explode').onclick=e=>{exploded=!exploded;e.target.textContent=exploded?'重新组装':'展开汉堡'};document.getElementById('spin').onclick=e=>{spin=!spin;e.target.textContent=spin?'暂停旋转':'继续旋转'};
+})();
+</script>
+</body></html>
