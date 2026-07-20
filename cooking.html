@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#2b1713">
+    <title>自由料理台 · 3D 汉堡</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="./cooking.css">
+  </head>
+  <body>
+    <main class="cooking-app">
+      <header class="cooking-header">
+        <div>
+          <p class="cooking-kicker">单人做菜 · 真实 3D 操作</p>
+          <h1>自由料理台</h1>
+        </div>
+        <button class="icon-button" type="button" data-action="tutorial-replay" aria-label="重新播放新手教程">?</button>
+      </header>
+
+      <section class="objective-card" aria-labelledby="cooking-objective">
+        <div>
+          <span class="objective-label">当前目标</span>
+          <p id="cooking-objective">先把七层食材装到中央餐盘</p>
+        </div>
+        <strong id="cooking-progress">0/7</strong>
+      </section>
+
+      <section class="cooking-stage" aria-label="三维料理操作区">
+        <canvas id="cooking-canvas" tabindex="0" aria-label="三维汉堡料理台，可拖动食材和调料瓶" aria-describedby="cooking-objective">
+          你的浏览器需要支持 WebGL 才能使用三维料理台。
+        </canvas>
+        <div class="cooking-loading" id="cooking-loading" role="status">正在摆好料理台…</div>
+        <div class="cooking-error" id="cooking-error" role="alert" hidden>
+          <strong>三维料理台没有成功启动</strong>
+          <span>请换用最新版 Safari、Chrome 或关闭省电模式后重试。</span>
+        </div>
+        <aside class="tutorial-coach" id="tutorial-coach" data-step="pick">
+          <span class="tutorial-pointer" aria-hidden="true"></span>
+          <div>
+            <strong id="tutorial-title">第一步：拿起食材</strong>
+            <p id="tutorial-copy">按住任意一层食材，把它从料盒里拖出来。</p>
+          </div>
+          <button type="button" data-action="tutorial-skip">跳过</button>
+        </aside>
+        <div class="finish-sheet" id="finish-sheet" role="dialog" aria-modal="true" aria-labelledby="finish-title" tabindex="-1" hidden>
+          <p class="finish-sheet__eyebrow">料理完成</p>
+          <h2 id="finish-title">你的三维汉堡做好了！</h2>
+          <p id="finish-summary">七层食材已经组合完成。</p>
+          <div class="finish-sheet__actions">
+            <button type="button" data-action="continue">继续调整</button>
+            <button type="button" data-action="restart">重新做</button>
+          </div>
+        </div>
+      </section>
+
+      <nav class="cooking-controls" aria-label="料理工具">
+        <div class="rotate-controls" role="group" aria-label="旋转选中的食材">
+          <button type="button" data-action="rotate-left" aria-label="向左旋转选中食材">↶</button>
+          <span>旋转食材</span>
+          <button type="button" data-action="rotate-right" aria-label="向右旋转选中食材">↷</button>
+        </div>
+        <button type="button" data-action="camera-reset">镜头复位</button>
+        <button type="button" data-action="toggle-expanded">展开查看</button>
+        <button type="button" data-action="undo" disabled>撤销上一步</button>
+      </nav>
+
+      <section class="cooking-summary" aria-labelledby="summary-title">
+        <div class="summary-heading">
+          <h2 id="summary-title">本次料理</h2>
+          <button type="button" data-action="reset">重置料理</button>
+        </div>
+        <div id="cooking-summary">
+          <p>还没有装盘，先从原料盒拿一层食材。</p>
+        </div>
+      </section>
+
+      <button class="finish-button" type="button" data-action="finish" disabled>装完 7 层后完成料理</button>
+      <p class="cooking-status" id="cooking-status" role="status" aria-live="polite"></p>
+    </main>
+    <script type="module" src="./cooking-solo-app.mjs"></script>
+  </body>
+</html>
