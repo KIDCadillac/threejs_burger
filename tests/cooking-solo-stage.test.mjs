@@ -346,7 +346,7 @@ test("held food highlights while indexed previews open only the required gap", (
   const baseY = bun.position.y;
 
   configuration.onPick({ id: "patty" });
-  assert.equal(stage.burger.selectionHalo.parent, stage.burger.getLayer("patty"));
+  assert.equal(stage.burger.selectionFeedback.parent, stage.burger.getLayer("patty"));
   const points = prepIntentPoints(stage);
   configuration.onMove({ id: "patty", reason: "drag", point: points.top });
   assert.equal(stage.workbench.dropCue.userData.targetIndex, 1);
@@ -460,7 +460,7 @@ test("home return bounces once and hidden pages clear temporary visuals", () => 
   const bouncing = stage.burger.getLayer("patty").getWorldPosition(new THREE.Vector3());
   assert.notEqual(bouncing.y, target.y, "home motion visibly compresses before settling");
   documentTarget.hide();
-  assert.equal(stage.burger.selectionHalo.visible, false);
+  assert.equal(stage.burger.selectionFeedback.visible, false);
   assert.equal(stage.workbench.dropCue.visible, false);
   const actual = stage.burger.getLayer("patty").getWorldPosition(new THREE.Vector3());
   assert.ok(actual.distanceTo(target) < 1e-9);

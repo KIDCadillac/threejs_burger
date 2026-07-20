@@ -574,23 +574,40 @@ export function createBurgerModel3D(THREE, options = {}) {
     biteThresholdsById.set(definition.id, maxRadius * 0.12);
   }
 
-  const selectionHaloGeometry = new THREE.RingGeometry(0.9, 1.08, 32);
-  const selectionHaloMaterial = new THREE.MeshBasicMaterial({
+  const selectionFillGeometry = new THREE.CircleGeometry(0.92, 32);
+  const selectionOutlineGeometry = new THREE.RingGeometry(0.92, 1, 32);
+  const selectionFillMaterial = new THREE.MeshBasicMaterial({
     color: 0xffc84d,
     transparent: true,
-    opacity: 0.88,
+    opacity: 0.14,
     side: THREE.DoubleSide,
     depthWrite: false,
     depthTest: false,
   });
-  const selectionHalo = new THREE.Mesh(selectionHaloGeometry, selectionHaloMaterial);
-  selectionHalo.name = "food-layer:selection-halo";
-  selectionHalo.rotation.x = -Math.PI / 2;
-  selectionHalo.visible = false;
-  selectionHalo.renderOrder = 20;
-  selectionHalo.raycast = NO_RAYCAST;
-  ownedGeometries.add(selectionHaloGeometry);
-  ownedMaterials.add(selectionHaloMaterial);
+  const selectionOutlineMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffd979,
+    transparent: true,
+    opacity: 0.76,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    depthTest: false,
+  });
+  const selectionFeedback = new THREE.Group();
+  selectionFeedback.name = "food-layer:selection-feedback";
+  selectionFeedback.userData.kind = "selection-outline";
+  selectionFeedback.rotation.x = -Math.PI / 2;
+  selectionFeedback.visible = false;
+  const selectionFill = new THREE.Mesh(selectionFillGeometry, selectionFillMaterial);
+  const selectionOutline = new THREE.Mesh(selectionOutlineGeometry, selectionOutlineMaterial);
+  for (const mesh of [selectionFill, selectionOutline]) {
+    mesh.renderOrder = 20;
+    mesh.raycast = NO_RAYCAST;
+    selectionFeedback.add(mesh);
+  }
+  ownedGeometries.add(selectionFillGeometry);
+  ownedGeometries.add(selectionOutlineGeometry);
+  ownedMaterials.add(selectionFillMaterial);
+  ownedMaterials.add(selectionOutlineMaterial);
 
   const sesame = createSesameDecoration(THREE, sesameMaterial);
   layers.get("top-bun").add(sesame);
@@ -1013,7 +1030,7 @@ export function createBurgerModel3D(THREE, options = {}) {
     root,
     layers: readonlyLayers,
     selectableSurfaces,
-    selectionHalo,
+    selectionFeedback,
     noRaycast: NO_RAYCAST,
     getLayer,
     getLayerOrder() {
@@ -1032,16 +1049,16 @@ export function createBurgerModel3D(THREE, options = {}) {
       assertActive(disposed);
       assertLayerId(layerId);
       if (!highlighted) {
-        selectionHalo.visible = false;
-        selectionHalo.removeFromParent();
+        selectionFeedback.visible = false;
+        selectionFeedback.removeFromParent();
         return false;
       }
       const layer = layers.get(layerId);
-      layer.add(selectionHalo);
-      selectionHalo.position.set(0, layer.userData.surfaceY + 0.08, 0);
+      layer.add(selectionFeedback);
+      selectionFeedback.position.set(0, layer.userData.surfaceY + 0.045, 0);
       const radius = layer.userData.surfaceRadius;
-      selectionHalo.scale.set(radius, radius, 1);
-      selectionHalo.visible = true;
+      selectionFeedback.scale.set(radius * 1.04, radius * 1.04, 1);
+      selectionFeedback.visible = true;
       return true;
     },
     reorderLayer,

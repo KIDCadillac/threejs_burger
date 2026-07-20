@@ -906,14 +906,22 @@ test("deduplicates static resources, disposes all resources once, and is idempot
   assert.throws(() => burger.setExpanded(true), /disposed/i);
 });
 
-test("reuses one non-raycast halo for the currently held layer", () => {
+test("reuses close-fitting non-raycast feedback for the currently held layer", () => {
   const burger = createBurgerModel3D(THREE);
-  assert.equal(burger.selectionHalo.visible, false);
+  assert.equal(burger.selectionFeedback.visible, false);
+  assert.equal(burger.selectionFeedback.userData.kind, "selection-outline");
   assert.equal(burger.setLayerHighlighted("patty", true), true);
-  assert.equal(burger.selectionHalo.visible, true);
-  assert.equal(burger.selectionHalo.parent, burger.getLayer("patty"));
-  assert.notEqual(burger.selectionHalo.raycast, THREE.Mesh.prototype.raycast);
+  assert.equal(burger.selectionFeedback.visible, true);
+  assert.equal(burger.selectionFeedback.parent, burger.getLayer("patty"));
+  assert.ok(
+    burger.selectionFeedback.scale.x
+      <= burger.getLayer("patty").userData.surfaceRadius * 1.08,
+  );
+  assert.ok(burger.selectionFeedback.children.length >= 2);
+  for (const child of burger.selectionFeedback.children) {
+    assert.notEqual(child.raycast, THREE.Mesh.prototype.raycast);
+  }
   burger.setLayerHighlighted("patty", false);
-  assert.equal(burger.selectionHalo.visible, false);
+  assert.equal(burger.selectionFeedback.visible, false);
   burger.dispose();
 });
