@@ -145,6 +145,9 @@ export function createCookingInteractionController({
   onSelection = () => {},
   onCameraChange = () => {},
   onSauceStroke = () => {},
+  onSaucePreview = () => {},
+  onSauceCommit = null,
+  onSauceCancel = () => {},
 } = {}) {
   if (!THREE?.Raycaster || !THREE?.Vector2) {
     throw new TypeError("A compatible Three.js namespace is required");
@@ -169,6 +172,9 @@ export function createCookingInteractionController({
   requireFunction(onSelection, "onSelection");
   requireFunction(onCameraChange, "onCameraChange");
   requireFunction(onSauceStroke, "onSauceStroke");
+  requireFunction(onSaucePreview, "onSaucePreview");
+  if (onSauceCommit !== null) requireFunction(onSauceCommit, "onSauceCommit");
+  requireFunction(onSauceCancel, "onSauceCancel");
   if (injectedRaycast !== undefined) requireFunction(injectedRaycast, "raycast");
   if (projectToPrep !== undefined) requireFunction(projectToPrep, "projectToPrep");
   if (resolveDrop !== undefined) requireFunction(resolveDrop, "resolveDrop");
@@ -241,6 +247,7 @@ export function createCookingInteractionController({
   let disposed = false;
   let dragSession = null;
   let bottleSession = null;
+  let nextSauceGestureId = 1;
   let selected = null;
   let orbitSession = null;
   let pinchSession = null;
@@ -540,14 +547,12 @@ export function createCookingInteractionController({
     const preview = ensureBottlePreview(session);
     condimentTools.previewRoot.updateWorldMatrix?.(true, false);
     session.bottle.nozzleAnchor.updateWorldMatrix?.(true, false);
-    const pointCount = Math.min(segment.worldPoints.length + 1, PREVIEW_MAX_POINTS);
+    const pointCount = 2;
     session.bottle.nozzleAnchor.getWorldPosition(preview.worldPoint);
     preview.localPoints[0].copy(preview.worldPoint);
     condimentTools.previewRoot.worldToLocal(preview.localPoints[0]);
-    for (let pointIndex = 1; pointIndex < pointCount; pointIndex += 1) {
-      preview.localPoints[pointIndex].copy(segment.worldPoints[pointIndex - 1]);
-      condimentTools.previewRoot.worldToLocal(preview.localPoints[pointIndex]);
-    }
+    preview.localPoints[1].copy(segment.worldPoints.at(-1));
+    condimentTools.previewRoot.worldToLocal(preview.localPoints[1]);
     for (let pointIndex = 0; pointIndex < pointCount; pointIndex += 1) {
       const before = preview.localPoints[Math.max(0, pointIndex - 1)];
       const after = preview.localPoints[Math.min(pointCount - 1, pointIndex + 1)];
@@ -613,6 +618,7 @@ export function createCookingInteractionController({
   const finalizeCurrentBottleSegment = (session) => {
     if (session.currentSegment?.points.length >= 2) {
       session.completedSegments.push({
+        segmentIndex: session.currentSegment.segmentIndex,
         layerId: session.currentSegment.layerId,
         points: session.currentSegment.points.map(([x, z]) => [x, z]),
       });
@@ -632,10 +638,12 @@ export function createCookingInteractionController({
     if (!session.currentSegment || session.currentSegment.layerId !== normalized.layerId) {
       finalizeCurrentBottleSegment(session);
       session.currentSegment = {
+        segmentIndex: session.nextSegmentIndex,
         layerId: normalized.layerId,
         points: [],
         worldPoints: [],
       };
+      session.nextSegmentIndex += 1;
     }
     const points = session.currentSegment.points;
     const prior = points.at(-1);
@@ -647,6 +655,24 @@ export function createCookingInteractionController({
     points.push([normalized.point[0], normalized.point[1]]);
     session.currentSegment.worldPoints.push(normalized.worldPoint);
     return normalized;
+  };
+
+  const emitBottlePreview = (session) => {
+    const segment = session.currentSegment;
+    if (!segment || segment.points.length < 2) return;
+    const amount = session.pressureSamples
+      ? session.pressureTotal / session.pressureSamples
+      : 0.45;
+    onSaucePreview(Object.freeze({
+      gestureId: session.gestureId,
+      segmentIndex: segment.segmentIndex,
+      stroke: detachedFrozenStroke(
+        session.bottle.sauce,
+        segment.layerId,
+        amount,
+        segment.points,
+      ),
+    }));
   };
 
   const moveBottle = (session, event) => {
@@ -676,6 +702,7 @@ export function createCookingInteractionController({
       });
     }
     updateBottlePreview(session);
+    emitBottlePreview(session);
   };
 
   const implicitDraggable = (surface) => {
@@ -793,6 +820,10 @@ export function createCookingInteractionController({
     mutationEpoch += 1;
     let invalidDetail = null;
     if (cancelledBottle) {
+      onSauceCancel(Object.freeze({
+        gestureId: cancelledBottle.gestureId,
+        reason,
+      }));
       destroyBottlePreview(cancelledBottle);
       condimentTools.setActive(cancelledBottle.bottle.sauce, false);
       condimentTools.dock(cancelledBottle.bottle.sauce);
@@ -845,6 +876,8 @@ export function createCookingInteractionController({
           kind: "condiment-bottle",
           pointerId: event.pointerId,
           bottle,
+          gestureId: `sauce-${nextSauceGestureId}`,
+          nextSegmentIndex: 0,
           snapshot: snapshotTransform(bottle.root),
           homePose: bottle.homePose,
           completedSegments: [],
@@ -855,6 +888,7 @@ export function createCookingInteractionController({
           epoch: mutationEpoch,
         };
         bottleSession = transactionSession;
+        nextSauceGestureId += 1;
         state = "dragging-bottle";
         condimentTools.setActive(bottle.sauce, true);
         const startProjection = projectedPoint(event, projectedScratch);
@@ -1108,6 +1142,26 @@ export function createCookingInteractionController({
     const strokes = session.completedSegments.map(({ layerId, points }) => (
       detachedFrozenStroke(session.bottle.sauce, layerId, amount, points)
     ));
+    let commitError = null;
+    if (onSauceCommit && strokes.length) {
+      try {
+        onSauceCommit(Object.freeze({
+          gestureId: session.gestureId,
+          strokes: Object.freeze(strokes),
+        }));
+      } catch (error) {
+        commitError = error;
+      }
+    } else if (onSauceCommit) {
+      try {
+        onSauceCancel(Object.freeze({
+          gestureId: session.gestureId,
+          reason: "empty-sauce-gesture",
+        }));
+      } catch (error) {
+        commitError = error;
+      }
+    }
     destroyBottlePreview(session);
     condimentTools.setActive(session.bottle.sauce, false);
     condimentTools.dock(session.bottle.sauce);
@@ -1118,7 +1172,10 @@ export function createCookingInteractionController({
     state = "idle";
     activePointers.delete(event.pointerId);
     releaseCapture(event.pointerId);
-    for (const stroke of strokes) onSauceStroke(stroke);
+    if (!onSauceCommit) {
+      for (const stroke of strokes) onSauceStroke(stroke);
+    }
+    if (commitError) throw commitError;
   };
 
   const handlePointerUp = (event) => {

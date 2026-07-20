@@ -15,6 +15,7 @@ import {
   removeSoloLayer,
   rotateSoloLayer,
   addSoloSauceStroke,
+  addSoloSauceStrokes,
   finishSoloCooking,
   continueSoloCooking,
   undoSoloCooking,
@@ -509,6 +510,34 @@ export function createSoloCookingStage({
     return true;
   };
 
+  const previewSauceGesture = ({ gestureId, segmentIndex, stroke }) => {
+    if (disposed) return false;
+    burger.previewSauceStroke(`${gestureId}:${segmentIndex}`, stroke);
+    return true;
+  };
+
+  const commitSauceGesture = ({ gestureId, strokes }) => {
+    if (disposed) return false;
+    try {
+      const nextState = addSoloSauceStrokes(state, strokes);
+      burger.commitSaucePreviews(gestureId);
+      state = nextState;
+    } catch (error) {
+      burger.cancelSaucePreviews(gestureId);
+      throw error;
+    }
+    advanceTutorial("created-sauce-stroke");
+    if (state.complete) advanceTutorial("assembled-all");
+    emit("sauce-gesture");
+    return true;
+  };
+
+  const cancelSauceGesture = ({ gestureId }) => {
+    if (disposed) return false;
+    burger.cancelSaucePreviews(gestureId);
+    return true;
+  };
+
   const selectLayer = (layerId) => {
     if (disposed) return false;
     if (!BURGER_LAYER_IDS.includes(layerId)) throw new TypeError(`Unknown burger layer: ${layerId}`);
@@ -646,6 +675,9 @@ export function createSoloCookingStage({
       emit("invalid-drop", { message });
     },
     onSauceStroke: applySauceStroke,
+    onSaucePreview: previewSauceGesture,
+    onSauceCommit: commitSauceGesture,
+    onSauceCancel: cancelSauceGesture,
   });
   cleanupTasks.push(() => controller?.dispose?.());
 

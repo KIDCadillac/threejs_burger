@@ -135,9 +135,16 @@ export function rotateSoloLayer(state, layerId, yaw) {
 }
 
 export function addSoloSauceStroke(state, stroke) {
+  return addSoloSauceStrokes(state, [stroke]);
+}
+
+export function addSoloSauceStrokes(state, strokes) {
   requireEditable(state);
-  const normalized = freezeStroke(stroke);
-  return edited(state, { strokes: [...state.strokes, normalized].slice(-MAX_STROKES) });
+  if (!Array.isArray(strokes) || !strokes.length) {
+    throw new TypeError("strokes must be a non-empty array");
+  }
+  const normalized = strokes.map(freezeStroke);
+  return edited(state, { strokes: [...state.strokes, ...normalized].slice(-MAX_STROKES) });
 }
 
 export function finishSoloCooking(state) {

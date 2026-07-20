@@ -7,6 +7,7 @@ import {
   removeSoloLayer,
   rotateSoloLayer,
   addSoloSauceStroke,
+  addSoloSauceStrokes,
   finishSoloCooking,
   continueSoloCooking,
   undoSoloCooking,
@@ -71,6 +72,18 @@ test("rotation and repeated mixed sauce strokes are immutable and serializable",
   assert.deepEqual(composition.layerOrder, BURGER_LAYER_IDS);
   composition.strokes[0].points[0][0] = 1;
   assert.equal(third.strokes[0].points[0][0], -0.4);
+});
+
+test("one sauce gesture adds all layer segments as one undoable edit", () => {
+  const initial = createSoloCookingState();
+  const updated = addSoloSauceStrokes(initial, [
+    stroke("mustard", "patty"),
+    stroke("mustard", "cheese"),
+  ]);
+  assert.deepEqual(updated.strokes.map(({ layerId }) => layerId), ["patty", "cheese"]);
+  assert.equal(updated.history.length, 1);
+  assert.deepEqual(undoSoloCooking(updated).strokes, []);
+  assert.throws(() => addSoloSauceStrokes(initial, []), TypeError);
 });
 
 test("finish is gated by all seven layers and continue returns to editable state", () => {

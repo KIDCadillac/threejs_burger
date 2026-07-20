@@ -553,6 +553,43 @@ test("repeated mixed sauce callbacks create volumetric burger tubes and update c
   stage.dispose();
 });
 
+test("live sauce previews appear before release and promote without a visual duplicate", () => {
+  const { stage, configuration } = stageHarnessWithConfiguration();
+  const stroke = sampleStroke("mustard", "patty");
+  configuration.onSaucePreview({
+    gestureId: "sauce-1",
+    segmentIndex: 0,
+    stroke,
+  });
+
+  const preview = stage.burger.getLayer("patty").children.find((child) => (
+    child.userData.preview === true
+  ));
+  assert.ok(preview, "surface sauce is visible before release");
+  assert.equal(stage.getState().strokes.length, 0);
+
+  configuration.onSauceCommit({ gestureId: "sauce-1", strokes: [stroke] });
+  assert.equal(preview.parent, stage.burger.getLayer("patty"));
+  assert.equal(preview.userData.preview, false);
+  assert.equal(stage.getState().strokes.length, 1);
+  assert.equal(stage.burger.getSnapshot().strokes.length, 1);
+  assert.equal(stage.burger.getLayer("patty").children.filter((child) => (
+    child.userData.sauceStroke
+  )).length, 1, "commit promotes instead of duplicating the preview");
+
+  configuration.onSaucePreview({
+    gestureId: "sauce-2",
+    segmentIndex: 0,
+    stroke: sampleStroke("sour", "cheese"),
+  });
+  configuration.onSauceCancel({ gestureId: "sauce-2", reason: "pointercancel" });
+  assert.equal(stage.burger.getLayer("cheese").children.some((child) => (
+    child.userData.preview === true
+  )), false);
+  assert.equal(stage.getState().strokes.length, 1, "cancel leaves state unchanged");
+  stage.dispose();
+});
+
 test("completion freezes editing, shows a real 3d celebration, then allows adjustment", () => {
   const { stage } = harness();
   BURGER_LAYER_IDS.forEach((layerId) => stage.dropLayer(layerId, { kind: "prep" }));

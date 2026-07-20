@@ -1241,6 +1241,70 @@ test("bottle surfaces win over food, drag camera-aware, tilt, preview, and commi
   harness.dispose();
 });
 
+test("emits attached sauce previews before release and commits each gesture once", () => {
+  const harness = createPouringScene();
+  const { canvas, camera, burger, tools } = harness;
+  const mustard = tools.get("mustard");
+  const previews = [];
+  const commits = [];
+  const cancellations = [];
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    condimentTools: tools,
+    foodSurfaces: burger.selectableSurfaces,
+    projectToPrep: ({ clientX, clientY }) => new THREE.Vector3(
+      (clientX - 100) / 20,
+      0.48,
+      (clientY - 100) / 20,
+    ),
+    raycast: ({ kind, event }) => {
+      if (kind === "condiment") {
+        return { object: mustard.body, point: mustard.body.getWorldPosition(new THREE.Vector3()) };
+      }
+      return layerWorldPoint(
+        burger,
+        "patty",
+        (event.clientX - 100) / 50,
+        (event.clientY - 100) / 50,
+      );
+    },
+    onSaucePreview: (detail) => previews.push(detail),
+    onSauceCommit: (detail) => commits.push({
+      detail,
+      bottleWasAwayFromDock: mustard.root.position.distanceTo(mustard.homePose.position) > 0.01,
+    }),
+    onSauceCancel: (detail) => cancellations.push(detail),
+  });
+
+  canvas.dispatch("pointerdown", pointer(813, 100, 100, { pressure: 0.4 }));
+  canvas.dispatch("pointermove", pointer(813, 108, 104, { pressure: 0.5 }));
+  canvas.dispatch("pointermove", pointer(813, 120, 110, { pressure: 0.6 }));
+
+  assert.ok(previews.length >= 1, "two valid samples create a surface preview");
+  assert.equal(commits.length, 0, "preview appears before pointer release");
+  assert.equal(Object.isFrozen(previews.at(-1)), true);
+  assert.equal(Object.isFrozen(previews.at(-1).stroke), true);
+  assert.ok(previews.at(-1).stroke.points.length >= 2);
+
+  canvas.dispatch("pointerup", pointer(813, 120, 110, { pressure: 0.6 }));
+  assert.equal(commits.length, 1);
+  assert.equal(commits[0].bottleWasAwayFromDock, true, "surface promotion precedes docking");
+  assert.equal(commits[0].detail.strokes.length, 1);
+  assert.equal(commits[0].detail.gestureId, previews.at(-1).gestureId);
+
+  canvas.dispatch("pointerdown", pointer(814, 100, 100));
+  canvas.dispatch("pointermove", pointer(814, 112, 106));
+  canvas.dispatch("pointermove", pointer(814, 124, 112));
+  canvas.dispatch("pointercancel", pointer(814, 124, 112));
+  assert.equal(cancellations.length, 1);
+  assert.equal(commits.length, 1, "cancel never commits another stroke");
+
+  controller.dispose();
+  harness.dispose();
+});
+
 test("reuses one bounded volumetric preview and disposes it exactly once", () => {
   const harness = createPouringScene();
   const {
@@ -1610,7 +1674,8 @@ test("real nozzle misses split same-layer sauce without a preview bridge", () =>
     const point = targetPointer(normalizedX);
     canvas.dispatch("pointermove", pointer(818, point.x, point.y));
   }
-  assert.equal(tools.previewRoot.children[0].geometry.userData.tubePointCount, 3);
+  assert.equal(tools.previewRoot.children[0].geometry.userData.tubePointCount, 2,
+    "nozzle preview remains a short stream instead of replaying the surface path");
   const finishPoint = targetPointer(0.4);
   canvas.dispatch("pointerup", pointer(818, finishPoint.x, finishPoint.y));
 

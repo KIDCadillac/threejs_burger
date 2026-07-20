@@ -628,6 +628,7 @@ export function createBurgerModel3D(THREE, options = {}) {
   let expanded = false;
   let disposed = false;
   const sauceEntries = [];
+  const previewEntriesByKey = new Map();
   const projectionRaycaster = new THREE.Raycaster();
   const projectionDirection = new THREE.Vector3(0, -1, 0);
 
@@ -719,6 +720,8 @@ export function createBurgerModel3D(THREE, options = {}) {
   const clearSauces = () => {
     assertActive(disposed);
     while (sauceEntries.length) disposeSauceEntry(sauceEntries.pop());
+    for (const entry of previewEntriesByKey.values()) disposeSauceEntry(entry);
+    previewEntriesByKey.clear();
   };
 
   const applySauceBite = (entry, amount) => {
@@ -752,7 +755,7 @@ export function createBurgerModel3D(THREE, options = {}) {
     geometry.computeBoundingSphere();
   };
 
-  const createSauceEntry = (normalized, nameIndex) => {
+  const createSauceEntry = (normalized, nameIndex, previewKey = null) => {
     const profile = footprintsById.get(normalized.layerId);
     let pathPoints = normalized.points.map(([x, z]) => {
       const [localX, localZ] = projectNormalizedFootprint(
@@ -769,7 +772,7 @@ export function createBurgerModel3D(THREE, options = {}) {
       (normalized.points.length - 1) * 3,
     ));
     const tubeRadius = 0.025 + normalized.amount * 0.035;
-    const surfaceOffset = tubeRadius * 0.7;
+    const surfaceOffset = tubeRadius + 0.008;
     const curveState = { biteAmount: 0 };
     const surfaceCurve = new THREE.Curve();
     surfaceCurve.getPoint = (time, target = new THREE.Vector3()) => {
@@ -810,11 +813,15 @@ export function createBurgerModel3D(THREE, options = {}) {
       amount: normalized.amount,
     });
     mesh.userData.surfaceOffset = surfaceOffset;
+    mesh.userData.tubeRadius = tubeRadius;
+    mesh.userData.preview = previewKey !== null;
+    if (previewKey !== null) mesh.userData.previewKey = previewKey;
     mesh.userData.inputPointCount = normalized.points.length;
     mesh.userData.routePointCount = pathPoints.length;
     const entry = {
       mesh,
       stroke: normalized,
+      previewKey,
       curveState,
       basePositions: Float32Array.from(geometry.attributes.position.array),
       baseNormals: Float32Array.from(geometry.attributes.normal.array),
@@ -835,6 +842,8 @@ export function createBurgerModel3D(THREE, options = {}) {
   };
 
   const replaceSauceEntries = (replacements) => {
+    for (const entry of previewEntriesByKey.values()) disposeSauceEntry(entry);
+    previewEntriesByKey.clear();
     const previous = sauceEntries.splice(0, sauceEntries.length, ...replacements);
     for (const entry of previous) entry.mesh.removeFromParent();
     for (const entry of replacements) layers.get(entry.stroke.layerId).add(entry.mesh);
@@ -849,6 +858,57 @@ export function createBurgerModel3D(THREE, options = {}) {
     sauceEntries.push(entry);
     if (sauceEntries.length > MAX_STROKES) disposeSauceEntry(sauceEntries.shift());
     return entry.mesh;
+  };
+
+  const assertPreviewIdentifier = (value, label) => {
+    if (typeof value !== "string" || !value.trim()) {
+      throw new TypeError(`${label} must be a non-empty string`);
+    }
+    return value;
+  };
+
+  const previewSauceStroke = (previewKey, stroke) => {
+    assertActive(disposed);
+    const key = assertPreviewIdentifier(previewKey, "previewKey");
+    const normalized = validateStroke(stroke);
+    const next = createSauceEntry(normalized, `preview:${key}`, key);
+    layers.get(normalized.layerId).add(next.mesh);
+    const previous = previewEntriesByKey.get(key);
+    previewEntriesByKey.set(key, next);
+    if (previous) disposeSauceEntry(previous);
+    return next.mesh;
+  };
+
+  const matchingPreviewEntries = (gestureId) => {
+    const id = assertPreviewIdentifier(gestureId, "gestureId");
+    const prefix = `${id}:`;
+    return [...previewEntriesByKey.entries()].filter(([key]) => key.startsWith(prefix));
+  };
+
+  const commitSaucePreviews = (gestureId) => {
+    assertActive(disposed);
+    const matches = matchingPreviewEntries(gestureId);
+    const meshes = [];
+    for (const [key, entry] of matches) {
+      previewEntriesByKey.delete(key);
+      entry.previewKey = null;
+      entry.mesh.userData.preview = false;
+      delete entry.mesh.userData.previewKey;
+      sauceEntries.push(entry);
+      meshes.push(entry.mesh);
+      if (sauceEntries.length > MAX_STROKES) disposeSauceEntry(sauceEntries.shift());
+    }
+    return Object.freeze(meshes);
+  };
+
+  const cancelSaucePreviews = (gestureId) => {
+    assertActive(disposed);
+    const matches = matchingPreviewEntries(gestureId);
+    for (const [key, entry] of matches) {
+      previewEntriesByKey.delete(key);
+      disposeSauceEntry(entry);
+    }
+    return matches.length;
   };
 
   const setLayerPose = (layerId, pose = {}) => {
@@ -1021,6 +1081,9 @@ export function createBurgerModel3D(THREE, options = {}) {
     if (normalizedAmount === previousAmount) return;
     applyBiteGeometry(normalizedAmount);
     for (const entry of sauceEntries) applySauceBite(entry, normalizedAmount);
+    for (const entry of previewEntriesByKey.values()) {
+      applySauceBite(entry, normalizedAmount);
+    }
     root.userData.biteAmount = normalizedAmount;
   };
 
@@ -1066,6 +1129,9 @@ export function createBurgerModel3D(THREE, options = {}) {
     applyComposition,
     projectSurfacePoint,
     addSauceStroke,
+    previewSauceStroke,
+    commitSaucePreviews,
+    cancelSaucePreviews,
     clearSauces,
     setBiteAmount,
     getSnapshot,
@@ -1081,6 +1147,8 @@ export function createBurgerModel3D(THREE, options = {}) {
     dispose() {
       if (disposed) return;
       while (sauceEntries.length) disposeSauceEntry(sauceEntries.pop());
+      for (const entry of previewEntriesByKey.values()) disposeSauceEntry(entry);
+      previewEntriesByKey.clear();
       disposed = true;
       root.removeFromParent();
       for (const geometry of ownedGeometries) geometry.dispose();

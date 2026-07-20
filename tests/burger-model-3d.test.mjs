@@ -196,6 +196,52 @@ test("adds repeated and mixed condiment strokes as real target-anchored tube mes
   burger.dispose();
 });
 
+test("previews sauce on its food immediately and promotes the same mesh on commit", () => {
+  const burger = createBurgerModel3D(THREE);
+  const preview = burger.previewSauceStroke("gesture-1:0", {
+    sauce: "mustard",
+    layerId: "patty",
+    amount: 0.5,
+    points: [[-0.3, 0], [0.3, 0]],
+  });
+
+  assert.equal(preview.parent, burger.getLayer("patty"));
+  assert.equal(preview.userData.preview, true);
+  assert.ok(preview.userData.surfaceOffset >= preview.userData.tubeRadius + 0.008);
+  assert.equal(burger.getSnapshot().strokes.length, 0, "preview is not authoritative state");
+
+  const committed = burger.commitSaucePreviews("gesture-1");
+  assert.deepEqual(committed, [preview]);
+  assert.equal(committed[0], preview);
+  assert.equal(preview.userData.preview, false);
+  assert.equal(burger.getSnapshot().strokes.length, 1);
+
+  const cancelled = burger.previewSauceStroke("gesture-2:0", {
+    sauce: "sour",
+    layerId: "cheese",
+    amount: 0.4,
+    points: [[-0.2, -0.2], [0.2, 0.2]],
+  });
+  assert.equal(burger.cancelSaucePreviews("gesture-2"), 1);
+  assert.equal(cancelled.parent, null);
+  assert.equal(burger.getSnapshot().strokes.length, 1);
+  burger.dispose();
+});
+
+test("keeps live preview segments attached to their own food layers", () => {
+  const burger = createBurgerModel3D(THREE);
+  const patty = burger.previewSauceStroke("gesture-3:0", {
+    sauce: "chili", layerId: "patty", amount: 0.5, points: [[-0.4, 0], [0.4, 0]],
+  });
+  const cheese = burger.previewSauceStroke("gesture-3:1", {
+    sauce: "chili", layerId: "cheese", amount: 0.5, points: [[-0.4, 0], [0.4, 0]],
+  });
+  assert.equal(patty.parent, burger.getLayer("patty"));
+  assert.equal(cheese.parent, burger.getLayer("cheese"));
+  assert.equal(burger.cancelSaucePreviews("gesture-3"), 2);
+  burger.dispose();
+});
+
 test("projects sauce paths onto each edible footprint and its real top surface", () => {
   const burger = createBurgerModel3D(THREE);
   const centerBun = burger.projectSurfacePoint("top-bun", [0, 0]);
