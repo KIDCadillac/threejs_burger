@@ -93,11 +93,12 @@ def test_standalone_solo_cooking_page_and_modules_are_served() -> None:
     state = client.get("/static/cooking-solo-state.mjs")
     tutorial = client.get("/static/cooking-tutorial-state.mjs")
     drop_intent = client.get("/static/cooking-drop-intent.mjs")
+    animation = client.get("/static/cooking-insertion-animation.mjs")
 
     assert page.status_code == 200
     assert "自由料理台" in page.text
     assert 'src="./cooking-loader.mjs"' in page.text
-    for response in (loader, stage, state, tutorial, drop_intent):
+    for response in (loader, stage, state, tutorial, drop_intent, animation):
         assert response.status_code == 200
         assert response.headers["content-type"].startswith(
             ("text/javascript", "application/javascript")
