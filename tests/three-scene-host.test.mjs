@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import * as THREE from "../app/static/vendor/three.module.min.js";
 import { createThreeSceneHost } from "../app/static/three-scene-host.mjs";
 
@@ -104,6 +105,22 @@ test("constructs a transparent antialiased Three scene with a camera and warm li
   });
 });
 
+test("rejects renderers without render or disposal support", () => {
+  useFakeDocument(() => {
+    for (const missingMethod of ["render", "dispose"]) {
+      const canvas = createCanvas();
+      const harness = createRendererHarness(canvas);
+      delete harness.renderer[missingMethod];
+
+      assert.throws(
+        () => createThreeSceneHost({ canvas, rendererFactory: harness.rendererFactory }),
+        /compatible WebGL renderer/,
+        `renderer without ${missingMethod} should be rejected`,
+      );
+    }
+  });
+});
+
 test("starts once, renders registered frames, and pauses and resumes explicitly", () => {
   useFakeDocument(() => {
     const canvas = createCanvas();
@@ -131,6 +148,25 @@ test("starts once, renders registered frames, and pauses and resumes explicitly"
     host.setVisible(true);
     assert.equal(harness.animationLoop, firstLoop);
     host.dispose();
+  });
+});
+
+test("does not render after a frame callback disposes the host", () => {
+  useFakeDocument(() => {
+    const canvas = createCanvas();
+    const harness = createRendererHarness(canvas);
+    const host = createThreeSceneHost({
+      canvas,
+      rendererFactory: harness.rendererFactory,
+      viewport: () => ({ width: 390, height: 520, pixelRatio: 1 }),
+    });
+    host.onFrame(() => host.dispose());
+    host.start();
+
+    harness.animationLoop(123);
+
+    assert.equal(harness.calls.filter(([name]) => name === "dispose").length, 1);
+    assert.equal(harness.calls.filter(([name]) => name === "render").length, 0);
   });
 });
 
@@ -261,4 +297,10 @@ test("disposes shared geometries and scalar or array materials exactly once", ()
     assert.equal(canvas.listenerCount("webglcontextrestored"), 0);
     assert.equal(fakeDocument.listenerCount("visibilitychange"), 0);
   });
+});
+
+test("short landscape screens override the portrait stage minimum height", () => {
+  const css = readFileSync(new URL("../app/static/styles.css", import.meta.url), "utf8");
+  const shortLandscapeRule = /@media\s*\(orientation:\s*landscape\)\s*and\s*\(max-height:[^)]+\)\s*{[\s\S]*?\.three-stage(?:,\s*\.three-stage__canvas)?\s*{[^}]*min-height:\s*min\(/;
+  assert.match(css, shortLandscapeRule);
 });

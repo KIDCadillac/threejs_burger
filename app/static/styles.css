@@ -636,3 +636,11 @@ h1 { margin: 0; font-size: clamp(2.2rem, 10vw, 3.25rem); line-height: 1; letter-
 
 .three-stage__loading { color: var(--cream-muted); background: rgba(23, 16, 32, 0.48); }
 .three-stage__error { color: #fff4d8; background: rgba(92, 25, 32, 0.88); }
+
+@media (orientation: landscape) and (max-height: 34rem) {
+  .three-stage,
+  .three-stage__canvas {
+    min-height: min(22rem, calc(100vh - 2rem));
+    min-height: min(22rem, calc(100dvh - 2rem));
+  }
+}

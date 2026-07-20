@@ -1,6 +1,13 @@
 import * as THREE from "./vendor/three.module.min.js";
 
 const MAX_PIXEL_RATIO = 2;
+const REQUIRED_RENDERER_METHODS = Object.freeze([
+  "setAnimationLoop",
+  "setPixelRatio",
+  "setSize",
+  "render",
+  "dispose",
+]);
 
 function defaultViewport(canvas) {
   const bounds = canvas.getBoundingClientRect?.();
@@ -63,7 +70,7 @@ export function createThreeSceneHost({
   scene.add(ambient, key);
 
   const renderer = rendererFactory({ canvas, alpha: true, antialias: true });
-  if (!renderer?.setAnimationLoop || !renderer?.setPixelRatio || !renderer?.setSize) {
+  if (!renderer || REQUIRED_RENDERER_METHODS.some((method) => typeof renderer[method] !== "function")) {
     throw new TypeError("rendererFactory must return a compatible WebGL renderer");
   }
 
@@ -80,6 +87,7 @@ export function createThreeSceneHost({
   const renderFrame = (time) => {
     if (disposed || !loopActive) return;
     for (const callback of frameCallbacks) callback(time);
+    if (disposed || !loopActive) return;
     renderer.render(scene, camera);
   };
 
