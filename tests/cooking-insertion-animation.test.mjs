@@ -5,13 +5,18 @@ import {
   sampleCookingMotion,
 } from "../app/static/cooking-insertion-animation.mjs";
 
-test("insert opens a gap, places the selected layer, and settles", () => {
+test("insert opens a gap and pops the selected layer locally without dropping below target", () => {
   const motion = createCookingMotion({ kind: "insert", startedAt: 0, thickness: 0.6 });
   const opening = sampleCookingMotion(motion, 70);
   const insertion = sampleCookingMotion(motion, 190);
   assert.equal(opening.phase, "open");
-  assert.ok(opening.upperOffsetY > 0);
+  assert.ok(opening.selectedScaleXz < 1);
+  assert.equal(opening.selectedScaleXz, opening.selectedScaleY);
+  assert.ok(opening.selectedOffsetY >= 0);
   assert.ok(insertion.arrival > opening.arrival);
+  assert.ok(insertion.selectedScaleXz > 1, "the local pop briefly overshoots");
+  assert.equal(insertion.selectedScaleXz, insertion.selectedScaleY);
+  assert.ok(insertion.selectedOffsetY >= 0, "insert never travels below its final layer");
   assert.deepEqual(sampleCookingMotion(motion, 380), {
     phase: "settled",
     progress: 1,
@@ -25,7 +30,8 @@ test("insert opens a gap, places the selected layer, and settles", () => {
   });
   const rebound = sampleCookingMotion(motion, 320);
   assert.equal(rebound.phase, "rebound");
-  assert.ok(rebound.selectedOffsetY > 0);
+  assert.ok(rebound.selectedScaleXz > 0.95 && rebound.selectedScaleXz < 1.02);
+  assert.ok(rebound.selectedOffsetY >= 0);
 });
 
 test("pick and home motions return to identity while reduced motion settles immediately", () => {

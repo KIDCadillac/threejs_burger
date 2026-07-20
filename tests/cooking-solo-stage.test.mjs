@@ -332,7 +332,7 @@ test("fills a tall phone with a larger prep board while keeping every control vi
   stage.dispose();
 });
 
-test("keeps one food scale before, during, and after plate snapping", () => {
+test("keeps one base food scale while plate snapping adds only a temporary local pop", () => {
   const { stage } = harness();
   const layer = stage.burger.getLayer("patty");
   const expected = [0.72, 0.72, 0.72];
@@ -341,11 +341,15 @@ test("keeps one food scale before, during, and after plate snapping", () => {
   stage.dropLayer("patty", { kind: "prep" });
   assert.deepEqual(layer.scale.toArray(), expected, "drop start does not resize the ingredient");
   stage.tick(95);
-  assert.deepEqual(layer.scale.toArray(), expected, "snap midpoint does not resize the ingredient");
+  assert.ok(layer.scale.x < expected[0], "ingredient begins smaller at its final layer");
+  assert.equal(layer.scale.x, layer.scale.y);
+  assert.equal(layer.scale.y, layer.scale.z);
   stage.tick(190);
-  assert.deepEqual(layer.scale.toArray(), expected, "settled plate food remains the same size");
-  stage.dropLayer("patty", { kind: "bin" });
+  assert.ok(layer.scale.x > expected[0], "ingredient briefly overshoots during its pop");
   stage.tick(380);
+  assert.deepEqual(layer.scale.toArray(), expected, "settled plate food returns to its base size");
+  stage.dropLayer("patty", { kind: "bin" });
+  stage.tick(620);
   assert.deepEqual(layer.scale.toArray(), expected, "returning home also preserves size");
   stage.dispose();
 });
@@ -451,7 +455,7 @@ test("top insertion rebounds and finishes at its exact contact target", () => {
   stage.dispose();
 });
 
-test("bottom insertion lifts old layers while the new food exits beneath them", () => {
+test("bottom insertion lifts old layers while the new food pops at its target height", () => {
   const { stage, configuration } = stageHarnessWithConfiguration();
   stage.dropLayer("patty", { kind: "prep" });
   stage.tick(1000);
@@ -468,7 +472,8 @@ test("bottom insertion lifts old layers while the new food exits beneath them", 
   const finalBottomY = stage.workbench.prep.dropAnchor.position.y
     + bottomBun.userData.halfHeight * stage.layerPresentationScale;
   stage.tick(1250);
-  assert.ok(bottomBun.position.y < finalBottomY);
+  assert.ok(bottomBun.position.y >= finalBottomY, "new layer never travels through the stack");
+  assert.notEqual(bottomBun.scale.x, stage.layerPresentationScale, "new layer is scaling locally");
   stage.tick(1380);
   assert.deepEqual(stage.getState().assembledOrder, ["bottom-bun", "patty"]);
   assert.ok(Math.abs(bottomBun.position.y - finalBottomY) < 1e-9);

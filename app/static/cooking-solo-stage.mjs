@@ -789,7 +789,13 @@ export function createSoloCookingStage({
       }
     }
 
-    applyPose(selected, selectedFrom, selectedTarget, frame.arrival);
+    if (record.motion.kind === "insert") {
+      selected.position.copy(selectedTarget.position);
+      selected.rotation.set(0, selectedTarget.yaw, 0);
+      selected.scale.copy(selectedTarget.scale);
+    } else {
+      applyPose(selected, selectedFrom, selectedTarget, frame.arrival);
+    }
     selected.position.y += frame.selectedOffsetY;
     selected.scale.x *= frame.selectedScaleXz;
     selected.scale.z *= frame.selectedScaleXz;
