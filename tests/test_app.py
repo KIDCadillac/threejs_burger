@@ -88,14 +88,16 @@ def test_vendored_three_module_and_license_are_served_locally() -> None:
 
 def test_standalone_solo_cooking_page_and_modules_are_served() -> None:
     page = client.get("/static/cooking.html")
+    loader = client.get("/static/cooking-loader.mjs")
     stage = client.get("/static/cooking-solo-stage.mjs")
     state = client.get("/static/cooking-solo-state.mjs")
     tutorial = client.get("/static/cooking-tutorial-state.mjs")
+    drop_intent = client.get("/static/cooking-drop-intent.mjs")
 
     assert page.status_code == 200
     assert "自由料理台" in page.text
-    assert 'src="./cooking-solo-app.mjs"' in page.text
-    for response in (stage, state, tutorial):
+    assert 'src="./cooking-loader.mjs"' in page.text
+    for response in (loader, stage, state, tutorial, drop_intent):
         assert response.status_code == 200
         assert response.headers["content-type"].startswith(
             ("text/javascript", "application/javascript")
