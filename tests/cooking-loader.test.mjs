@@ -97,6 +97,39 @@ test("shows staged percent and elapsed time until the first cooked frame", async
   assert.deepEqual(cleared, [71]);
 });
 
+test("falls back when a background page does not receive an animation frame", async () => {
+  const { documentTarget, elements } = loaderHarness();
+  documentTarget.visibilityState = "visible";
+  const stage = { id: "background-stage" };
+  const frames = [];
+  const timeouts = [];
+  const clearedTimeouts = [];
+
+  const loading = startSoloCookingLoader(documentTarget, {
+    windowTarget: {},
+    importApp: async () => ({ bootSoloCookingPage: () => stage }),
+    requestFrame: (callback) => { frames.push(callback); return 72; },
+    setTimeoutFn: (callback) => { timeouts.push(callback); return 74; },
+    clearTimeoutFn: (id) => clearedTimeouts.push(id),
+    setIntervalFn: () => 73,
+    clearIntervalFn() {},
+    now: () => 0,
+  });
+
+  await flushMicrotasks();
+  assert.equal(frames.length, 1);
+  assert.equal(timeouts.length, 1);
+  assert.equal(elements.loading.hidden, false);
+  timeouts[0]();
+
+  const result = await loading;
+  assert.equal(result, stage);
+  assert.equal(elements.percent.textContent, "100%");
+  assert.equal(elements.loading.hidden, true);
+  assert.equal(elements.error.hidden, true);
+  assert.deepEqual(clearedTimeouts, [74]);
+});
+
 test("explains a slow connection while continuing to load", async () => {
   const { documentTarget, elements } = loaderHarness();
   const moduleLoad = deferred();

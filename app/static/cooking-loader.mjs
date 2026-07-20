@@ -11,6 +11,10 @@ export async function startSoloCookingLoader(
     importApp = () => import("./cooking-solo-app.mjs"),
     requestFrame = windowTarget?.requestAnimationFrame?.bind(windowTarget)
       ?? ((callback) => windowTarget.setTimeout(callback, 16)),
+    setTimeoutFn = windowTarget?.setTimeout?.bind(windowTarget)
+      ?? globalThis.setTimeout?.bind(globalThis),
+    clearTimeoutFn = windowTarget?.clearTimeout?.bind(windowTarget)
+      ?? globalThis.clearTimeout?.bind(globalThis),
     setIntervalFn = windowTarget?.setInterval?.bind(windowTarget),
     clearIntervalFn = windowTarget?.clearInterval?.bind(windowTarget),
     now = () => Date.now(),
@@ -18,6 +22,9 @@ export async function startSoloCookingLoader(
 ) {
   if (typeof importApp !== "function") throw new TypeError("importApp must be a function");
   if (typeof requestFrame !== "function") throw new TypeError("requestFrame must be a function");
+  if (typeof setTimeoutFn !== "function" || typeof clearTimeoutFn !== "function") {
+    throw new TypeError("loading timeout functions are required");
+  }
   if (typeof setIntervalFn !== "function" || typeof clearIntervalFn !== "function") {
     throw new TypeError("loading interval functions are required");
   }
@@ -59,6 +66,23 @@ export async function startSoloCookingLoader(
     intervalCleared = true;
     clearIntervalFn(intervalId);
   };
+  const waitForFirstFrame = () => new Promise((resolve) => {
+    let settled = false;
+    let timeoutId = null;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      if (timeoutId !== null) clearTimeoutFn(timeoutId);
+      resolve();
+    };
+    timeoutId = setTimeoutFn(finish, 750);
+    try {
+      requestFrame(finish);
+    } catch (error) {
+      clearTimeoutFn(timeoutId);
+      throw error;
+    }
+  });
 
   elements.loading.hidden = false;
   elements.error.hidden = true;
@@ -79,7 +103,7 @@ export async function startSoloCookingLoader(
     });
     if (!stage) throw new Error(elements.status.textContent || "无法启动三维料理台");
     update(94, "正在完成第一帧");
-    await new Promise((resolve) => requestFrame(resolve));
+    await waitForFirstFrame();
     update(100, "料理台准备完成");
     elements.loading.hidden = true;
     clearProgressLoop();
