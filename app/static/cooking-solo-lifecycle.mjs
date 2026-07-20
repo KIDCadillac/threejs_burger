@@ -47,18 +47,48 @@ export function mountSoloCookingLifecycle({
     dispose() {
       if (disposed) return;
       disposed = true;
-      documentTarget.removeEventListener("click", onClick);
-      windowTarget.removeEventListener("resize", resize);
-      windowTarget.removeEventListener("pagehide", pagehide);
-      windowTarget.removeEventListener("pageshow", pageshow);
+      let firstError = null;
+      for (const task of [
+        () => documentTarget.removeEventListener("click", onClick),
+        () => windowTarget.removeEventListener("resize", resize),
+        () => windowTarget.removeEventListener("pagehide", pagehide),
+        () => windowTarget.removeEventListener("pageshow", pageshow),
+      ]) {
+        try {
+          task();
+        } catch (error) {
+          if (!firstError) firstError = error;
+        }
+      }
       if (activePages.get(documentTarget) === lifecycle) activePages.delete(documentTarget);
-      stage.dispose();
+      try {
+        stage.dispose();
+      } catch (error) {
+        if (!firstError) firstError = error;
+      }
+      if (firstError) throw firstError;
     },
   });
-  documentTarget.addEventListener("click", onClick);
-  windowTarget.addEventListener("resize", resize, { passive: true });
-  windowTarget.addEventListener("pagehide", pagehide);
-  windowTarget.addEventListener("pageshow", pageshow);
-  activePages.set(documentTarget, lifecycle);
-  return lifecycle;
+  const rollback = [];
+  try {
+    documentTarget.addEventListener("click", onClick);
+    rollback.push(() => documentTarget.removeEventListener("click", onClick));
+    windowTarget.addEventListener("resize", resize, { passive: true });
+    rollback.push(() => windowTarget.removeEventListener("resize", resize));
+    windowTarget.addEventListener("pagehide", pagehide);
+    rollback.push(() => windowTarget.removeEventListener("pagehide", pagehide));
+    windowTarget.addEventListener("pageshow", pageshow);
+    rollback.push(() => windowTarget.removeEventListener("pageshow", pageshow));
+    activePages.set(documentTarget, lifecycle);
+    return lifecycle;
+  } catch (error) {
+    while (rollback.length) {
+      try {
+        rollback.pop()();
+      } catch {
+        // The listener registration error remains primary.
+      }
+    }
+    throw error;
+  }
 }

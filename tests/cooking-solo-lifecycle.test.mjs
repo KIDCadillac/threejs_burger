@@ -94,3 +94,47 @@ test("mounting twice on one document disposes the previous boot without listener
   assert.equal(disposeActiveSoloCookingPage(documentTarget), false);
   active.dispose();
 });
+
+test("partial listener registration rolls back every listener already attached", () => {
+  const documentTarget = new Events();
+  const windowTarget = new Events();
+  const add = windowTarget.addEventListener.bind(windowTarget);
+  windowTarget.addEventListener = (type, callback) => {
+    if (type === "pagehide") throw new Error("listener failed");
+    add(type, callback);
+  };
+  const stage = stageSpy();
+  stage.host.owner = stage;
+
+  assert.throws(() => mountSoloCookingLifecycle({
+    documentTarget, windowTarget, stage, onClick() {},
+  }), /listener failed/);
+  assert.equal(documentTarget.count("click"), 0);
+  assert.equal(windowTarget.count("resize"), 0);
+  assert.equal(windowTarget.count("pagehide"), 0);
+  assert.equal(windowTarget.count("pageshow"), 0);
+});
+
+test("dispose attempts every listener removal and stage cleanup when one removal throws", () => {
+  const documentTarget = new Events();
+  const windowTarget = new Events();
+  const remove = documentTarget.removeEventListener.bind(documentTarget);
+  documentTarget.removeEventListener = (type, callback) => {
+    remove(type, callback);
+    throw new Error("remove failed");
+  };
+  const stage = stageSpy();
+  stage.host.owner = stage;
+  const lifecycle = mountSoloCookingLifecycle({
+    documentTarget, windowTarget, stage, onClick() {},
+  });
+
+  assert.throws(() => lifecycle.dispose(), /remove failed/);
+  assert.equal(stage.disposed, 1);
+  assert.equal(documentTarget.count("click"), 0);
+  assert.equal(windowTarget.count("resize"), 0);
+  assert.equal(windowTarget.count("pagehide"), 0);
+  assert.equal(windowTarget.count("pageshow"), 0);
+  assert.doesNotThrow(() => lifecycle.dispose());
+  assert.equal(stage.disposed, 1);
+});

@@ -136,7 +136,7 @@ export function bootSoloCookingPage(
     stage = stageFactory({
       THREE,
       canvas,
-      reducedMotion: globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches,
+      reducedMotion: windowTarget.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches,
       onChange: render,
       onError: (error) => {
         elements.error.hidden = false;
@@ -151,37 +151,41 @@ export function bootSoloCookingPage(
       expanded: false,
       progress: "0/7",
     });
+    const actionHandlers = {
+      "rotate-left": () => stage.rotateSelected(-Math.PI / 8),
+      "rotate-right": () => stage.rotateSelected(Math.PI / 8),
+      "camera-reset": () => stage.resetCamera(),
+      "toggle-expanded": () => stage.toggleExpanded(),
+      undo: () => stage.undo(),
+      reset: () => stage.reset(),
+      finish: () => stage.finish(),
+      continue: () => stage.continueEditing(),
+      restart: () => stage.reset(),
+      "tutorial-skip": () => stage.skipTutorial(),
+      "tutorial-replay": () => stage.replayTutorial(),
+    };
+    const handleClick = (event) => {
+      const action = event.target.closest?.("[data-action]")?.dataset.action;
+      actionHandlers[action]?.();
+    };
+    mountSoloCookingLifecycle({
+      documentTarget,
+      windowTarget,
+      stage,
+      onClick: handleClick,
+    });
+    return stage;
   } catch (error) {
+    try {
+      stage?.dispose?.();
+    } catch {
+      // Preserve and display the boot error after best-effort stage cleanup.
+    }
     elements.loading.hidden = true;
     elements.error.hidden = false;
     elements.status.textContent = error?.message ?? "无法启动三维料理台";
     return null;
   }
-
-  const actionHandlers = {
-    "rotate-left": () => stage.rotateSelected(-Math.PI / 8),
-    "rotate-right": () => stage.rotateSelected(Math.PI / 8),
-    "camera-reset": () => stage.resetCamera(),
-    "toggle-expanded": () => stage.toggleExpanded(),
-    undo: () => stage.undo(),
-    reset: () => stage.reset(),
-    finish: () => stage.finish(),
-    continue: () => stage.continueEditing(),
-    restart: () => stage.reset(),
-    "tutorial-skip": () => stage.skipTutorial(),
-    "tutorial-replay": () => stage.replayTutorial(),
-  };
-  const handleClick = (event) => {
-    const action = event.target.closest?.("[data-action]")?.dataset.action;
-    actionHandlers[action]?.();
-  };
-  mountSoloCookingLifecycle({
-    documentTarget,
-    windowTarget,
-    stage,
-    onClick: handleClick,
-  });
-  return stage;
 }
 
 if (globalThis.document) bootSoloCookingPage(globalThis.document);

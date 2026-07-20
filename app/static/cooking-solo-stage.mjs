@@ -21,6 +21,7 @@ import {
   advanceCookingTutorial,
   skipCookingTutorial,
   replayCookingTutorial,
+  reconcileCookingTutorial,
 } from "./cooking-tutorial-state.mjs";
 
 const BIN_LAYER_SCALE = 0.54;
@@ -89,6 +90,10 @@ export function createSoloCookingStage({
   storage,
   documentTarget = globalThis.document,
   hostFactory = createThreeSceneHost,
+  workbenchFactory = createCookingWorkbench3D,
+  burgerFactory = createBurgerModel3D,
+  toolsFactory = createCondimentTools3D,
+  celebrationFactory = createCelebration,
   controllerFactory = createCookingInteractionController,
   onChange = () => {},
   onError = () => {},
@@ -103,21 +108,59 @@ export function createSoloCookingStage({
     throw new TypeError("A canvas event target is required");
   }
   validateFactory(hostFactory, "hostFactory");
+  validateFactory(workbenchFactory, "workbenchFactory");
+  validateFactory(burgerFactory, "burgerFactory");
+  validateFactory(toolsFactory, "toolsFactory");
+  validateFactory(celebrationFactory, "celebrationFactory");
   validateFactory(controllerFactory, "controllerFactory");
   validateFactory(onChange, "onChange");
   validateFactory(onError, "onError");
   validateFactory(resourceDisposeObserver, "resourceDisposeObserver");
 
+  const cleanupTasks = [];
+  const cleanup = (primaryError = null) => {
+    let firstError = primaryError;
+    while (cleanupTasks.length) {
+      const task = cleanupTasks.pop();
+      try {
+        task();
+      } catch (error) {
+        if (!firstError) firstError = error;
+      }
+    }
+    if (firstError) throw firstError;
+  };
+  const disposeObserved = (resource, name) => {
+    let firstError = null;
+    try {
+      resource?.dispose?.();
+    } catch (error) {
+      firstError = error;
+    }
+    try {
+      resourceDisposeObserver(name);
+    } catch (error) {
+      if (!firstError) firstError = error;
+    }
+    if (firstError) throw firstError;
+  };
+
+  try {
   const host = hostFactory({ canvas });
+  cleanupTasks.push(() => host?.dispose?.());
   if (!host?.scene?.isScene || !host?.camera?.isCamera) {
     throw new TypeError("hostFactory must return a Three scene and camera");
   }
-  const workbench = createCookingWorkbench3D(THREE);
-  const burger = createBurgerModel3D(THREE);
+  const workbench = workbenchFactory(THREE);
+  cleanupTasks.push(() => disposeObserved(workbench, "workbench"));
+  const burger = burgerFactory(THREE);
+  cleanupTasks.push(() => disposeObserved(burger, "burger"));
   host.scene.add(workbench.root);
   workbench.root.add(burger.root);
-  const tools = createCondimentTools3D(THREE, { toolDocks: workbench.toolDocks });
-  const celebration = createCelebration(THREE);
+  const tools = toolsFactory(THREE, { toolDocks: workbench.toolDocks });
+  cleanupTasks.push(() => disposeObserved(tools, "tools"));
+  const celebration = celebrationFactory(THREE);
+  cleanupTasks.push(() => celebration?.dispose?.());
   workbench.root.add(celebration.root);
   host.scene.background = new THREE.Color(0x3a211b);
   if (host.renderer?.shadowMap) {
@@ -147,6 +190,7 @@ export function createSoloCookingStage({
   let disposed = false;
   let lastFrameTime = 0;
   const transitions = new Map();
+  const cancelLayerTransition = (layerId) => transitions.delete(layerId);
 
   const emit = (reason, extra = {}) => {
     onChange(Object.freeze({
@@ -290,6 +334,7 @@ export function createSoloCookingStage({
   const selectLayer = (layerId) => {
     if (disposed) return false;
     if (!BURGER_LAYER_IDS.includes(layerId)) throw new TypeError(`Unknown burger layer: ${layerId}`);
+    cancelLayerTransition(layerId);
     selectedLayerId = layerId;
     advanceTutorial("picked-layer");
     emit("selection");
@@ -320,6 +365,7 @@ export function createSoloCookingStage({
       emit("selection");
     },
     onMove: ({ id, reason, pose }) => {
+      cancelLayerTransition(id);
       if ((reason === "rotate" || reason === "twist") && !state.finished) {
         state = rotateSoloLayer(state, id, pose.rotation.y);
         advanceTutorial("rotated-layer");
@@ -351,6 +397,7 @@ export function createSoloCookingStage({
     },
     onSauceStroke: applySauceStroke,
   });
+  cleanupTasks.push(() => controller?.dispose?.());
 
   const tick = (time = 0) => {
     if (disposed) return;
@@ -368,7 +415,9 @@ export function createSoloCookingStage({
     if (!reducedMotion) celebration.tick(lastFrameTime);
   };
   const removeFrame = host.onFrame?.(tick) ?? (() => {});
+  cleanupTasks.push(removeFrame);
   const removeContextError = host.onContextError?.(onError) ?? (() => {});
+  cleanupTasks.push(removeContextError);
   syncTransforms();
   host.start();
   emit("ready");
@@ -391,6 +440,7 @@ export function createSoloCookingStage({
     applySauceStroke,
     rotateSelected(deltaYaw) {
       if (disposed || !selectedLayerId) return false;
+      cancelLayerTransition(selectedLayerId);
       state = rotateSoloLayer(state, selectedLayerId, state.rotations[selectedLayerId] + deltaYaw);
       burger.getLayer(selectedLayerId).rotation.y = state.rotations[selectedLayerId];
       advanceTutorial("rotated-layer");
@@ -408,6 +458,7 @@ export function createSoloCookingStage({
     undo() {
       if (disposed || !state.history.length) return false;
       state = undoSoloCooking(state);
+      tutorial = reconcileCookingTutorial(tutorial, state, { selectedLayerId });
       if (state.finished) controller.pause();
       else controller.resume();
       applyVisualState({ animate: true, sauces: true });
@@ -419,6 +470,7 @@ export function createSoloCookingStage({
       state = resetSoloCookingState();
       selectedLayerId = null;
       expanded = false;
+      tutorial = reconcileCookingTutorial(tutorial, state, { reset: true });
       controller.resume();
       controller.resetCamera();
       applyVisualState({ sauces: true });
@@ -457,18 +509,11 @@ export function createSoloCookingStage({
       if (disposed) return;
       disposed = true;
       transitions.clear();
-      removeFrame();
-      removeContextError();
-      controller.dispose();
-      celebration.dispose();
-      tools.dispose();
-      resourceDisposeObserver("tools");
-      burger.dispose();
-      resourceDisposeObserver("burger");
-      workbench.dispose();
-      resourceDisposeObserver("workbench");
-      host.dispose();
+      cleanup();
     },
   };
   return api;
+  } catch (error) {
+    cleanup(error);
+  }
 }

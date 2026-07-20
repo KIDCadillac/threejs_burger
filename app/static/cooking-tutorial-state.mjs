@@ -63,3 +63,23 @@ export function skipCookingTutorial(state, { storage, globalTarget = globalThis 
 export function replayCookingTutorial() {
   return frozen("pick", { replay: true });
 }
+
+export function reconcileCookingTutorial(
+  tutorial,
+  cooking,
+  { selectedLayerId = null, reset = false } = {},
+) {
+  if (tutorial.step === "done") return tutorial;
+  const options = { replay: tutorial.replay, skipped: tutorial.skipped };
+  if (reset) return frozen("pick", options);
+  if (!cooking?.assembledOrder?.length) {
+    return frozen(selectedLayerId ? "drop" : "pick", options);
+  }
+  const hasRotation = Object.values(cooking.rotations ?? {}).some((yaw) => (
+    typeof yaw === "number" && Number.isFinite(yaw) && Math.abs(yaw) > 1e-9
+  ));
+  if (!hasRotation) return frozen("rotate", options);
+  if (!cooking?.strokes?.length) return frozen("sauce", options);
+  if (!cooking.complete) return frozen("assemble", options);
+  return frozen("finish", options);
+}

@@ -137,3 +137,20 @@ test("reconciliation keeps a persisted completed tutorial quiet but resets activ
   assert.equal(reset.step, "pick");
   assert.equal(reset.replay, true);
 });
+
+test("a completed or skipped replay stays quiet across reset and undo reconciliation", () => {
+  const cooking = {
+    assembledOrder: [], rotations: {}, strokes: [], complete: false, finished: false,
+  };
+  const replay = replayCookingTutorial(createCookingTutorial({ storage: null }));
+  const skipped = skipCookingTutorial(replay, { storage: null });
+  assert.strictEqual(reconcileCookingTutorial(skipped, cooking, { reset: true }), skipped);
+
+  let completed = replay;
+  for (const action of [
+    "picked-layer", "dropped-on-prep", "rotated-layer",
+    "created-sauce-stroke", "assembled-all", "finished",
+  ]) completed = advanceCookingTutorial(completed, action, { storage: null });
+  assert.equal(completed.step, "done");
+  assert.strictEqual(reconcileCookingTutorial(completed, cooking), completed);
+});

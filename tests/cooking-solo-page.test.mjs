@@ -27,6 +27,7 @@ test("standalone cooking page is accessible, Chinese, and contains the full play
     'data-action="tutorial-skip"',
     'data-action="tutorial-replay"',
     'role="dialog"',
+    'aria-modal="true"',
     'aria-labelledby="finish-title"',
     'tabindex="-1"',
     'role="status"',
