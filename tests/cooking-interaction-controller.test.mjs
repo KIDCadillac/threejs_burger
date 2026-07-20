@@ -609,8 +609,8 @@ test("orbits blank or prep space with bounded yaw and pitch", () => {
   camera.updateMatrixWorld(true);
   const changes = [];
   const limits = {
-    minYaw: -0.4, maxYaw: 0.5,
-    minPitch: 0.25, maxPitch: 0.8,
+    minYaw: -1, maxYaw: 1,
+    minPitch: 0.2, maxPitch: 1.2,
     minDistance: 6, maxDistance: 18,
   };
   const controller = createCookingInteractionController({
@@ -620,19 +620,24 @@ test("orbits blank or prep space with bounded yaw and pitch", () => {
     raycast: () => null,
     cameraTarget: { x: 0, y: 0, z: 0 },
     orbitLimits: limits,
-    orbitSensitivity: 0.01,
     onCameraChange: (detail) => changes.push(detail),
   });
   limits.minYaw = -99;
 
+  const initialPitch = Math.asin(5 / Math.hypot(5, 10));
   canvas.dispatch("pointerdown", pointer(9, 100, 100));
   assert.equal(controller.getState(), "orbiting");
-  canvas.dispatch("pointermove", pointer(9, 1000, -1000));
+  canvas.dispatch("pointermove", pointer(9, 100, 200));
+  assert.ok(changes.at(-1).pitch > initialPitch, "dragging down raises the camera pitch");
+  assert.ok(Math.abs(changes.at(-1).pitch - initialPitch - 0.42) < 1e-9,
+    "the slower default maps 100px to 0.42 radians");
+  const previousYaw = changes.at(-1).yaw;
+  canvas.dispatch("pointermove", pointer(9, 200, 200));
 
-  assert.equal(changes.at(-1).yaw, -0.4);
-  assert.equal(changes.at(-1).pitch, 0.8);
+  assert.ok(changes.at(-1).yaw < previousYaw, "horizontal direction remains unchanged");
+  assert.ok(Math.abs(changes.at(-1).yaw + 0.42) < 1e-9);
   assert.ok(Math.abs(camera.position.length() - Math.hypot(5, 10)) < 1e-9);
-  canvas.dispatch("pointerup", pointer(9, 1000, -1000));
+  canvas.dispatch("pointerup", pointer(9, 200, 200));
   assert.equal(controller.getState(), "idle");
   assert.deepEqual(canvas.released, [9]);
   controller.dispose();

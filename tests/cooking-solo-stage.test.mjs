@@ -86,6 +86,33 @@ test("integrates one real Three scene, workbench, burger, bottles, and controlle
   stage.dispose();
 });
 
+test("constrains cooking camera gestures to a usable mobile composition", () => {
+  let configuration;
+  const controller = {
+    resetCamera: () => true,
+    pause() {},
+    resume() {},
+    dispose() {},
+  };
+  const stage = createSoloCookingStage({
+    THREE,
+    canvas: new FakeCanvas(),
+    storage: null,
+    hostFactory: createHostHarness,
+    controllerFactory: (options) => { configuration = options; return controller; },
+  });
+
+  assert.deepEqual(configuration.orbitLimits, {
+    minYaw: -0.78,
+    maxYaw: 0.78,
+    minPitch: 0.5,
+    maxPitch: 0.95,
+    minDistance: 16.7,
+    maxDistance: 23,
+  });
+  stage.dispose();
+});
+
 test("places seven actual independent layer groups into their matching U-shaped bins", () => {
   const { stage } = harness();
 

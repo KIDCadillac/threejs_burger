@@ -135,7 +135,7 @@ export function createCookingInteractionController({
   prepBounds = null,
   cameraTarget = { x: 0, y: 0, z: 0 },
   orbitLimits = {},
-  orbitSensitivity = 0.006,
+  orbitSensitivity = 0.0042,
   resolveDrop,
   onPick = () => {},
   onMove = () => {},
@@ -212,7 +212,7 @@ export function createCookingInteractionController({
   };
   const normalizedOrbitLimits = copyOrbitLimits(orbitLimits);
   const normalizedOrbitSensitivity = finiteNumber(
-    orbitSensitivity, 0.006, "orbitSensitivity",
+    orbitSensitivity, 0.0042, "orbitSensitivity",
   );
   if (normalizedOrbitSensitivity <= 0) {
     throw new TypeError("orbitSensitivity must be positive");
@@ -978,7 +978,7 @@ export function createCookingInteractionController({
       const current = readCameraState();
       applyCameraState({
         yaw: current.yaw - dx * normalizedOrbitSensitivity,
-        pitch: current.pitch - dy * normalizedOrbitSensitivity,
+        pitch: current.pitch + dy * normalizedOrbitSensitivity,
         distance: current.distance,
       }, "orbit");
       return;

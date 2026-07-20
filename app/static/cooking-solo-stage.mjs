@@ -357,6 +357,14 @@ export function createSoloCookingStage({
     prepBounds: workbench.getLayout().bounds,
     prepPlaneY: 0.42,
     cameraTarget: cameraView.target,
+    orbitLimits: {
+      minYaw: -0.78,
+      maxYaw: 0.78,
+      minPitch: 0.5,
+      maxPitch: 0.95,
+      minDistance: 16.7,
+      maxDistance: 23,
+    },
     resolveDrop,
     onPick: ({ id }) => selectLayer(id),
     onSelection: ({ id, selected }) => {
