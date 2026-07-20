@@ -547,14 +547,16 @@ test("applies observable reversible vertex-level bite deformation", () => {
   burger.dispose();
 });
 
-test("rebuilds existing and new sauce tubes against bite-aware edible surfaces", () => {
+test("keeps existing and new sauce tubes attached to bite-aware edible surfaces", () => {
   const burger = createBurgerModel3D(THREE);
-  burger.addSauceStroke({
+  const chili = burger.addSauceStroke({
     sauce: "chili", layerId: "top-bun", amount: 0.8, points: [[0.65, -0.1], [1, 0.1]],
   });
-  burger.addSauceStroke({
+  const mustard = burger.addSauceStroke({
     sauce: "mustard", layerId: "patty", amount: 0.5, points: [[0.7, 0], [1, 0.2]],
   });
+  const originalMeshes = [chili, mustard];
+  const originalGeometries = originalMeshes.map(({ geometry }) => geometry);
 
   const assertSaucesConform = () => {
     for (const layerId of ["top-bun", "patty"]) {
@@ -575,56 +577,96 @@ test("rebuilds existing and new sauce tubes against bite-aware edible surfaces",
 
   burger.setBiteAmount(0.85);
   assert.equal(burger.getSnapshot().strokes.length, 2);
+  assert.deepEqual(
+    [chili, mustard].map(({ geometry }) => geometry),
+    originalGeometries,
+    "bite deformation preserves every existing sauce geometry",
+  );
   assertSaucesConform();
-  burger.addSauceStroke({
+  const sticky = burger.addSauceStroke({
     sauce: "sticky", layerId: "top-bun", amount: 0.6, points: [[0.85, -0.15], [1, 0.15]],
   });
+  const stickyBitten = [...sticky.geometry.attributes.position.array];
   assert.equal(burger.getSnapshot().strokes.length, 3);
   assertSaucesConform();
 
   burger.setBiteAmount(0);
   assert.equal(burger.getSnapshot().strokes.length, 3);
+  assert.notDeepEqual(
+    [...sticky.geometry.attributes.position.array],
+    stickyBitten,
+    "a sauce created while bitten still owns an unbitten rest pose",
+  );
+  assert.equal(chili, originalMeshes[0]);
+  assert.equal(mustard, originalMeshes[1]);
   assertSaucesConform();
   burger.dispose();
 });
 
-test("rolls back bite deformation and staged sauces when a rebuild fails", () => {
+test("animates 64 sauce tubes in place without constructing or replacing geometry", () => {
   let constructionCount = 0;
-  let failAt = Number.POSITIVE_INFINITY;
-  const created = [];
-  class FailingTubeGeometry extends THREE.TubeGeometry {
+  const disposed = [];
+  class InstrumentedTubeGeometry extends THREE.TubeGeometry {
     constructor(...args) {
       constructionCount += 1;
-      if (constructionCount === failAt) throw new Error("injected bite rebuild failure");
       super(...args);
-      this.disposeCount = 0;
-      const originalDispose = this.dispose.bind(this);
-      this.dispose = () => {
-        this.disposeCount += 1;
-        originalDispose();
-      };
-      created.push(this);
+    }
+
+    dispose() {
+      disposed.push(this);
+      super.dispose();
     }
   }
-  const burger = createBurgerModel3D({ ...THREE, TubeGeometry: FailingTubeGeometry });
-  const first = burger.addSauceStroke({
-    sauce: "chili", layerId: "top-bun", amount: 0.5, points: [[0.5, 0], [0.9, 0]],
-  });
-  burger.addSauceStroke({
-    sauce: "mustard", layerId: "patty", amount: 0.5, points: [[0.5, 0], [0.9, 0]],
-  });
-  const topBun = burger.getLayer("top-bun").userData.selectableSurface;
-  const beforeVertices = [...topBun.geometry.attributes.position.array];
-  const before = burger.getSnapshot();
-  failAt = constructionCount + 2;
+  const burger = createBurgerModel3D({ ...THREE, TubeGeometry: InstrumentedTubeGeometry });
+  const meshes = Array.from({ length: 64 }, (_, index) => burger.addSauceStroke({
+    sauce: SAUCE_KEYS[index % SAUCE_KEYS.length],
+    layerId: BURGER_LAYER_IDS[index % BURGER_LAYER_IDS.length],
+    amount: 0.3 + (index % 5) * 0.1,
+    points: [[0.55, -0.15], [0.82, 0], [1, 0.15]],
+  }));
+  const geometries = meshes.map(({ geometry }) => geometry);
+  const parents = meshes.map(({ parent }) => parent);
+  const positionAttributes = geometries.map(({ attributes }) => attributes.position);
+  const positionArrays = positionAttributes.map(({ array }) => array);
+  const normalAttributes = geometries.map(({ attributes }) => attributes.normal);
+  const normalArrays = normalAttributes.map(({ array }) => array);
+  const boundingBoxes = geometries.map(({ boundingBox }) => boundingBox);
+  const boundingSpheres = geometries.map(({ boundingSphere }) => boundingSphere);
+  const unbittenVertices = positionArrays.map((array) => [...array]);
 
-  assert.throws(() => burger.setBiteAmount(0.9), /injected bite rebuild failure/);
-  assert.deepEqual(burger.getSnapshot(), before);
-  assert.deepEqual([...topBun.geometry.attributes.position.array], beforeVertices);
-  assert.equal(first.parent, burger.getLayer("top-bun"));
-  assert.equal(first.geometry.disposeCount, 0);
-  assert.equal(created.at(-1).disposeCount, 1, "completed bite candidate is cleaned exactly once");
+  assert.equal(constructionCount, 64);
+  for (const amount of [0.08, 0.2, 0.35, 0.5, 0.7, 0.9, 1, 0.76, 0.42, 0.13]) {
+    burger.setBiteAmount(amount);
+    assert.equal(constructionCount, 64, "bite frames never construct replacement TubeGeometry");
+    meshes.forEach((mesh, index) => {
+      assert.equal(mesh.geometry, geometries[index]);
+      assert.equal(mesh.geometry.attributes.position, positionAttributes[index]);
+      assert.equal(mesh.geometry.attributes.position.array, positionArrays[index]);
+      assert.equal(mesh.geometry.attributes.normal, normalAttributes[index]);
+      assert.equal(mesh.geometry.attributes.normal.array, normalArrays[index]);
+      assert.equal(mesh.geometry.boundingBox, boundingBoxes[index]);
+      assert.equal(mesh.geometry.boundingSphere, boundingSpheres[index]);
+      assert.ok([...mesh.geometry.attributes.normal.array].every(Number.isFinite));
+      assert.ok(mesh.geometry.boundingBox.min.toArray().every(Number.isFinite));
+      assert.ok(mesh.geometry.boundingBox.max.toArray().every(Number.isFinite));
+      assert.ok(Number.isFinite(mesh.geometry.boundingSphere.radius));
+    });
+  }
+  assert.notDeepEqual([...positionArrays[0]], unbittenVertices[0]);
+
+  burger.setBiteAmount(0);
+  assert.equal(constructionCount, 64);
+  positionArrays.forEach((array, index) => {
+    assert.deepEqual([...array], unbittenVertices[index], `sauce ${index} restores exactly`);
+  });
+  meshes.forEach((mesh, index) => {
+    assert.equal(mesh.geometry, geometries[index]);
+    assert.equal(mesh.parent, parents[index]);
+    assert.ok(parents[index].children.includes(mesh), "the returned Mesh stays mounted");
+  });
   burger.dispose();
+  assert.equal(disposed.length, 64);
+  assert.equal(new Set(disposed).size, 64, "each persistent sauce geometry disposes once");
 });
 
 test("returns detached composition snapshots that cannot mutate live model state", () => {
