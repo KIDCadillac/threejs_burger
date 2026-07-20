@@ -219,6 +219,7 @@ export function createCookingInteractionController({
   }
 
   const raycaster = new THREE.Raycaster();
+  const nozzleRaycaster = new THREE.Raycaster();
   const pointerNdc = new THREE.Vector2();
   const prepPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -normalizedPrepPlaneY);
   const projectedScratch = new THREE.Vector3();
@@ -385,15 +386,15 @@ export function createCookingInteractionController({
     // The bottle visibly tilts, while its squeeze stream remains gravity-led from the
     // real nozzle position. This keeps a large dock-to-board swipe controllable.
     nozzleDirectionScratch.set(0, -1, 0);
-    raycaster.set(nozzleScratch, nozzleDirectionScratch);
-    raycaster.near = 0;
-    raycaster.far = 8;
+    nozzleRaycaster.set(nozzleScratch, nozzleDirectionScratch);
+    nozzleRaycaster.near = 0;
+    nozzleRaycaster.far = 8;
     const hit = injectedRaycast
       ? injectedRaycast(Object.freeze({
         event,
         camera,
         surfaces: Object.freeze([...edibleSurfaces]),
-        raycaster,
+        raycaster: nozzleRaycaster,
         kind: "nozzle",
         origin: Object.freeze({ x: nozzleScratch.x, y: nozzleScratch.y, z: nozzleScratch.z }),
         direction: Object.freeze({
@@ -402,7 +403,7 @@ export function createCookingInteractionController({
           z: nozzleDirectionScratch.z,
         }),
       }))
-      : raycaster.intersectObjects(edibleSurfaces, false)[0] ?? null;
+      : nozzleRaycaster.intersectObjects(edibleSurfaces, false)[0] ?? null;
     return hit && edibleSurfaceSet.has(hit.object) ? hit : null;
   };
 
@@ -622,7 +623,11 @@ export function createCookingInteractionController({
     const normalized = normalizedFoodHit(nozzleHitTest(event, session.bottle));
     session.pressureTotal += pointerPressure(event);
     session.pressureSamples += 1;
-    if (!normalized) return null;
+    if (!normalized) {
+      finalizeCurrentBottleSegment(session);
+      destroyBottlePreview(session);
+      return null;
+    }
     if (!session.currentSegment || session.currentSegment.layerId !== normalized.layerId) {
       finalizeCurrentBottleSegment(session);
       session.currentSegment = {
