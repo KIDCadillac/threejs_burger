@@ -86,13 +86,14 @@ function validateFactory(value, label) {
 export function createSoloCookingStage({
   THREE,
   canvas,
-  storage = globalThis.localStorage,
+  storage,
   documentTarget = globalThis.document,
   hostFactory = createThreeSceneHost,
   controllerFactory = createCookingInteractionController,
   onChange = () => {},
   onError = () => {},
   reducedMotion = false,
+  vibrate,
   resourceDisposeObserver = () => {},
 } = {}) {
   if (!THREE?.Scene || !THREE?.Group || !THREE?.Vector3) {
@@ -147,7 +148,7 @@ export function createSoloCookingStage({
   let lastFrameTime = 0;
   const transitions = new Map();
 
-  const emit = (reason) => {
+  const emit = (reason, extra = {}) => {
     onChange(Object.freeze({
       reason,
       state,
@@ -156,6 +157,7 @@ export function createSoloCookingStage({
       expanded,
       progress: `${state.assembledOrder.length}/${BURGER_LAYER_IDS.length}`,
       composition: serializeSoloComposition(state),
+      ...extra,
     }));
   };
 
@@ -280,6 +282,7 @@ export function createSoloCookingStage({
     state = addSoloSauceStroke(state, stroke);
     burger.addSauceStroke(stroke);
     advanceTutorial("created-sauce-stroke");
+    if (state.complete) advanceTutorial("assembled-all");
     emit("sauce-stroke");
     return true;
   };
@@ -327,7 +330,25 @@ export function createSoloCookingStage({
       if (anchor === workbench.prep.dropAnchor) dropLayer(id, { kind: "prep", targetIndex });
       else dropLayer(id, { kind: "bin" });
     },
-    onInvalid: () => syncTransforms({ animate: true }),
+    onInvalid: ({ reason } = {}) => {
+      syncTransforms({ animate: true });
+      const message = typeof reason === "string" && /[\u3400-\u9fff]/u.test(reason)
+        ? reason
+        : "没放稳，请放到中央餐盘或原来的食材料盒";
+      try {
+        let haptic = vibrate;
+        if (haptic === undefined) {
+          const navigatorTarget = globalThis.navigator;
+          haptic = typeof navigatorTarget?.vibrate === "function"
+            ? navigatorTarget.vibrate.bind(navigatorTarget)
+            : null;
+        }
+        haptic?.(28);
+      } catch {
+        // Haptics are optional and platform rejection must not interrupt a drag rollback.
+      }
+      emit("invalid-drop", { message });
+    },
     onSauceStroke: applySauceStroke,
   });
 
@@ -344,7 +365,7 @@ export function createSoloCookingStage({
         + (transition.target.yaw - transition.fromYaw) * eased;
       if (progress >= 1) transitions.delete(layerId);
     }
-    celebration.tick(lastFrameTime);
+    if (!reducedMotion) celebration.tick(lastFrameTime);
   };
   const removeFrame = host.onFrame?.(tick) ?? (() => {});
   const removeContextError = host.onContextError?.(onError) ?? (() => {});

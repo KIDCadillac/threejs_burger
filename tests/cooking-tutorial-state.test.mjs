@@ -66,6 +66,20 @@ test("storage read and write failures never block cooking", () => {
   assert.equal(tutorial.step, "done");
 });
 
+test("a throwing global localStorage getter is treated like unavailable storage", () => {
+  const globalTarget = {};
+  let reads = 0;
+  Object.defineProperty(globalTarget, "localStorage", {
+    get() { reads += 1; throw new DOMException("denied", "SecurityError"); },
+  });
+  let tutorial;
+  assert.doesNotThrow(() => {
+    tutorial = createCookingTutorial({ globalTarget });
+  });
+  assert.equal(tutorial.step, "pick");
+  assert.equal(reads, 1);
+});
+
 test("tutorial state is frozen and exposes the fixed six-step journey", () => {
   const tutorial = createCookingTutorial({ storage: null });
   assert.deepEqual(TUTORIAL_STEPS, ["pick", "drop", "rotate", "sauce", "assemble", "finish"]);

@@ -267,3 +267,99 @@ test("stage state and tutorial remain DOM-free and notify concise progress", () 
   assert.equal(JSON.stringify(stage.getState()).includes("HTMLElement"), false);
   stage.dispose();
 });
+
+test("tutorial reconciles an already complete burger immediately after the first sauce", () => {
+  const { stage } = harness();
+  stage.selectLayer("bottom-bun");
+  stage.dropLayer("bottom-bun", { kind: "prep" });
+  stage.rotateSelected(0.2);
+  for (const layerId of BURGER_LAYER_IDS.slice(1)) {
+    stage.dropLayer(layerId, { kind: "prep" });
+  }
+  assert.equal(stage.getState().complete, true);
+  assert.equal(stage.getTutorial().step, "sauce");
+
+  stage.applySauceStroke(sampleStroke("chili"));
+  assert.equal(stage.getTutorial().step, "finish");
+  stage.dispose();
+});
+
+test("invalid placement emits a Chinese reason and safe short haptic without escaping errors", () => {
+  const canvas = new FakeCanvas();
+  const host = createHostHarness();
+  const changes = [];
+  let configuration;
+  let vibrations = 0;
+  const controller = {
+    getState: () => "idle",
+    resetCamera: () => true,
+    pause() {},
+    resume() {},
+    dispose() {},
+  };
+  const stage = createSoloCookingStage({
+    THREE,
+    canvas,
+    storage: null,
+    hostFactory: () => host,
+    controllerFactory: (options) => { configuration = options; return controller; },
+    onChange: (detail) => changes.push(detail),
+    vibrate: (duration) => {
+      vibrations += 1;
+      assert.ok(duration > 0 && duration <= 50);
+      throw new Error("platform rejected haptic");
+    },
+  });
+
+  assert.doesNotThrow(() => configuration.onInvalid({ reason: "outside-prep" }));
+  assert.equal(vibrations, 1);
+  assert.equal(changes.at(-1).reason, "invalid-drop");
+  assert.match(changes.at(-1).message, /餐盘|料盒|放/);
+  stage.dispose();
+});
+
+test("reduced motion keeps the completed WebGL celebration visibly static", () => {
+  const { stage } = harness({ reducedMotion: true });
+  BURGER_LAYER_IDS.forEach((layerId) => stage.dropLayer(layerId, { kind: "prep" }));
+  stage.finish();
+  const before = stage.celebration.pieces.map((piece) => ({
+    position: piece.position.toArray(), rotation: piece.rotation.toArray(),
+  }));
+  stage.tick(5000);
+  const after = stage.celebration.pieces.map((piece) => ({
+    position: piece.position.toArray(), rotation: piece.rotation.toArray(),
+  }));
+
+  assert.equal(stage.celebration.visible, true);
+  assert.deepEqual(after, before);
+  stage.dispose();
+});
+
+test("stage construction tolerates a SecurityError localStorage property getter", () => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    get() { throw new DOMException("denied", "SecurityError"); },
+  });
+  let stage;
+  try {
+    const canvas = new FakeCanvas();
+    const host = createHostHarness();
+    assert.doesNotThrow(() => {
+      stage = createSoloCookingStage({
+        THREE,
+        canvas,
+        hostFactory: () => host,
+        controllerFactory: () => ({
+          getState: () => "idle",
+          resetCamera: () => true,
+          pause() {}, resume() {}, dispose() {},
+        }),
+      });
+    });
+  } finally {
+    if (descriptor) Object.defineProperty(globalThis, "localStorage", descriptor);
+    else delete globalThis.localStorage;
+    stage?.dispose();
+  }
+});

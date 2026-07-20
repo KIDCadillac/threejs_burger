@@ -24,25 +24,39 @@ function saveCompletion(storage) {
   }
 }
 
-export function createCookingTutorial({ storage = globalThis.localStorage } = {}) {
+function resolveStorage(storage, globalTarget) {
+  if (storage !== undefined) return storage;
   try {
-    if (storage?.getItem?.(STORAGE_KEY) === "complete") return frozen("done");
+    return globalTarget?.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function createCookingTutorial({ storage, globalTarget = globalThis } = {}) {
+  const resolvedStorage = resolveStorage(storage, globalTarget);
+  try {
+    if (resolvedStorage?.getItem?.(STORAGE_KEY) === "complete") return frozen("done");
   } catch {
     // Treat unreadable storage like a first visit.
   }
   return frozen("pick");
 }
 
-export function advanceCookingTutorial(state, action, { storage = globalThis.localStorage } = {}) {
+export function advanceCookingTutorial(
+  state,
+  action,
+  { storage, globalTarget = globalThis } = {},
+) {
   if (state.step === "done" || ACTION_FOR_STEP[state.step] !== action) return state;
   const index = TUTORIAL_STEPS.indexOf(state.step);
   const step = TUTORIAL_STEPS[index + 1] ?? "done";
-  if (step === "done") saveCompletion(storage);
+  if (step === "done") saveCompletion(resolveStorage(storage, globalTarget));
   return frozen(step, { replay: state.replay });
 }
 
-export function skipCookingTutorial(state, { storage = globalThis.localStorage } = {}) {
-  saveCompletion(storage);
+export function skipCookingTutorial(state, { storage, globalTarget = globalThis } = {}) {
+  saveCompletion(resolveStorage(storage, globalTarget));
   return frozen("done", { replay: state.replay, skipped: true });
 }
 

@@ -26,6 +26,9 @@ test("standalone cooking page is accessible, Chinese, and contains the full play
     'data-action="restart"',
     'data-action="tutorial-skip"',
     'data-action="tutorial-replay"',
+    'role="dialog"',
+    'aria-labelledby="finish-title"',
+    'tabindex="-1"',
     'role="status"',
     'aria-live="polite"',
     'cooking-loading',
@@ -60,6 +63,8 @@ test("mobile CSS protects touch targets, safe areas, WebGL states, and reduced m
     ":focus-visible",
     "@media (orientation: landscape) and (max-height: 560px)",
     "@media (prefers-reduced-motion: reduce)",
+    "@supports (min-height: 100dvh)",
+    "min-height: 100dvh",
     ".cooking-loading",
     ".cooking-error",
     ".tutorial-coach",
@@ -89,5 +94,8 @@ test("app exposes concise ingredient/sauce summaries and action-matched tutorial
     "stage.continueEditing",
     "stage.skipTutorial",
     "stage.replayTutorial",
+    "mountSoloCookingLifecycle",
+    "createFinishFocusManager",
+    "detail.message",
   ]) assert.ok(app.includes(marker), marker);
 });

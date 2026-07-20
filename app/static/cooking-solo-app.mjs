@@ -1,5 +1,10 @@
 import * as THREE from "./vendor/three.module.min.js";
 import { createSoloCookingStage } from "./cooking-solo-stage.mjs";
+import {
+  disposeActiveSoloCookingPage,
+  mountSoloCookingLifecycle,
+} from "./cooking-solo-lifecycle.mjs";
+import { createFinishFocusManager } from "./cooking-solo-focus.mjs";
 
 const LAYER_NAMES = Object.freeze({
   "bottom-bun": "下层面包",
@@ -39,9 +44,13 @@ function sauceSummary(strokes) {
   });
 }
 
-export function bootSoloCookingPage(documentTarget = globalThis.document) {
+export function bootSoloCookingPage(
+  documentTarget = globalThis.document,
+  { windowTarget = globalThis, stageFactory = createSoloCookingStage } = {},
+) {
   const canvas = documentTarget?.querySelector?.("#cooking-canvas");
   if (!canvas) throw new Error("Missing #cooking-canvas");
+  disposeActiveSoloCookingPage(documentTarget);
   const elements = {
     loading: documentTarget.querySelector("#cooking-loading"),
     error: documentTarget.querySelector("#cooking-error"),
@@ -58,6 +67,10 @@ export function bootSoloCookingPage(documentTarget = globalThis.document) {
     undoButton: documentTarget.querySelector('[data-action="undo"]'),
     inspectButton: documentTarget.querySelector('[data-action="toggle-expanded"]'),
   };
+  const focusManager = createFinishFocusManager({
+    dialog: elements.finishSheet,
+    returnTarget: canvas,
+  });
 
   let stage = null;
   let latest = null;
@@ -115,10 +128,12 @@ export function bootSoloCookingPage(documentTarget = globalThis.document) {
       continue: "可以继续调整了",
     };
     if (statusByReason[detail.reason]) elements.status.textContent = statusByReason[detail.reason];
+    if (detail.message) elements.status.textContent = detail.message;
+    focusManager.sync(state.finished);
   };
 
   try {
-    stage = createSoloCookingStage({
+    stage = stageFactory({
       THREE,
       canvas,
       reducedMotion: globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches,
@@ -156,17 +171,16 @@ export function bootSoloCookingPage(documentTarget = globalThis.document) {
     "tutorial-skip": () => stage.skipTutorial(),
     "tutorial-replay": () => stage.replayTutorial(),
   };
-  documentTarget.addEventListener("click", (event) => {
+  const handleClick = (event) => {
     const action = event.target.closest?.("[data-action]")?.dataset.action;
     actionHandlers[action]?.();
+  };
+  mountSoloCookingLifecycle({
+    documentTarget,
+    windowTarget,
+    stage,
+    onClick: handleClick,
   });
-
-  const resize = () => stage?.host.resize();
-  globalThis.addEventListener?.("resize", resize, { passive: true });
-  globalThis.addEventListener?.("pagehide", () => {
-    globalThis.removeEventListener?.("resize", resize);
-    stage?.dispose();
-  }, { once: true });
   return stage;
 }
 
