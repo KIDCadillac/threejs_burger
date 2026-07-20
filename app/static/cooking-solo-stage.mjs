@@ -188,6 +188,9 @@ export function createSoloCookingStage({
   let selectedLayerId = null;
   let dropIntent = null;
   let expanded = false;
+  let focused = false;
+  let focusCameraView = null;
+  let focusWorkbenchVisible = true;
   let disposed = false;
   let lastFrameTime = 0;
   const transitions = new Map();
@@ -204,6 +207,7 @@ export function createSoloCookingStage({
       selectedLayerId,
       dropIntent,
       expanded,
+      focused,
       progress: `${state.assembledOrder.length}/${BURGER_LAYER_IDS.length}`,
       composition: serializeSoloComposition(state),
       ...extra,
@@ -588,8 +592,8 @@ export function createSoloCookingStage({
     orbitLimits: {
       minYaw: -Math.PI,
       maxYaw: Math.PI,
-      minPitch: 0.12,
-      maxPitch: 1.45,
+      minPitch: 0.02,
+      maxPitch: 1.56,
       minDistance: 5,
       maxDistance: 45,
       wrapYaw: true,
@@ -680,6 +684,51 @@ export function createSoloCookingStage({
     onSauceCancel: cancelSauceGesture,
   });
   cleanupTasks.push(() => controller?.dispose?.());
+
+  const setFocusMode = (value, { notify = true } = {}) => {
+    if (disposed) return focused;
+    const next = Boolean(value);
+    if (focused === next) return focused;
+    if (next && !state.assembledOrder.length) return false;
+
+    clearTransientVisuals();
+    dropIntent = null;
+    if (next) {
+      focusCameraView = controller.getCameraView?.() ?? null;
+      focusWorkbenchVisible = workbench.root.visible;
+      controller.setInspectionOnly?.(true);
+      workbench.root.updateMatrixWorld?.(true);
+      host.scene.attach(burger.root);
+      for (const layerId of BURGER_LAYER_IDS) {
+        burger.getLayer(layerId).visible = state.assembledOrder.includes(layerId);
+      }
+      workbench.root.visible = false;
+      const bounds = new THREE.Box3();
+      for (const layerId of state.assembledOrder) {
+        bounds.expandByObject(burger.getLayer(layerId));
+      }
+      const center = bounds.getCenter(new THREE.Vector3());
+      const size = bounds.getSize(new THREE.Vector3());
+      const distance = Math.max(5, Math.max(size.x, size.y, size.z) * 2.15);
+      controller.setCameraView?.({
+        target: { x: center.x, y: center.y, z: center.z },
+        yaw: focusCameraView?.yaw ?? 0,
+        pitch: 0.28,
+        distance,
+      }, "burger-focus");
+      focused = true;
+    } else {
+      workbench.root.visible = focusWorkbenchVisible;
+      workbench.root.attach(burger.root);
+      for (const layerId of BURGER_LAYER_IDS) burger.getLayer(layerId).visible = true;
+      controller.setInspectionOnly?.(false);
+      if (focusCameraView) controller.setCameraView?.(focusCameraView, "burger-focus-return");
+      focusCameraView = null;
+      focused = false;
+    }
+    if (notify) emit("focus");
+    return focused;
+  };
 
   const applyPose = (layer, from, target, amount) => {
     layer.position.lerpVectors(from.position, target.position, amount);
@@ -814,13 +863,14 @@ export function createSoloCookingStage({
     getState: () => state,
     getTutorial: () => tutorial,
     getSelectedLayerId: () => selectedLayerId,
+    isBurgerFocused: () => focused,
     getComposition: () => serializeSoloComposition(state),
     tick,
     selectLayer,
     dropLayer,
     applySauceStroke,
     rotateSelected(deltaYaw) {
-      if (disposed || !selectedLayerId) return false;
+      if (disposed || focused || !selectedLayerId) return false;
       clearTransientVisuals();
       state = rotateSoloLayer(state, selectedLayerId, state.rotations[selectedLayerId] + deltaYaw);
       burger.getLayer(selectedLayerId).rotation.y = state.rotations[selectedLayerId];
@@ -829,16 +879,19 @@ export function createSoloCookingStage({
       return true;
     },
     toggleExpanded() {
-      if (disposed || state.finished) return expanded;
+      if (disposed || focused || state.finished) return expanded;
       clearTransientVisuals();
       expanded = !expanded;
       syncTransforms({ animate: true });
       emit("inspect");
       return expanded;
     },
+    setBurgerFocus(value) { return setFocusMode(value); },
+    toggleBurgerFocus() { return setFocusMode(!focused); },
     resetCamera() { return controller.resetCamera(); },
     undo() {
       if (disposed || !state.history.length) return false;
+      if (focused) setFocusMode(false, { notify: false });
       clearTransientVisuals();
       dropIntent = null;
       state = undoSoloCooking(state);
@@ -851,6 +904,7 @@ export function createSoloCookingStage({
     },
     reset() {
       if (disposed) return false;
+      if (focused) setFocusMode(false, { notify: false });
       clearTransientVisuals();
       dropIntent = null;
       state = resetSoloCookingState();
@@ -865,6 +919,7 @@ export function createSoloCookingStage({
     },
     finish() {
       if (disposed || !state.complete || state.finished) return false;
+      if (focused) setFocusMode(false, { notify: false });
       clearTransientVisuals();
       state = finishSoloCooking(state);
       expanded = false;
@@ -895,6 +950,7 @@ export function createSoloCookingStage({
     },
     dispose() {
       if (disposed) return;
+      if (focused) setFocusMode(false, { notify: false });
       clearTransientVisuals();
       disposed = true;
       cleanup();

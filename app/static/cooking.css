@@ -70,6 +70,27 @@ canvas:focus-visible {
 .cooking-header h1 { margin: 2px 0 10px; font-size: clamp(1.65rem, 6vw, 2.25rem); }
 .cooking-kicker { margin: 0; color: #f1b981; font-size: .78rem; letter-spacing: .1em; }
 
+.cooking-header__identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.home-link {
+  display: grid;
+  min-width: 44px;
+  min-height: 44px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--cream);
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 1.35rem;
+  text-decoration: none;
+}
+
+.home-link:focus-visible { outline: 3px solid #77d6ff; outline-offset: 3px; }
+
 .objective-card,
 .cooking-summary {
   border: 1px solid var(--line);
@@ -148,7 +169,7 @@ canvas:focus-visible {
 
 .cooking-loading__meta {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   gap: 20px;
   width: min(72vw, 300px);
   color: #f2c799;
@@ -234,6 +255,20 @@ canvas:focus-visible {
 
 .rotate-controls button { font-size: 1.65rem; color: var(--gold); }
 .cooking-controls > button { padding: 8px; font-size: .82rem; }
+
+.cooking-controls > .focus-button {
+  grid-column: 1 / -1;
+  min-height: 50px;
+  border-color: rgba(255, 196, 77, 0.48);
+  color: #2d1a14;
+  font-weight: 900;
+  background: linear-gradient(180deg, #ffd969, #efa933);
+}
+
+.focus-button[data-focused="true"] {
+  color: var(--cream);
+  background: linear-gradient(180deg, #4f3029, #38201c);
+}
 
 .cooking-summary { padding: 14px; }
 .summary-heading h2 { margin: 0; font-size: 1rem; }

@@ -106,6 +106,14 @@ def create_app(service: GameService | None = None) -> FastAPI:
     def home() -> FileResponse:
         return FileResponse(BASE_DIR / "static" / "index.html")
 
+    @application.get("/home.css")
+    def home_styles() -> FileResponse:
+        return FileResponse(BASE_DIR / "static" / "home.css", media_type="text/css")
+
+    @application.get("/cooking.html")
+    def solo_cooking() -> FileResponse:
+        return FileResponse(BASE_DIR / "static" / "cooking.html")
+
     @application.websocket("/ws")
     async def websocket_endpoint(
         socket: WebSocket, player: str = "", credential: str = ""

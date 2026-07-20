@@ -932,6 +932,76 @@ test("exposes programmatic pointer methods and resets the camera to its initial 
   assert.equal(controller.resetCamera(), false);
 });
 
+test("captures, applies, and restores a detached camera view for food focus", () => {
+  const canvas = createCanvas();
+  const camera = new THREE.PerspectiveCamera();
+  camera.position.set(1, 5, 10);
+  camera.lookAt(0, 1, 0);
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    raycast: () => null,
+    cameraTarget: { x: 0, y: 1, z: 0 },
+    orbitLimits: {
+      minYaw: -Math.PI,
+      maxYaw: Math.PI,
+      minPitch: 0.02,
+      maxPitch: 1.56,
+      minDistance: 5,
+      maxDistance: 45,
+      wrapYaw: true,
+    },
+  });
+  const initial = controller.getCameraView();
+  assert.ok(Object.isFrozen(initial));
+  assert.ok(Object.isFrozen(initial.target));
+
+  assert.equal(controller.setCameraView({
+    target: { x: 2, y: 3, z: -1 },
+    yaw: -0.4,
+    pitch: 0.28,
+    distance: 6,
+  }, "food-focus"), true);
+  const focused = controller.getCameraView();
+  assert.deepEqual(focused.target, { x: 2, y: 3, z: -1 });
+  assert.ok(Math.abs(focused.yaw + 0.4) < 1e-9);
+  assert.ok(Math.abs(focused.pitch - 0.28) < 1e-9);
+  assert.ok(Math.abs(focused.distance - 6) < 1e-9);
+
+  assert.equal(controller.setCameraView(initial, "focus-return"), true);
+  const restored = controller.getCameraView();
+  assert.ok(camera.position.distanceTo(new THREE.Vector3(...initial.position)) < 1e-9);
+  assert.deepEqual(restored.target, initial.target);
+  controller.dispose();
+  assert.equal(controller.setCameraView(initial), false);
+});
+
+test("inspection-only mode turns food and condiment presses into camera orbit", () => {
+  const canvas = createCanvas();
+  const camera = new THREE.PerspectiveCamera();
+  camera.position.set(0, 5, 10);
+  camera.lookAt(0, 0, 0);
+  const layer = new THREE.Group();
+  const surface = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+  layer.add(surface);
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    draggables: [{ id: "patty", object: layer, surfaces: [surface] }],
+    raycast: () => ({ object: surface, point: new THREE.Vector3() }),
+  });
+
+  assert.equal(controller.setInspectionOnly(true), true);
+  canvas.dispatch("pointerdown", pointer(201, 40, 40));
+  assert.equal(controller.getState(), "orbiting");
+  assert.equal(controller.getSelectedId(), null);
+  canvas.dispatch("pointerup", pointer(201, 40, 40));
+  assert.equal(controller.setInspectionOnly(false), false);
+  controller.dispose();
+});
+
 test("applies the final pointer-up projection before resolving a valid drop", () => {
   const canvas = createCanvas();
   const camera = new THREE.PerspectiveCamera();

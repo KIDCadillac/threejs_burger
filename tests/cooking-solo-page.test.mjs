@@ -4,6 +4,8 @@ import { readFile } from "node:fs/promises";
 
 const htmlPath = new URL("../app/static/cooking.html", import.meta.url);
 const cssPath = new URL("../app/static/cooking.css", import.meta.url);
+const homePath = new URL("../app/static/index.html", import.meta.url);
+const homeCssPath = new URL("../app/static/home.css", import.meta.url);
 const appPath = new URL("../app/static/cooking-solo-app.mjs", import.meta.url);
 const loaderPath = new URL("../app/static/cooking-loader.mjs", import.meta.url);
 
@@ -19,6 +21,7 @@ test("standalone cooking page is accessible, Chinese, and contains the full play
     'data-action="rotate-left"',
     'data-action="rotate-right"',
     'data-action="camera-reset"',
+    'data-action="toggle-focus"',
     'data-action="toggle-expanded"',
     'data-action="undo"',
     'data-action="reset"',
@@ -36,7 +39,6 @@ test("standalone cooking page is accessible, Chinese, and contains the full play
     'cooking-loading',
     'id="cooking-loading-phase"',
     'id="cooking-loading-percent"',
-    'id="cooking-loading-elapsed"',
     'id="cooking-loading-note"',
     'id="cooking-loading-bar"',
     'cooking-error',
@@ -44,6 +46,30 @@ test("standalone cooking page is accessible, Chinese, and contains the full play
   assert.match(html, /自由料理台/);
   assert.match(html, /先把七层食材装到中央餐盘/);
   assert.match(html, /rel="icon" href="data:,"/);
+  assert.doesNotMatch(html, /cooking-loading-elapsed|已等待\s*[\d.]+\s*秒/);
+});
+
+test("root page is an original cooking map catalog with burger playable and sushi upcoming", async () => {
+  const [html, css] = await Promise.all([
+    readFile(homePath, "utf8"),
+    readFile(homeCssPath, "utf8"),
+  ]);
+  for (const marker of [
+    'lang="zh-CN"',
+    'class="home-shell"',
+    'href="./cooking.html"',
+    'data-map="burger"',
+    'data-map="sushi"',
+    'aria-disabled="true"',
+    "自由汉堡店",
+    "深夜寿司店",
+    "下一张地图",
+  ]) assert.ok(html.includes(marker), marker);
+  assert.match(html, /自由做菜/);
+  assert.match(css, /@media \(max-width: 640px\)/);
+  assert.match(css, /min-height:\s*44px/);
+  assert.doesNotMatch(css, /background-image\s*:\s*url\(/i);
+  assert.doesNotMatch(html, /Papa|老爹|pizzeria|burgeria/i);
 });
 
 test("page and modules use only relative static imports with no socket dependency", async () => {

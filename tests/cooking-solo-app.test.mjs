@@ -56,6 +56,7 @@ function pageHarness() {
     finishButton: add('[data-action="finish"]', "finish"),
     undoButton: add('[data-action="undo"]', "undo"),
     inspectButton: add('[data-action="toggle-expanded"]', "toggle-expanded"),
+    focusButton: add('[data-action="toggle-focus"]', "toggle-focus"),
     resetButton: add('[data-action="reset"]', "reset"),
     continueButton: add('[data-action="continue"]', "continue"),
   };
@@ -96,6 +97,7 @@ function stageFactoryHarness() {
       rotateSelected: () => stage.calls.push("rotate"),
       resetCamera: () => stage.calls.push("camera"),
       toggleExpanded: () => stage.calls.push("inspect"),
+      toggleBurgerFocus: () => stage.calls.push("focus"),
       undo: () => stage.calls.push("undo"),
       reset: () => stage.calls.push("reset"),
       finish: () => stage.calls.push("finish"),
@@ -110,6 +112,7 @@ function stageFactoryHarness() {
           state,
           tutorial,
           expanded: false,
+          focused: Boolean(changes.focused),
           progress: `${state.assembledOrder.length}/7`,
           dropIntent,
         });
@@ -157,6 +160,22 @@ test("renders cooking state without a text drop-intent control", () => {
   });
   assert.equal(page.documentTarget.querySelector("#cooking-drop-intent"), null);
   assert.deepEqual(stage.workbench.highlightCalls, highlightCallsBeforeIntent);
+});
+
+test("focus control follows stage view state and toggles the isolated burger view", () => {
+  const page = pageHarness();
+  const stages = stageFactoryHarness();
+  const stage = bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: stages.factory,
+  });
+  page.documentTarget.emit("click", { target: page.elements.focusButton });
+  assert.deepEqual(stage.calls, ["focus"]);
+
+  stage.emit({ assembledOrder: ["bottom-bun"], focused: true });
+  assert.equal(page.elements.focusButton.disabled, false);
+  assert.equal(page.elements.focusButton.textContent, "返回料理台");
+  assert.equal(page.elements.focusButton.dataset.focused, "true");
 });
 
 test("a second boot disposes the old stage and leaves only the new click handler", () => {

@@ -23,7 +23,6 @@ function loaderHarness() {
     loading: add("#cooking-loading"),
     phase: add("#cooking-loading-phase"),
     percent: add("#cooking-loading-percent"),
-    elapsed: add("#cooking-loading-elapsed"),
     note: add("#cooking-loading-note"),
     bar: add("#cooking-loading-bar"),
     error: add("#cooking-error", { hidden: true }),
@@ -50,7 +49,7 @@ async function flushMicrotasks() {
   await Promise.resolve();
 }
 
-test("shows staged percent and elapsed time until the first cooked frame", async () => {
+test("shows staged progress without exposing elapsed seconds until the first cooked frame", async () => {
   const { documentTarget, elements } = loaderHarness();
   const stage = { id: "stage" };
   const frames = [];
@@ -74,12 +73,10 @@ test("shows staged percent and elapsed time until the first cooked frame", async
 
   assert.equal(elements.phase.textContent, "正在连接料理台");
   assert.equal(elements.percent.textContent, "8%");
-  assert.equal(elements.elapsed.textContent, "已等待 0.0 秒");
   assert.equal(elements.loading.hidden, false);
 
   now = 2_500;
   intervals[0]();
-  assert.equal(elements.elapsed.textContent, "已等待 1.5 秒");
   assert.equal(elements.percent.textContent, "20%");
 
   await flushMicrotasks();

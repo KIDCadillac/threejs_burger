@@ -114,14 +114,23 @@ def test_vendored_three_integrity_check_rejects_a_mutated_byte() -> None:
         assert_vendored_sha256(bytes(mutated), "three.LICENSE.txt")
 
 
-def test_home_page_contains_game_title() -> None:
+def test_home_page_contains_cooking_map_catalog() -> None:
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "女巫的毒药" in response.text
-    assert 'data-action="quick-match"' in response.text
-    assert 'data-action="create-room"' in response.text
-    assert 'data-action="join-room"' in response.text
+    assert "开饭啦" in response.text
+    assert 'data-map="burger"' in response.text
+    assert 'data-map="sushi"' in response.text
+
+
+def test_root_catalog_assets_and_cooking_route_are_served() -> None:
+    home_css = client.get("/home.css")
+    cooking = client.get("/cooking.html")
+
+    assert home_css.status_code == 200
+    assert home_css.headers["content-type"].startswith("text/css")
+    assert cooking.status_code == 200
+    assert "自由料理台" in cooking.text
 
 
 def test_static_home_matches_the_current_mixed_snack_mode_before_javascript_loads() -> None:

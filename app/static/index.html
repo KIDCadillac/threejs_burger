@@ -3,44 +3,100 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#211634">
-    <title>女巫的毒药：零食乱斗篇</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctitle%3E%E9%A4%90%E7%9B%98%3C/title%3E%3Ccircle cx='32' cy='32' r='30' fill='%23704bd0'/%3E%3Cellipse cx='32' cy='35' rx='23' ry='15' fill='%23fff4d8' stroke='%23241832' stroke-width='4'/%3E%3Cpath d='M18 34h28M22 30q10-13 20 0' fill='none' stroke='%23ff5a4f' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M24 35h16' stroke='%23ffc940' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E">
-    <link rel="stylesheet" href="/static/styles.css">
-    <link rel="stylesheet" href="/static/character-reaction.css">
+    <meta name="theme-color" content="#f26c3d">
+    <title>开饭啦 · 料理派对</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctitle%3E%E9%A4%90%E7%9B%98%3C/title%3E%3Crect width='64' height='64' rx='18' fill='%23f26c3d'/%3E%3Cpath d='M16 35h32v7H16zm4-12q12-12 24 0v7H20z' fill='%23fff7df' stroke='%233a1d17' stroke-width='4'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="./home.css">
   </head>
   <body>
-    <div class="ambient ambient--one" aria-hidden="true"></div>
-    <div class="ambient ambient--two" aria-hidden="true"></div>
-    <main class="game-shell" id="app">
-      <section class="screen home-screen" aria-labelledby="game-title">
-        <p class="eyebrow">双人心理战 · 一局两分钟</p>
-        <div class="brand-mark" aria-hidden="true"><span>🍽️</span></div>
-        <h1 id="game-title">女巫的毒药</h1>
-        <p class="subtitle">零食乱斗篇</p>
-        <p class="tagline">同一盘公共零食，各自秘密埋伏。</p>
-        <div class="home-actions">
-          <button class="button button--practice" type="button" data-action="start-practice">
-            <span class="button__icon">🎮</span>
-            <span class="button__copy"><strong>单人练习</strong><small>立即对战电脑吃货</small></span>
-          </button>
-          <button class="button button--primary" type="button" data-action="quick-match">
-            <span class="button__icon">⚡</span><span>快速匹配</span>
-          </button>
-          <button class="button button--secondary" type="button" data-action="create-room">
-            <span class="button__icon">✦</span><span>邀请好友</span>
-          </button>
+    <main class="home-shell">
+      <header class="home-header">
+        <a class="brand" href="./index.html" aria-label="开饭啦主页">
+          <span class="brand__mark" aria-hidden="true"><i></i><b></b></span>
+          <span><strong>开饭啦</strong><small>料理派对</small></span>
+        </a>
+        <div class="player-chip" aria-label="当前为试玩厨房">
+          <span class="player-chip__face" aria-hidden="true">•ᴗ•</span>
+          <span><small>试玩厨房</small><strong>今日开张</strong></span>
         </div>
-        <form class="join-form" data-action="join-room">
-          <label for="room-code">已有房间码</label>
-          <div class="join-form__row">
-            <input id="room-code" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="输入 6 位数字" autocomplete="off" required>
-            <button class="button button--small" type="submit">加入</button>
-          </div>
-        </form>
+      </header>
+
+      <section class="home-hero" aria-labelledby="home-title">
+        <div class="home-hero__copy">
+          <p class="eyebrow"><span></span> 自由做菜，也能和朋友互坑</p>
+          <h1 id="home-title">今天想做<br><em>哪道料理？</em></h1>
+          <p>挑一家店开工。食材可以拿起、翻转、组合，最后做成只属于你的作品。</p>
+        </div>
+        <div class="hero-ticket" aria-hidden="true">
+          <span>今日菜单</span>
+          <strong>01</strong>
+          <small>家店营业中</small>
+        </div>
       </section>
+
+      <section class="map-section" aria-labelledby="map-title">
+        <div class="section-heading">
+          <div>
+            <p>选择料理地图</p>
+            <h2 id="map-title">我的小馆</h2>
+          </div>
+          <span>左右滑动看看</span>
+        </div>
+
+        <div class="map-grid">
+          <a class="map-card map-card--burger" data-map="burger" href="./cooking.html">
+            <div class="map-card__art" aria-hidden="true">
+              <span class="sun-glow"></span>
+              <span class="burger-art">
+                <i class="burger-art__bun burger-art__bun--top"></i>
+                <i class="burger-art__leaf"></i>
+                <i class="burger-art__tomato"></i>
+                <i class="burger-art__cheese"></i>
+                <i class="burger-art__patty"></i>
+                <i class="burger-art__bun burger-art__bun--bottom"></i>
+              </span>
+              <span class="counter-line"></span>
+            </div>
+            <div class="map-card__body">
+              <span class="status-pill status-pill--live">现在可玩</span>
+              <p>3D 自由组合 · 单人料理</p>
+              <h3>自由汉堡店</h3>
+              <span class="map-card__action">开始营业 <b aria-hidden="true">→</b></span>
+            </div>
+          </a>
+
+          <article class="map-card map-card--sushi" data-map="sushi" aria-disabled="true">
+            <div class="map-card__art" aria-hidden="true">
+              <span class="moon-glow"></span>
+              <span class="sushi-board"></span>
+              <span class="sushi-piece sushi-piece--one"><i></i></span>
+              <span class="sushi-piece sushi-piece--two"><i></i></span>
+              <span class="sushi-piece sushi-piece--three"><i></i></span>
+              <span class="lantern">鮨</span>
+            </div>
+            <div class="map-card__body">
+              <span class="status-pill">下一张地图</span>
+              <p>切配 · 卷制 · 摆盘</p>
+              <h3>深夜寿司店</h3>
+              <span class="map-card__action map-card__action--muted">正在备料</span>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="mode-panel" aria-labelledby="mode-title">
+        <div>
+          <p class="mode-panel__eyebrow">玩法模式</p>
+          <h2 id="mode-title">先把做菜手感做好</h2>
+          <p>当前开放自由料理；双人部署陷阱、互相试吃的“毒药玩法”会在料理框架稳定后加入。</p>
+        </div>
+        <span class="mode-panel__seal" aria-hidden="true">慢慢<br>开店</span>
+      </section>
+
+      <footer class="home-footer">
+        <span>开饭啦实验厨房</span>
+        <small>汉堡店 v0.2 · 寿司店筹备中</small>
+      </footer>
     </main>
-    <p class="toast" id="live-status" role="status" aria-live="polite"></p>
-    <script type="module" src="/static/app.js"></script>
   </body>
 </html>

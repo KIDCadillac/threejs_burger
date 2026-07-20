@@ -170,12 +170,39 @@ test("keeps full cooking orbit while allowing low, high, and close food inspecti
   assert.deepEqual(configuration.orbitLimits, {
     minYaw: -Math.PI,
     maxYaw: Math.PI,
-    minPitch: 0.12,
-    maxPitch: 1.45,
+    minPitch: 0.02,
+    maxPitch: 1.56,
     minDistance: 5,
     maxDistance: 45,
     wrapYaw: true,
   });
+  stage.dispose();
+});
+
+test("food focus shows only assembled burger layers and restores the full workbench and camera", () => {
+  const changes = [];
+  const { host, stage } = harness({ onChange: (detail) => changes.push(detail) });
+  stage.dropLayer("bottom-bun", { kind: "prep" });
+  stage.dropLayer("patty", { kind: "prep" });
+  const before = stage.controller.getCameraView();
+
+  assert.equal(stage.toggleBurgerFocus(), true);
+  assert.equal(stage.workbench.root.visible, false);
+  assert.equal(stage.burger.root.parent, host.scene);
+  assert.equal(stage.burger.getLayer("bottom-bun").visible, true);
+  assert.equal(stage.burger.getLayer("patty").visible, true);
+  assert.equal(stage.burger.getLayer("cheese").visible, false);
+  assert.equal(changes.at(-1).focused, true);
+  assert.notDeepEqual(stage.controller.getCameraView().target, before.target);
+
+  assert.equal(stage.toggleBurgerFocus(), false);
+  assert.equal(stage.workbench.root.visible, true);
+  assert.equal(stage.burger.root.parent, stage.workbench.root);
+  assert.ok(BURGER_LAYER_IDS.every((id) => stage.burger.getLayer(id).visible));
+  const restored = stage.controller.getCameraView();
+  assert.deepEqual(restored.target, before.target);
+  assert.ok(new THREE.Vector3(...restored.position).distanceTo(new THREE.Vector3(...before.position)) < 1e-9);
+  assert.equal(changes.at(-1).focused, false);
   stage.dispose();
 });
 
