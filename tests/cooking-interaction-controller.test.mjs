@@ -832,3 +832,225 @@ test("exposes programmatic pointer methods and resets the camera to its initial 
   controller.dispose();
   assert.equal(controller.resetCamera(), false);
 });
+
+test("applies the final pointer-up projection before resolving a valid drop", () => {
+  const canvas = createCanvas();
+  const camera = new THREE.PerspectiveCamera();
+  const layer = new THREE.Group();
+  layer.position.set(1, 2, 3);
+  const surface = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+  layer.add(surface);
+  const drops = [];
+  const resolverWorldPositions = [];
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    draggables: [{ id: "patty", object: layer, surfaces: [surface] }],
+    raycast: () => ({ object: surface, point: new THREE.Vector3() }),
+    projectToPrep: ({ clientX, clientY }) => new THREE.Vector3(clientX, 0, clientY),
+    resolveDrop: () => {
+      resolverWorldPositions.push(layer.getWorldPosition(new THREE.Vector3()).toArray());
+      return { valid: true };
+    },
+    onDrop: (detail) => drops.push(detail),
+  });
+
+  canvas.dispatch("pointerdown", pointer(31, 0, 0));
+  canvas.dispatch("pointerup", pointer(31, 5, 7));
+
+  assert.deepEqual(layer.position.toArray(), [6, 2, 10]);
+  assert.deepEqual(resolverWorldPositions, [[6, 2.35, 10]]);
+  assert.equal(drops.length, 1);
+  assert.deepEqual(drops[0].point, { x: 5, y: 0, z: 7 });
+  assert.deepEqual(canvas.released, [31]);
+  controller.dispose();
+});
+
+test("rolls pointer-down back transactionally when initialization callbacks throw", () => {
+  for (const stage of ["raycast", "projection", "selection", "pick"]) {
+    const canvas = createCanvas();
+    const camera = new THREE.PerspectiveCamera();
+    const layer = new THREE.Group();
+    layer.position.set(1, 2, 3);
+    layer.rotation.set(0.2, -0.4, 0.1);
+    layer.scale.set(1.2, 0.8, 1.1);
+    const priorSelectionFlag = layer.userData.cookingInteractionSelected;
+    const surface = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+    layer.add(surface);
+    const prior = {
+      position: layer.position.toArray(),
+      quaternion: layer.quaternion.toArray(),
+      scale: layer.scale.toArray(),
+    };
+    const expected = new Error(`${stage} failed`);
+    const controller = createCookingInteractionController({
+      THREE,
+      canvas,
+      camera,
+      draggables: [{ id: "patty", object: layer, surfaces: [surface] }],
+      raycast: () => {
+        if (stage === "raycast") throw expected;
+        return { object: surface, point: new THREE.Vector3() };
+      },
+      projectToPrep: () => {
+        if (stage === "projection") throw expected;
+        return new THREE.Vector3();
+      },
+      onSelection: ({ selected }) => {
+        if (selected && stage === "selection") throw expected;
+      },
+      onPick: () => {
+        if (stage === "pick") throw expected;
+      },
+    });
+
+    assert.throws(
+      () => canvas.dispatch("pointerdown", pointer(32, 0, 0)),
+      (error) => error === expected,
+      stage,
+    );
+    assert.equal(controller.getState(), "idle", `${stage}: state`);
+    assert.equal(controller.getSelectedId(), null, `${stage}: selection`);
+    assert.deepEqual([...canvas.captured], [], `${stage}: capture`);
+    assert.deepEqual(canvas.released, [32], `${stage}: released`);
+    assert.deepEqual(layer.position.toArray(), prior.position, `${stage}: position`);
+    assert.deepEqual(layer.quaternion.toArray(), prior.quaternion, `${stage}: rotation`);
+    assert.deepEqual(layer.scale.toArray(), prior.scale, `${stage}: scale`);
+    assert.equal(
+      layer.userData.cookingInteractionSelected, priorSelectionFlag, `${stage}: selection flag`,
+    );
+    controller.dispose();
+  }
+});
+
+test("does not start a stale drag when selection unregisters the picked layer", () => {
+  const canvas = createCanvas();
+  const camera = new THREE.PerspectiveCamera();
+  const layer = new THREE.Group();
+  layer.position.set(1, 2, 3);
+  const surface = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+  layer.add(surface);
+  const invalid = [];
+  let controller;
+  controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    draggables: [{ id: "patty", object: layer, surfaces: [surface] }],
+    raycast: () => ({ object: surface, point: new THREE.Vector3() }),
+    projectToPrep: () => new THREE.Vector3(),
+    onSelection: ({ id, selected }) => {
+      if (selected) controller.unregisterDraggable(id);
+    },
+    onInvalid: (detail) => invalid.push(detail),
+  });
+
+  canvas.dispatch("pointerdown", pointer(33, 0, 0));
+
+  assert.equal(controller.getState(), "idle");
+  assert.equal(controller.getSelectedId(), null);
+  assert.equal(controller.unregisterDraggable("patty"), false);
+  assert.deepEqual(layer.position.toArray(), [1, 2, 3]);
+  assert.equal(layer.userData.cookingInteractionSelected, false);
+  assert.deepEqual([...canvas.captured], []);
+  assert.deepEqual(canvas.released, [33]);
+  assert.equal(invalid.length, 1);
+  assert.equal(invalid[0].reason, "unregistered");
+  controller.dispose();
+});
+
+test("dispose removes every listener even when mandatory cancellation observers throw", () => {
+  for (const failureStage of ["invalid", "selection"]) {
+    const canvas = createCanvas();
+    const documentTarget = new FakeEventTarget();
+    documentTarget.hidden = false;
+    const camera = new THREE.PerspectiveCamera();
+    const layer = new THREE.Group();
+    const surface = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+    layer.add(surface);
+    const expected = new Error(`${failureStage} observer failed`);
+    let controller;
+    controller = createCookingInteractionController({
+      THREE,
+      canvas,
+      camera,
+      documentTarget,
+      draggables: [{ id: "patty", object: layer, surfaces: [surface] }],
+      raycast: () => ({ object: surface, point: new THREE.Vector3() }),
+      projectToPrep: () => new THREE.Vector3(),
+      onInvalid: () => {
+        if (failureStage === "invalid") throw expected;
+        controller.unregisterDraggable("patty");
+      },
+      onSelection: ({ selected }) => {
+        if (!selected && failureStage === "selection") throw expected;
+      },
+    });
+    const canvasEvents = [
+      "pointerdown", "pointermove", "pointerup", "pointercancel", "lostpointercapture",
+      "webglcontextlost", "webglcontextrestored",
+    ];
+    canvas.dispatch("pointerdown", pointer(34, 0, 0));
+
+    assert.throws(() => controller.dispose(), (error) => error === expected, failureStage);
+
+    assert.equal(controller.getState(), "idle", `${failureStage}: state`);
+    assert.deepEqual([...canvas.captured], [], `${failureStage}: capture`);
+    assert.deepEqual(canvas.released, [34], `${failureStage}: released`);
+    assert.ok(canvasEvents.every((type) => canvas.listenerCount(type) === 0), failureStage);
+    assert.equal(documentTarget.listenerCount("visibilitychange"), 0, failureStage);
+    assert.doesNotThrow(() => controller.dispose(), `${failureStage}: idempotent`);
+  }
+});
+
+test("settles an unanchored drop at its exact world target under a transformed parent", () => {
+  const canvas = createCanvas();
+  const camera = new THREE.PerspectiveCamera();
+  const scene = new THREE.Scene();
+  const parent = new THREE.Group();
+  parent.position.set(4, -2, 6);
+  parent.rotation.set(0.4, -0.7, 0.25);
+  parent.scale.set(2, 0.5, 1.5);
+  const layer = new THREE.Group();
+  layer.position.set(1, 2, 3);
+  const surface = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+  layer.add(surface);
+  parent.add(layer);
+  scene.add(parent);
+  scene.updateMatrixWorld(true);
+  const startWorld = layer.getWorldPosition(new THREE.Vector3());
+  const expectedWorld = startWorld.clone().add(new THREE.Vector3(5, 0, 7));
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    draggables: [{ id: "patty", object: layer, surfaces: [surface] }],
+    raycast: () => ({ object: surface, point: new THREE.Vector3() }),
+    projectToPrep: ({ clientX, clientY }) => new THREE.Vector3(clientX, 0, clientY),
+    dragLift: 0.8,
+  });
+
+  canvas.dispatch("pointerdown", pointer(35, 0, 0));
+  canvas.dispatch("pointerup", pointer(35, 5, 7));
+  scene.updateMatrixWorld(true);
+
+  const settledWorld = layer.getWorldPosition(new THREE.Vector3());
+  assert.ok(settledWorld.distanceTo(expectedWorld) < 1e-9, [
+    `expected ${expectedWorld.toArray().join(",")}`,
+    `received ${settledWorld.toArray().join(",")}`,
+  ].join("; "));
+  controller.dispose();
+});
+
+test("rejects a parented camera because orbit math is defined in world space", () => {
+  const canvas = createCanvas();
+  const cameraParent = new THREE.Group();
+  const camera = new THREE.PerspectiveCamera();
+  cameraParent.add(camera);
+
+  assert.throws(
+    () => createCookingInteractionController({ THREE, canvas, camera }),
+    /camera must not be parented/i,
+  );
+});

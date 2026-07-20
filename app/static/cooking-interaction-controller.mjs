@@ -138,6 +138,9 @@ export function createCookingInteractionController({
   }
   requireEventTarget(canvas, "canvas");
   requireObject3D(camera, "camera");
+  if (camera.parent) {
+    throw new TypeError("camera must not be parented; cooking orbit math uses world coordinates");
+  }
   if (documentTarget !== undefined && documentTarget !== null) {
     requireEventTarget(documentTarget, "documentTarget");
   }
@@ -178,6 +181,10 @@ export function createCookingInteractionController({
   const raycaster = new THREE.Raycaster();
   const pointerNdc = new THREE.Vector2();
   const prepPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -normalizedPrepPlaneY);
+  const projectedScratch = new THREE.Vector3();
+  const worldScratch = new THREE.Vector3();
+  const localScratch = new THREE.Vector3();
+  const desiredScratch = new THREE.Vector3();
   let surfaces = [];
   const baseSurfaces = new Set();
   const draggableBySurface = new Map();
@@ -192,6 +199,7 @@ export function createCookingInteractionController({
   let documentHidden = Boolean(documentTarget?.hidden);
   let contextLost = false;
   let explicitlyPaused = false;
+  let mutationEpoch = 0;
 
   const validateSurface = (surface) => {
     requireObject3D(surface, "selectable surface");
@@ -208,6 +216,7 @@ export function createCookingInteractionController({
     baseSurfaces.clear();
     validated.forEach((surface) => baseSurfaces.add(surface));
     rebuildSurfaces();
+    mutationEpoch += 1;
   };
 
   const registerRecord = (record) => {
@@ -239,6 +248,7 @@ export function createCookingInteractionController({
     draggableById.set(record.id, stored);
     for (const surface of validatedSurfaces) draggableBySurface.set(surface, stored);
     rebuildSurfaces();
+    mutationEpoch += 1;
     return stored;
   };
 
@@ -270,23 +280,23 @@ export function createCookingInteractionController({
       : defaultHitTest(event)
   );
 
-  const projectedPoint = (event) => {
+  const projectedPoint = (event, output = new THREE.Vector3()) => {
     const point = projectToPrep
       ? projectToPrep(event)
-      : setPointerRay(event) && raycaster.ray.intersectPlane(prepPlane, new THREE.Vector3());
+      : setPointerRay(event) && raycaster.ray.intersectPlane(prepPlane, output);
     if (!point || ![point.x, point.y ?? 0, point.z].every(Number.isFinite)) return null;
-    return new THREE.Vector3(point.x, point.y ?? 0, point.z);
+    return output.set(point.x, point.y ?? 0, point.z);
   };
 
-  const worldPosition = (object) => {
+  const worldPosition = (object, output = new THREE.Vector3()) => {
     object.updateWorldMatrix?.(true, false);
-    return object.getWorldPosition(new THREE.Vector3());
+    return object.getWorldPosition(output);
   };
 
   const setWorldPosition = (object, position) => {
-    const local = position.clone();
-    object.parent?.worldToLocal(local);
-    object.position.copy(local);
+    localScratch.copy(position);
+    object.parent?.worldToLocal(localScratch);
+    object.position.copy(localScratch);
   };
 
   const insidePrep = (point) => !normalizedPrepBounds || (
@@ -367,48 +377,140 @@ export function createCookingInteractionController({
     state = "pinching";
   };
 
-  const handlePointerDown = (event) => {
-    if (disposed || documentHidden || contextLost || explicitlyPaused) return;
-    const point = pointerCoordinates(event);
-    if (activePointers.has(event.pointerId) || activePointers.size >= 2) return;
-    activePointers.set(event.pointerId, point);
-    canvas.setPointerCapture?.(event.pointerId);
-    event.preventDefault?.();
-    if (activePointers.size === 2) {
-      beginPinch();
-      return;
+  const selectionFlagSnapshot = (record) => record && ({
+    record,
+    hadFlag: Object.hasOwn(record.object.userData, "cookingInteractionSelected"),
+    value: record.object.userData.cookingInteractionSelected,
+  });
+
+  const restoreSelectionFlag = (snapshot) => {
+    if (!snapshot) return;
+    if (snapshot.hadFlag) {
+      snapshot.record.object.userData.cookingInteractionSelected = snapshot.value;
+    } else {
+      delete snapshot.record.object.userData.cookingInteractionSelected;
     }
-    const hit = hitTest(event);
-    const draggable = hit
-      ? (draggableBySurface.get(hit.object) ?? implicitDraggable(hit.object))
-      : null;
-    if (draggable) {
-      select(draggable);
-      state = "dragging-layer";
-      const startProjection = projectedPoint(event);
-      const startWorld = worldPosition(draggable.object);
-      dragSession = {
-        pointerId: event.pointerId,
-        draggable,
-        snapshot: snapshotTransform(draggable.object),
-        startProjection,
-        startWorld,
-        lastProjection: startProjection?.clone() ?? null,
-      };
-      setWorldPosition(
-        draggable.object,
-        startWorld.clone().setY(startWorld.y + normalizedDragLift),
-      );
-      onPick(Object.freeze({
+  };
+
+  const rollbackSelection = (previousSnapshot, candidateSnapshot) => {
+    if (candidateSnapshot?.record.object !== previousSnapshot?.record.object) {
+      restoreSelectionFlag(candidateSnapshot);
+    }
+    selected = previousSnapshot?.record ?? null;
+    restoreSelectionFlag(previousSnapshot);
+  };
+
+  const releaseCapture = (pointerId) => {
+    if (canvas.hasPointerCapture?.(pointerId)) canvas.releasePointerCapture?.(pointerId);
+  };
+
+  const cancelGesture = (reason, error = null) => {
+    const pointerIds = [...activePointers.keys()];
+    const cancelledDrag = dragSession;
+    activePointers.clear();
+    dragSession = null;
+    orbitSession = null;
+    pinchSession = null;
+    state = "idle";
+    mutationEpoch += 1;
+    let invalidDetail = null;
+    if (cancelledDrag) {
+      const { draggable, snapshot } = cancelledDrag;
+      restoreTransform(draggable.object, snapshot);
+      invalidDetail = Object.freeze({
         id: draggable.id,
         object: draggable.object,
-        surface: hit.object,
-        point: hit.point.clone(),
-        metadata: hit.object.userData?.cookingSelectable ?? null,
-      }));
-    } else {
-      state = "orbiting";
-      orbitSession = { pointerId: event.pointerId, last: point };
+        reason,
+        ...(error ? { error } : {}),
+        restoredPose: detachedPose(draggable.object),
+      });
+    }
+    for (const pointerId of pointerIds) releaseCapture(pointerId);
+    if (invalidDetail) onInvalid(invalidDetail);
+  };
+
+  const handlePointerDown = (event) => {
+    if (disposed || documentHidden || contextLost || explicitlyPaused) return;
+    if (camera.parent) {
+      throw new TypeError("camera must not be parented; cooking orbit math uses world coordinates");
+    }
+    const previousSelection = selectionFlagSnapshot(selected);
+    let candidateSelection = null;
+    let transactionSession = null;
+    try {
+      const point = pointerCoordinates(event);
+      if (activePointers.has(event.pointerId) || activePointers.size >= 2) return;
+      activePointers.set(event.pointerId, point);
+      canvas.setPointerCapture?.(event.pointerId);
+      event.preventDefault?.();
+      if (activePointers.size === 2) {
+        beginPinch();
+        return;
+      }
+      const hit = hitTest(event);
+      const draggable = hit
+        ? (draggableBySurface.get(hit.object) ?? implicitDraggable(hit.object))
+        : null;
+      if (draggable) {
+        const startProjectionValue = projectedPoint(event, projectedScratch);
+        const startProjection = startProjectionValue?.clone() ?? null;
+        const startWorld = worldPosition(draggable.object, worldScratch).clone();
+        transactionSession = {
+          pointerId: event.pointerId,
+          draggable,
+          snapshot: snapshotTransform(draggable.object),
+          startProjection,
+          startWorld,
+          settleWorldY: startWorld.y,
+          lastProjection: startProjection?.clone() ?? null,
+          epoch: mutationEpoch,
+        };
+        dragSession = transactionSession;
+        state = "dragging-layer";
+        candidateSelection = selectionFlagSnapshot(draggable);
+        select(draggable);
+        if (disposed || dragSession !== transactionSession || state !== "dragging-layer"
+          || !activePointers.has(event.pointerId)
+          || transactionSession.epoch !== mutationEpoch) {
+          if (dragSession === transactionSession) cancelGesture("interaction-mutated");
+          return;
+        }
+        desiredScratch.copy(startWorld);
+        desiredScratch.y += normalizedDragLift;
+        setWorldPosition(draggable.object, desiredScratch);
+        onPick(Object.freeze({
+          id: draggable.id,
+          object: draggable.object,
+          surface: hit.object,
+          point: hit.point.clone(),
+          metadata: hit.object.userData?.cookingSelectable ?? null,
+        }));
+        if (disposed || dragSession !== transactionSession || state !== "dragging-layer"
+          || !activePointers.has(event.pointerId)
+          || transactionSession.epoch !== mutationEpoch) {
+          if (dragSession === transactionSession) cancelGesture("interaction-mutated");
+        }
+      } else {
+        state = "orbiting";
+        orbitSession = { pointerId: event.pointerId, last: point };
+      }
+    } catch (error) {
+      try {
+        if (transactionSession && dragSession === transactionSession) {
+          cancelGesture("pointer-down-error", error);
+        } else {
+          activePointers.delete(event.pointerId);
+          orbitSession = null;
+          pinchSession = null;
+          if (!activePointers.size) state = "idle";
+          releaseCapture(event.pointerId);
+        }
+      } catch {
+        // The initiating error remains primary; cancellation already cleared internal state.
+      } finally {
+        rollbackSelection(previousSelection, candidateSelection);
+      }
+      throw error;
     }
   };
 
@@ -452,48 +554,20 @@ export function createCookingInteractionController({
       return;
     }
     if (state !== "dragging-layer" || dragSession?.pointerId !== event.pointerId) return;
-    const point = projectedPoint(event);
+    const point = projectedPoint(event, projectedScratch);
     if (!point || !dragSession.startProjection) return;
-    dragSession.lastProjection = point.clone();
-    const desired = dragSession.startWorld.clone();
-    desired.x += point.x - dragSession.startProjection.x;
-    desired.z += point.z - dragSession.startProjection.z;
-    desired.y += normalizedDragLift;
-    setWorldPosition(dragSession.draggable.object, desired);
+    dragSession.lastProjection?.copy(point);
+    desiredScratch.copy(dragSession.startWorld);
+    desiredScratch.x += point.x - dragSession.startProjection.x;
+    desiredScratch.z += point.z - dragSession.startProjection.z;
+    desiredScratch.y += normalizedDragLift;
+    setWorldPosition(dragSession.draggable.object, desiredScratch);
     onMove(Object.freeze({
       id: dragSession.draggable.id,
       object: dragSession.draggable.object,
       point: Object.freeze({ x: point.x, y: point.y, z: point.z }),
       pose: detachedPose(dragSession.draggable.object),
     }));
-  };
-
-  const releaseCapture = (pointerId) => {
-    if (canvas.hasPointerCapture?.(pointerId)) canvas.releasePointerCapture?.(pointerId);
-  };
-
-  const cancelGesture = (reason, error = null) => {
-    const pointerIds = [...activePointers.keys()];
-    const cancelledDrag = dragSession;
-    activePointers.clear();
-    dragSession = null;
-    orbitSession = null;
-    pinchSession = null;
-    state = "idle";
-    let invalidDetail = null;
-    if (cancelledDrag) {
-      const { draggable, snapshot } = cancelledDrag;
-      restoreTransform(draggable.object, snapshot);
-      invalidDetail = Object.freeze({
-        id: draggable.id,
-        object: draggable.object,
-        reason,
-        ...(error ? { error } : {}),
-        restoredPose: detachedPose(draggable.object),
-      });
-    }
-    for (const pointerId of pointerIds) releaseCapture(pointerId);
-    if (invalidDetail) onInvalid(invalidDetail);
   };
 
   const invalidateDrag = (reason, error = null) => {
@@ -504,17 +578,28 @@ export function createCookingInteractionController({
   const unregisterRecord = (id) => {
     const record = draggableById.get(id);
     if (!record) return false;
-    if (dragSession?.draggable === record) {
-      invalidateDrag("unregistered");
+    let firstError = null;
+    try {
+      if (dragSession?.draggable === record) invalidateDrag("unregistered");
+    } catch (error) {
+      firstError = error;
+    } finally {
+      draggableById.delete(id);
+      for (const surface of record.surfaces) draggableBySurface.delete(surface);
+      rebuildSurfaces();
+      mutationEpoch += 1;
     }
-    draggableById.delete(id);
-    for (const surface of record.surfaces) draggableBySurface.delete(surface);
-    rebuildSurfaces();
     if (selected?.object === record.object) {
-      selected.object.userData.cookingInteractionSelected = false;
-      onSelection(Object.freeze({ id: selected.id, object: selected.object, selected: false }));
+      const deselected = selected;
+      deselected.object.userData.cookingInteractionSelected = false;
       selected = null;
+      try {
+        onSelection(Object.freeze({ id: deselected.id, object: deselected.object, selected: false }));
+      } catch (error) {
+        firstError ??= error;
+      }
     }
+    if (firstError) throw firstError;
     return true;
   };
 
@@ -596,7 +681,7 @@ export function createCookingInteractionController({
         });
         dragSession.lastProjection = dragSession.startProjection?.clone() ?? null;
         dragSession.startWorld = worldPosition(dragSession.draggable.object);
-        dragSession.startWorld.y -= normalizedDragLift;
+        dragSession.startWorld.y = dragSession.settleWorldY;
       } else {
         state = "orbiting";
         orbitSession = { pointerId, last: { ...coordinates } };
@@ -614,15 +699,23 @@ export function createCookingInteractionController({
     const { draggable, snapshot, startWorld } = dragSession;
     let pointerUpProjection;
     try {
-      pointerUpProjection = projectedPoint(event);
+      pointerUpProjection = projectedPoint(event, projectedScratch);
     } catch (error) {
       invalidateDrag("outside-prep", error);
       return;
     }
-    dragSession.lastProjection = pointerUpProjection?.clone() ?? null;
+    if (pointerUpProjection) dragSession.lastProjection?.copy(pointerUpProjection);
+    else dragSession.lastProjection = null;
     if (!pointerUpProjection || !insidePrep(pointerUpProjection)) {
       invalidateDrag("outside-prep");
       return;
+    }
+    if (dragSession.startProjection) {
+      desiredScratch.copy(startWorld);
+      desiredScratch.x += pointerUpProjection.x - dragSession.startProjection.x;
+      desiredScratch.z += pointerUpProjection.z - dragSession.startProjection.z;
+      desiredScratch.y += normalizedDragLift;
+      setWorldPosition(draggable.object, desiredScratch);
     }
     const context = Object.freeze({
       id: draggable.id,
@@ -652,10 +745,13 @@ export function createCookingInteractionController({
       if (resolution.anchorPosition) {
         targetPosition = localDropPosition(draggable.object, resolution.anchorPosition);
       } else {
-        const settledWorld = worldPosition(draggable.object);
-        settledWorld.y = startWorld.y;
-        targetPosition = localDropPosition(draggable.object, settledWorld);
-        targetPosition.y = snapshot.position.y;
+        desiredScratch.copy(startWorld);
+        desiredScratch.y = dragSession.settleWorldY;
+        if (dragSession.startProjection) {
+          desiredScratch.x += pointerUpProjection.x - dragSession.startProjection.x;
+          desiredScratch.z += pointerUpProjection.z - dragSession.startProjection.z;
+        }
+        targetPosition = localDropPosition(draggable.object, desiredScratch);
       }
     } catch (error) {
       invalidateDrag("drop-resolution-error", error);
@@ -786,19 +882,36 @@ export function createCookingInteractionController({
     },
     dispose() {
       if (disposed) return;
-      cancelGesture("disposed");
       disposed = true;
-      state = "idle";
-      canvas.removeEventListener("pointerdown", handlePointerDown);
-      canvas.removeEventListener("pointermove", handlePointerMove);
-      canvas.removeEventListener("pointerup", handlePointerUp);
-      canvas.removeEventListener("pointercancel", handlePointerCancel);
-      canvas.removeEventListener("lostpointercapture", handleLostPointerCapture);
-      canvas.removeEventListener("webglcontextlost", handleContextLost);
-      canvas.removeEventListener("webglcontextrestored", handleContextRestored);
-      documentTarget?.removeEventListener?.("visibilitychange", handleVisibilityChange);
-      if (selected) selected.object.userData.cookingInteractionSelected = false;
-      selected = null;
+      let firstError = null;
+      try {
+        cancelGesture("disposed");
+      } catch (error) {
+        firstError = error;
+      } finally {
+        state = "idle";
+        canvas.removeEventListener("pointerdown", handlePointerDown);
+        canvas.removeEventListener("pointermove", handlePointerMove);
+        canvas.removeEventListener("pointerup", handlePointerUp);
+        canvas.removeEventListener("pointercancel", handlePointerCancel);
+        canvas.removeEventListener("lostpointercapture", handleLostPointerCapture);
+        canvas.removeEventListener("webglcontextlost", handleContextLost);
+        canvas.removeEventListener("webglcontextrestored", handleContextRestored);
+        documentTarget?.removeEventListener?.("visibilitychange", handleVisibilityChange);
+      }
+      if (selected) {
+        const deselected = selected;
+        deselected.object.userData.cookingInteractionSelected = false;
+        selected = null;
+        try {
+          onSelection(Object.freeze({
+            id: deselected.id, object: deselected.object, selected: false,
+          }));
+        } catch (error) {
+          firstError ??= error;
+        }
+      }
+      if (firstError) throw firstError;
     },
   };
 }
