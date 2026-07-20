@@ -26,7 +26,7 @@ import {
 } from "./cooking-tutorial-state.mjs";
 
 const LAYER_PRESENTATION_SCALE = 0.72;
-const STACK_GAP = 0.065;
+const STACK_OVERLAP = 0.025;
 const EXPLODED_GAP = 0.42;
 const SNAP_DURATION = 190;
 
@@ -208,15 +208,15 @@ export function createSoloCookingStage({
     if (tutorial !== previous) emit("tutorial");
   };
 
-  const targetTransforms = () => {
+  const targetTransforms = (assembledOrder = state.assembledOrder) => {
     workbench.root.updateMatrixWorld?.(true);
     burger.root.updateMatrixWorld?.(true);
     const result = new Map();
     let cursorY = workbench.prep.dropAnchor.position.y;
-    state.assembledOrder.forEach((layerId, index) => {
+    assembledOrder.forEach((layerId, index) => {
       const layer = burger.getLayer(layerId);
-      const halfHeight = layer.userData.halfHeight;
-      const y = cursorY + halfHeight + (expanded ? index * EXPLODED_GAP : 0);
+      const scaledHalfHeight = layer.userData.halfHeight * LAYER_PRESENTATION_SCALE;
+      const y = cursorY + scaledHalfHeight + (expanded ? index * EXPLODED_GAP : 0);
       result.set(layerId, {
         position: new THREE.Vector3(0, y, 0),
         scale: new THREE.Vector3(
@@ -226,7 +226,7 @@ export function createSoloCookingStage({
         ),
         yaw: state.rotations[layerId],
       });
-      cursorY += halfHeight * 2 + STACK_GAP;
+      cursorY += scaledHalfHeight * 2 - STACK_OVERLAP;
     });
     for (const layerId of BURGER_LAYER_IDS) {
       if (result.has(layerId)) continue;

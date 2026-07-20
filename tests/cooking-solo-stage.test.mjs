@@ -71,6 +71,14 @@ const sampleStroke = (sauce, layerId = "patty") => ({
   points: [[-0.5, -0.2], [0.5, 0.2]],
 });
 
+function visibleLayerInterval(layer) {
+  const scaledHalfHeight = layer.userData.halfHeight * layer.scale.y;
+  return {
+    bottom: layer.position.y - scaledHalfHeight,
+    top: layer.position.y + scaledHalfHeight,
+  };
+}
+
 test("integrates one real Three scene, workbench, burger, bottles, and controller", () => {
   const { host, stage, controllerCount } = harness();
 
@@ -253,6 +261,21 @@ test("keeps one food scale before, during, and after plate snapping", () => {
   stage.dropLayer("patty", { kind: "bin" });
   stage.tick(380);
   assert.deepEqual(layer.scale.toArray(), expected, "returning home also preserves size");
+  stage.dispose();
+});
+
+test("stacks all seven scaled layers in visible contact without cumulative air gaps", () => {
+  const { stage } = harness({ reducedMotion: true });
+  BURGER_LAYER_IDS.forEach((id) => stage.dropLayer(id, { kind: "prep" }));
+
+  const intervals = stage.getState().assembledOrder.map((id) => (
+    visibleLayerInterval(stage.burger.getLayer(id))
+  ));
+  for (let index = 1; index < intervals.length; index += 1) {
+    const gap = intervals[index].bottom - intervals[index - 1].top;
+    assert.ok(gap <= 1e-9, `layer ${index} must not float by ${gap}`);
+    assert.ok(gap >= -0.04, `layer ${index} must not sink excessively by ${gap}`);
+  }
   stage.dispose();
 });
 
