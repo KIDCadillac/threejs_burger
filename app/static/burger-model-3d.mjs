@@ -6,6 +6,17 @@ const MAX_POINTS = 24;
 const COLLAPSED_OVERLAP = 0.035;
 const EXPANDED_GAP = 0.42;
 const NO_RAYCAST = () => {};
+const COMPOSITION_KEYS = Object.freeze(["food", "layerOrder", "layerPoses", "strokes"]);
+const POSE_KEYS = Object.freeze(["x", "z", "yaw"]);
+const STROKE_KEYS = Object.freeze(["sauce", "layerId", "amount", "points"]);
+const CHEESE_PERIMETER = Object.freeze([
+  Object.freeze([-0.96, -0.83, true]), Object.freeze([-0.32, -1.03, false]),
+  Object.freeze([0.32, -1.03, false]), Object.freeze([0.96, -0.83, true]),
+  Object.freeze([1.04, -0.28, false]), Object.freeze([1.01, 0.3, false]),
+  Object.freeze([0.84, 0.96, true]), Object.freeze([0.28, 1.02, false]),
+  Object.freeze([-0.3, 1.02, false]), Object.freeze([-0.88, 0.93, true]),
+  Object.freeze([-1.04, 0.3, false]), Object.freeze([-1.03, -0.28, false]),
+]);
 
 const SAUCE_COLORS = Object.freeze({
   chili: 0xc72f21,
@@ -50,6 +61,17 @@ function assertPermutation(order) {
   }
 }
 
+function assertExactKeys(value, expected, label) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError(`${label} must be an object`);
+  }
+  const keys = Object.keys(value);
+  if (keys.length !== expected.length || keys.some((key) => !expected.includes(key))) {
+    throw new TypeError(`${label} contains invalid fields`);
+  }
+  return value;
+}
+
 function createReadonlyMapView(source) {
   const view = {
     get size() {
@@ -81,9 +103,7 @@ function createReadonlyMapView(source) {
 }
 
 function validateStroke(stroke) {
-  if (!stroke || typeof stroke !== "object" || Array.isArray(stroke)) {
-    throw new TypeError("Sauce stroke must be an object");
-  }
+  assertExactKeys(stroke, STROKE_KEYS, "Sauce stroke");
   if (!SAUCE_KEYS.includes(stroke.sauce)) {
     throw new TypeError(`Unknown sauce: ${String(stroke.sauce)}`);
   }
@@ -115,12 +135,7 @@ function validateStroke(stroke) {
 }
 
 function createCheeseGeometry(THREE) {
-  const perimeter = [
-    [-0.96, -0.83, true], [-0.32, -1.03, false], [0.32, -1.03, false],
-    [0.96, -0.83, true], [1.04, -0.28, false], [1.01, 0.3, false],
-    [0.84, 0.96, true], [0.28, 1.02, false], [-0.3, 1.02, false],
-    [-0.88, 0.93, true], [-1.04, 0.3, false], [-1.03, -0.28, false],
-  ];
+  const perimeter = CHEESE_PERIMETER;
   const positions = [];
   for (const [x, z, corner] of perimeter) positions.push(x, corner ? -0.08 : 0.09, z);
   for (const [x, z, corner] of perimeter) positions.push(x, corner ? -0.3 : -0.09, z);
@@ -149,9 +164,9 @@ function createLettuceGeometry(THREE) {
   const indices = [];
   for (let index = 0; index < segments; index += 1) {
     const angle = (index / segments) * Math.PI * 2;
-    const outerRadius = 1.16 + 0.12 * Math.sin(index * 2.65) + 0.05 * Math.cos(index * 4.1);
-    const innerRadius = 0.34 + 0.035 * Math.cos(index * 1.9);
-    const wave = 0.035 * Math.sin(index * 2.4);
+    const outerRadius = 1.16 + 0.12 * Math.sin(angle * 7) + 0.05 * Math.cos(angle * 11);
+    const innerRadius = 0.34 + 0.035 * Math.cos(angle * 5);
+    const wave = 0.035 * Math.sin(angle * 6);
     const cos = Math.cos(angle);
     const sin = Math.sin(angle);
     positions.push(outerRadius * cos, 0.07 + wave, outerRadius * sin);
@@ -258,6 +273,61 @@ function createSesameDecoration(THREE, material) {
   return seeds;
 }
 
+function polygonBoundaryRadius(perimeter, directionX, directionZ) {
+  let nearest = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < perimeter.length; index += 1) {
+    const [ax, az] = perimeter[index];
+    const [bx, bz] = perimeter[(index + 1) % perimeter.length];
+    const edgeX = bx - ax;
+    const edgeZ = bz - az;
+    const cross = directionX * edgeZ - directionZ * edgeX;
+    if (Math.abs(cross) < 1e-8) continue;
+    const rayDistance = (ax * edgeZ - az * edgeX) / cross;
+    const edgeDistance = (ax * directionZ - az * directionX) / cross;
+    if (rayDistance >= 0 && edgeDistance >= 0 && edgeDistance <= 1) {
+      nearest = Math.min(nearest, rayDistance);
+    }
+  }
+  if (!Number.isFinite(nearest)) throw new Error("Food footprint is not star-shaped");
+  return nearest;
+}
+
+function lettuceOuterRadius(angle) {
+  return 1.16 + 0.12 * Math.sin(angle * 7) + 0.05 * Math.cos(angle * 11);
+}
+
+function lettuceInnerRadius(angle) {
+  return 0.34 + 0.035 * Math.cos(angle * 5);
+}
+
+function footprintBoundary(profile, angle) {
+  if (profile.kind === "disc") return profile.radius;
+  if (profile.kind === "polygon") {
+    return polygonBoundaryRadius(profile.perimeter, Math.cos(angle), Math.sin(angle));
+  }
+  if (profile.kind === "annulus") return lettuceOuterRadius(angle);
+  throw new Error(`Unknown food footprint: ${profile.kind}`);
+}
+
+function clampLocalFootprint(profile, x, z) {
+  const angle = Math.hypot(x, z) < 1e-8 ? 0 : Math.atan2(z, x);
+  const directionX = Math.cos(angle);
+  const directionZ = Math.sin(angle);
+  const outer = footprintBoundary(profile, angle) * profile.margin;
+  const inner = profile.kind === "annulus" ? lettuceInnerRadius(angle) + 0.035 : 0;
+  const distance = Math.min(outer, Math.max(inner, Math.hypot(x, z)));
+  return [directionX * distance, directionZ * distance];
+}
+
+function projectNormalizedFootprint(profile, normalizedX, normalizedZ) {
+  const normalizedDistance = Math.min(1, Math.hypot(normalizedX, normalizedZ));
+  const angle = normalizedDistance < 1e-8 ? 0 : Math.atan2(normalizedZ, normalizedX);
+  const outer = footprintBoundary(profile, angle) * profile.margin;
+  const inner = profile.kind === "annulus" ? lettuceInnerRadius(angle) + 0.035 : 0;
+  const distance = inner + normalizedDistance * (outer - inner);
+  return [Math.cos(angle) * distance, Math.sin(angle) * distance];
+}
+
 function buildLayerDefinitions(THREE) {
   const bunMaterial = makeMaterial(THREE, {
     color: 0xd98a36,
@@ -298,13 +368,34 @@ function buildLayerDefinitions(THREE) {
   const topBun = createBunGeometry(THREE, true);
   return {
     definitions: [
-      { id: "bottom-bun", geometry: bottomBun, material: bunMaterial },
-      { id: "patty", geometry: patty, material: pattyMaterial },
-      { id: "cheese", geometry: cheese, material: cheeseMaterial },
-      { id: "tomato", geometry: tomato, material: tomatoMaterial },
-      { id: "lettuce", geometry: lettuce, material: lettuceMaterial },
-      { id: "pickle", geometry: pickle, material: pickleMaterial },
-      { id: "top-bun", geometry: topBun, material: bunMaterial },
+      {
+        id: "bottom-bun", geometry: bottomBun, material: bunMaterial,
+        footprint: Object.freeze({ kind: "disc", radius: 1.22, margin: 0.88 }),
+      },
+      {
+        id: "patty", geometry: patty, material: pattyMaterial,
+        footprint: Object.freeze({ kind: "disc", radius: 1.15, margin: 0.88 }),
+      },
+      {
+        id: "cheese", geometry: cheese, material: cheeseMaterial,
+        footprint: Object.freeze({ kind: "polygon", perimeter: CHEESE_PERIMETER, margin: 0.88 }),
+      },
+      {
+        id: "tomato", geometry: tomato, material: tomatoMaterial,
+        footprint: Object.freeze({ kind: "disc", radius: 1.02, margin: 0.88 }),
+      },
+      {
+        id: "lettuce", geometry: lettuce, material: lettuceMaterial,
+        footprint: Object.freeze({ kind: "annulus", margin: 0.86 }),
+      },
+      {
+        id: "pickle", geometry: pickle, material: pickleMaterial,
+        footprint: Object.freeze({ kind: "disc", radius: 0.84, margin: 0.88 }),
+      },
+      {
+        id: "top-bun", geometry: topBun, material: bunMaterial,
+        footprint: Object.freeze({ kind: "disc", radius: 1.23, margin: 0.88 }),
+      },
     ],
     sesameMaterial,
   };
@@ -335,9 +426,13 @@ export function createBurgerModel3D(THREE, options = {}) {
   const { definitions, sesameMaterial } = buildLayerDefinitions(THREE);
   const layers = new Map();
   const surfacesById = new Map();
+  const footprintsById = new Map();
+  const projectionMeshesById = new Map();
   const ownedGeometries = new Set();
   const ownedMaterials = new Set();
   const biteSources = new Map();
+  const projectionMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+  ownedMaterials.add(projectionMaterial);
 
   for (const definition of definitions) {
     const group = new THREE.Group();
@@ -361,11 +456,16 @@ export function createBurgerModel3D(THREE, options = {}) {
       Math.abs(bounds.min.x), Math.abs(bounds.max.x),
       Math.abs(bounds.min.z), Math.abs(bounds.max.z),
     );
+    group.userData.surfaceProfile = definition.footprint;
     group.userData.selectableSurface = surface;
     group.add(surface);
     root.add(group);
     layers.set(definition.id, group);
     surfacesById.set(definition.id, surface);
+    footprintsById.set(definition.id, definition.footprint);
+    const projectionMesh = new THREE.Mesh(definition.geometry, projectionMaterial);
+    projectionMesh.updateMatrixWorld(true);
+    projectionMeshesById.set(definition.id, projectionMesh);
     ownedGeometries.add(definition.geometry);
     ownedMaterials.add(definition.material);
     biteSources.set(definition.geometry, Float32Array.from(definition.geometry.attributes.position.array));
@@ -390,6 +490,8 @@ export function createBurgerModel3D(THREE, options = {}) {
   let expanded = false;
   let disposed = false;
   const sauceEntries = [];
+  const projectionRaycaster = new THREE.Raycaster();
+  const projectionDirection = new THREE.Vector3(0, -1, 0);
 
   const applyStackHeights = ({ snapHorizontal = false, snapRotation = false } = {}) => {
     let cursorY = 0;
@@ -420,6 +522,39 @@ export function createBurgerModel3D(THREE, options = {}) {
     entry.mesh.geometry.dispose();
   };
 
+  const projectLocalPoint = (layerId, x, z) => {
+    const profile = footprintsById.get(layerId);
+    const [clampedX, clampedZ] = clampLocalFootprint(profile, x, z);
+    const geometry = surfacesById.get(layerId).geometry;
+    geometry.computeBoundingBox();
+    projectionRaycaster.set(
+      new THREE.Vector3(clampedX, geometry.boundingBox.max.y + 1, clampedZ),
+      projectionDirection,
+    );
+    const [hit] = projectionRaycaster.intersectObject(projectionMeshesById.get(layerId), false);
+    if (!hit) throw new Error(`Cannot project sauce onto ${layerId} surface`);
+    return new THREE.Vector3(hit.point.x, hit.point.y, hit.point.z);
+  };
+
+  const projectSurfacePoint = (layerId, point) => {
+    assertActive(disposed);
+    assertLayerId(layerId);
+    if (!Array.isArray(point) || point.length !== 2) {
+      throw new TypeError("Surface point must be an [x, z] pair");
+    }
+    const normalizedX = assertFinite(point[0], "point[0]");
+    const normalizedZ = assertFinite(point[1], "point[1]");
+    if (normalizedX < -1 || normalizedX > 1 || normalizedZ < -1 || normalizedZ > 1) {
+      throw new TypeError("Surface point coordinates must be between -1 and 1");
+    }
+    const [x, z] = projectNormalizedFootprint(
+      footprintsById.get(layerId),
+      normalizedX,
+      normalizedZ,
+    );
+    return projectLocalPoint(layerId, x, z);
+  };
+
   const clearSauces = () => {
     assertActive(disposed);
     while (sauceEntries.length) disposeSauceEntry(sauceEntries.pop());
@@ -429,15 +564,25 @@ export function createBurgerModel3D(THREE, options = {}) {
     assertActive(disposed);
     const normalized = validateStroke(stroke);
     const layer = layers.get(normalized.layerId);
-    const radius = layer.userData.surfaceRadius * 0.86;
-    const surfaceY = layer.userData.surfaceY;
-    const pathPoints = normalized.points.map(([x, z]) => (
-      new THREE.Vector3(x * radius, surfaceY, z * radius)
-    ));
-    const curve = new THREE.CatmullRomCurve3(pathPoints, false, "centripetal");
+    const pathPoints = normalized.points.map(([x, z]) => {
+      const [localX, localZ] = projectNormalizedFootprint(
+        footprintsById.get(normalized.layerId), x, z,
+      );
+      return new THREE.Vector3(localX, 0, localZ);
+    });
+    const planarCurve = new THREE.CatmullRomCurve3(pathPoints, false, "centripetal");
     const tubularSegments = Math.min(32, Math.max(8, (pathPoints.length - 1) * 3));
     const tubeRadius = 0.025 + normalized.amount * 0.035;
-    const geometry = new THREE.TubeGeometry(curve, tubularSegments, tubeRadius, 5, false);
+    const surfaceOffset = tubeRadius * 0.7;
+    const surfaceCurve = new THREE.Curve();
+    surfaceCurve.getPoint = (time, target = new THREE.Vector3()) => {
+      const planar = planarCurve.getPoint(time, target);
+      const surface = projectLocalPoint(normalized.layerId, planar.x, planar.z);
+      return target.set(surface.x, surface.y + surfaceOffset, surface.z);
+    };
+    const geometry = new THREE.TubeGeometry(
+      surfaceCurve, tubularSegments, tubeRadius, 5, false,
+    );
     const mesh = new THREE.Mesh(geometry, sauceMaterials.get(normalized.sauce));
     mesh.name = `sauce:${normalized.sauce}:${normalized.layerId}:${sauceEntries.length}`;
     mesh.castShadow = true;
@@ -447,6 +592,7 @@ export function createBurgerModel3D(THREE, options = {}) {
       layerId: normalized.layerId,
       amount: normalized.amount,
     });
+    mesh.userData.surfaceOffset = surfaceOffset;
     layer.add(mesh);
     sauceEntries.push({ mesh, stroke: normalized });
     if (sauceEntries.length > MAX_STROKES) disposeSauceEntry(sauceEntries.shift());
@@ -521,9 +667,7 @@ export function createBurgerModel3D(THREE, options = {}) {
 
   const applyComposition = (composition) => {
     assertActive(disposed);
-    if (!composition || typeof composition !== "object" || Array.isArray(composition)) {
-      throw new TypeError("composition must be an object");
-    }
+    assertExactKeys(composition, COMPOSITION_KEYS, "composition");
     if (composition.food !== FOOD_ID) throw new TypeError("composition.food must be burger");
     assertPermutation(composition.layerOrder);
     if (!composition.layerPoses || typeof composition.layerPoses !== "object"
@@ -535,18 +679,25 @@ export function createBurgerModel3D(THREE, options = {}) {
       || poseKeys.some((id) => !BURGER_LAYER_IDS.includes(id))) {
       throw new TypeError("composition.layerPoses must contain every burger layer exactly once");
     }
-    if (!Array.isArray(composition.strokes) || composition.strokes.length > MAX_STROKES) {
-      throw new TypeError(`composition.strokes must contain at most ${MAX_STROKES} strokes`);
+    if (!Array.isArray(composition.strokes)
+      || composition.strokes.length < 1
+      || composition.strokes.length > MAX_STROKES) {
+      throw new TypeError(`composition.strokes must contain 1 to ${MAX_STROKES} strokes`);
     }
     const validatedPoses = Object.fromEntries(BURGER_LAYER_IDS.map((id) => {
-      const pose = composition.layerPoses[id];
-      if (!pose || typeof pose !== "object" || Array.isArray(pose)) {
-        throw new TypeError(`composition.layerPoses.${id} must be an object`);
+      const pose = assertExactKeys(
+        composition.layerPoses[id], POSE_KEYS, `composition.layerPoses.${id}`,
+      );
+      const x = assertFinite(pose.x, `composition.layerPoses.${id}.x`);
+      const z = assertFinite(pose.z, `composition.layerPoses.${id}.z`);
+      const yaw = assertFinite(pose.yaw, `composition.layerPoses.${id}.yaw`);
+      if (x < -1 || x > 1 || z < -1 || z > 1 || yaw < -3.1416 || yaw > 3.1416) {
+        throw new TypeError(`composition.layerPoses.${id} is outside server bounds`);
       }
       return [id, {
-        x: assertFinite(pose.x, `composition.layerPoses.${id}.x`),
-        z: assertFinite(pose.z, `composition.layerPoses.${id}.z`),
-        yaw: assertFinite(pose.yaw, `composition.layerPoses.${id}.yaw`),
+        x,
+        z,
+        yaw,
       }];
     }));
     const validatedStrokes = composition.strokes.map(validateStroke);
@@ -617,6 +768,7 @@ export function createBurgerModel3D(THREE, options = {}) {
     reorderLayer,
     snapLayer,
     applyComposition,
+    projectSurfacePoint,
     addSauceStroke,
     clearSauces,
     setBiteAmount,
@@ -641,6 +793,8 @@ export function createBurgerModel3D(THREE, options = {}) {
       ownedMaterials.clear();
       layers.clear();
       surfacesById.clear();
+      footprintsById.clear();
+      projectionMeshesById.clear();
       biteSources.clear();
     },
   };

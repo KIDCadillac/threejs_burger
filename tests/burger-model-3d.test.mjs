@@ -196,6 +196,52 @@ test("adds repeated and mixed condiment strokes as real target-anchored tube mes
   burger.dispose();
 });
 
+test("projects sauce paths onto each edible footprint and its real top surface", () => {
+  const burger = createBurgerModel3D(THREE);
+  const centerBun = burger.projectSurfacePoint("top-bun", [0, 0]);
+  const edgeBun = burger.projectSurfacePoint("top-bun", [0.9, 0]);
+  assert.ok(centerBun.y > edgeBun.y + 0.2, "bun sauce follows the toasted dome");
+
+  const pattyCorner = burger.projectSurfacePoint("patty", [1, 1]);
+  const pattyLayer = burger.getLayer("patty");
+  assert.ok(
+    Math.hypot(pattyCorner.x, pattyCorner.z) <= pattyLayer.userData.surfaceRadius * 0.93,
+    "round layers project square input coordinates back into the edible disc",
+  );
+  const cheeseCorner = burger.projectSurfacePoint("cheese", [1, 1]);
+  assert.ok(Math.abs(cheeseCorner.x) < 1 && Math.abs(cheeseCorner.z) < 1);
+  const lettuceCenter = burger.projectSurfacePoint("lettuce", [0, 0]);
+  assert.ok(Math.hypot(lettuceCenter.x, lettuceCenter.z) > 0.3, "lettuce avoids its real inner hole");
+  for (const layerId of BURGER_LAYER_IDS) {
+    const projected = burger.projectSurfacePoint(layerId, [1, 1]);
+    assert.ok(
+      [projected.x, projected.y, projected.z].every(Number.isFinite),
+      `${layerId} owns a usable surface projector`,
+    );
+  }
+
+  const sauce = burger.addSauceStroke({
+    sauce: "mustard",
+    layerId: "top-bun",
+    amount: 0.6,
+    points: [[-0.95, 0.5], [0, 0], [0.95, 0.5]],
+  });
+  const surface = burger.getLayer("top-bun").userData.selectableSurface;
+  const raycaster = new THREE.Raycaster();
+  const down = new THREE.Vector3(0, -1, 0);
+  for (const time of [0, 0.125, 0.25, 0.5, 0.75, 0.875, 1]) {
+    const sample = sauce.geometry.parameters.path.getPoint(time, new THREE.Vector3());
+    raycaster.set(new THREE.Vector3(sample.x, 4, sample.z), down);
+    const [hit] = raycaster.intersectObject(surface, false);
+    assert.ok(hit, `tube sample ${time} remains inside the bun footprint`);
+    assert.ok(
+      Math.abs(sample.y - hit.point.y - sauce.userData.surfaceOffset) < 0.035,
+      `tube sample ${time} conforms to the bun surface`,
+    );
+  }
+  burger.dispose();
+});
+
 test("strictly rejects invalid layer poses, ordering, and condiment data", () => {
   const burger = createBurgerModel3D(THREE);
   const invalidCalls = [
@@ -235,6 +281,65 @@ test("strictly rejects invalid layer poses, ordering, and condiment data", () =>
     () => burger.setBiteAmount(Number.NaN),
   ];
   for (const call of invalidCalls) assert.throws(call, TypeError);
+  burger.dispose();
+});
+
+test("applyComposition exactly matches the authoritative server recipe schema", () => {
+  const burger = createBurgerModel3D(THREE);
+  const valid = {
+    food: "burger",
+    layerOrder: [...BURGER_LAYER_IDS],
+    layerPoses: Object.fromEntries(BURGER_LAYER_IDS.map((id, index) => [id, {
+      x: index === 0 ? -1 : index === 1 ? 1 : 0,
+      z: index === 2 ? -1 : index === 3 ? 1 : 0,
+      yaw: index === 4 ? -3.1416 : index === 5 ? 3.1416 : 0,
+    }])),
+    strokes: [
+      {
+        sauce: "chili",
+        layerId: "patty",
+        amount: 0.01,
+        points: [[-1, -1], [1, 1]],
+      },
+      {
+        sauce: "sticky",
+        layerId: "cheese",
+        amount: 1,
+        points: [[-1, 1], [1, -1]],
+      },
+    ],
+  };
+  burger.applyComposition(valid);
+  assert.deepEqual(burger.serializeComposition(), valid, "all numeric schema boundaries are accepted");
+  const before = burger.getSnapshot();
+  const malformed = [
+    { ...valid, extra: true },
+    { food: valid.food, layerOrder: valid.layerOrder, layerPoses: valid.layerPoses },
+    {
+      ...valid,
+      layerPoses: { ...valid.layerPoses, patty: { ...valid.layerPoses.patty, x: 999 } },
+    },
+    {
+      ...valid,
+      layerPoses: { ...valid.layerPoses, patty: { ...valid.layerPoses.patty, extra: 0 } },
+    },
+    {
+      ...valid,
+      layerPoses: { ...valid.layerPoses, patty: { x: 0, z: 0 } },
+    },
+    {
+      ...valid,
+      strokes: [{ ...valid.strokes[0], extra: true }],
+    },
+    {
+      ...valid,
+      strokes: [],
+    },
+  ];
+  for (const composition of malformed) {
+    assert.throws(() => burger.applyComposition(composition), TypeError);
+    assert.deepEqual(burger.getSnapshot(), before, "rejected composition leaves live state unchanged");
+  }
   burger.dispose();
 });
 
