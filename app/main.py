@@ -1,4 +1,5 @@
 import asyncio
+import json
 import mimetypes
 import secrets
 from contextlib import asynccontextmanager, suppress
@@ -57,6 +58,22 @@ class ConnectionHub:
                 )
 
 
+async def _receive_command(socket: WebSocket) -> Any:
+    message = await socket.receive()
+    if message["type"] == "websocket.disconnect":
+        raise WebSocketDisconnect(
+            code=message.get("code", 1000),
+            reason=message.get("reason"),
+        )
+    text = message.get("text")
+    if not isinstance(text, str):
+        raise ProtocolError("消息必须使用文本 JSON")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as error:
+        raise ProtocolError("消息必须是有效 JSON") from error
+
+
 def create_app(service: GameService | None = None) -> FastAPI:
     game_service = service or GameService()
     hub = ConnectionHub()
@@ -95,18 +112,18 @@ def create_app(service: GameService | None = None) -> FastAPI:
             return
         await socket.accept()
         hub.register(player, socket)
-        room = game_service.connect(player)
-        if room is not None:
-            await hub.broadcast_room(room)
-        elif player in game_service.queue:
-            await hub.send(player, {"type": "matching"})
-        else:
-            await hub.send(player, {"type": "home"})
-
         try:
+            room = game_service.connect(player)
+            if room is not None:
+                await hub.broadcast_room(room)
+            elif player in game_service.queue:
+                await hub.send(player, {"type": "matching"})
+            else:
+                await hub.send(player, {"type": "home"})
+
             while True:
-                payload = await socket.receive_json()
                 try:
+                    payload = await _receive_command(socket)
                     await _dispatch(
                         payload,
                         player_id=player,
@@ -118,6 +135,8 @@ def create_app(service: GameService | None = None) -> FastAPI:
                         player, {"type": "error", "message": str(error)}
                     )
         except WebSocketDisconnect:
+            pass
+        finally:
             if hub.unregister(player, socket):
                 connected_room = game_service.disconnect(player)
                 if connected_room is not None:

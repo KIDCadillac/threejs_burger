@@ -188,6 +188,63 @@ def test_websocket_rejects_unknown_command_without_closing() -> None:
         assert socket.receive_json()["phase"] == "waiting"
 
 
+def test_websocket_rejects_invalid_json_text_then_accepts_a_command() -> None:
+    service = GameService()
+    application = create_app(service)
+    isolated_client = TestClient(application)
+
+    with isolated_client.websocket_connect(ws_path("p1")) as socket:
+        socket.receive_json()
+        socket.send_text("{")
+
+        error = socket.receive_json()
+        assert error["type"] == "error"
+        assert "JSON" in error["message"]
+
+        socket.send_json({"type": "room.create"})
+        created = socket.receive_json()
+        assert created["phase"] == "waiting"
+        room = service.room_for("p1")
+        assert room is not None
+
+    assert "p1" not in application.state.hub.sockets
+    assert "p1" not in room.connected
+
+
+def test_websocket_rejects_binary_frame_then_accepts_text_json() -> None:
+    isolated_client = TestClient(create_app(GameService()))
+
+    with isolated_client.websocket_connect(ws_path("p1")) as socket:
+        socket.receive_json()
+        socket.send_bytes(b'{"type":"room.create"}')
+
+        error = socket.receive_json()
+        assert error["type"] == "error"
+        assert "文本" in error["message"]
+
+        socket.send_json({"type": "room.create"})
+        assert socket.receive_json()["phase"] == "waiting"
+
+
+def test_websocket_cleanup_runs_when_dispatch_exits_unexpectedly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fail_dispatch(*args, **kwargs) -> None:
+        raise RuntimeError("dispatch failed")
+
+    monkeypatch.setattr(main_module, "_dispatch", fail_dispatch)
+    application = create_app(GameService())
+    isolated_client = TestClient(application)
+
+    with pytest.raises(RuntimeError, match="dispatch failed"):
+        with isolated_client.websocket_connect(ws_path("p1")) as socket:
+            socket.receive_json()
+            socket.send_json({"type": "room.create"})
+            socket.receive_json()
+
+    assert "p1" not in application.state.hub.sockets
+
+
 def test_websocket_rejects_malformed_composition_then_accepts_valid_lock() -> None:
     isolated_client = TestClient(create_app(GameService()))
 
