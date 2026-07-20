@@ -4,6 +4,9 @@ import * as THREE from "../app/static/vendor/three.module.min.js";
 import { BURGER_LAYER_IDS } from "../app/static/cooking-state.mjs";
 import { createCookingInteractionController } from "../app/static/cooking-interaction-controller.mjs";
 import { createSoloCookingStage } from "../app/static/cooking-solo-stage.mjs";
+import { createCookingWorkbench3D } from "../app/static/cooking-workbench-3d.mjs";
+import { createBurgerModel3D } from "../app/static/burger-model-3d.mjs";
+import { createCondimentTools3D } from "../app/static/condiment-tools-3d.mjs";
 
 class FakeCanvas {
   constructor() {
@@ -144,6 +147,48 @@ test("programmatic drops assemble, reinsert, remove, and rotate the visible 3d s
   stage.dispose();
 });
 
+test("an immediate toolbar rotation cancels the selected layer snap transition", () => {
+  const { stage } = harness();
+  stage.selectLayer("patty");
+  stage.dropLayer("patty", { kind: "prep" });
+  stage.rotateSelected(Math.PI / 3);
+
+  stage.tick(95);
+  assert.ok(Math.abs(stage.burger.getLayer("patty").rotation.y - Math.PI / 3) < 1e-9);
+  assert.ok(Math.abs(stage.getState().rotations.patty - Math.PI / 3) < 1e-9);
+  stage.dispose();
+});
+
+test("a quick drag cancels an older transition before the next animation frame", () => {
+  let configuration;
+  const canvas = new FakeCanvas();
+  const host = createHostHarness();
+  const controller = {
+    getState: () => "idle",
+    resetCamera: () => true,
+    pause() {}, resume() {}, dispose() {},
+  };
+  const stage = createSoloCookingStage({
+    THREE,
+    canvas,
+    storage: null,
+    hostFactory: () => host,
+    controllerFactory: (options) => { configuration = options; return controller; },
+  });
+  stage.dropLayer("bottom-bun", { kind: "prep" });
+  const patty = stage.burger.getLayer("patty");
+  patty.position.set(1.8, 2.4, -0.7);
+  configuration.onMove({
+    id: "patty",
+    reason: "drag",
+    pose: { rotation: { y: patty.rotation.y } },
+  });
+
+  stage.tick(95);
+  assert.deepEqual(patty.position.toArray(), [1.8, 2.4, -0.7]);
+  stage.dispose();
+});
+
 test("repeated mixed sauce callbacks create volumetric burger tubes and update composition", () => {
   const { stage } = harness();
   stage.applySauceStroke(sampleStroke("chili"));
@@ -233,6 +278,46 @@ test("undo and reset restore state, scene transforms, sauce geometry, and resour
   stage.dispose();
 });
 
+test("undo and reset reconcile tutorial guidance with the restored cooking state", () => {
+  const { stage } = harness();
+  stage.selectLayer("bottom-bun");
+  stage.dropLayer("bottom-bun", { kind: "prep" });
+  stage.rotateSelected(0.4);
+  stage.applySauceStroke(sampleStroke("chili", "bottom-bun"));
+  assert.equal(stage.getTutorial().step, "assemble");
+
+  assert.equal(stage.undo(), true);
+  assert.equal(stage.getState().strokes.length, 0);
+  assert.equal(stage.getTutorial().step, "sauce");
+  assert.equal(stage.undo(), true);
+  assert.equal(stage.getState().rotations["bottom-bun"], 0);
+  assert.equal(stage.getTutorial().step, "rotate");
+
+  stage.rotateSelected(0.4);
+  stage.applySauceStroke(sampleStroke("chili", "bottom-bun"));
+  for (const layerId of BURGER_LAYER_IDS.slice(1)) {
+    stage.dropLayer(layerId, { kind: "prep" });
+  }
+  assert.equal(stage.getTutorial().step, "finish");
+  assert.equal(stage.undo(), true);
+  assert.equal(stage.getState().complete, false);
+  assert.equal(stage.getTutorial().step, "assemble");
+
+  stage.reset();
+  assert.equal(stage.getState().assembledOrder.length, 0);
+  assert.equal(stage.getTutorial().step, "pick");
+  stage.dispose();
+});
+
+test("reset keeps a persisted completed tutorial quiet", () => {
+  const storage = { getItem: () => "complete", setItem() {} };
+  const { stage } = harness({ storage });
+  assert.equal(stage.getTutorial().step, "done");
+  stage.reset();
+  assert.equal(stage.getTutorial().step, "done");
+  stage.dispose();
+});
+
 test("disposes controller before every scene resource and remains idempotent", () => {
   const order = [];
   const canvas = new FakeCanvas();
@@ -254,6 +339,118 @@ test("disposes controller before every scene resource and remains idempotent", (
   stage.dispose();
   stage.dispose();
   assert.deepEqual(order, ["controller", "tools", "burger", "workbench", "host"]);
+});
+
+function trackedDisposable(value, name, order, { throws = false } = {}) {
+  const dispose = value.dispose?.bind(value) ?? (() => {});
+  return new Proxy(value, {
+    get(target, property, receiver) {
+      if (property !== "dispose") return Reflect.get(target, property, receiver);
+      return () => {
+        order.push(name);
+        dispose();
+        if (throws) throw new Error(`dispose:${name}`);
+      };
+    },
+  });
+}
+
+function constructionFailureHarness(failAt, { cleanupThrowsAt = null } = {}) {
+  const order = [];
+  const canvas = new FakeCanvas();
+  const host = createHostHarness();
+  const hostDispose = host.dispose.bind(host);
+  host.dispose = () => {
+    order.push("host");
+    hostDispose();
+    if (cleanupThrowsAt === "host") throw new Error("dispose:host");
+  };
+  host.onFrame = (callback) => {
+    if (failAt === "frame-listener") throw new Error("boom:frame-listener");
+    const remove = createHostHarness().onFrame(callback);
+    return () => { order.push("remove-frame"); remove(); };
+  };
+  host.onContextError = () => {
+    if (failAt === "context-listener") throw new Error("boom:context-listener");
+    return () => { order.push("remove-context"); };
+  };
+  host.start = () => {
+    if (failAt === "start") throw new Error("boom:start");
+    host.starts += 1;
+  };
+  const fail = (name, factory) => (...args) => {
+    if (failAt === name) throw new Error(`boom:${name}`);
+    return trackedDisposable(factory(...args), name, order, {
+      throws: cleanupThrowsAt === name,
+    });
+  };
+  const celebrationFactory = fail("celebration", (Three) => ({
+    root: new Three.Group(),
+    pieces: [],
+    visible: false,
+    tick() {},
+    dispose() {},
+  }));
+  const controllerFactory = fail("controller", () => ({
+    getState: () => "idle",
+    resetCamera: () => true,
+    pause() {}, resume() {}, dispose() {},
+  }));
+  const onChange = () => {
+    if (failAt === "emit") throw new Error("boom:emit");
+  };
+  return {
+    order,
+    create: () => createSoloCookingStage({
+      THREE,
+      canvas,
+      storage: null,
+      hostFactory: () => {
+        if (failAt === "host") throw new Error("boom:host");
+        return host;
+      },
+      workbenchFactory: fail("workbench", (Three) => createCookingWorkbench3D(Three)),
+      burgerFactory: fail("burger", (Three) => createBurgerModel3D(Three)),
+      toolsFactory: fail("tools", (Three, options) => createCondimentTools3D(Three, options)),
+      celebrationFactory,
+      controllerFactory,
+      onChange,
+    }),
+  };
+}
+
+test("construction failures unwind every completed stage resource in reverse order", () => {
+  const cases = [
+    ["workbench", ["host"]],
+    ["burger", ["workbench", "host"]],
+    ["tools", ["burger", "workbench", "host"]],
+    ["celebration", ["tools", "burger", "workbench", "host"]],
+    ["controller", ["celebration", "tools", "burger", "workbench", "host"]],
+    ["frame-listener", ["controller", "celebration", "tools", "burger", "workbench", "host"]],
+    ["context-listener", ["remove-frame", "controller", "celebration", "tools", "burger", "workbench", "host"]],
+    ["start", ["remove-context", "remove-frame", "controller", "celebration", "tools", "burger", "workbench", "host"]],
+    ["emit", ["remove-context", "remove-frame", "controller", "celebration", "tools", "burger", "workbench", "host"]],
+  ];
+  for (const [failAt, expected] of cases) {
+    const harness = constructionFailureHarness(failAt, {
+      cleanupThrowsAt: failAt === "emit" ? "tools" : null,
+    });
+    assert.throws(harness.create, new RegExp(`boom:${failAt}`), failAt);
+    assert.deepEqual(harness.order, expected, failAt);
+  }
+});
+
+test("normal dispose attempts every cleanup once even when earlier cleanup throws", () => {
+  const harness = constructionFailureHarness(null, { cleanupThrowsAt: "controller" });
+  const stage = harness.create();
+
+  assert.throws(() => stage.dispose(), /dispose:controller/);
+  assert.deepEqual(harness.order, [
+    "remove-context", "remove-frame", "controller", "celebration",
+    "tools", "burger", "workbench", "host",
+  ]);
+  assert.doesNotThrow(() => stage.dispose());
+  assert.equal(harness.order.length, 8);
 });
 
 test("stage state and tutorial remain DOM-free and notify concise progress", () => {

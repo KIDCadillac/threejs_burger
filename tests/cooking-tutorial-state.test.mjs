@@ -6,6 +6,7 @@ import {
   advanceCookingTutorial,
   skipCookingTutorial,
   replayCookingTutorial,
+  reconcileCookingTutorial,
   TUTORIAL_STEPS,
 } from "../app/static/cooking-tutorial-state.mjs";
 
@@ -85,4 +86,54 @@ test("tutorial state is frozen and exposes the fixed six-step journey", () => {
   assert.deepEqual(TUTORIAL_STEPS, ["pick", "drop", "rotate", "sauce", "assemble", "finish"]);
   assert.ok(Object.isFrozen(TUTORIAL_STEPS));
   assert.ok(Object.isFrozen(tutorial));
+});
+
+test("reconciliation derives honest guidance from immutable cooking progress", () => {
+  const active = replayCookingTutorial(createCookingTutorial({
+    storage: memoryStorage({ "solo-cooking-tutorial": "complete" }),
+  }));
+  const cooking = (changes = {}) => ({
+    assembledOrder: [],
+    rotations: {
+      "bottom-bun": 0, patty: 0, cheese: 0, tomato: 0,
+      lettuce: 0, pickle: 0, "top-bun": 0,
+    },
+    strokes: [],
+    complete: false,
+    finished: false,
+    ...changes,
+  });
+
+  assert.equal(reconcileCookingTutorial(active, cooking(), { selectedLayerId: null }).step, "pick");
+  assert.equal(reconcileCookingTutorial(active, cooking(), { selectedLayerId: "patty" }).step, "drop");
+  assert.equal(reconcileCookingTutorial(active, cooking({ assembledOrder: ["patty"] })).step, "rotate");
+  assert.equal(reconcileCookingTutorial(active, cooking({
+    assembledOrder: ["patty"], rotations: { ...cooking().rotations, patty: 0.4 },
+  })).step, "sauce");
+  assert.equal(reconcileCookingTutorial(active, cooking({
+    assembledOrder: ["patty"],
+    rotations: { ...cooking().rotations, patty: 0.4 },
+    strokes: [{ sauce: "chili" }],
+  })).step, "assemble");
+  assert.equal(reconcileCookingTutorial(active, cooking({
+    assembledOrder: ["bottom-bun", "patty", "cheese", "tomato", "lettuce", "pickle", "top-bun"],
+    rotations: { ...cooking().rotations, patty: 0.4 },
+    strokes: [{ sauce: "chili" }],
+    complete: true,
+  })).step, "finish");
+});
+
+test("reconciliation keeps a persisted completed tutorial quiet but resets active replay", () => {
+  const completed = createCookingTutorial({
+    storage: memoryStorage({ "solo-cooking-tutorial": "complete" }),
+  });
+  const cooking = {
+    assembledOrder: [], rotations: {}, strokes: [], complete: false, finished: false,
+  };
+  assert.strictEqual(reconcileCookingTutorial(completed, cooking, { reset: true }), completed);
+
+  const replayed = replayCookingTutorial(completed);
+  const reset = reconcileCookingTutorial(replayed, cooking, { reset: true });
+  assert.equal(reset.step, "pick");
+  assert.equal(reset.replay, true);
 });
