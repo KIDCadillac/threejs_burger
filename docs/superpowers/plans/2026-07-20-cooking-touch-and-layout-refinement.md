@@ -150,10 +150,25 @@ pitch: current.pitch + dy * normalizedOrbitSensitivity
 
 Keep horizontal yaw subtraction unchanged.
 
+In `tests/cooking-solo-stage.test.mjs`, capture the controller options and first assert the cooking-specific limits fail against the current generic defaults:
+
+```js
+assert.deepEqual(configuration.orbitLimits, {
+  minYaw: -0.78,
+  maxYaw: 0.78,
+  minPitch: 0.5,
+  maxPitch: 0.95,
+  minDistance: 16.7,
+  maxDistance: 23,
+});
+```
+
+Then pass these limits from `createSoloCookingStage` so the user cannot pinch down to the controller's generic distance 5 or orbit to the table edge.
+
 - [ ] **Step 4: Run all interaction-controller tests**
 
 ```powershell
-& 'C:\Users\KID\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' --test tests/cooking-interaction-controller.test.mjs
+& 'C:\Users\KID\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' --test tests/cooking-interaction-controller.test.mjs tests/cooking-solo-stage.test.mjs
 ```
 
 Expected: PASS with zero failures.
