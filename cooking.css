@@ -85,7 +85,7 @@ canvas:focus-visible {
 
 .cooking-stage {
   position: relative;
-  min-height: 34rem;
+  min-height: clamp(38rem, 72dvh, 48rem);
   margin: 12px 0;
   overflow: hidden;
   border: 1px solid rgba(255, 206, 122, 0.25);
@@ -97,7 +97,7 @@ canvas:focus-visible {
 #cooking-canvas {
   display: block;
   width: 100%;
-  height: 34rem;
+  height: clamp(38rem, 72dvh, 48rem);
   touch-action: none;
 }
 
@@ -114,8 +114,77 @@ canvas:focus-visible {
   backdrop-filter: blur(8px);
 }
 
+.cooking-loading { z-index: 6; width: 100%; }
+
+.cooking-loading__spinner {
+  width: 42px;
+  height: 42px;
+  margin: 0 auto 4px;
+  border: 4px solid rgba(255, 241, 211, .18);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: loading-spin .8s linear infinite;
+}
+
+.cooking-loading__progress {
+  width: min(72vw, 300px);
+  height: 9px;
+  margin-top: 5px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 241, 211, .2);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .25);
+}
+
+.cooking-loading__progress span {
+  display: block;
+  width: 8%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #f2a43d, #ffe07b);
+  box-shadow: 0 0 16px rgba(255, 196, 77, .45);
+  transition: width .22s ease-out;
+}
+
+.cooking-loading__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  width: min(72vw, 300px);
+  color: #f2c799;
+  font-size: .78rem;
+}
+
+#cooking-loading-note { color: rgba(255, 241, 211, .72); }
+
 .cooking-error { color: #ffd2c9; }
 .cooking-error[hidden], .cooking-loading[hidden] { display: none; }
+
+.cooking-drop-intent {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  top: 52%;
+  min-width: 9.5em;
+  padding: 10px 16px;
+  border: 1px solid rgba(255, 255, 255, .42);
+  border-radius: 999px;
+  color: #20110e;
+  text-align: center;
+  font-size: .92rem;
+  font-weight: 900;
+  letter-spacing: .03em;
+  background: rgba(255, 218, 109, .96);
+  box-shadow: 0 10px 26px rgba(12, 5, 4, .34);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.cooking-drop-intent[hidden] { display: none; }
+.cooking-drop-intent[data-intent="top"] { background: rgba(255, 218, 109, .96); }
+.cooking-drop-intent[data-intent="bottom"] { color: #fff5e5; background: rgba(196, 77, 49, .96); }
+.cooking-drop-intent[data-intent="home"] { background: rgba(126, 220, 157, .96); }
+.cooking-drop-intent[data-intent="invalid"] { color: #fff5e5; background: rgba(104, 76, 78, .95); }
 
 .tutorial-coach {
   position: absolute;
@@ -216,6 +285,8 @@ canvas:focus-visible {
 @keyframes coach-pulse {
   50% { transform: translateY(-8px) scale(1.08); box-shadow: 0 0 0 12px rgba(255,196,77,0); }
 }
+
+@keyframes loading-spin { to { transform: rotate(360deg); } }
 
 @media (orientation: landscape) and (max-height: 560px) {
   .cooking-app { width: min(100%, 980px); display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, .85fr); gap: 10px 14px; }

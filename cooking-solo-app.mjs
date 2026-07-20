@@ -32,6 +32,13 @@ const TUTORIAL_COPY = Object.freeze({
   finish: ["完成料理", "七层已经装好，点最下方的完成料理。"],
 });
 
+const DROP_INTENT_COPY = Object.freeze({
+  top: "放在最上层",
+  bottom: "塞到最下层",
+  home: "放回原料格",
+  invalid: "松手会回到原位",
+});
+
 function sauceSummary(strokes) {
   const counts = new Map();
   for (const { sauce, layerId } of strokes) {
@@ -46,7 +53,11 @@ function sauceSummary(strokes) {
 
 export function bootSoloCookingPage(
   documentTarget = globalThis.document,
-  { windowTarget = globalThis, stageFactory = createSoloCookingStage } = {},
+  {
+    windowTarget = globalThis,
+    stageFactory = createSoloCookingStage,
+    manageLoading = true,
+  } = {},
 ) {
   const canvas = documentTarget?.querySelector?.("#cooking-canvas");
   if (!canvas) throw new Error("Missing #cooking-canvas");
@@ -58,6 +69,7 @@ export function bootSoloCookingPage(
     progress: documentTarget.querySelector("#cooking-progress"),
     summary: documentTarget.querySelector("#cooking-summary"),
     status: documentTarget.querySelector("#cooking-status"),
+    dropIntent: documentTarget.querySelector("#cooking-drop-intent"),
     tutorial: documentTarget.querySelector("#tutorial-coach"),
     tutorialTitle: documentTarget.querySelector("#tutorial-title"),
     tutorialCopy: documentTarget.querySelector("#tutorial-copy"),
@@ -77,7 +89,7 @@ export function bootSoloCookingPage(
   const render = (detail) => {
     latest = detail;
     if (!stage) return;
-    const { state, tutorial, expanded, progress } = detail;
+    const { state, tutorial, expanded, progress, dropIntent = null } = detail;
     elements.progress.textContent = progress;
     elements.objective.textContent = state.finished
       ? "料理完成，可以继续调整或重新做"
@@ -116,6 +128,19 @@ export function bootSoloCookingPage(
     } else if (tutorial.step === "sauce") {
       stage.workbench.setHighlighted("tool", "chili", true);
     }
+    const dropIntentText = DROP_INTENT_COPY[dropIntent?.intent];
+    if (dropIntentText) {
+      elements.dropIntent.hidden = false;
+      elements.dropIntent.textContent = dropIntentText;
+      elements.dropIntent.dataset.intent = dropIntent.intent;
+      if (dropIntent.kind === "bin" && dropIntent.id) {
+        stage.workbench.setHighlighted("ingredient", dropIntent.id, true);
+      }
+    } else {
+      elements.dropIntent.hidden = true;
+      elements.dropIntent.textContent = "";
+      delete elements.dropIntent.dataset.intent;
+    }
 
     const statusByReason = {
       "drop-layer": "食材已吸附到餐盘",
@@ -143,7 +168,7 @@ export function bootSoloCookingPage(
         elements.status.textContent = error?.message ?? "WebGL 运行异常";
       },
     });
-    elements.loading.hidden = true;
+    if (manageLoading) elements.loading.hidden = true;
     render(latest ?? {
       reason: "ready",
       state: stage.getState(),
@@ -187,5 +212,3 @@ export function bootSoloCookingPage(
     return null;
   }
 }
-
-if (globalThis.document) bootSoloCookingPage(globalThis.document);

@@ -21,7 +21,7 @@ function normalizeIds(value, label, { minimum, maximum }) {
 
 const NO_RAYCAST = () => {};
 const PREP_HALF_EXTENT = Object.freeze({ x: 2.55, z: 1.65 });
-const INGREDIENT_HALF_EXTENT = Object.freeze({ x: 0.59, z: 0.59 });
+const INGREDIENT_HALF_EXTENT = Object.freeze({ x: 0.69, z: 0.69 });
 const TOOL_HALF_EXTENT = Object.freeze({ x: 0.52, z: 0.52 });
 const PREP_BOUNDS = Object.freeze({ minX: -2.55, maxX: 2.55, minZ: -1.65, maxZ: 1.65 });
 const WORKSPACE_BOUNDS = Object.freeze({ minX: -5.3, maxX: 5.3, minZ: -4.9, maxZ: 4.9 });
@@ -57,7 +57,7 @@ function ingredientPositions(count) {
   for (let index = topCount; index < count; index += 1) {
     const sideIndex = index - topCount;
     positions.push({
-      x: sideIndex % 2 === 0 ? -4.1 : 4.1,
+      x: sideIndex % 2 === 0 ? -3.55 : 3.55,
       y: 0,
       z: -1.65 + Math.floor(sideIndex / 2) * 1.4,
     });
@@ -110,10 +110,10 @@ function createIngredientStation(THREE, resources, id, index, position) {
   surface.position.y = 0.16;
   surface.userData.cookingSelectable = Object.freeze({ kind: "ingredient", id, index });
   const rimOffsets = [
-    [resources.binRimHorizontalGeometry, 0, 0.3, -0.61],
-    [resources.binRimHorizontalGeometry, 0, 0.3, 0.61],
-    [resources.binRimVerticalGeometry, -0.61, 0.3, 0],
-    [resources.binRimVerticalGeometry, 0.61, 0.3, 0],
+    [resources.binRimHorizontalGeometry, 0, 0.3, -0.71],
+    [resources.binRimHorizontalGeometry, 0, 0.3, 0.71],
+    [resources.binRimVerticalGeometry, -0.71, 0.3, 0],
+    [resources.binRimVerticalGeometry, 0.71, 0.3, 0],
   ];
   const rims = rimOffsets.map(([geometry, x, y, z]) => {
     const rim = new THREE.Mesh(geometry, resources.binRimMaterial);
@@ -270,17 +270,17 @@ export function createCookingWorkbench3D(THREE, {
 
   const resources = {
     binColors: [0xc36f3f, 0xb85c45, 0xd18b4f, 0xa8573f],
-    binBaseGeometry: new THREE.BoxGeometry(1.18, 0.22, 1.18),
-    binRimHorizontalGeometry: new THREE.BoxGeometry(1.34, 0.18, 0.1),
-    binRimVerticalGeometry: new THREE.BoxGeometry(0.1, 0.18, 1.34),
-    binHighlightGeometry: new THREE.RingGeometry(0.68, 0.79, 24),
+    binBaseGeometry: new THREE.BoxGeometry(1.38, 0.22, 1.38),
+    binRimHorizontalGeometry: new THREE.BoxGeometry(1.54, 0.18, 0.1),
+    binRimVerticalGeometry: new THREE.BoxGeometry(0.1, 0.18, 1.54),
+    binHighlightGeometry: new THREE.RingGeometry(0.78, 0.89, 24),
     binRimMaterial: new THREE.MeshStandardMaterial({
       color: 0x693e2e,
       roughness: 0.66,
       metalness: 0.02,
       flatShading: true,
     }),
-    shadowGeometry: new THREE.CircleGeometry(0.77, 20),
+    shadowGeometry: new THREE.CircleGeometry(0.86, 20),
     toolShadowGeometry: new THREE.CircleGeometry(0.61, 20),
     shadowMaterial: new THREE.MeshBasicMaterial({
       color: 0x2d1b1a,
