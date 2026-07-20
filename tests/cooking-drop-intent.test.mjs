@@ -10,22 +10,43 @@ const BASE = Object.freeze({
   magnetPadding: 0.36,
 });
 
-test("left and right plate drops share the same predictable top intent", () => {
+test("left and right plate drops share the same predictable insertion slot", () => {
   const left = resolveSoloLayerDrop({ ...BASE, point: { x: -2, z: -1 } });
   const right = resolveSoloLayerDrop({ ...BASE, point: { x: 2, z: -1 } });
 
-  assert.deepEqual(left, { kind: "prep", intent: "top", targetIndex: 3 });
-  assert.deepEqual(right, { kind: "prep", intent: "top", targetIndex: 3 });
+  assert.deepEqual(left, {
+    kind: "prep", intent: "insert", targetIndex: 3, slotCount: 4,
+  });
+  assert.deepEqual(right, {
+    kind: "prep", intent: "insert", targetIndex: 3, slotCount: 4,
+  });
   assert.ok(Object.isFrozen(left));
   assert.ok(Object.isFrozen(right));
 });
 
-test("the near plate zone inserts at the bottom while the center buffer defaults to top", () => {
-  assert.deepEqual(resolveSoloLayerDrop({ ...BASE, point: { x: 0, z: 1.2 } }), {
-    kind: "prep", intent: "bottom", targetIndex: 0,
+test("two layers expose bottom, middle, and top insertion slots", () => {
+  const input = { ...BASE, assembledCount: 2 };
+  assert.deepEqual(resolveSoloLayerDrop({ ...input, point: { x: 0, z: 1.45 } }), {
+    kind: "prep", intent: "insert", targetIndex: 0, slotCount: 3,
   });
-  assert.deepEqual(resolveSoloLayerDrop({ ...BASE, point: { x: 0, z: 0 } }), {
-    kind: "prep", intent: "top", targetIndex: 3,
+  assert.deepEqual(resolveSoloLayerDrop({ ...input, point: { x: 0, z: 0 } }), {
+    kind: "prep", intent: "insert", targetIndex: 1, slotCount: 3,
+  });
+  assert.deepEqual(resolveSoloLayerDrop({ ...input, point: { x: 0, z: -1.45 } }), {
+    kind: "prep", intent: "insert", targetIndex: 2, slotCount: 3,
+  });
+});
+
+test("each prep depth maps monotonically to one of count plus one slots", () => {
+  const indexes = [1.6, 0.8, 0, -0.8, -1.6].map((z) => (
+    resolveSoloLayerDrop({ ...BASE, assembledCount: 4, point: { x: 0, z } }).targetIndex
+  ));
+  assert.deepEqual(indexes, [0, 1, 2, 3, 4]);
+});
+
+test("a stack with no assembled layers exposes one insertion slot", () => {
+  assert.deepEqual(resolveSoloLayerDrop({ ...BASE, assembledCount: 0, point: { x: 0, z: 1.2 } }), {
+    kind: "prep", intent: "insert", targetIndex: 0, slotCount: 1,
   });
 });
 
@@ -59,5 +80,7 @@ test("validates detached finite bounds, points, counts, and padding", () => {
   const result = resolveSoloLayerDrop(mutable);
   mutable.prepBounds.maxZ = -99;
   mutable.point.z = 99;
-  assert.deepEqual(result, { kind: "prep", intent: "top", targetIndex: 1 });
+  assert.deepEqual(result, {
+    kind: "prep", intent: "insert", targetIndex: 1, slotCount: 2,
+  });
 });
