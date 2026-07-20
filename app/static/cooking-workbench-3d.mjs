@@ -265,6 +265,22 @@ export function createCookingWorkbench3D(THREE, {
   prepDropAnchor.name = "prep-drop-anchor";
   prepDropAnchor.position.y = 0.38;
   prepDropAnchor.userData.cookingAnchor = Object.freeze({ kind: "prep", role: "drop" });
+  const dropCueGeometry = new THREE.RingGeometry(0.74, 0.92, 32);
+  const dropCueMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffc84d,
+    transparent: true,
+    opacity: 0.82,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    depthTest: false,
+  });
+  const dropCue = new THREE.Mesh(dropCueGeometry, dropCueMaterial);
+  dropCue.name = "prep:drop-cue";
+  dropCue.rotation.x = -Math.PI / 2;
+  dropCue.visible = false;
+  dropCue.renderOrder = 18;
+  dropCue.raycast = NO_RAYCAST;
+  prepDropAnchor.add(dropCue);
   prepAnchor.add(boardBase, board, plate, prepDropAnchor);
   root.add(prepAnchor);
 
@@ -392,6 +408,7 @@ export function createCookingWorkbench3D(THREE, {
   return {
     root,
     counter,
+    dropCue,
     prep: {
       anchor: prepAnchor,
       surface: board,
@@ -418,6 +435,24 @@ export function createCookingWorkbench3D(THREE, {
     clearHighlights() {
       if (disposed) return;
       for (const station of stations.values()) station.highlight.visible = false;
+    },
+    setDropCue(intent, { y } = {}) {
+      if (disposed) return false;
+      if (intent !== "top" && intent !== "bottom") {
+        throw new TypeError("drop cue intent must be top or bottom");
+      }
+      if (!Number.isFinite(y)) throw new TypeError("drop cue y must be finite");
+      dropCue.userData.intent = intent;
+      dropCue.position.set(0, y, 0);
+      const scale = intent === "bottom" ? 1.12 : 1;
+      dropCue.scale.set(scale, scale, 1);
+      dropCue.visible = true;
+      return true;
+    },
+    clearDropCue() {
+      if (disposed) return;
+      dropCue.visible = false;
+      delete dropCue.userData.intent;
     },
     dispose() {
       if (disposed) return;

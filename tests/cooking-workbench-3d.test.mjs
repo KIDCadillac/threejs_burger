@@ -330,3 +330,17 @@ test("disposes shared geometry and material resources once and remains idempoten
   assert.equal(workbench.root.parent, null, "disposed workbench detaches before a scene host disposes");
   assert.equal(workbench.setHighlighted("ingredient", "rice", true), false);
 });
+
+test("reuses one prep landing cue for top and bottom intent", () => {
+  const workbench = createCookingWorkbench3D(THREE);
+  assert.equal(workbench.dropCue.visible, false);
+  workbench.setDropCue("top", { y: 1.6 });
+  assert.equal(workbench.dropCue.visible, true);
+  assert.equal(workbench.dropCue.userData.intent, "top");
+  assert.equal(workbench.dropCue.position.y, 1.6);
+  workbench.setDropCue("bottom", { y: 0.4 });
+  assert.equal(workbench.dropCue.userData.intent, "bottom");
+  workbench.clearDropCue();
+  assert.equal(workbench.dropCue.visible, false);
+  workbench.dispose();
+});

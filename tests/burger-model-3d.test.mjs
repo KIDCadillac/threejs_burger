@@ -905,3 +905,15 @@ test("deduplicates static resources, disposes all resources once, and is idempot
   assert.ok(createdResources.every(({ disposeCount }) => disposeCount === 1));
   assert.throws(() => burger.setExpanded(true), /disposed/i);
 });
+
+test("reuses one non-raycast halo for the currently held layer", () => {
+  const burger = createBurgerModel3D(THREE);
+  assert.equal(burger.selectionHalo.visible, false);
+  assert.equal(burger.setLayerHighlighted("patty", true), true);
+  assert.equal(burger.selectionHalo.visible, true);
+  assert.equal(burger.selectionHalo.parent, burger.getLayer("patty"));
+  assert.notEqual(burger.selectionHalo.raycast, THREE.Mesh.prototype.raycast);
+  burger.setLayerHighlighted("patty", false);
+  assert.equal(burger.selectionHalo.visible, false);
+  burger.dispose();
+});
