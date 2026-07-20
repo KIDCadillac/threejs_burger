@@ -79,6 +79,55 @@ function visibleLayerInterval(layer) {
   };
 }
 
+class FakeVisibilityDocument {
+  constructor() {
+    this.visibilityState = "visible";
+    this.listeners = new Map();
+  }
+  addEventListener(type, callback) {
+    const listeners = this.listeners.get(type) ?? new Set();
+    listeners.add(callback);
+    this.listeners.set(type, listeners);
+  }
+  removeEventListener(type, callback) { this.listeners.get(type)?.delete(callback); }
+  hide() {
+    this.visibilityState = "hidden";
+    for (const callback of this.listeners.get("visibilitychange") ?? []) callback();
+  }
+}
+
+function stageHarnessWithConfiguration(options = {}) {
+  let configuration;
+  const vibrations = [];
+  const documentTarget = options.documentTarget ?? new FakeVisibilityDocument();
+  const controller = {
+    resetCamera: () => true,
+    pause() {},
+    resume() {},
+    dispose() {},
+  };
+  const stage = createSoloCookingStage({
+    THREE,
+    canvas: new FakeCanvas(),
+    storage: null,
+    documentTarget,
+    hostFactory: createHostHarness,
+    controllerFactory: (value) => { configuration = value; return controller; },
+    vibrate: (pattern) => vibrations.push(pattern),
+    ...options,
+  });
+  return { stage, configuration, vibrations, documentTarget };
+}
+
+function prepIntentPoints(stage) {
+  const bounds = stage.workbench.getLayout().prep.bounds;
+  const depth = bounds.maxZ - bounds.minZ;
+  return {
+    top: new THREE.Vector3(0, 0, bounds.minZ + depth * 0.25),
+    bottom: new THREE.Vector3(0, 0, bounds.minZ + depth * 0.82),
+  };
+}
+
 test("integrates one real Three scene, workbench, burger, bottles, and controller", () => {
   const { host, stage, controllerCount } = harness();
 
@@ -277,6 +326,85 @@ test("stacks all seven scaled layers in visible contact without cumulative air g
     assert.ok(gap <= 1e-9, `layer ${index} must not float by ${gap}`);
     assert.ok(gap >= -0.04, `layer ${index} must not sink excessively by ${gap}`);
   }
+  stage.dispose();
+});
+
+test("held food highlights while top and bottom previews move the real stack", () => {
+  const { stage, configuration } = stageHarnessWithConfiguration();
+  stage.dropLayer("bottom-bun", { kind: "prep" });
+  stage.tick(1000);
+  const bun = stage.burger.getLayer("bottom-bun");
+  const baseY = bun.position.y;
+
+  configuration.onPick({ id: "patty" });
+  assert.equal(stage.burger.selectionHalo.parent, stage.burger.getLayer("patty"));
+  const points = prepIntentPoints(stage);
+  configuration.onMove({ id: "patty", reason: "drag", point: points.top });
+  assert.equal(stage.workbench.dropCue.userData.intent, "top");
+  assert.ok(bun.position.y < baseY);
+
+  configuration.onMove({ id: "patty", reason: "drag", point: points.bottom });
+  assert.equal(stage.workbench.dropCue.userData.intent, "bottom");
+  assert.ok(bun.position.y > baseY);
+  stage.dispose();
+});
+
+test("top insertion impacts above, rebounds, and finishes at exact contact targets", () => {
+  const { stage, configuration, vibrations } = stageHarnessWithConfiguration();
+  const patty = stage.burger.getLayer("patty");
+  const finalY = stage.workbench.prep.dropAnchor.position.y
+    + patty.userData.halfHeight * stage.layerPresentationScale;
+  configuration.onPick({ id: "patty" });
+  configuration.onDrop({ id: "patty", anchor: stage.workbench.prep.dropAnchor, targetIndex: 0 });
+  stage.tick(150);
+  stage.tick(190);
+  assert.ok(patty.position.y > finalY, "top layer rebounds above its contact target");
+  stage.tick(300);
+  assert.ok(Math.abs(patty.position.y - finalY) < 1e-9);
+  assert.deepEqual(vibrations, [12]);
+  stage.dispose();
+});
+
+test("bottom insertion lifts old layers while the new food exits beneath them", () => {
+  const { stage, configuration } = stageHarnessWithConfiguration();
+  stage.dropLayer("patty", { kind: "prep" });
+  stage.tick(1000);
+  const oldPattyY = stage.burger.getLayer("patty").position.y;
+  configuration.onPick({ id: "bottom-bun" });
+  configuration.onDrop({
+    id: "bottom-bun",
+    anchor: stage.workbench.prep.dropAnchor,
+    targetIndex: 0,
+  });
+  stage.tick(1070);
+  assert.ok(stage.burger.getLayer("patty").position.y > oldPattyY);
+  const bottomBun = stage.burger.getLayer("bottom-bun");
+  const finalBottomY = stage.workbench.prep.dropAnchor.position.y
+    + bottomBun.userData.halfHeight * stage.layerPresentationScale;
+  stage.tick(1250);
+  assert.ok(bottomBun.position.y < finalBottomY);
+  stage.tick(1380);
+  assert.deepEqual(stage.getState().assembledOrder, ["bottom-bun", "patty"]);
+  assert.ok(Math.abs(bottomBun.position.y - finalBottomY) < 1e-9);
+  stage.dispose();
+});
+
+test("home return bounces once and hidden pages clear temporary visuals", () => {
+  const { stage, configuration, documentTarget } = stageHarnessWithConfiguration();
+  stage.dropLayer("patty", { kind: "prep" });
+  stage.tick(1000);
+  configuration.onPick({ id: "patty" });
+  const station = stage.workbench.getStation("ingredient", "patty");
+  configuration.onDrop({ id: "patty", anchor: station.dropAnchor, targetIndex: null });
+  stage.tick(1168);
+  const target = station.pickupAnchor.getWorldPosition(new THREE.Vector3());
+  const bouncing = stage.burger.getLayer("patty").getWorldPosition(new THREE.Vector3());
+  assert.notEqual(bouncing.y, target.y, "home motion visibly compresses before settling");
+  documentTarget.hide();
+  assert.equal(stage.burger.selectionHalo.visible, false);
+  assert.equal(stage.workbench.dropCue.visible, false);
+  const actual = stage.burger.getLayer("patty").getWorldPosition(new THREE.Vector3());
+  assert.ok(actual.distanceTo(target) < 1e-9);
   stage.dispose();
 });
 
