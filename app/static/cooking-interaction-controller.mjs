@@ -472,7 +472,7 @@ export function createCookingInteractionController({
     if (canvas.hasPointerCapture?.(pointerId)) canvas.releasePointerCapture?.(pointerId);
   };
 
-  const cancelGesture = (reason) => {
+  const cancelGesture = (reason, error = null) => {
     const pointerIds = [...activePointers.keys()];
     const cancelledDrag = dragSession;
     activePointers.clear();
@@ -480,22 +480,25 @@ export function createCookingInteractionController({
     orbitSession = null;
     pinchSession = null;
     state = "idle";
+    let invalidDetail = null;
     if (cancelledDrag) {
       const { draggable, snapshot } = cancelledDrag;
       restoreTransform(draggable.object, snapshot);
-      onInvalid(Object.freeze({
+      invalidDetail = Object.freeze({
         id: draggable.id,
         object: draggable.object,
         reason,
+        ...(error ? { error } : {}),
         restoredPose: detachedPose(draggable.object),
-      }));
+      });
     }
     for (const pointerId of pointerIds) releaseCapture(pointerId);
+    if (invalidDetail) onInvalid(invalidDetail);
   };
 
-  const invalidateDrag = (reason) => {
+  const invalidateDrag = (reason, error = null) => {
     if (!dragSession) return;
-    cancelGesture(reason);
+    cancelGesture(reason, error);
   };
 
   const unregisterRecord = (id) => {
@@ -516,15 +519,59 @@ export function createCookingInteractionController({
   };
 
   const resolveAnchorPosition = (anchor) => {
-    if (!anchor) return null;
+    if (anchor === null) return null;
+    let position;
     if (anchor.isObject3D) {
       anchor.updateWorldMatrix?.(true, false);
-      return anchor.getWorldPosition(new THREE.Vector3());
+      position = anchor.getWorldPosition(new THREE.Vector3());
+    } else if (anchor.position
+      && [anchor.position.x, anchor.position.y, anchor.position.z].every(Number.isFinite)) {
+      position = new THREE.Vector3(anchor.position.x, anchor.position.y, anchor.position.z);
+    } else {
+      throw new TypeError("drop anchor must be an Object3D or contain a finite position");
     }
-    if (anchor.position && [anchor.position.x, anchor.position.y, anchor.position.z].every(Number.isFinite)) {
-      return new THREE.Vector3(anchor.position.x, anchor.position.y, anchor.position.z);
+    if (![position.x, position.y, position.z].every(Number.isFinite)) {
+      throw new TypeError("drop anchor world position must be finite");
     }
-    throw new TypeError("drop anchor must be an Object3D or contain a finite position");
+    return position;
+  };
+
+  const normalizeDropResolution = (resolution) => {
+    if (!resolution || typeof resolution !== "object" || Array.isArray(resolution)) {
+      throw new TypeError("resolveDrop must return a drop resolution object");
+    }
+    if (typeof resolution.valid !== "boolean") {
+      throw new TypeError("drop resolution valid must be a boolean");
+    }
+    const allowedKeys = resolution.valid
+      ? new Set(["valid", "anchor", "targetIndex"])
+      : new Set(["valid", "reason"]);
+    for (const key of Object.keys(resolution)) {
+      if (!allowedKeys.has(key)) throw new TypeError(`Unexpected drop resolution property: ${key}`);
+    }
+    if (!resolution.valid) {
+      if (resolution.reason !== undefined
+        && (typeof resolution.reason !== "string" || !resolution.reason)) {
+        throw new TypeError("invalid drop reason must be a non-empty string");
+      }
+      return Object.freeze({ valid: false, reason: resolution.reason ?? "invalid-drop" });
+    }
+    const targetIndex = resolution.targetIndex ?? null;
+    if (targetIndex !== null && (!Number.isInteger(targetIndex) || targetIndex < 0)) {
+      throw new TypeError("drop targetIndex must be a non-negative integer or null");
+    }
+    const anchor = resolution.anchor ?? null;
+    const anchorPosition = resolveAnchorPosition(anchor);
+    return Object.freeze({ valid: true, anchor, anchorPosition, targetIndex });
+  };
+
+  const localDropPosition = (object, worldPositionValue) => {
+    const local = worldPositionValue.clone();
+    object.parent?.worldToLocal(local);
+    if (![local.x, local.y, local.z].every(Number.isFinite)) {
+      throw new TypeError("drop target position must be finite");
+    }
+    return local;
   };
 
   const handlePointerUp = (event) => {
@@ -564,13 +611,24 @@ export function createCookingInteractionController({
       return;
     }
     if (state !== "dragging-layer" || dragSession?.pointerId !== event.pointerId) return;
-    const { draggable, snapshot, lastProjection, startWorld } = dragSession;
-    const inside = !lastProjection || insidePrep(lastProjection);
+    const { draggable, snapshot, startWorld } = dragSession;
+    let pointerUpProjection;
+    try {
+      pointerUpProjection = projectedPoint(event);
+    } catch (error) {
+      invalidateDrag("outside-prep", error);
+      return;
+    }
+    dragSession.lastProjection = pointerUpProjection?.clone() ?? null;
+    if (!pointerUpProjection || !insidePrep(pointerUpProjection)) {
+      invalidateDrag("outside-prep");
+      return;
+    }
     const context = Object.freeze({
       id: draggable.id,
       object: draggable.object,
-      point: lastProjection && Object.freeze({
-        x: lastProjection.x, y: lastProjection.y, z: lastProjection.z,
+      point: Object.freeze({
+        x: pointerUpProjection.x, y: pointerUpProjection.y, z: pointerUpProjection.z,
       }),
       priorPose: detachedPose({
         position: snapshot.position,
@@ -578,45 +636,51 @@ export function createCookingInteractionController({
         scale: snapshot.scale,
       }),
     });
-    const resolution = inside
-      ? (resolveDrop ? resolveDrop(context) : { valid: true })
-      : { valid: false, reason: "outside-prep" };
-    if (!resolution || resolution.valid === false) {
-      invalidateDrag(resolution?.reason ?? "invalid-drop");
+    let resolution;
+    try {
+      resolution = normalizeDropResolution(resolveDrop ? resolveDrop(context) : { valid: true });
+    } catch (error) {
+      invalidateDrag("drop-resolution-error", error);
       return;
     }
-    if (typeof resolution !== "object" || Array.isArray(resolution)) {
-      throw new TypeError("resolveDrop must return a drop resolution object");
+    if (!resolution.valid) {
+      invalidateDrag(resolution.reason);
+      return;
     }
-    const anchorPosition = resolveAnchorPosition(resolution.anchor);
-    if (anchorPosition) {
-      setWorldPosition(draggable.object, anchorPosition);
-    } else {
-      const settledWorld = worldPosition(draggable.object);
-      settledWorld.y = startWorld.y;
-      setWorldPosition(draggable.object, settledWorld);
-      draggable.object.position.y = snapshot.position.y;
+    let targetPosition;
+    try {
+      if (resolution.anchorPosition) {
+        targetPosition = localDropPosition(draggable.object, resolution.anchorPosition);
+      } else {
+        const settledWorld = worldPosition(draggable.object);
+        settledWorld.y = startWorld.y;
+        targetPosition = localDropPosition(draggable.object, settledWorld);
+        targetPosition.y = snapshot.position.y;
+      }
+    } catch (error) {
+      invalidateDrag("drop-resolution-error", error);
+      return;
     }
+    draggable.object.position.copy(targetPosition);
     draggable.object.scale.copy(snapshot.scale);
-    const targetIndex = resolution.targetIndex ?? null;
-    if (targetIndex !== null && (!Number.isInteger(targetIndex) || targetIndex < 0)) {
-      throw new TypeError("drop targetIndex must be a non-negative integer or null");
-    }
-    onDrop(Object.freeze({
+    const dropDetail = Object.freeze({
       id: draggable.id,
       object: draggable.object,
-      point: lastProjection && Object.freeze({
-        x: lastProjection.x, y: lastProjection.y, z: lastProjection.z,
+      point: Object.freeze({
+        x: pointerUpProjection.x, y: pointerUpProjection.y, z: pointerUpProjection.z,
       }),
       valid: true,
-      targetIndex,
-      anchor: resolution.anchor ?? null,
+      targetIndex: resolution.targetIndex,
+      anchor: resolution.anchor,
       pose: detachedPose(draggable.object),
-    }));
+    });
     dragSession = null;
+    orbitSession = null;
+    pinchSession = null;
     state = "idle";
     activePointers.delete(event.pointerId);
     releaseCapture(event.pointerId);
+    onDrop(dropDetail);
   };
 
   const handlePointerCancel = (event) => {

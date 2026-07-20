@@ -270,6 +270,212 @@ test("rolls an outside drop and pointer cancellation back to the exact prior tra
   controller.dispose();
 });
 
+test("reprojects the pointer-up event before deciding whether a drop is inside prep", () => {
+  const canvas = createCanvas();
+  const camera = new THREE.PerspectiveCamera();
+  const layer = new THREE.Group();
+  layer.position.set(0.5, 1.25, -0.75);
+  const surface = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+  layer.add(surface);
+  const prior = layer.position.toArray();
+  const drops = [];
+  const invalid = [];
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    draggables: [{ id: "bun", object: layer, surfaces: [surface] }],
+    raycast: () => ({ object: surface, point: new THREE.Vector3() }),
+    projectToPrep: ({ clientX, clientY }) => new THREE.Vector3(clientX, 0, clientY),
+    prepBounds: { minX: -5, maxX: 5, minZ: -5, maxZ: 5 },
+    onDrop: (detail) => drops.push(detail),
+    onInvalid: (detail) => invalid.push(detail),
+  });
+
+  canvas.dispatch("pointerdown", pointer(17, 0, 0));
+  canvas.dispatch("pointerup", pointer(17, 20, 20));
+
+  assert.deepEqual(layer.position.toArray(), prior);
+  assert.equal(drops.length, 0);
+  assert.equal(invalid.length, 1);
+  assert.equal(invalid[0].reason, "outside-prep");
+  assert.equal(controller.getState(), "idle");
+  assert.deepEqual([...canvas.captured], []);
+  assert.deepEqual(canvas.released, [17]);
+  controller.dispose();
+});
+
+test("treats an unprojectable pointer-up as an outside drop", () => {
+  const canvas = createCanvas();
+  const camera = new THREE.PerspectiveCamera();
+  const layer = new THREE.Group();
+  layer.position.set(0.5, 1.25, -0.75);
+  const surface = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+  layer.add(surface);
+  const prior = layer.position.toArray();
+  const invalid = [];
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    draggables: [{ id: "bun", object: layer, surfaces: [surface] }],
+    raycast: () => ({ object: surface, point: new THREE.Vector3() }),
+    projectToPrep: ({ clientX, clientY }) => (
+      clientX === 20 && clientY === 20 ? null : new THREE.Vector3(clientX, 0, clientY)
+    ),
+    onInvalid: (detail) => invalid.push(detail),
+  });
+
+  canvas.dispatch("pointerdown", pointer(18, 0, 0));
+  canvas.dispatch("pointerup", pointer(18, 20, 20));
+
+  assert.deepEqual(layer.position.toArray(), prior);
+  assert.equal(invalid.length, 1);
+  assert.equal(invalid[0].reason, "outside-prep");
+  assert.equal(controller.getState(), "idle");
+  assert.deepEqual(canvas.released, [18]);
+  controller.dispose();
+});
+
+test("rejects thrown or malformed drop resolutions without leaking mutations or capture", () => {
+  const cases = [
+    ["resolver throws", () => { throw new Error("resolver failed"); }],
+    ["null", () => null],
+    ["non-object", () => 42],
+    ["missing valid flag", () => ({ targetIndex: 0 })],
+    ["non-boolean valid flag", () => ({ valid: "yes" })],
+    ["scalar anchor", () => ({ valid: true, anchor: 0 })],
+    ["bad anchor", () => ({ valid: true, anchor: { position: { x: 1, y: Infinity, z: 2 } } })],
+    ["negative target index", () => ({ valid: true, targetIndex: -1 })],
+    ["fractional target index", () => ({ valid: true, targetIndex: 1.5 })],
+  ];
+
+  for (const [label, resolveDrop] of cases) {
+    const canvas = createCanvas();
+    const camera = new THREE.PerspectiveCamera();
+    const layer = new THREE.Group();
+    layer.position.set(0.5, 1.25, -0.75);
+    layer.rotation.set(0.31, -0.42, 0.23, "ZYX");
+    layer.scale.set(0.9, 1.2, 1.1);
+    const surface = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+    layer.add(surface);
+    const prior = {
+      position: layer.position.toArray(),
+      quaternion: layer.quaternion.toArray(),
+      scale: layer.scale.toArray(),
+      order: layer.rotation.order,
+    };
+    const invalid = [];
+    const controller = createCookingInteractionController({
+      THREE,
+      canvas,
+      camera,
+      draggables: [{ id: "patty", object: layer, surfaces: [surface] }],
+      raycast: () => ({ object: surface, point: new THREE.Vector3() }),
+      projectToPrep: ({ clientX, clientY }) => new THREE.Vector3(clientX, 0, clientY),
+      resolveDrop,
+      onInvalid: (detail) => invalid.push(detail),
+    });
+
+    canvas.dispatch("pointerdown", pointer(19, 0, 0));
+    canvas.dispatch("pointermove", pointer(19, 2, 2));
+    assert.doesNotThrow(() => canvas.dispatch("pointerup", pointer(19, 2, 2)), label);
+
+    assert.deepEqual(layer.position.toArray(), prior.position, `${label}: position`);
+    assert.deepEqual(layer.quaternion.toArray(), prior.quaternion, `${label}: rotation`);
+    assert.deepEqual(layer.scale.toArray(), prior.scale, `${label}: scale`);
+    assert.equal(layer.rotation.order, prior.order, `${label}: order`);
+    assert.equal(invalid.length, 1, `${label}: invalid callback`);
+    assert.match(invalid[0].reason, /drop/, `${label}: reason`);
+    assert.ok(invalid[0].error instanceof Error, `${label}: surfaced error`);
+    assert.equal(controller.getState(), "idle", `${label}: state`);
+    assert.deepEqual([...canvas.captured], [], `${label}: capture`);
+    assert.deepEqual(canvas.released, [19], `${label}: released`);
+    assert.equal(canvas.listenerCount("pointerup"), 1, `${label}: listener remains usable`);
+    controller.dispose();
+  }
+});
+
+test("validates an Object3D anchor world position before committing a drop", () => {
+  const canvas = createCanvas();
+  const camera = new THREE.PerspectiveCamera();
+  const layer = new THREE.Group();
+  layer.position.set(0.5, 1.25, -0.75);
+  const surface = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+  layer.add(surface);
+  const prior = layer.position.toArray();
+  const anchor = new THREE.Object3D();
+  anchor.position.set(Infinity, 2, 3);
+  const invalid = [];
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    draggables: [{ id: "patty", object: layer, surfaces: [surface] }],
+    raycast: () => ({ object: surface, point: new THREE.Vector3() }),
+    projectToPrep: () => new THREE.Vector3(),
+    resolveDrop: () => ({ valid: true, anchor, targetIndex: 0 }),
+    onInvalid: (detail) => invalid.push(detail),
+  });
+
+  canvas.dispatch("pointerdown", pointer(20, 0, 0));
+  assert.doesNotThrow(() => canvas.dispatch("pointerup", pointer(20, 0, 0)));
+
+  assert.deepEqual(layer.position.toArray(), prior);
+  assert.equal(invalid.length, 1);
+  assert.ok(invalid[0].error instanceof Error);
+  assert.equal(controller.getState(), "idle");
+  assert.deepEqual(canvas.released, [20]);
+  controller.dispose();
+});
+
+test("cleans up pointer state before invoking drop and invalid callbacks", () => {
+  for (const callbackKind of ["drop", "invalid"]) {
+    const canvas = createCanvas();
+    const camera = new THREE.PerspectiveCamera();
+    const layer = new THREE.Group();
+    layer.position.set(0.5, 1.25, -0.75);
+    const surface = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+    layer.add(surface);
+    const prior = layer.position.toArray();
+    const anchor = new THREE.Object3D();
+    anchor.position.set(3, 4, 5);
+    const callbackError = new Error(`${callbackKind} callback failed`);
+    const controller = createCookingInteractionController({
+      THREE,
+      canvas,
+      camera,
+      draggables: [{ id: "patty", object: layer, surfaces: [surface] }],
+      raycast: () => ({ object: surface, point: new THREE.Vector3() }),
+      projectToPrep: () => new THREE.Vector3(),
+      resolveDrop: () => (
+        callbackKind === "drop"
+          ? { valid: true, anchor, targetIndex: 0 }
+          : { valid: false, reason: "occupied" }
+      ),
+      onDrop: () => { throw callbackError; },
+      onInvalid: () => { throw callbackError; },
+    });
+
+    canvas.dispatch("pointerdown", pointer(21, 0, 0));
+    assert.throws(
+      () => canvas.dispatch("pointerup", pointer(21, 0, 0)),
+      (error) => error === callbackError,
+      callbackKind,
+    );
+
+    assert.equal(controller.getState(), "idle", `${callbackKind}: state`);
+    assert.deepEqual([...canvas.captured], [], `${callbackKind}: capture`);
+    assert.deepEqual(canvas.released, [21], `${callbackKind}: released`);
+    if (callbackKind === "drop") {
+      assert.deepEqual(layer.position.toArray(), anchor.position.toArray(), "drop remains committed");
+    } else {
+      assert.deepEqual(layer.position.toArray(), prior, "invalid drop is rolled back");
+    }
+    controller.dispose();
+  }
+});
+
 test("selects and rotates a layer without disturbing its remaining transform", () => {
   const canvas = createCanvas();
   const camera = new THREE.PerspectiveCamera();
