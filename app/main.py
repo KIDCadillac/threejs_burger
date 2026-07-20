@@ -18,6 +18,7 @@ from app.service import GameService, Room, RoomError
 
 
 BASE_DIR = Path(__file__).parent
+MAX_MESSAGE_CHARS = 128 * 1024
 mimetypes.add_type("text/javascript", ".mjs")
 mimetypes.add_type("image/webp", ".webp")
 
@@ -68,10 +69,12 @@ async def _receive_command(socket: WebSocket) -> Any:
     text = message.get("text")
     if not isinstance(text, str):
         raise ProtocolError("消息必须使用文本 JSON")
+    if len(text) > MAX_MESSAGE_CHARS:
+        raise ProtocolError("消息过大")
     try:
         return json.loads(text)
-    except json.JSONDecodeError as error:
-        raise ProtocolError("消息必须是有效 JSON") from error
+    except (ValueError, RecursionError) as error:
+        raise ProtocolError("消息 JSON 格式或复杂度无效") from error
 
 
 def create_app(service: GameService | None = None) -> FastAPI:

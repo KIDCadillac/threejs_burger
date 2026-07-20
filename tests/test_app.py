@@ -226,23 +226,71 @@ def test_websocket_rejects_binary_frame_then_accepts_text_json() -> None:
         assert socket.receive_json()["phase"] == "waiting"
 
 
+@pytest.mark.parametrize(
+    "pathological_json",
+    ["1" * 5_000, "[" * 5_000 + "0" + "]" * 5_000],
+    ids=("oversized-integer", "excessive-nesting"),
+)
+def test_websocket_rejects_pathological_json_then_accepts_a_command(
+    pathological_json: str,
+) -> None:
+    isolated_client = TestClient(create_app(GameService()))
+
+    with isolated_client.websocket_connect(ws_path("p1")) as socket:
+        socket.receive_json()
+        socket.send_text(pathological_json)
+
+        error = socket.receive_json()
+        assert error["type"] == "error"
+        assert "JSON" in error["message"]
+
+        socket.send_json({"type": "room.create"})
+        assert socket.receive_json()["phase"] == "waiting"
+
+
+def test_websocket_rejects_oversized_text_frame_then_accepts_a_command() -> None:
+    isolated_client = TestClient(create_app(GameService()))
+    oversized = '{"type":"room.create","padding":"' + "x" * 200_000 + '"}'
+
+    with isolated_client.websocket_connect(ws_path("p1")) as socket:
+        socket.receive_json()
+        socket.send_text(oversized)
+
+        error = socket.receive_json()
+        assert error["type"] == "error"
+        assert "过大" in error["message"]
+
+        socket.send_json({"type": "room.create"})
+        assert socket.receive_json()["phase"] == "waiting"
+
+
 def test_websocket_cleanup_runs_when_dispatch_exits_unexpectedly(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def fail_dispatch(*args, **kwargs) -> None:
         raise RuntimeError("dispatch failed")
 
-    monkeypatch.setattr(main_module, "_dispatch", fail_dispatch)
-    application = create_app(GameService())
+    service = GameService()
+    application = create_app(service)
     isolated_client = TestClient(application)
 
     with pytest.raises(RuntimeError, match="dispatch failed"):
         with isolated_client.websocket_connect(ws_path("p1")) as socket:
             socket.receive_json()
             socket.send_json({"type": "room.create"})
+            created = socket.receive_json()
+            room = service.room_for("p1")
+            assert room is not None
+            assert created["phase"] == "waiting"
+            assert "p1" in room.connected
+
+            monkeypatch.setattr(main_module, "_dispatch", fail_dispatch)
+            socket.send_json({"type": "room.explode"})
             socket.receive_json()
 
     assert "p1" not in application.state.hub.sockets
+    assert "p1" not in room.connected
+    assert "p1" in room.disconnected_at
 
 
 def test_websocket_rejects_malformed_composition_then_accepts_valid_lock() -> None:
