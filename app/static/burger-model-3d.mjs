@@ -692,40 +692,49 @@ export function createBurgerModel3D(THREE, options = {}) {
     biteThresholdsById.set(definition.id, maxRadius * 0.12);
   }
 
-  const selectionFillGeometry = new THREE.CircleGeometry(0.92, 32);
-  const selectionOutlineGeometry = new THREE.RingGeometry(0.92, 1, 32);
-  const selectionFillMaterial = new THREE.MeshBasicMaterial({
-    color: 0xffc84d,
-    transparent: true,
-    opacity: 0.14,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-    depthTest: false,
-  });
+  const feedbackGeometry = surfacesById.get(BURGER_LAYER_IDS[0]).geometry;
   const selectionOutlineMaterial = new THREE.MeshBasicMaterial({
-    color: 0xffd979,
+    color: 0xffe6a0,
     transparent: true,
-    opacity: 0.76,
+    opacity: 0.3,
     side: THREE.DoubleSide,
     depthWrite: false,
-    depthTest: false,
+    depthTest: true,
   });
   const selectionFeedback = new THREE.Group();
   selectionFeedback.name = "food-layer:selection-feedback";
-  selectionFeedback.userData.kind = "selection-outline";
-  selectionFeedback.rotation.x = -Math.PI / 2;
+  selectionFeedback.userData.kind = "selection-shell";
   selectionFeedback.visible = false;
-  const selectionFill = new THREE.Mesh(selectionFillGeometry, selectionFillMaterial);
-  const selectionOutline = new THREE.Mesh(selectionOutlineGeometry, selectionOutlineMaterial);
-  for (const mesh of [selectionFill, selectionOutline]) {
+  const selectionOutline = new THREE.Mesh(feedbackGeometry, selectionOutlineMaterial);
+  selectionOutline.scale.setScalar(1.055);
+  for (const mesh of [selectionOutline]) {
     mesh.renderOrder = 20;
     mesh.raycast = NO_RAYCAST;
     selectionFeedback.add(mesh);
   }
-  ownedGeometries.add(selectionFillGeometry);
-  ownedGeometries.add(selectionOutlineGeometry);
-  ownedMaterials.add(selectionFillMaterial);
   ownedMaterials.add(selectionOutlineMaterial);
+
+  const dropPreviewFillMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffd261,
+    transparent: true,
+    opacity: 0.26,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    depthTest: true,
+  });
+  const dropPreview = new THREE.Group();
+  dropPreview.name = "food-layer:drop-preview";
+  dropPreview.userData.kind = "insertion-preview";
+  dropPreview.visible = false;
+  dropPreview.raycast = NO_RAYCAST;
+  const dropPreviewFill = new THREE.Mesh(feedbackGeometry, dropPreviewFillMaterial);
+  dropPreviewFill.scale.setScalar(1.025);
+  for (const mesh of [dropPreviewFill]) {
+    mesh.renderOrder = 19;
+    mesh.raycast = NO_RAYCAST;
+    dropPreview.add(mesh);
+  }
+  ownedMaterials.add(dropPreviewFillMaterial);
 
   const sesame = createSesameDecoration(THREE, sesameMaterial);
   layers.get("top-bun").add(sesame);
@@ -1316,6 +1325,7 @@ export function createBurgerModel3D(THREE, options = {}) {
     layers: readonlyLayers,
     selectableSurfaces,
     selectionFeedback,
+    dropPreview,
     noRaycast: NO_RAYCAST,
     getLayer,
     getLayerOrder() {
@@ -1339,12 +1349,52 @@ export function createBurgerModel3D(THREE, options = {}) {
         return false;
       }
       const layer = layers.get(layerId);
+      const geometry = layer.userData.selectableSurface.geometry;
+      for (const mesh of selectionFeedback.children) mesh.geometry = geometry;
       layer.add(selectionFeedback);
-      selectionFeedback.position.set(0, layer.userData.surfaceY + 0.045, 0);
-      const radius = layer.userData.surfaceRadius;
-      selectionFeedback.scale.set(radius * 1.04, radius * 1.04, 1);
+      selectionFeedback.position.set(0, 0, 0);
+      selectionFeedback.rotation.set(0, 0, 0);
+      selectionFeedback.scale.set(1, 1, 1);
       selectionFeedback.visible = true;
       return true;
+    },
+    setLayerDropPreview(layerId, {
+      position,
+      scale,
+      yaw = 0,
+      targetIndex,
+    } = {}) {
+      assertActive(disposed);
+      assertLayerId(layerId);
+      if (!position || ![position.x, position.y, position.z].every(Number.isFinite)) {
+        throw new TypeError("drop preview position must contain finite x, y, and z");
+      }
+      if (!scale || ![scale.x, scale.y, scale.z].every((value) => (
+        Number.isFinite(value) && value > 0
+      ))) {
+        throw new TypeError("drop preview scale must contain positive finite x, y, and z");
+      }
+      const normalizedYaw = assertFinite(yaw, "drop preview yaw");
+      if (!Number.isInteger(targetIndex) || targetIndex < 0) {
+        throw new TypeError("drop preview targetIndex must be a non-negative integer");
+      }
+      const geometry = layers.get(layerId).userData.selectableSurface.geometry;
+      for (const mesh of dropPreview.children) mesh.geometry = geometry;
+      root.add(dropPreview);
+      dropPreview.position.set(position.x, position.y, position.z);
+      dropPreview.rotation.set(0, normalizedYaw, 0);
+      dropPreview.scale.set(scale.x, scale.y, scale.z);
+      dropPreview.userData.layerId = layerId;
+      dropPreview.userData.targetIndex = targetIndex;
+      dropPreview.visible = true;
+      return true;
+    },
+    clearLayerDropPreview() {
+      if (disposed) return;
+      dropPreview.visible = false;
+      dropPreview.removeFromParent();
+      delete dropPreview.userData.layerId;
+      delete dropPreview.userData.targetIndex;
     },
     reorderLayer,
     snapLayer,

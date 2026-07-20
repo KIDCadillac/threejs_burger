@@ -991,22 +991,66 @@ test("deduplicates static resources, disposes all resources once, and is idempot
   assert.throws(() => burger.setExpanded(true), /disposed/i);
 });
 
-test("reuses close-fitting non-raycast feedback for the currently held layer", () => {
+test("reuses the held ingredient geometry as a close-fitting translucent non-raycast shell", () => {
   const burger = createBurgerModel3D(THREE);
   assert.equal(burger.selectionFeedback.visible, false);
-  assert.equal(burger.selectionFeedback.userData.kind, "selection-outline");
+  assert.equal(burger.selectionFeedback.userData.kind, "selection-shell");
   assert.equal(burger.setLayerHighlighted("patty", true), true);
   assert.equal(burger.selectionFeedback.visible, true);
   assert.equal(burger.selectionFeedback.parent, burger.getLayer("patty"));
-  assert.ok(
-    burger.selectionFeedback.scale.x
-      <= burger.getLayer("patty").userData.surfaceRadius * 1.08,
-  );
-  assert.ok(burger.selectionFeedback.children.length >= 2);
+  assert.ok(burger.selectionFeedback.children.length >= 1);
   for (const child of burger.selectionFeedback.children) {
+    assert.equal(child.geometry, burger.getLayer("patty").userData.selectableSurface.geometry);
+    assert.equal(child.material.transparent, true);
+    assert.equal(child.material.depthWrite, false);
     assert.notEqual(child.raycast, THREE.Mesh.prototype.raycast);
+  }
+  burger.setLayerHighlighted("cheese", true);
+  for (const child of burger.selectionFeedback.children) {
+    assert.equal(child.geometry, burger.getLayer("cheese").userData.selectableSurface.geometry);
   }
   burger.setLayerHighlighted("patty", false);
   assert.equal(burger.selectionFeedback.visible, false);
+  burger.dispose();
+});
+
+test("previews the exact ingredient shape at a translucent target-layer pose", () => {
+  const burger = createBurgerModel3D(THREE);
+  assert.equal(burger.dropPreview.visible, false);
+  const position = new THREE.Vector3(0.2, 1.7, -0.15);
+  const scale = new THREE.Vector3(0.72, 0.72, 0.72);
+
+  assert.equal(burger.setLayerDropPreview("cheese", {
+    position,
+    scale,
+    yaw: 0.45,
+    targetIndex: 2,
+  }), true);
+  assert.equal(burger.dropPreview.visible, true);
+  assert.equal(burger.dropPreview.parent, burger.root);
+  assert.deepEqual(burger.dropPreview.position.toArray(), position.toArray());
+  assert.deepEqual(burger.dropPreview.scale.toArray(), scale.toArray());
+  assert.equal(burger.dropPreview.rotation.y, 0.45);
+  assert.equal(burger.dropPreview.userData.layerId, "cheese");
+  assert.equal(burger.dropPreview.userData.targetIndex, 2);
+  assert.ok(burger.dropPreview.children.length >= 1);
+  for (const child of burger.dropPreview.children) {
+    assert.equal(child.geometry, burger.getLayer("cheese").userData.selectableSurface.geometry);
+    assert.equal(child.material.transparent, true);
+    assert.ok(child.material.opacity > 0 && child.material.opacity < 0.5);
+    assert.equal(child.material.depthWrite, false);
+    assert.notEqual(child.raycast, THREE.Mesh.prototype.raycast);
+  }
+
+  burger.clearLayerDropPreview();
+  assert.equal(burger.dropPreview.visible, false);
+  assert.equal(Object.hasOwn(burger.dropPreview.userData, "layerId"), false);
+  assert.equal(Object.hasOwn(burger.dropPreview.userData, "targetIndex"), false);
+  assert.throws(() => burger.setLayerDropPreview("cheese", {
+    position,
+    scale,
+    yaw: 0,
+    targetIndex: -1,
+  }), TypeError);
   burger.dispose();
 });

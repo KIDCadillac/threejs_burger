@@ -269,7 +269,7 @@ export function createCookingWorkbench3D(THREE, {
   const dropCueMaterial = new THREE.MeshBasicMaterial({
     color: 0xffc84d,
     transparent: true,
-    opacity: 0.82,
+    opacity: 0.28,
     side: THREE.DoubleSide,
     depthWrite: false,
     depthTest: false,

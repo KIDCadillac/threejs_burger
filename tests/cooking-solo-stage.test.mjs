@@ -381,11 +381,29 @@ test("held food highlights while indexed previews open only the required gap", (
   const points = prepIntentPoints(stage);
   configuration.onMove({ id: "patty", reason: "drag", point: points.top });
   assert.equal(stage.workbench.dropCue.userData.targetIndex, 1);
+  assert.equal(stage.burger.dropPreview.visible, true);
+  assert.equal(stage.burger.dropPreview.userData.layerId, "patty");
+  assert.equal(stage.burger.dropPreview.userData.targetIndex, 1);
+  assert.equal(
+    stage.burger.dropPreview.children[0].geometry,
+    stage.burger.getLayer("patty").userData.selectableSurface.geometry,
+  );
+  const topPreviewY = stage.burger.dropPreview.position.y;
+  assert.ok(topPreviewY > bun.position.y, "ghost shows the final top-layer result");
   assert.equal(bun.position.y, baseY);
 
   configuration.onMove({ id: "patty", reason: "drag", point: points.bottom });
   assert.equal(stage.workbench.dropCue.userData.targetIndex, 0);
+  assert.equal(stage.burger.dropPreview.userData.targetIndex, 0);
+  assert.ok(stage.burger.dropPreview.position.y < topPreviewY, "ghost follows the chosen gap");
   assert.ok(bun.position.y > baseY);
+
+  configuration.onMove({
+    id: "patty",
+    reason: "drag",
+    point: new THREE.Vector3(999, 0, 999),
+  });
+  assert.equal(stage.burger.dropPreview.visible, false, "invalid intent clears the target ghost");
   stage.dispose();
 });
 

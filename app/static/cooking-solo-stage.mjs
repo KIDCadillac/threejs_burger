@@ -282,6 +282,7 @@ export function createSoloCookingStage({
   const clearGrabVisuals = () => {
     if (highlightedLayerId) burger.setLayerHighlighted(highlightedLayerId, false);
     highlightedLayerId = null;
+    burger.clearLayerDropPreview();
     workbench.clearDropCue();
     workbench.clearHighlights();
   };
@@ -338,6 +339,7 @@ export function createSoloCookingStage({
 
   const applyDropPreview = (intent) => {
     if (!intent?.id || intent.kind !== "prep") {
+      burger.clearLayerDropPreview();
       workbench.clearDropCue();
       return false;
     }
@@ -352,6 +354,9 @@ export function createSoloCookingStage({
     const thickness = selected.userData.halfHeight * LAYER_PRESENTATION_SCALE * 2;
     const targetIndex = Math.max(0, Math.min(intent.targetIndex, previewOrder.length));
     const upperIds = new Set(previewOrder.slice(targetIndex));
+    const finalOrder = [...previewOrder];
+    finalOrder.splice(targetIndex, 0, intent.id);
+    const selectedTarget = targetTransforms(finalOrder).get(intent.id);
 
     for (const [layerId, target] of targets) {
       if (layerId === intent.id) continue;
@@ -376,6 +381,12 @@ export function createSoloCookingStage({
       targetIndex,
       y: gapY,
       radius: selected.userData.surfaceRadius * LAYER_PRESENTATION_SCALE,
+    });
+    burger.setLayerDropPreview(intent.id, {
+      position: selectedTarget.position,
+      scale: selectedTarget.scale,
+      yaw: selectedTarget.yaw,
+      targetIndex,
     });
     return true;
   };
@@ -643,6 +654,7 @@ export function createSoloCookingStage({
             applyDropPreview(nextIntent);
           } else {
             restoreDraggedLayout(id);
+            burger.clearLayerDropPreview();
             workbench.clearDropCue();
             if (nextIntent.kind === "bin") {
               workbench.setHighlighted("ingredient", id, true);
