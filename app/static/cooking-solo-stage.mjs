@@ -4,6 +4,7 @@ import { createCookingWorkbench3D } from "./cooking-workbench-3d.mjs";
 import { createBurgerModel3D } from "./burger-model-3d.mjs";
 import { createCondimentTools3D } from "./condiment-tools-3d.mjs";
 import { createCookingInteractionController } from "./cooking-interaction-controller.mjs";
+import { resolveSoloLayerDrop } from "./cooking-drop-intent.mjs";
 import {
   createSoloCookingState,
   placeSoloLayer,
@@ -29,11 +30,6 @@ const PREP_LAYER_SCALE = 1;
 const STACK_GAP = 0.065;
 const EXPLODED_GAP = 0.42;
 const SNAP_DURATION = 190;
-
-function contains(bounds, point) {
-  return point.x >= bounds.minX && point.x <= bounds.maxX
-    && point.z >= bounds.minZ && point.z <= bounds.maxZ;
-}
 
 function createCelebration(THREE) {
   const root = new THREE.Group();
@@ -186,6 +182,7 @@ export function createSoloCookingStage({
   let state = createSoloCookingState();
   let tutorial = createCookingTutorial({ storage });
   let selectedLayerId = null;
+  let dropIntent = null;
   let expanded = false;
   let disposed = false;
   let lastFrameTime = 0;
@@ -198,6 +195,7 @@ export function createSoloCookingStage({
       state,
       tutorial,
       selectedLayerId,
+      dropIntent,
       expanded,
       progress: `${state.assembledOrder.length}/${BURGER_LAYER_IDS.length}`,
       composition: serializeSoloComposition(state),
@@ -279,20 +277,32 @@ export function createSoloCookingStage({
     celebration.visible = state.finished;
   };
 
-  const resolveDrop = ({ id, point }) => {
+  const resolveDropIntent = (id, point) => {
     const layout = workbench.getLayout();
-    if (contains(layout.prep.bounds, point)) {
-      const count = state.assembledOrder.length;
-      const normalized = (point.x - layout.prep.bounds.minX)
-        / (layout.prep.bounds.maxX - layout.prep.bounds.minX);
+    const station = layout.ingredients.find((entry) => entry.id === id);
+    if (!station) return Object.freeze({
+      kind: "invalid", intent: "invalid", id, targetIndex: null,
+    });
+    const resolution = resolveSoloLayerDrop({
+      point,
+      prepBounds: layout.prep.bounds,
+      homeBounds: station.bounds,
+      assembledCount: state.assembledOrder.length,
+      magnetPadding: 0.36,
+    });
+    return Object.freeze({ id, ...resolution });
+  };
+
+  const resolveDrop = ({ id, point }) => {
+    const intent = resolveDropIntent(id, point);
+    if (intent.kind === "prep") {
       return {
         valid: true,
         anchor: workbench.prep.dropAnchor,
-        targetIndex: Math.min(count, Math.max(0, Math.round(normalized * count))),
+        targetIndex: intent.targetIndex,
       };
     }
-    const station = layout.ingredients.find((entry) => entry.id === id);
-    if (station && contains(station.bounds, point)) {
+    if (intent.kind === "bin") {
       return {
         valid: true,
         anchor: workbench.getStation("ingredient", id).dropAnchor,
@@ -366,25 +376,42 @@ export function createSoloCookingStage({
       maxDistance: 23,
     },
     resolveDrop,
-    onPick: ({ id }) => selectLayer(id),
+    onPick: ({ id }) => {
+      dropIntent = null;
+      return selectLayer(id);
+    },
     onSelection: ({ id, selected }) => {
       if (selected) selectedLayerId = id;
       else if (selectedLayerId === id) selectedLayerId = null;
       emit("selection");
     },
-    onMove: ({ id, reason, pose }) => {
+    onMove: ({ id, reason, pose, point }) => {
       cancelLayerTransition(id);
       if ((reason === "rotate" || reason === "twist") && !state.finished) {
         state = rotateSoloLayer(state, id, pose.rotation.y);
         advanceTutorial("rotated-layer");
         emit("rotate-layer");
+        return;
+      }
+      if (point && !state.finished) {
+        const nextIntent = resolveDropIntent(id, point);
+        const unchanged = dropIntent?.kind === nextIntent.kind
+          && dropIntent?.intent === nextIntent.intent
+          && dropIntent?.id === nextIntent.id
+          && dropIntent?.targetIndex === nextIntent.targetIndex;
+        if (!unchanged) {
+          dropIntent = nextIntent;
+          emit("drop-intent");
+        }
       }
     },
     onDrop: ({ id, anchor, targetIndex }) => {
+      dropIntent = null;
       if (anchor === workbench.prep.dropAnchor) dropLayer(id, { kind: "prep", targetIndex });
       else dropLayer(id, { kind: "bin" });
     },
     onInvalid: ({ reason } = {}) => {
+      dropIntent = null;
       syncTransforms({ animate: true });
       const message = typeof reason === "string" && /[\u3400-\u9fff]/u.test(reason)
         ? reason
@@ -465,6 +492,7 @@ export function createSoloCookingStage({
     resetCamera() { return controller.resetCamera(); },
     undo() {
       if (disposed || !state.history.length) return false;
+      dropIntent = null;
       state = undoSoloCooking(state);
       tutorial = reconcileCookingTutorial(tutorial, state, { selectedLayerId });
       if (state.finished) controller.pause();
@@ -475,6 +503,7 @@ export function createSoloCookingStage({
     },
     reset() {
       if (disposed) return false;
+      dropIntent = null;
       state = resetSoloCookingState();
       selectedLayerId = null;
       expanded = false;

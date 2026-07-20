@@ -113,6 +113,88 @@ test("constrains cooking camera gestures to a usable mobile composition", () => 
   stage.dispose();
 });
 
+test("resolves visible top, bottom, and forgiving home drop intentions", () => {
+  let configuration;
+  const changes = [];
+  const controller = {
+    resetCamera: () => true,
+    pause() {},
+    resume() {},
+    dispose() {},
+  };
+  const stage = createSoloCookingStage({
+    THREE,
+    canvas: new FakeCanvas(),
+    storage: null,
+    hostFactory: createHostHarness,
+    controllerFactory: (options) => { configuration = options; return controller; },
+    onChange: (detail) => changes.push(detail),
+  });
+  for (const id of ["bottom-bun", "patty", "cheese"]) {
+    stage.dropLayer(id, { kind: "prep" });
+  }
+  const layout = stage.workbench.getLayout();
+  const prep = layout.prep.bounds;
+  const topZ = prep.minZ + 0.2;
+  const bottomZ = prep.maxZ - 0.1;
+
+  const leftTop = configuration.resolveDrop({
+    id: "tomato", point: new THREE.Vector3(prep.minX + 0.2, 0, topZ),
+  });
+  const rightTop = configuration.resolveDrop({
+    id: "tomato", point: new THREE.Vector3(prep.maxX - 0.2, 0, topZ),
+  });
+  const bottom = configuration.resolveDrop({
+    id: "tomato", point: new THREE.Vector3(0, 0, bottomZ),
+  });
+  assert.equal(leftTop.targetIndex, 3);
+  assert.equal(rightTop.targetIndex, 3, "left and right no longer change the layer order");
+  assert.equal(bottom.targetIndex, 0);
+  assert.equal(leftTop.anchor, stage.workbench.prep.dropAnchor);
+
+  const home = layout.ingredients.find(({ id }) => id === "tomato");
+  const homeReturn = configuration.resolveDrop({
+    id: "tomato",
+    point: new THREE.Vector3(home.bounds.maxX + 0.3, 0, home.position.z),
+  });
+  assert.equal(homeReturn.valid, true);
+  assert.equal(homeReturn.anchor, stage.workbench.getStation("ingredient", "tomato").dropAnchor);
+
+  changes.length = 0;
+  configuration.onMove({
+    id: "tomato", reason: "drag", point: { x: 0, y: 0, z: topZ },
+    pose: { rotation: { y: 0 } },
+  });
+  assert.deepEqual(changes.at(-1).dropIntent, {
+    kind: "prep", intent: "top", id: "tomato", targetIndex: 3,
+  });
+  const unchangedCount = changes.length;
+  configuration.onMove({
+    id: "tomato", reason: "drag", point: { x: 0.1, y: 0, z: topZ },
+    pose: { rotation: { y: 0 } },
+  });
+  assert.equal(changes.length, unchangedCount, "unchanged intent does not rerender every pointer move");
+  configuration.onMove({
+    id: "tomato", reason: "drag", point: { x: 0, y: 0, z: bottomZ },
+    pose: { rotation: { y: 0 } },
+  });
+  assert.equal(changes.at(-1).dropIntent.intent, "bottom");
+
+  configuration.onDrop({
+    id: "tomato", anchor: stage.workbench.prep.dropAnchor, targetIndex: 0,
+  });
+  assert.equal(changes.at(-1).dropIntent, null);
+  configuration.onMove({
+    id: "tomato", reason: "drag",
+    point: { x: home.bounds.maxX + 0.3, y: 0, z: home.position.z },
+    pose: { rotation: { y: 0 } },
+  });
+  assert.equal(changes.at(-1).dropIntent.intent, "home");
+  configuration.onInvalid({ reason: "outside-prep" });
+  assert.equal(changes.at(-1).dropIntent, null);
+  stage.dispose();
+});
+
 test("places seven actual independent layer groups into their matching U-shaped bins", () => {
   const { stage } = harness();
 
