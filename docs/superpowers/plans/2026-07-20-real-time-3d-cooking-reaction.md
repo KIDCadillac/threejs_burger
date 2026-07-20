@@ -1,5 +1,7 @@
 # Real-Time 3D Cooking Reaction Implementation Plan
 
+> **Priority update (2026-07-20):** The reusable single-player cooking simulator is the main product mode. Build and validate the cooking workbench, spatial ingredient bins, real 3D food assembly, direct touch manipulation, condiment pouring, recipe flow, and tutorial before integrating poison, competitive, reveal, or character-reaction modes. The hamburger is the first recipe used to prove the framework, not a hard-coded product boundary. Use the latest sushi/cooking-simulator reference for spatial logic: central preparation surface with ingredients and tools arranged around it for direct pickup.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the picture/SVG deployment and reveal flow with a mobile-first real-time 3D hamburger preparation scene and a real-time 3D character that grabs, bites, reacts, and breathes fire, then expose the playable build through a temporary public HTTPS URL.
