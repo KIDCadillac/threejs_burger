@@ -7,6 +7,11 @@ const COLLAPSED_OVERLAP = 0.035;
 const EXPANDED_GAP = 0.42;
 const NO_RAYCAST = () => {};
 const LETTUCE_INNER_CLEARANCE = 0.075;
+// Two stable inner-rim controls per crossing bound a 24-point route to 70 points.
+// The 72 longitudinal x 3 radial cap keeps 64 worst-case strokes plus the food
+// at 27,798 triangles, below the established 30k mobile ceiling.
+const MAX_TUBE_SEGMENTS = 72;
+const TUBE_RADIAL_SEGMENTS = 3;
 const COMPOSITION_KEYS = Object.freeze(["food", "layerOrder", "layerPoses", "strokes"]);
 const POSE_KEYS = Object.freeze(["x", "z", "yaw"]);
 const STROKE_KEYS = Object.freeze(["sauce", "layerId", "amount", "points"]);
@@ -371,7 +376,7 @@ function routeLettucePath(THREE, points) {
       const startAngle = Math.atan2(start.z, start.x);
       const endAngle = Math.atan2(end.z, end.x);
       const delta = preferredAnnularDelta(startAngle, endAngle, coincident);
-      for (const progress of [0.25, 0.5, 0.75]) {
+      for (const progress of [1 / 3, 2 / 3]) {
         const angle = startAngle + delta * progress;
         const radius = lettuceInnerRadius(angle) + LETTUCE_INNER_CLEARANCE + 0.025;
         routed.push(new THREE.Vector3(
@@ -658,7 +663,7 @@ export function createBurgerModel3D(THREE, options = {}) {
     if (profile.kind === "annulus") pathPoints = routeLettucePath(THREE, pathPoints);
     pathPoints = ensureNonDegeneratePath(THREE, pathPoints, profile);
     const planarCurve = new THREE.CatmullRomCurve3(pathPoints, false, "centripetal");
-    const tubularSegments = Math.min(96, Math.max(
+    const tubularSegments = Math.min(MAX_TUBE_SEGMENTS, Math.max(
       8,
       pathPoints.length - 1,
       (normalized.points.length - 1) * 3,
@@ -671,8 +676,11 @@ export function createBurgerModel3D(THREE, options = {}) {
       const surface = projectLocalPoint(normalized.layerId, planar.x, planar.z);
       return target.set(surface.x, surface.y + surfaceOffset, surface.z);
     };
+    // Keep TubeGeometry rings aligned with generated route controls. The inherited
+    // arc-length remapping can skip an inner-rim waypoint on long alternating paths.
+    surfaceCurve.getPointAt = surfaceCurve.getPoint;
     const geometry = new THREE.TubeGeometry(
-      surfaceCurve, tubularSegments, tubeRadius, 3, false,
+      surfaceCurve, tubularSegments, tubeRadius, TUBE_RADIAL_SEGMENTS, false,
     );
     const mesh = new THREE.Mesh(geometry, sauceMaterials.get(normalized.sauce));
     mesh.name = `sauce:${normalized.sauce}:${normalized.layerId}:${sauceEntries.length}`;

@@ -283,7 +283,7 @@ test("routes every legal lettuce stroke continuously around the annular hole", (
     const surface = burger.getLayer("lettuce").userData.selectableSurface;
     let previous = null;
     let totalDistance = 0;
-    const sampleCount = Math.max(64, sauce.userData.routePointCount * 2);
+    const sampleCount = Math.max(64, sauce.userData.routePointCount * 4);
     for (let index = 0; index <= sampleCount; index += 1) {
       const sample = path.getPointAt(index / sampleCount, new THREE.Vector3());
       assert.ok(sample.toArray().every(Number.isFinite), "route never generates NaN");
@@ -519,6 +519,57 @@ test("stays within a bounded mobile mesh and triangle budget at maximum sauce hi
 
   assert.ok(meshes.length <= 75, `expected <=75 drawables, received ${meshes.length}`);
   assert.ok(triangles <= 30000, `expected <=30000 triangles, received ${triangles}`);
+  burger.dispose();
+});
+
+test("keeps 64 worst-case alternating lettuce strokes below the mobile triangle budget", () => {
+  const burger = createBurgerModel3D(THREE);
+  const alternatingDiameter = Array.from({ length: 24 }, (_, index) => [
+    index % 2 === 0 ? -1 : 1,
+    index % 4 < 2 ? 0.04 : -0.04,
+  ]);
+  let representativeStroke;
+  for (let index = 0; index < 64; index += 1) {
+    representativeStroke = burger.addSauceStroke({
+      sauce: SAUCE_KEYS[index % SAUCE_KEYS.length],
+      layerId: "lettuce",
+      amount: 1,
+      points: alternatingDiameter,
+    });
+  }
+  const meshes = [];
+  burger.root.traverse((object) => {
+    if (object instanceof THREE.Mesh) meshes.push(object);
+  });
+  const triangles = meshes.reduce((sum, { geometry }) => sum + triangleCount(geometry), 0);
+
+  assert.equal(burger.getSnapshot().strokes.length, 64);
+  assert.ok(triangles < 30000, `worst-case burger must stay below 30000, received ${triangles}`);
+
+  const geometry = representativeStroke.geometry;
+  const { radialSegments, tubularSegments } = geometry.parameters;
+  const positions = geometry.attributes.position;
+  const ringCenters = [];
+  for (let ring = 0; ring <= tubularSegments; ring += 1) {
+    const center = new THREE.Vector3();
+    for (let radial = 0; radial < radialSegments; radial += 1) {
+      const vertex = ring * (radialSegments + 1) + radial;
+      center.x += positions.getX(vertex);
+      center.y += positions.getY(vertex);
+      center.z += positions.getZ(vertex);
+    }
+    ringCenters.push(center.multiplyScalar(1 / radialSegments));
+  }
+  const raycaster = new THREE.Raycaster();
+  const lettuce = burger.getLayer("lettuce").userData.selectableSurface;
+  for (let index = 1; index < ringCenters.length; index += 1) {
+    const midpoint = ringCenters[index - 1].clone().lerp(ringCenters[index], 0.5);
+    raycaster.set(new THREE.Vector3(midpoint.x, 3, midpoint.z), new THREE.Vector3(0, -1, 0));
+    assert.ok(
+      raycaster.intersectObject(lettuce, false)[0],
+      `rendered tube segment ${index} does not chord across the lettuce hole`,
+    );
+  }
   burger.dispose();
 });
 
