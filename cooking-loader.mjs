@@ -34,7 +34,6 @@ export async function startSoloCookingLoader(
     loading: requiredElement(documentTarget, "#cooking-loading"),
     phase: requiredElement(documentTarget, "#cooking-loading-phase"),
     percent: requiredElement(documentTarget, "#cooking-loading-percent"),
-    elapsed: requiredElement(documentTarget, "#cooking-loading-elapsed"),
     note: requiredElement(documentTarget, "#cooking-loading-note"),
     bar: requiredElement(documentTarget, "#cooking-loading-bar"),
     error: requiredElement(documentTarget, "#cooking-error"),
@@ -51,9 +50,8 @@ export async function startSoloCookingLoader(
     elements.bar.style.width = `${normalized}%`;
     elements.loading.dataset.progress = String(normalized);
   };
-  const updateElapsed = () => {
+  const updatePassiveProgress = () => {
     const elapsed = Math.max(0, now() - startedAt);
-    elements.elapsed.textContent = `已等待 ${(elapsed / 1_000).toFixed(1)} 秒`;
     if (elapsed >= 8_000) elements.note.textContent = "网络较慢，仍在继续加载";
     const passiveProgress = Math.min(68, 8 + Math.floor(elapsed / 1_500) * 12);
     const current = Number.parseInt(elements.percent.textContent, 10);
@@ -88,8 +86,8 @@ export async function startSoloCookingLoader(
   elements.error.hidden = true;
   elements.note.textContent = "首次打开会准备三维食材";
   update(8, "正在连接料理台");
-  updateElapsed();
-  intervalId = setIntervalFn(updateElapsed, 250);
+  updatePassiveProgress();
+  intervalId = setIntervalFn(updatePassiveProgress, 250);
 
   try {
     const app = await importApp();

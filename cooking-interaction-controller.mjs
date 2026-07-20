@@ -213,6 +213,7 @@ export function createCookingInteractionController({
     throw new TypeError("cameraTarget must contain finite x, y, and z coordinates");
   }
   const target = new THREE.Vector3(cameraTarget.x, cameraTarget.y, cameraTarget.z);
+  const initialCameraTarget = target.clone();
   const initialCameraTransform = {
     position: camera.position.clone(),
     quaternion: camera.quaternion.clone(),
@@ -255,6 +256,7 @@ export function createCookingInteractionController({
   let documentHidden = Boolean(documentTarget?.hidden);
   let contextLost = false;
   let explicitlyPaused = false;
+  let inspectionOnly = false;
   let mutationEpoch = 0;
 
   const condimentSurfaceMap = new Map();
@@ -869,6 +871,11 @@ export function createCookingInteractionController({
         beginPinch();
         return;
       }
+      if (inspectionOnly) {
+        state = "orbiting";
+        orbitSession = { pointerId: event.pointerId, last: point };
+        return;
+      }
       const condimentHit = condimentHitTest(event);
       if (condimentHit) {
         const bottle = condimentSurfaceMap.get(condimentHit.object);
@@ -1349,6 +1356,54 @@ export function createCookingInteractionController({
     getSelectedId() {
       return selected?.id ?? null;
     },
+    getCameraView() {
+      const current = readCameraState();
+      return Object.freeze({
+        yaw: current.yaw,
+        pitch: current.pitch,
+        distance: current.distance,
+        position: Object.freeze([camera.position.x, camera.position.y, camera.position.z]),
+        target: Object.freeze({ x: target.x, y: target.y, z: target.z }),
+      });
+    },
+    setCameraView(view, reason = "programmatic") {
+      if (disposed) return false;
+      if (!view || typeof view !== "object" || Array.isArray(view)) {
+        throw new TypeError("camera view must be an object");
+      }
+      const nextTarget = view.target;
+      if (!nextTarget || typeof nextTarget !== "object" || Array.isArray(nextTarget)
+        || ![nextTarget.x, nextTarget.y, nextTarget.z].every(Number.isFinite)) {
+        throw new TypeError("camera view target must contain finite x, y, and z coordinates");
+      }
+      const nextState = {
+        yaw: finiteNumber(view.yaw, 0, "camera view yaw"),
+        pitch: finiteNumber(view.pitch, 0, "camera view pitch"),
+        distance: finiteNumber(view.distance, 0, "camera view distance"),
+      };
+      cancelGesture("camera-view-changed");
+      target.set(nextTarget.x, nextTarget.y, nextTarget.z);
+      applyCameraState(nextState, String(reason || "programmatic"));
+      return true;
+    },
+    setInspectionOnly(value) {
+      if (disposed) return inspectionOnly;
+      const next = Boolean(value);
+      if (inspectionOnly === next) return inspectionOnly;
+      cancelGesture("inspection-mode-changed");
+      if (selected) {
+        const deselected = selected;
+        deselected.object.userData.cookingInteractionSelected = false;
+        selected = null;
+        onSelection(Object.freeze({
+          id: deselected.id,
+          object: deselected.object,
+          selected: false,
+        }));
+      }
+      inspectionOnly = next;
+      return inspectionOnly;
+    },
     getSelectableSurfaces() {
       return Object.freeze([
         ...(condimentTools?.selectableSurfaces ?? []),
@@ -1389,6 +1444,7 @@ export function createCookingInteractionController({
     },
     resetCamera() {
       if (disposed) return false;
+      target.copy(initialCameraTarget);
       camera.position.copy(initialCameraTransform.position);
       camera.quaternion.copy(initialCameraTransform.quaternion);
       camera.updateMatrixWorld?.(true);

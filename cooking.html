@@ -11,9 +11,12 @@
   <body>
     <main class="cooking-app">
       <header class="cooking-header">
-        <div>
+        <div class="cooking-header__identity">
+          <a class="home-link" href="./index.html" aria-label="返回料理地图">←</a>
+          <div>
           <p class="cooking-kicker">单人做菜 · 真实 3D 操作</p>
           <h1>自由料理台</h1>
+          </div>
         </div>
         <button class="icon-button" type="button" data-action="tutorial-replay" aria-label="重新播放新手教程">?</button>
       </header>
@@ -38,7 +41,6 @@
           </div>
           <div class="cooking-loading__meta">
             <span id="cooking-loading-percent">8%</span>
-            <span id="cooking-loading-elapsed">已等待 0.0 秒</span>
           </div>
           <small id="cooking-loading-note">首次打开会准备三维食材</small>
         </div>
@@ -71,6 +73,7 @@
           <span>旋转食材</span>
           <button type="button" data-action="rotate-right" aria-label="向右旋转选中食材">↷</button>
         </div>
+        <button class="focus-button" type="button" data-action="toggle-focus" aria-pressed="false" disabled>聚焦汉堡</button>
         <button type="button" data-action="camera-reset">镜头复位</button>
         <button type="button" data-action="toggle-expanded">展开查看</button>
         <button type="button" data-action="undo" disabled>撤销上一步</button>

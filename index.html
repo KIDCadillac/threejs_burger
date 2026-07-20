@@ -3,92 +3,100 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#2b1713">
-    <title>自由料理台 · 3D 汉堡</title>
-    <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./cooking.css">
+    <meta name="theme-color" content="#f26c3d">
+    <title>开饭啦 · 料理派对</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctitle%3E%E9%A4%90%E7%9B%98%3C/title%3E%3Crect width='64' height='64' rx='18' fill='%23f26c3d'/%3E%3Cpath d='M16 35h32v7H16zm4-12q12-12 24 0v7H20z' fill='%23fff7df' stroke='%233a1d17' stroke-width='4'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="./home.css">
   </head>
   <body>
-    <main class="cooking-app">
-      <header class="cooking-header">
-        <div>
-          <p class="cooking-kicker">单人做菜 · 真实 3D 操作</p>
-          <h1>自由料理台</h1>
+    <main class="home-shell">
+      <header class="home-header">
+        <a class="brand" href="./index.html" aria-label="开饭啦主页">
+          <span class="brand__mark" aria-hidden="true"><i></i><b></b></span>
+          <span><strong>开饭啦</strong><small>料理派对</small></span>
+        </a>
+        <div class="player-chip" aria-label="当前为试玩厨房">
+          <span class="player-chip__face" aria-hidden="true">•ᴗ•</span>
+          <span><small>试玩厨房</small><strong>今日开张</strong></span>
         </div>
-        <button class="icon-button" type="button" data-action="tutorial-replay" aria-label="重新播放新手教程">?</button>
       </header>
 
-      <section class="objective-card" aria-labelledby="cooking-objective">
-        <div>
-          <span class="objective-label">当前目标</span>
-          <p id="cooking-objective">先把七层食材装到中央餐盘</p>
+      <section class="home-hero" aria-labelledby="home-title">
+        <div class="home-hero__copy">
+          <p class="eyebrow"><span></span> 自由做菜，也能和朋友互坑</p>
+          <h1 id="home-title">今天想做<br><em>哪道料理？</em></h1>
+          <p>挑一家店开工。食材可以拿起、翻转、组合，最后做成只属于你的作品。</p>
         </div>
-        <strong id="cooking-progress">0/7</strong>
+        <div class="hero-ticket" aria-hidden="true">
+          <span>今日菜单</span>
+          <strong>01</strong>
+          <small>家店营业中</small>
+        </div>
       </section>
 
-      <section class="cooking-stage" aria-label="三维料理操作区">
-        <canvas id="cooking-canvas" tabindex="0" aria-label="三维汉堡料理台，可拖动食材和调料瓶" aria-describedby="cooking-objective">
-          你的浏览器需要支持 WebGL 才能使用三维料理台。
-        </canvas>
-        <div class="cooking-loading" id="cooking-loading" role="status" aria-live="polite">
-          <span class="cooking-loading__spinner" aria-hidden="true"></span>
-          <strong id="cooking-loading-phase">正在连接料理台</strong>
-          <div class="cooking-loading__progress" aria-hidden="true">
-            <span id="cooking-loading-bar"></span>
-          </div>
-          <div class="cooking-loading__meta">
-            <span id="cooking-loading-percent">8%</span>
-            <span id="cooking-loading-elapsed">已等待 0.0 秒</span>
-          </div>
-          <small id="cooking-loading-note">首次打开会准备三维食材</small>
-        </div>
-        <div class="cooking-error" id="cooking-error" role="alert" hidden>
-          <strong>三维料理台没有成功启动</strong>
-          <span>请换用最新版 Safari、Chrome 或关闭省电模式后重试。</span>
-        </div>
-        <aside class="tutorial-coach" id="tutorial-coach" data-step="pick">
-          <span class="tutorial-pointer" aria-hidden="true"></span>
+      <section class="map-section" aria-labelledby="map-title">
+        <div class="section-heading">
           <div>
-            <strong id="tutorial-title">第一步：拿起食材</strong>
-            <p id="tutorial-copy">按住任意一层食材，把它从料盒里拖出来。</p>
+            <p>选择料理地图</p>
+            <h2 id="map-title">我的小馆</h2>
           </div>
-          <button type="button" data-action="tutorial-skip">跳过</button>
-        </aside>
-        <div class="finish-sheet" id="finish-sheet" role="dialog" aria-modal="true" aria-labelledby="finish-title" tabindex="-1" hidden>
-          <p class="finish-sheet__eyebrow">料理完成</p>
-          <h2 id="finish-title">你的三维汉堡做好了！</h2>
-          <p id="finish-summary">七层食材已经组合完成。</p>
-          <div class="finish-sheet__actions">
-            <button type="button" data-action="continue">继续调整</button>
-            <button type="button" data-action="restart">重新做</button>
-          </div>
+          <span>左右滑动看看</span>
+        </div>
+
+        <div class="map-grid">
+          <a class="map-card map-card--burger" data-map="burger" href="./cooking.html">
+            <div class="map-card__art" aria-hidden="true">
+              <span class="sun-glow"></span>
+              <span class="burger-art">
+                <i class="burger-art__bun burger-art__bun--top"></i>
+                <i class="burger-art__leaf"></i>
+                <i class="burger-art__tomato"></i>
+                <i class="burger-art__cheese"></i>
+                <i class="burger-art__patty"></i>
+                <i class="burger-art__bun burger-art__bun--bottom"></i>
+              </span>
+              <span class="counter-line"></span>
+            </div>
+            <div class="map-card__body">
+              <span class="status-pill status-pill--live">现在可玩</span>
+              <p>3D 自由组合 · 单人料理</p>
+              <h3>自由汉堡店</h3>
+              <span class="map-card__action">开始营业 <b aria-hidden="true">→</b></span>
+            </div>
+          </a>
+
+          <article class="map-card map-card--sushi" data-map="sushi" aria-disabled="true">
+            <div class="map-card__art" aria-hidden="true">
+              <span class="moon-glow"></span>
+              <span class="sushi-board"></span>
+              <span class="sushi-piece sushi-piece--one"><i></i></span>
+              <span class="sushi-piece sushi-piece--two"><i></i></span>
+              <span class="sushi-piece sushi-piece--three"><i></i></span>
+              <span class="lantern">鮨</span>
+            </div>
+            <div class="map-card__body">
+              <span class="status-pill">下一张地图</span>
+              <p>切配 · 卷制 · 摆盘</p>
+              <h3>深夜寿司店</h3>
+              <span class="map-card__action map-card__action--muted">正在备料</span>
+            </div>
+          </article>
         </div>
       </section>
 
-      <nav class="cooking-controls" aria-label="料理工具">
-        <div class="rotate-controls" role="group" aria-label="旋转选中的食材">
-          <button type="button" data-action="rotate-left" aria-label="向左旋转选中食材">↶</button>
-          <span>旋转食材</span>
-          <button type="button" data-action="rotate-right" aria-label="向右旋转选中食材">↷</button>
+      <section class="mode-panel" aria-labelledby="mode-title">
+        <div>
+          <p class="mode-panel__eyebrow">玩法模式</p>
+          <h2 id="mode-title">先把做菜手感做好</h2>
+          <p>当前开放自由料理；双人部署陷阱、互相试吃的“毒药玩法”会在料理框架稳定后加入。</p>
         </div>
-        <button type="button" data-action="camera-reset">镜头复位</button>
-        <button type="button" data-action="toggle-expanded">展开查看</button>
-        <button type="button" data-action="undo" disabled>撤销上一步</button>
-      </nav>
-
-      <section class="cooking-summary" aria-labelledby="summary-title">
-        <div class="summary-heading">
-          <h2 id="summary-title">本次料理</h2>
-          <button type="button" data-action="reset">重置料理</button>
-        </div>
-        <div id="cooking-summary">
-          <p>还没有装盘，先从原料盒拿一层食材。</p>
-        </div>
+        <span class="mode-panel__seal" aria-hidden="true">慢慢<br>开店</span>
       </section>
 
-      <button class="finish-button" type="button" data-action="finish" disabled>装完 7 层后完成料理</button>
-      <p class="cooking-status" id="cooking-status" role="status" aria-live="polite"></p>
+      <footer class="home-footer">
+        <span>开饭啦实验厨房</span>
+        <small>汉堡店 v0.2 · 寿司店筹备中</small>
+      </footer>
     </main>
-    <script type="module" src="./cooking-loader.mjs"></script>
   </body>
 </html>

@@ -8,10 +8,10 @@ const EXPANDED_GAP = 0.42;
 const NO_RAYCAST = () => {};
 const LETTUCE_INNER_CLEARANCE = 0.075;
 // Two stable inner-rim controls per crossing bound a 24-point route to 70 points.
-// The 72 longitudinal x 3 radial cap keeps 64 worst-case strokes plus the food
-// at 27,798 triangles, below the established 30k mobile ceiling.
+// Four points across an open, surface-safe half-round ribbon keep the same six
+// triangles per segment as the previous triangular tube while looking smoother.
 const MAX_TUBE_SEGMENTS = 72;
-const TUBE_RADIAL_SEGMENTS = 3;
+const SAUCE_CROSS_SECTION_POINTS = 4;
 const COMPOSITION_KEYS = Object.freeze(["food", "layerOrder", "layerPoses", "strokes"]);
 const POSE_KEYS = Object.freeze(["x", "z", "yaw"]);
 const STROKE_KEYS = Object.freeze(["sauce", "layerId", "amount", "points"]);
@@ -165,7 +165,7 @@ function createCheeseGeometry(THREE) {
 }
 
 function createLettuceGeometry(THREE) {
-  const segments = 30;
+  const segments = 42;
   const positions = [];
   const indices = [];
   for (let index = 0; index < segments; index += 1) {
@@ -226,24 +226,30 @@ function createBunGeometry(THREE, top) {
   const points = top
     ? [
       new THREE.Vector2(0, -0.23),
-      new THREE.Vector2(0.7, -0.23),
-      new THREE.Vector2(1.12, -0.14),
+      new THREE.Vector2(0.42, -0.23),
+      new THREE.Vector2(0.78, -0.21),
+      new THREE.Vector2(1.06, -0.16),
       new THREE.Vector2(1.23, 0.08),
+      new THREE.Vector2(1.22, 0.23),
       new THREE.Vector2(1.15, 0.38),
+      new THREE.Vector2(1.05, 0.54),
       new THREE.Vector2(0.91, 0.67),
+      new THREE.Vector2(0.74, 0.78),
       new THREE.Vector2(0.55, 0.86),
       new THREE.Vector2(0, 0.93),
     ]
     : [
       new THREE.Vector2(0, -0.2),
-      new THREE.Vector2(0.78, -0.2),
-      new THREE.Vector2(1.14, -0.14),
+      new THREE.Vector2(0.5, -0.2),
+      new THREE.Vector2(0.86, -0.18),
+      new THREE.Vector2(1.12, -0.13),
       new THREE.Vector2(1.22, 0.05),
       new THREE.Vector2(1.13, 0.24),
+      new THREE.Vector2(0.96, 0.3),
       new THREE.Vector2(0.76, 0.34),
       new THREE.Vector2(0, 0.36),
     ];
-  return new THREE.LatheGeometry(points, 24);
+  return new THREE.LatheGeometry(points, 40);
 }
 
 function makeMaterial(THREE, options) {
@@ -251,23 +257,28 @@ function makeMaterial(THREE, options) {
     metalness: 0,
     clearcoat: 0.04,
     clearcoatRoughness: 0.72,
-    flatShading: true,
+    flatShading: false,
     ...options,
   });
 }
 
 function createSesameDecoration(THREE, material) {
   const geometry = new THREE.CapsuleGeometry(0.035, 0.1, 2, 5);
-  const seeds = new THREE.InstancedMesh(geometry, material, 9);
+  const placements = Array.from({ length: 18 }, (_, index) => {
+    const ring = index < 6 ? 0.38 : index < 13 ? 0.66 : 0.86;
+    const ringIndex = index < 6 ? index : index < 13 ? index - 6 : index - 13;
+    const ringCount = index < 6 ? 6 : index < 13 ? 7 : 5;
+    const angle = ringIndex / ringCount * Math.PI * 2 + (index % 2) * 0.16;
+    const x = Math.cos(angle) * ring;
+    const z = Math.sin(angle) * ring * 0.82;
+    const y = 0.92 - ring * ring * 0.33;
+    return [x, y, z, angle + 0.35];
+  });
+  const seeds = new THREE.InstancedMesh(geometry, material, placements.length);
   seeds.name = "top-bun-sesame";
   seeds.userData.foodDecoration = Object.freeze({ kind: "sesame", food: FOOD_ID });
   seeds.raycast = NO_RAYCAST;
   const dummy = new THREE.Object3D();
-  const placements = [
-    [-0.47, 0.82, -0.16, -0.35], [0, 0.91, -0.2, 0.15], [0.48, 0.81, -0.12, 0.45],
-    [-0.7, 0.67, 0.2, 0.4], [-0.25, 0.86, 0.25, -0.2], [0.3, 0.84, 0.28, 0.25],
-    [0.68, 0.66, 0.22, -0.5], [-0.38, 0.7, -0.48, 0.55], [0.38, 0.69, -0.46, -0.35],
-  ];
   placements.forEach(([x, y, z, yaw], index) => {
     dummy.position.set(x, y, z);
     dummy.rotation.set(Math.PI / 2.5, yaw, 0.18 * Math.sin(index));
@@ -277,6 +288,25 @@ function createSesameDecoration(THREE, material) {
   });
   seeds.instanceMatrix.needsUpdate = true;
   return seeds;
+}
+
+function createInstancedFoodDetail(THREE, {
+  geometry, material, kind, food, placements,
+}) {
+  const detail = new THREE.InstancedMesh(geometry, material, placements.length);
+  detail.name = `food-detail:${food}:${kind}`;
+  detail.userData.foodDecoration = Object.freeze({ kind, food: FOOD_ID, layerId: food });
+  detail.raycast = NO_RAYCAST;
+  const dummy = new THREE.Object3D();
+  placements.forEach((placement, index) => {
+    dummy.position.set(...placement.position);
+    dummy.rotation.set(...(placement.rotation ?? [0, 0, 0]));
+    dummy.scale.set(...(placement.scale ?? [1, 1, 1]));
+    dummy.updateMatrix();
+    detail.setMatrixAt(index, dummy.matrix);
+  });
+  detail.instanceMatrix.needsUpdate = true;
+  return detail;
 }
 
 function polygonBoundaryRadius(perimeter, directionX, directionZ) {
@@ -417,10 +447,94 @@ function ensureNonDegeneratePath(THREE, points, profile) {
   return [points[0], candidate, ...points.slice(1)];
 }
 
+function createSurfaceSauceGeometry(
+  THREE,
+  { surfacePoints, surfaceNormals, radius, clearance, path },
+) {
+  const geometry = new THREE.BufferGeometry();
+  const positions = [];
+  const indices = [];
+  const framePoints = new Float32Array(surfacePoints.length * 3);
+  const frameNormals = new Float32Array(surfaceNormals.length * 3);
+  const previousSide = new THREE.Vector3();
+  const tangent = new THREE.Vector3();
+  const side = new THREE.Vector3();
+  const vertex = new THREE.Vector3();
+  const crossAngles = [Math.PI, Math.PI * 2 / 3, Math.PI / 3, 0];
+  const width = radius * 1.18;
+  const height = radius * 1.05;
+
+  for (let frame = 0; frame < surfacePoints.length; frame += 1) {
+    const point = surfacePoints[frame];
+    const normal = surfaceNormals[frame].clone().normalize();
+    if (normal.y < 0) normal.multiplyScalar(-1);
+    const before = surfacePoints[Math.max(0, frame - 1)];
+    const after = surfacePoints[Math.min(surfacePoints.length - 1, frame + 1)];
+    tangent.subVectors(after, before);
+    if (tangent.lengthSq() < 1e-12) tangent.set(1, 0, 0);
+    tangent.normalize();
+    side.crossVectors(tangent, normal);
+    if (side.lengthSq() < 1e-12) side.set(1, 0, 0);
+    side.normalize();
+    if (frame > 0 && side.dot(previousSide) < 0) side.multiplyScalar(-1);
+    previousSide.copy(side);
+    point.toArray(framePoints, frame * 3);
+    normal.toArray(frameNormals, frame * 3);
+
+    for (const angle of crossAngles) {
+      vertex.copy(point)
+        .addScaledVector(side, Math.cos(angle) * width)
+        .addScaledVector(normal, clearance + Math.sin(angle) * height);
+      positions.push(vertex.x, vertex.y, vertex.z);
+    }
+  }
+
+  for (let frame = 0; frame < surfacePoints.length - 1; frame += 1) {
+    const row = frame * SAUCE_CROSS_SECTION_POINTS;
+    const next = row + SAUCE_CROSS_SECTION_POINTS;
+    const a = new THREE.Vector3().fromArray(positions, row * 3);
+    const c = new THREE.Vector3().fromArray(positions, next * 3);
+    const d = new THREE.Vector3().fromArray(positions, (next + 1) * 3);
+    const faceNormal = d.clone().sub(a).cross(c.clone().sub(a));
+    const desiredNormal = surfaceNormals[frame].clone()
+      .add(surfaceNormals[frame + 1])
+      .normalize();
+    const facesOutward = faceNormal.dot(desiredNormal) >= 0;
+    for (let cross = 0; cross < SAUCE_CROSS_SECTION_POINTS - 1; cross += 1) {
+      if (facesOutward) {
+        indices.push(row + cross, next + cross + 1, next + cross);
+        indices.push(row + cross, row + cross + 1, next + cross + 1);
+      } else {
+        indices.push(row + cross, next + cross, next + cross + 1);
+        indices.push(row + cross, next + cross + 1, row + cross + 1);
+      }
+    }
+  }
+
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  geometry.userData.sauceShape = "surface-ribbon";
+  geometry.userData.sauceSegments = surfacePoints.length - 1;
+  geometry.userData.sauceCrossSectionPoints = SAUCE_CROSS_SECTION_POINTS;
+  geometry.userData.surfaceFramePoints = framePoints;
+  geometry.userData.surfaceFrameNormals = frameNormals;
+  geometry.parameters = Object.freeze({
+    path,
+    tubularSegments: surfacePoints.length - 1,
+    radialSegments: SAUCE_CROSS_SECTION_POINTS - 1,
+    radius,
+  });
+  return geometry;
+}
+
 function buildLayerDefinitions(THREE) {
   const bunMaterial = makeMaterial(THREE, {
     color: 0xd98a36,
-    roughness: 0.62,
+    roughness: 0.54,
+    clearcoat: 0.08,
   });
   const pattyMaterial = makeMaterial(THREE, {
     color: 0x63321f,
@@ -449,11 +563,11 @@ function buildLayerDefinitions(THREE) {
     roughness: 0.74,
   });
   const bottomBun = createBunGeometry(THREE, false);
-  const patty = displaceCylinder(new THREE.CylinderGeometry(1.15, 1.18, 0.34, 26, 2), 0.035, 7, 0.4);
+  const patty = displaceCylinder(new THREE.CylinderGeometry(1.15, 1.18, 0.34, 42, 3), 0.028, 7, 0.4);
   const cheese = createCheeseGeometry(THREE);
-  const tomato = displaceCylinder(new THREE.CylinderGeometry(1.02, 1.04, 0.2, 24, 1), 0.012, 6, 0.9);
+  const tomato = displaceCylinder(new THREE.CylinderGeometry(1.02, 1.04, 0.2, 40, 2), 0.01, 6, 0.9);
   const lettuce = createLettuceGeometry(THREE);
-  const pickle = displaceCylinder(new THREE.CylinderGeometry(0.84, 0.86, 0.18, 22, 1), 0.018, 5, 1.2);
+  const pickle = displaceCylinder(new THREE.CylinderGeometry(0.84, 0.86, 0.18, 40, 2), 0.014, 5, 1.2);
   const topBun = createBunGeometry(THREE, true);
   return {
     definitions: [
@@ -505,6 +619,10 @@ export function createBurgerModel3D(THREE, options = {}) {
   }
   if (!options || typeof options !== "object" || Array.isArray(options)) {
     throw new TypeError("options must be an object");
+  }
+  const onSauceGeometry = options.onSauceGeometry;
+  if (onSauceGeometry !== undefined && typeof onSauceGeometry !== "function") {
+    throw new TypeError("options.onSauceGeometry must be a function");
   }
 
   const root = new THREE.Group();
@@ -614,11 +732,96 @@ export function createBurgerModel3D(THREE, options = {}) {
   ownedGeometries.add(sesame.geometry);
   ownedMaterials.add(sesameMaterial);
 
+  const detailMaterials = {
+    toast: makeMaterial(THREE, { color: 0xa85b27, roughness: 0.7 }),
+    char: makeMaterial(THREE, { color: 0x32170f, roughness: 0.94 }),
+    seed: makeMaterial(THREE, { color: 0xffe5a0, roughness: 0.6 }),
+    vein: makeMaterial(THREE, { color: 0x3e762d, roughness: 0.78 }),
+  };
+  Object.values(detailMaterials).forEach((material) => ownedMaterials.add(material));
+
+  const toastGeometry = new THREE.TorusGeometry(1.105, 0.035, 5, 32);
+  const toastBand = new THREE.Mesh(toastGeometry, detailMaterials.toast);
+  toastBand.name = "food-detail:top-bun:bun-toast";
+  toastBand.userData.foodDecoration = Object.freeze({
+    kind: "bun-toast", food: FOOD_ID, layerId: "top-bun",
+  });
+  toastBand.rotation.x = Math.PI / 2;
+  toastBand.position.y = 0.04;
+  toastBand.raycast = NO_RAYCAST;
+  layers.get("top-bun").add(toastBand);
+  ownedGeometries.add(toastGeometry);
+
+  const charGeometry = new THREE.BoxGeometry(0.42, 0.018, 0.045);
+  const pattyChar = createInstancedFoodDetail(THREE, {
+    geometry: charGeometry,
+    material: detailMaterials.char,
+    kind: "patty-char",
+    food: "patty",
+    placements: Array.from({ length: 7 }, (_, index) => {
+      const angle = index / 7 * Math.PI * 2 + 0.18;
+      const radius = index % 2 ? 0.58 : 0.78;
+      return {
+        position: [Math.cos(angle) * radius, 0.185, Math.sin(angle) * radius],
+        rotation: [0, angle + Math.PI / 3, 0],
+      };
+    }),
+  });
+  layers.get("patty").add(pattyChar);
+  ownedGeometries.add(charGeometry);
+
+  const seedGeometry = new THREE.CapsuleGeometry(0.027, 0.075, 2, 4);
+  const radialSeeds = (count, y, radius) => Array.from({ length: count }, (_, index) => {
+    const angle = index / count * Math.PI * 2 + (index % 2) * 0.12;
+    const distance = radius * (index % 3 === 0 ? 0.54 : 0.78);
+    return {
+      position: [Math.cos(angle) * distance, y, Math.sin(angle) * distance],
+      rotation: [Math.PI / 2, angle + 0.25, 0],
+      scale: [1, 1, index % 2 ? 0.9 : 1.08],
+    };
+  });
+  const tomatoSeeds = createInstancedFoodDetail(THREE, {
+    geometry: seedGeometry,
+    material: detailMaterials.seed,
+    kind: "tomato-seed",
+    food: "tomato",
+    placements: radialSeeds(12, 0.115, 0.78),
+  });
+  const pickleSeeds = createInstancedFoodDetail(THREE, {
+    geometry: seedGeometry,
+    material: detailMaterials.seed,
+    kind: "pickle-seed",
+    food: "pickle",
+    placements: radialSeeds(10, 0.105, 0.62),
+  });
+  layers.get("tomato").add(tomatoSeeds);
+  layers.get("pickle").add(pickleSeeds);
+  ownedGeometries.add(seedGeometry);
+
+  const veinGeometry = new THREE.BoxGeometry(0.48, 0.016, 0.025);
+  const lettuceVeins = createInstancedFoodDetail(THREE, {
+    geometry: veinGeometry,
+    material: detailMaterials.vein,
+    kind: "lettuce-vein",
+    food: "lettuce",
+    placements: Array.from({ length: 11 }, (_, index) => {
+      const angle = index / 11 * Math.PI * 2;
+      return {
+        position: [Math.cos(angle) * 0.73, 0.105, Math.sin(angle) * 0.73],
+        rotation: [0, -angle, 0],
+        scale: [0.85 + (index % 3) * 0.08, 1, 1],
+      };
+    }),
+  });
+  layers.get("lettuce").add(lettuceVeins);
+  ownedGeometries.add(veinGeometry);
+
   const sauceMaterials = new Map(SAUCE_KEYS.map((sauce) => {
     const material = makeMaterial(THREE, {
       color: SAUCE_COLORS[sauce],
-      roughness: sauce === "sticky" ? 0.38 : 0.46,
-      clearcoat: sauce === "sticky" ? 0.3 : 0.2,
+      roughness: sauce === "sticky" ? 0.24 : 0.32,
+      clearcoat: sauce === "sticky" ? 0.72 : 0.58,
+      clearcoatRoughness: 0.22,
     });
     ownedMaterials.add(material);
     return [sauce, material];
@@ -674,7 +877,7 @@ export function createBurgerModel3D(THREE, options = {}) {
     source.z,
   );
 
-  const projectBaseLocalPoint = (layerId, x, z) => {
+  const projectBaseSurface = (layerId, x, z) => {
     const profile = footprintsById.get(layerId);
     const maxY = surfaceBoundsById.get(layerId).max.y;
     for (let attempt = 0; attempt <= 20; attempt += 1) {
@@ -687,10 +890,20 @@ export function createBurgerModel3D(THREE, options = {}) {
       const [hit] = projectionRaycaster.intersectObject(
         projectionMeshesById.get(layerId), false,
       );
-      if (hit) return new THREE.Vector3(hit.point.x, hit.point.y, hit.point.z);
+      if (hit) {
+        const normal = hit.face?.normal?.clone?.() ?? new THREE.Vector3(0, 1, 0);
+        normal.normalize();
+        if (normal.y < 0) normal.multiplyScalar(-1);
+        return {
+          point: new THREE.Vector3(hit.point.x, hit.point.y, hit.point.z),
+          normal,
+        };
+      }
     }
     throw new Error(`Cannot project sauce onto ${layerId} surface`);
   };
+
+  const projectBaseLocalPoint = (layerId, x, z) => projectBaseSurface(layerId, x, z).point;
 
   const projectLocalPoint = (layerId, x, z) => applyBiteToPoint(
     layerId,
@@ -772,13 +985,16 @@ export function createBurgerModel3D(THREE, options = {}) {
       (normalized.points.length - 1) * 3,
     ));
     const tubeRadius = 0.025 + normalized.amount * 0.035;
-    const surfaceOffset = tubeRadius + 0.008;
+    const surfaceClearance = 0.012;
+    const surfaceOffset = tubeRadius + surfaceClearance;
     const curveState = { biteAmount: 0 };
     const surfaceCurve = new THREE.Curve();
     surfaceCurve.getPoint = (time, target = new THREE.Vector3()) => {
       const planar = planarCurve.getPoint(time, target);
-      const surface = projectBaseLocalPoint(normalized.layerId, planar.x, planar.z);
-      surface.y += surfaceOffset;
+      const { point: surface, normal } = projectBaseSurface(
+        normalized.layerId, planar.x, planar.z,
+      );
+      surface.addScaledVector(normal, surfaceOffset);
       return applyBiteToPoint(
         normalized.layerId, surface, curveState.biteAmount, target,
       );
@@ -786,23 +1002,28 @@ export function createBurgerModel3D(THREE, options = {}) {
     // Keep TubeGeometry rings aligned with generated route controls. The inherited
     // arc-length remapping can skip an inner-rim waypoint on long alternating paths.
     surfaceCurve.getPointAt = surfaceCurve.getPoint;
-    const tangentBefore = new THREE.Vector3();
-    const tangentAfter = new THREE.Vector3();
-    const coherentTangent = (time, target = new THREE.Vector3()) => {
-      const delta = 1e-4;
-      const beforeTime = Math.max(0, time - delta);
-      const afterTime = Math.min(1, time + delta);
-      surfaceCurve.getPoint(beforeTime, tangentBefore);
-      surfaceCurve.getPoint(afterTime, tangentAfter);
-      target.subVectors(tangentAfter, tangentBefore);
-      if (target.lengthSq() < 1e-12) target.set(1, 0, 0);
-      return target.normalize();
-    };
-    surfaceCurve.getTangent = coherentTangent;
-    surfaceCurve.getTangentAt = coherentTangent;
-    const geometry = new THREE.TubeGeometry(
-      surfaceCurve, tubularSegments, tubeRadius, TUBE_RADIAL_SEGMENTS, false,
-    );
+    const surfacePoints = [];
+    const surfaceNormals = [];
+    for (let segment = 0; segment <= tubularSegments; segment += 1) {
+      const planar = planarCurve.getPoint(segment / tubularSegments, new THREE.Vector3());
+      const { point, normal } = projectBaseSurface(normalized.layerId, planar.x, planar.z);
+      surfacePoints.push(point);
+      surfaceNormals.push(normal);
+    }
+    let geometry = createSurfaceSauceGeometry(THREE, {
+      surfacePoints,
+      surfaceNormals,
+      radius: tubeRadius,
+      clearance: surfaceClearance,
+      path: surfaceCurve,
+    });
+    try {
+      onSauceGeometry?.(geometry);
+    } catch (error) {
+      geometry.dispose();
+      geometry = null;
+      throw error;
+    }
     const mesh = new THREE.Mesh(geometry, sauceMaterials.get(normalized.sauce));
     mesh.name = `sauce:${normalized.sauce}:${normalized.layerId}:${nameIndex}`;
     mesh.castShadow = true;
@@ -813,6 +1034,7 @@ export function createBurgerModel3D(THREE, options = {}) {
       amount: normalized.amount,
     });
     mesh.userData.surfaceOffset = surfaceOffset;
+    mesh.userData.surfaceClearance = surfaceClearance;
     mesh.userData.tubeRadius = tubeRadius;
     mesh.userData.preview = previewKey !== null;
     if (previewKey !== null) mesh.userData.previewKey = previewKey;

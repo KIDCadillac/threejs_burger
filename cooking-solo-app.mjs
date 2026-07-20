@@ -70,6 +70,7 @@ export function bootSoloCookingPage(
     finishButton: documentTarget.querySelector('[data-action="finish"]'),
     undoButton: documentTarget.querySelector('[data-action="undo"]'),
     inspectButton: documentTarget.querySelector('[data-action="toggle-expanded"]'),
+    focusButton: documentTarget.querySelector('[data-action="toggle-focus"]'),
   };
   const focusManager = createFinishFocusManager({
     dialog: elements.finishSheet,
@@ -81,7 +82,7 @@ export function bootSoloCookingPage(
   const render = (detail) => {
     latest = detail;
     if (!stage) return;
-    const { state, tutorial, expanded, progress, dropIntent = null } = detail;
+    const { state, tutorial, expanded, focused = false, progress, dropIntent = null } = detail;
     elements.progress.textContent = progress;
     elements.objective.textContent = state.finished
       ? "料理完成，可以继续调整或重新做"
@@ -95,6 +96,10 @@ export function bootSoloCookingPage(
     elements.undoButton.disabled = !state.history.length || state.finished;
     elements.inspectButton.disabled = state.finished || !state.assembledOrder.length;
     elements.inspectButton.textContent = expanded ? "合拢汉堡" : "展开查看";
+    elements.focusButton.disabled = state.finished || !state.assembledOrder.length;
+    elements.focusButton.textContent = focused ? "返回料理台" : "聚焦汉堡";
+    elements.focusButton.dataset.focused = String(focused);
+    elements.focusButton.setAttribute?.("aria-pressed", String(focused));
     elements.finishSheet.hidden = !state.finished;
 
     const order = state.assembledOrder.map((id, index) => `<span>${index + 1}. ${LAYER_NAMES[id]}</span>`).join("");
@@ -163,6 +168,7 @@ export function bootSoloCookingPage(
       "rotate-right": () => stage.rotateSelected(Math.PI / 8),
       "camera-reset": () => stage.resetCamera(),
       "toggle-expanded": () => stage.toggleExpanded(),
+      "toggle-focus": () => stage.toggleBurgerFocus(),
       undo: () => stage.undo(),
       reset: () => stage.reset(),
       finish: () => stage.finish(),
