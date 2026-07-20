@@ -48,6 +48,7 @@ function pageHarness() {
     progress: add("#cooking-progress"),
     summary: add("#cooking-summary"),
     status: add("#cooking-status"),
+    dropIntent: add("#cooking-drop-intent"),
     tutorial: add("#tutorial-coach"),
     tutorialTitle: add("#tutorial-title"),
     tutorialCopy: add("#tutorial-copy"),
@@ -59,6 +60,7 @@ function pageHarness() {
     resetButton: add('[data-action="reset"]', "reset"),
     continueButton: add('[data-action="continue"]', "continue"),
   };
+  elements.dropIntent.hidden = true;
   documentTarget.querySelector = (selector) => selectors.get(selector) ?? null;
   const windowTarget = new Events();
   windowTarget.matchMediaCalls = [];
@@ -81,9 +83,14 @@ function stageFactoryHarness() {
       history: [],
     };
     const tutorial = { step: "pick" };
+    const highlightCalls = [];
     const stage = {
       host: { resize() {}, setVisible() {} },
-      workbench: { clearHighlights() {}, setHighlighted() {} },
+      workbench: {
+        highlightCalls,
+        clearHighlights() { highlightCalls.push(["clear"]); },
+        setHighlighted(...args) { highlightCalls.push(args); },
+      },
       disposed: 0,
       calls: [],
       getState: () => state,
@@ -98,7 +105,7 @@ function stageFactoryHarness() {
       skipTutorial: () => stage.calls.push("skip"),
       replayTutorial: () => stage.calls.push("replay"),
       dispose() { stage.disposed += 1; },
-      emit(changes = {}) {
+      emit({ dropIntent = null, ...changes } = {}) {
         Object.assign(state, changes);
         configuration.onChange({
           reason: changes.finished ? "finish" : "ready",
@@ -106,6 +113,7 @@ function stageFactoryHarness() {
           tutorial,
           expanded: false,
           progress: `${state.assembledOrder.length}/7`,
+          dropIntent,
         });
       },
     };
@@ -135,6 +143,40 @@ test("boot uses the injected window, wires buttons, and renders the completion d
   });
   assert.equal(page.elements.finishSheet.hidden, false);
   assert.equal(page.elements.finishSheet.focusCalls, 1);
+});
+
+test("shows exactly where a dragged layer will land before release", () => {
+  const page = pageHarness();
+  const stages = stageFactoryHarness();
+  const stage = bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: stages.factory,
+  });
+
+  stage.emit({
+    dropIntent: { kind: "prep", intent: "top", id: "patty", targetIndex: 2 },
+  });
+  assert.equal(page.elements.dropIntent.hidden, false);
+  assert.equal(page.elements.dropIntent.textContent, "放在最上层");
+  assert.equal(page.elements.dropIntent.dataset.intent, "top");
+
+  stage.emit({
+    dropIntent: { kind: "prep", intent: "bottom", id: "patty", targetIndex: 0 },
+  });
+  assert.equal(page.elements.dropIntent.textContent, "塞到最下层");
+  assert.equal(page.elements.dropIntent.dataset.intent, "bottom");
+
+  stage.emit({
+    dropIntent: { kind: "bin", intent: "home", id: "patty" },
+  });
+  assert.equal(page.elements.dropIntent.textContent, "放回原料格");
+  assert.equal(page.elements.dropIntent.dataset.intent, "home");
+  assert.deepEqual(stage.workbench.highlightCalls.at(-1), ["ingredient", "patty", true]);
+
+  stage.emit({ dropIntent: null });
+  assert.equal(page.elements.dropIntent.hidden, true);
+  assert.equal(page.elements.dropIntent.textContent, "");
+  assert.equal("intent" in page.elements.dropIntent.dataset, false);
 });
 
 test("a second boot disposes the old stage and leaves only the new click handler", () => {

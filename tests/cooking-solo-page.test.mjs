@@ -39,6 +39,7 @@ test("standalone cooking page is accessible, Chinese, and contains the full play
     'id="cooking-loading-elapsed"',
     'id="cooking-loading-note"',
     'id="cooking-loading-bar"',
+    'id="cooking-drop-intent"',
     'cooking-error',
   ]) assert.ok(html.includes(marker), marker);
   assert.match(html, /自由料理台/);
@@ -75,6 +76,13 @@ test("mobile CSS protects touch targets, safe areas, WebGL states, and reduced m
     "@supports (min-height: 100dvh)",
     "min-height: 100dvh",
     ".cooking-loading",
+    ".cooking-loading__spinner",
+    ".cooking-loading__progress",
+    ".cooking-loading__meta",
+    ".cooking-drop-intent",
+    '[data-intent="top"]',
+    '[data-intent="bottom"]',
+    '[data-intent="home"]',
     ".cooking-error",
     ".tutorial-coach",
     ".tutorial-pointer",
