@@ -227,8 +227,9 @@ export function createSoloCookingStage({
     let cursorY = workbench.prep.dropAnchor.position.y;
     assembledOrder.forEach((layerId, index) => {
       const layer = burger.getLayer(layerId);
-      const scaledHalfHeight = layer.userData.halfHeight * LAYER_PRESENTATION_SCALE;
-      const y = cursorY + scaledHalfHeight + (expanded ? index * EXPLODED_GAP : 0);
+      const scaledMinY = layer.userData.boundsMinY * LAYER_PRESENTATION_SCALE;
+      const scaledMaxY = layer.userData.boundsMaxY * LAYER_PRESENTATION_SCALE;
+      const y = cursorY - scaledMinY + (expanded ? index * EXPLODED_GAP : 0);
       result.set(layerId, {
         position: new THREE.Vector3(0, y, 0),
         scale: new THREE.Vector3(
@@ -238,7 +239,7 @@ export function createSoloCookingStage({
         ),
         yaw: state.rotations[layerId],
       });
-      cursorY += scaledHalfHeight * 2 - STACK_OVERLAP;
+      cursorY += scaledMaxY - scaledMinY - STACK_OVERLAP;
     });
     for (const layerId of BURGER_LAYER_IDS) {
       if (result.has(layerId)) continue;
@@ -351,7 +352,9 @@ export function createSoloCookingStage({
     };
     const previewOrder = state.assembledOrder.filter((id) => id !== intent.id);
     const targets = targetTransforms(previewOrder);
-    const thickness = selected.userData.halfHeight * LAYER_PRESENTATION_SCALE * 2;
+    const thickness = (
+      selected.userData.boundsMaxY - selected.userData.boundsMinY
+    ) * LAYER_PRESENTATION_SCALE;
     const targetIndex = Math.max(0, Math.min(intent.targetIndex, previewOrder.length));
     const upperIds = new Set(previewOrder.slice(targetIndex));
     const finalOrder = [...previewOrder];
@@ -374,7 +377,7 @@ export function createSoloCookingStage({
     const lowerId = previewOrder[targetIndex - 1];
     const gapY = lowerId
       ? targets.get(lowerId).position.y
-        + burger.getLayer(lowerId).userData.halfHeight * LAYER_PRESENTATION_SCALE
+        + burger.getLayer(lowerId).userData.boundsMaxY * LAYER_PRESENTATION_SCALE
         - baseY + 0.015
       : 0.015;
     workbench.setDropCue({
@@ -456,7 +459,9 @@ export function createSoloCookingStage({
       motion: createCookingMotion({
         kind,
         startedAt: lastFrameTime,
-        thickness: layer.userData.halfHeight * LAYER_PRESENTATION_SCALE * 2,
+        thickness: (
+          layer.userData.boundsMaxY - layer.userData.boundsMinY
+        ) * LAYER_PRESENTATION_SCALE,
         reducedMotion,
       }),
       selectedId: layerId,
@@ -575,7 +580,9 @@ export function createSoloCookingStage({
       motion: createCookingMotion({
         kind: "pick",
         startedAt: lastFrameTime,
-        thickness: layer.userData.halfHeight * LAYER_PRESENTATION_SCALE * 2,
+        thickness: (
+          layer.userData.boundsMaxY - layer.userData.boundsMinY
+        ) * LAYER_PRESENTATION_SCALE,
         reducedMotion,
       }),
     };

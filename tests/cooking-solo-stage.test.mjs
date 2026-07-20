@@ -72,10 +72,10 @@ const sampleStroke = (sauce, layerId = "patty") => ({
 });
 
 function visibleLayerInterval(layer) {
-  const scaledHalfHeight = layer.userData.halfHeight * layer.scale.y;
+  const bounds = layer.userData.selectableSurface.geometry.boundingBox;
   return {
-    bottom: layer.position.y - scaledHalfHeight,
-    top: layer.position.y + scaledHalfHeight,
+    bottom: layer.position.y + bounds.min.y * layer.scale.y,
+    top: layer.position.y + bounds.max.y * layer.scale.y,
   };
 }
 
@@ -461,7 +461,7 @@ test("top insertion rebounds and finishes at its exact contact target", () => {
   const { stage, configuration, vibrations } = stageHarnessWithConfiguration();
   const patty = stage.burger.getLayer("patty");
   const finalY = stage.workbench.prep.dropAnchor.position.y
-    + patty.userData.halfHeight * stage.layerPresentationScale;
+    - patty.userData.boundsMinY * stage.layerPresentationScale;
   configuration.onPick({ id: "patty" });
   configuration.onDrop({ id: "patty", anchor: stage.workbench.prep.dropAnchor, targetIndex: 0 });
   stage.tick(290);
@@ -488,7 +488,7 @@ test("bottom insertion lifts old layers while the new food pops at its target he
   assert.ok(stage.burger.getLayer("patty").position.y > oldPattyY);
   const bottomBun = stage.burger.getLayer("bottom-bun");
   const finalBottomY = stage.workbench.prep.dropAnchor.position.y
-    + bottomBun.userData.halfHeight * stage.layerPresentationScale;
+    - bottomBun.userData.boundsMinY * stage.layerPresentationScale;
   stage.tick(1250);
   assert.ok(bottomBun.position.y >= finalBottomY, "new layer never travels through the stack");
   assert.notEqual(bottomBun.scale.x, stage.layerPresentationScale, "new layer is scaling locally");

@@ -661,6 +661,8 @@ export function createBurgerModel3D(THREE, options = {}) {
     const bounds = definition.geometry.boundingBox;
     surfaceBoundsById.set(definition.id, bounds.clone());
     group.userData.halfHeight = (bounds.max.y - bounds.min.y) / 2;
+    group.userData.boundsMinY = bounds.min.y;
+    group.userData.boundsMaxY = bounds.max.y;
     group.userData.surfaceY = bounds.max.y + 0.025;
     group.userData.surfaceRadius = Math.max(
       Math.abs(bounds.min.x), Math.abs(bounds.max.x),
@@ -848,8 +850,10 @@ export function createBurgerModel3D(THREE, options = {}) {
     let cursorY = 0;
     order.forEach((id, index) => {
       const layer = layers.get(id);
-      const halfHeight = layer.userData.halfHeight;
-      const y = cursorY + halfHeight + (expanded ? index * EXPANDED_GAP : 0);
+      const scaleY = layer.scale.y;
+      const minY = layer.userData.boundsMinY * scaleY;
+      const maxY = layer.userData.boundsMaxY * scaleY;
+      const y = cursorY - minY + (expanded ? index * EXPANDED_GAP : 0);
       layer.position.y = y;
       layer.userData.stackY = y;
       if (snapHorizontal) {
@@ -857,7 +861,7 @@ export function createBurgerModel3D(THREE, options = {}) {
         layer.position.z = 0;
       }
       if (snapRotation) layer.rotation.set(0, 0, 0);
-      cursorY += halfHeight * 2 - COLLAPSED_OVERLAP;
+      cursorY += maxY - minY - COLLAPSED_OVERLAP;
     });
   };
   applyStackHeights({ snapHorizontal: true, snapRotation: true });

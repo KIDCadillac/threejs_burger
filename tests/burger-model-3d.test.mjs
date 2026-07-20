@@ -60,6 +60,12 @@ test("builds seven stable, independently transformable Three.js food layers", ()
   assert.ok(burger.selectableSurfaces.every((surface) => Object.isFrozen(
     surface.userData.cookingSelectable,
   )));
+  for (const layerId of BURGER_LAYER_IDS) {
+    const layer = burger.getLayer(layerId);
+    const bounds = layer.userData.selectableSurface.geometry.boundingBox;
+    assert.equal(layer.userData.boundsMinY, bounds.min.y);
+    assert.equal(layer.userData.boundsMaxY, bounds.max.y);
+  }
 
   const patty = burger.getLayer("patty");
   const tomato = burger.getLayer("tomato");
