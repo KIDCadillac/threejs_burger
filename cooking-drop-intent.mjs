@@ -41,12 +41,17 @@ export function resolveSoloLayerDrop({
   }
 
   if (contains(prep, point)) {
-    const bottomThreshold = prep.minZ + (prep.maxZ - prep.minZ) * 0.62;
-    const intent = point.z > bottomThreshold ? "bottom" : "top";
+    const slotCount = assembledCount + 1;
+    const normalizedDepth = (prep.maxZ - point.z) / (prep.maxZ - prep.minZ);
+    const targetIndex = Math.max(
+      0,
+      Math.min(assembledCount, Math.floor(normalizedDepth * slotCount)),
+    );
     return Object.freeze({
       kind: "prep",
-      intent,
-      targetIndex: intent === "bottom" ? 0 : assembledCount,
+      intent: "insert",
+      targetIndex,
+      slotCount,
     });
   }
 

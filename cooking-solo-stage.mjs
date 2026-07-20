@@ -15,6 +15,7 @@ import {
   removeSoloLayer,
   rotateSoloLayer,
   addSoloSauceStroke,
+  addSoloSauceStrokes,
   finishSoloCooking,
   continueSoloCooking,
   undoSoloCooking,
@@ -345,13 +346,14 @@ export function createSoloCookingStage({
     const previewOrder = state.assembledOrder.filter((id) => id !== intent.id);
     const targets = targetTransforms(previewOrder);
     const thickness = selected.userData.halfHeight * LAYER_PRESENTATION_SCALE * 2;
-    const shiftY = intent.intent === "bottom" ? thickness + 0.08 : -0.045;
+    const targetIndex = Math.max(0, Math.min(intent.targetIndex, previewOrder.length));
+    const upperIds = new Set(previewOrder.slice(targetIndex));
 
-    for (const layerId of previewOrder) {
+    for (const [layerId, target] of targets) {
+      if (layerId === intent.id) continue;
       const layer = burger.getLayer(layerId);
-      const target = targets.get(layerId);
       layer.position.copy(target.position);
-      layer.position.y += shiftY;
+      if (upperIds.has(layerId)) layer.position.y += thickness + 0.08;
       layer.rotation.set(0, target.yaw, 0);
       layer.scale.copy(target.scale);
     }
@@ -360,15 +362,16 @@ export function createSoloCookingStage({
     selected.scale.copy(draggedPose.scale);
 
     const baseY = workbench.prep.dropAnchor.position.y;
-    const topY = previewOrder.reduce((highest, layerId) => {
-      const layer = burger.getLayer(layerId);
-      return Math.max(
-        highest,
-        layer.position.y + layer.userData.halfHeight * LAYER_PRESENTATION_SCALE - baseY,
-      );
-    }, 0);
-    workbench.setDropCue(intent.intent, {
-      y: intent.intent === "bottom" ? 0.015 : topY + 0.015,
+    const lowerId = previewOrder[targetIndex - 1];
+    const gapY = lowerId
+      ? targets.get(lowerId).position.y
+        + burger.getLayer(lowerId).userData.halfHeight * LAYER_PRESENTATION_SCALE
+        - baseY + 0.015
+      : 0.015;
+    workbench.setDropCue({
+      targetIndex,
+      y: gapY,
+      radius: selected.userData.surfaceRadius * LAYER_PRESENTATION_SCALE,
     });
     return true;
   };
@@ -382,9 +385,9 @@ export function createSoloCookingStage({
     };
     const previewOrder = state.assembledOrder.filter((id) => id !== layerId);
     const targets = targetTransforms(previewOrder);
-    for (const id of previewOrder) {
+    for (const [id, target] of targets) {
+      if (id === layerId) continue;
       const layer = burger.getLayer(id);
-      const target = targets.get(id);
       layer.position.copy(target.position);
       layer.rotation.set(0, target.yaw, 0);
       layer.scale.copy(target.scale);
@@ -404,7 +407,7 @@ export function createSoloCookingStage({
       point,
       prepBounds: layout.prep.bounds,
       homeBounds: station.bounds,
-      assembledCount: state.assembledOrder.length,
+      assembledCount: state.assembledOrder.filter((layerId) => layerId !== id).length,
       magnetPadding: 0.36,
     });
     return Object.freeze({ id, ...resolution });
@@ -428,8 +431,12 @@ export function createSoloCookingStage({
     return { valid: false, reason: "请放到中央餐盘或原料盒" };
   };
 
-  const startLayerMotion = ({ layerId, kind, previousOrder, from }) => {
+  const startLayerMotion = ({ layerId, kind, previousOrder, from, targetIndex = null }) => {
     const layer = burger.getLayer(layerId);
+    const remainingOrder = previousOrder.filter((id) => id !== layerId);
+    const normalizedTargetIndex = kind === "insert"
+      ? Math.max(0, Math.min(targetIndex, remainingOrder.length))
+      : null;
     activeMotion = {
       motion: createCookingMotion({
         kind,
@@ -438,7 +445,11 @@ export function createSoloCookingStage({
         reducedMotion,
       }),
       selectedId: layerId,
-      previousOrder,
+      previousOrder: remainingOrder,
+      targetIndex: normalizedTargetIndex,
+      upperIds: kind === "insert"
+        ? remainingOrder.slice(normalizedTargetIndex)
+        : [],
       from,
       targets: targetTransforms(),
       impacted: false,
@@ -464,9 +475,10 @@ export function createSoloCookingStage({
       reorderLayers();
       startLayerMotion({
         layerId,
-        kind: targetIndex === 0 && previousOrder.length ? "bottom" : "top",
+        kind: "insert",
         previousOrder,
         from,
+        targetIndex,
       });
       advanceTutorial("dropped-on-prep");
       if (state.complete) advanceTutorial("assembled-all");
@@ -495,6 +507,34 @@ export function createSoloCookingStage({
     advanceTutorial("created-sauce-stroke");
     if (state.complete) advanceTutorial("assembled-all");
     emit("sauce-stroke");
+    return true;
+  };
+
+  const previewSauceGesture = ({ gestureId, segmentIndex, stroke }) => {
+    if (disposed) return false;
+    burger.previewSauceStroke(`${gestureId}:${segmentIndex}`, stroke);
+    return true;
+  };
+
+  const commitSauceGesture = ({ gestureId, strokes }) => {
+    if (disposed) return false;
+    try {
+      const nextState = addSoloSauceStrokes(state, strokes);
+      burger.commitSaucePreviews(gestureId);
+      state = nextState;
+    } catch (error) {
+      burger.cancelSaucePreviews(gestureId);
+      throw error;
+    }
+    advanceTutorial("created-sauce-stroke");
+    if (state.complete) advanceTutorial("assembled-all");
+    emit("sauce-gesture");
+    return true;
+  };
+
+  const cancelSauceGesture = ({ gestureId }) => {
+    if (disposed) return false;
+    burger.cancelSaucePreviews(gestureId);
     return true;
   };
 
@@ -565,6 +605,19 @@ export function createSoloCookingStage({
       emit("selection");
     },
     onMove: ({ id, reason, pose, point }) => {
+      if (activeMotion) {
+        const movedLayer = burger.getLayer(id);
+        const movedPose = {
+          position: movedLayer.position.clone(),
+          rotation: movedLayer.rotation.clone(),
+          scale: movedLayer.scale.clone(),
+        };
+        activeMotion = null;
+        restoreAuthoritativeTransforms();
+        movedLayer.position.copy(movedPose.position);
+        movedLayer.rotation.copy(movedPose.rotation);
+        movedLayer.scale.copy(movedPose.scale);
+      }
       cancelLayerTransition(id);
       if ((reason === "rotate" || reason === "twist") && !state.finished) {
         workbench.clearDropCue();
@@ -622,6 +675,9 @@ export function createSoloCookingStage({
       emit("invalid-drop", { message });
     },
     onSauceStroke: applySauceStroke,
+    onSaucePreview: previewSauceGesture,
+    onSauceCommit: commitSauceGesture,
+    onSauceCancel: cancelSauceGesture,
   });
   cleanupTasks.push(() => controller?.dispose?.());
 
@@ -656,8 +712,7 @@ export function createSoloCookingStage({
       "progress",
       "arrival",
       "selectedOffsetY",
-      "stackOffsetY",
-      "stackCompression",
+      "upperOffsetY",
       "selectedScaleXz",
       "selectedScaleY",
     ];
@@ -670,32 +725,23 @@ export function createSoloCookingStage({
     const selected = burger.getLayer(record.selectedId);
     const selectedFrom = record.from.get(record.selectedId);
     const selectedTarget = record.targets.get(record.selectedId);
-    for (const layerId of record.previousOrder.filter((id) => id !== record.selectedId)) {
+    const upperIds = new Set(record.upperIds);
+    for (const layerId of BURGER_LAYER_IDS) {
+      if (layerId === record.selectedId) continue;
       const layer = burger.getLayer(layerId);
-      applyPose(layer, record.from.get(layerId), record.targets.get(layerId), frame.arrival);
-      if (record.motion.kind === "top") {
-        layer.position.y -= frame.stackCompression * 0.045;
-      } else if (record.motion.kind === "bottom") {
-        layer.position.y += frame.stackOffsetY;
+      const target = record.targets.get(layerId);
+      if (upperIds.has(layerId)) {
+        applyPose(layer, record.from.get(layerId), target, frame.arrival);
+        layer.position.y += frame.upperOffsetY;
+      } else {
+        layer.position.copy(target.position);
+        layer.rotation.set(0, target.yaw, 0);
+        layer.scale.copy(target.scale);
       }
     }
 
     applyPose(selected, selectedFrom, selectedTarget, frame.arrival);
-    if (record.motion.kind === "bottom") {
-      const belowY = selectedTarget.position.y - record.motion.thickness * 0.45;
-      if (frame.phase === "open" || frame.phase === "insert") {
-        const entry = Math.min(1, frame.arrival / 0.83);
-        selected.position.y = selectedFrom.position.y
-          + (belowY - selectedFrom.position.y) * entry;
-      } else {
-        const exit = Math.min(1, Math.max(0, (frame.arrival - 0.83) / 0.17));
-        selected.position.y = belowY
-          + (selectedTarget.position.y - belowY) * exit
-          + frame.selectedOffsetY;
-      }
-    } else {
-      selected.position.y += frame.selectedOffsetY;
-    }
+    selected.position.y += frame.selectedOffsetY;
     selected.scale.x *= frame.selectedScaleXz;
     selected.scale.z *= frame.selectedScaleXz;
     selected.scale.y *= frame.selectedScaleY;

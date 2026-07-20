@@ -1,7 +1,6 @@
 const DURATIONS = Object.freeze({
   pick: 90,
-  top: 300,
-  bottom: 380,
+  insert: 380,
   home: 240,
 });
 
@@ -18,8 +17,7 @@ const settled = Object.freeze({
   progress: 1,
   arrival: 1,
   selectedOffsetY: 0,
-  stackOffsetY: 0,
-  stackCompression: 0,
+  upperOffsetY: 0,
   selectedScaleXz: 1,
   selectedScaleY: 1,
   impact: false,
@@ -32,7 +30,7 @@ export function createCookingMotion({
   thickness,
   reducedMotion = false,
 } = {}) {
-  if (!KINDS.has(kind)) throw new TypeError("kind must be pick, top, bottom, or home");
+  if (!KINDS.has(kind)) throw new TypeError("kind must be pick, insert, or home");
   if (!Number.isFinite(startedAt)) throw new TypeError("startedAt must be finite");
   if (!Number.isFinite(thickness) || thickness <= 0) {
     throw new TypeError("thickness must be a positive finite number");
@@ -60,8 +58,7 @@ export function sampleCookingMotion(motion, now) {
     progress,
     arrival: 0,
     selectedOffsetY: 0,
-    stackOffsetY: 0,
-    stackCompression: 0,
+    upperOffsetY: 0,
     selectedScaleXz: 1,
     selectedScaleY: 1,
     impact: false,
@@ -76,51 +73,23 @@ export function sampleCookingMotion(motion, now) {
     return Object.freeze(result);
   }
 
-  if (motion.kind === "top") {
-    if (progress < 0.22) {
-      const phaseProgress = progress / 0.22;
-      result.phase = "anticipate";
-      result.arrival = easeInOutCubic(phaseProgress) * 0.25;
-      result.stackCompression = easeOutCubic(phaseProgress);
-    } else if (progress < 0.56) {
-      const phaseProgress = (progress - 0.22) / 0.34;
-      result.phase = "impact";
-      result.arrival = 0.25 + easeInOutCubic(phaseProgress) * 0.75;
-      result.selectedOffsetY = -motion.thickness * 0.06 * easeOutCubic(phaseProgress);
-      result.stackCompression = 1 - phaseProgress * 0.35;
-      result.impact = phaseProgress >= 0.72;
-    } else if (progress < 0.82) {
-      const phaseProgress = (progress - 0.56) / 0.26;
-      result.phase = "rebound";
-      result.arrival = 1;
-      result.selectedOffsetY = motion.thickness * 0.12 * Math.sin(Math.PI * phaseProgress);
-      result.stackCompression = (1 - phaseProgress) * 0.65;
-    } else {
-      const phaseProgress = (progress - 0.82) / 0.18;
-      result.phase = "settle";
-      result.arrival = 1;
-      result.selectedOffsetY = motion.thickness * 0.025 * Math.sin(Math.PI * phaseProgress);
-    }
-    return Object.freeze(result);
-  }
-
-  if (motion.kind === "bottom") {
+  if (motion.kind === "insert") {
     if (progress < 0.24) {
       const phaseProgress = progress / 0.24;
       result.phase = "open";
       result.arrival = easeInOutCubic(phaseProgress) * 0.18;
-      result.stackOffsetY = (motion.thickness + 0.08) * easeOutCubic(phaseProgress);
+      result.upperOffsetY = (motion.thickness + 0.08) * easeOutCubic(phaseProgress);
     } else if (progress < 0.58) {
       const phaseProgress = (progress - 0.24) / 0.34;
       result.phase = "insert";
       result.arrival = 0.18 + easeInOutCubic(phaseProgress) * 0.65;
-      result.stackOffsetY = motion.thickness + 0.08;
+      result.upperOffsetY = motion.thickness + 0.08;
       result.selectedOffsetY = motion.thickness * (0.45 - phaseProgress * 0.9);
     } else if (progress < 0.82) {
       const phaseProgress = (progress - 0.58) / 0.24;
-      result.phase = "exit";
+      result.phase = "close";
       result.arrival = 0.83 + easeInOutCubic(phaseProgress) * 0.17;
-      result.stackOffsetY = (motion.thickness + 0.08) * (1 - easeOutCubic(phaseProgress));
+      result.upperOffsetY = (motion.thickness + 0.08) * (1 - easeOutCubic(phaseProgress));
       result.selectedOffsetY = -motion.thickness * 0.12
         * Math.sin(Math.PI * (0.5 + phaseProgress * 0.5));
       result.impact = phaseProgress >= 0.55;

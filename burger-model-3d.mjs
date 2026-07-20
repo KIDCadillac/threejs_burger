@@ -574,23 +574,40 @@ export function createBurgerModel3D(THREE, options = {}) {
     biteThresholdsById.set(definition.id, maxRadius * 0.12);
   }
 
-  const selectionHaloGeometry = new THREE.RingGeometry(0.9, 1.08, 32);
-  const selectionHaloMaterial = new THREE.MeshBasicMaterial({
+  const selectionFillGeometry = new THREE.CircleGeometry(0.92, 32);
+  const selectionOutlineGeometry = new THREE.RingGeometry(0.92, 1, 32);
+  const selectionFillMaterial = new THREE.MeshBasicMaterial({
     color: 0xffc84d,
     transparent: true,
-    opacity: 0.88,
+    opacity: 0.14,
     side: THREE.DoubleSide,
     depthWrite: false,
     depthTest: false,
   });
-  const selectionHalo = new THREE.Mesh(selectionHaloGeometry, selectionHaloMaterial);
-  selectionHalo.name = "food-layer:selection-halo";
-  selectionHalo.rotation.x = -Math.PI / 2;
-  selectionHalo.visible = false;
-  selectionHalo.renderOrder = 20;
-  selectionHalo.raycast = NO_RAYCAST;
-  ownedGeometries.add(selectionHaloGeometry);
-  ownedMaterials.add(selectionHaloMaterial);
+  const selectionOutlineMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffd979,
+    transparent: true,
+    opacity: 0.76,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    depthTest: false,
+  });
+  const selectionFeedback = new THREE.Group();
+  selectionFeedback.name = "food-layer:selection-feedback";
+  selectionFeedback.userData.kind = "selection-outline";
+  selectionFeedback.rotation.x = -Math.PI / 2;
+  selectionFeedback.visible = false;
+  const selectionFill = new THREE.Mesh(selectionFillGeometry, selectionFillMaterial);
+  const selectionOutline = new THREE.Mesh(selectionOutlineGeometry, selectionOutlineMaterial);
+  for (const mesh of [selectionFill, selectionOutline]) {
+    mesh.renderOrder = 20;
+    mesh.raycast = NO_RAYCAST;
+    selectionFeedback.add(mesh);
+  }
+  ownedGeometries.add(selectionFillGeometry);
+  ownedGeometries.add(selectionOutlineGeometry);
+  ownedMaterials.add(selectionFillMaterial);
+  ownedMaterials.add(selectionOutlineMaterial);
 
   const sesame = createSesameDecoration(THREE, sesameMaterial);
   layers.get("top-bun").add(sesame);
@@ -611,6 +628,7 @@ export function createBurgerModel3D(THREE, options = {}) {
   let expanded = false;
   let disposed = false;
   const sauceEntries = [];
+  const previewEntriesByKey = new Map();
   const projectionRaycaster = new THREE.Raycaster();
   const projectionDirection = new THREE.Vector3(0, -1, 0);
 
@@ -702,6 +720,8 @@ export function createBurgerModel3D(THREE, options = {}) {
   const clearSauces = () => {
     assertActive(disposed);
     while (sauceEntries.length) disposeSauceEntry(sauceEntries.pop());
+    for (const entry of previewEntriesByKey.values()) disposeSauceEntry(entry);
+    previewEntriesByKey.clear();
   };
 
   const applySauceBite = (entry, amount) => {
@@ -735,7 +755,7 @@ export function createBurgerModel3D(THREE, options = {}) {
     geometry.computeBoundingSphere();
   };
 
-  const createSauceEntry = (normalized, nameIndex) => {
+  const createSauceEntry = (normalized, nameIndex, previewKey = null) => {
     const profile = footprintsById.get(normalized.layerId);
     let pathPoints = normalized.points.map(([x, z]) => {
       const [localX, localZ] = projectNormalizedFootprint(
@@ -752,7 +772,7 @@ export function createBurgerModel3D(THREE, options = {}) {
       (normalized.points.length - 1) * 3,
     ));
     const tubeRadius = 0.025 + normalized.amount * 0.035;
-    const surfaceOffset = tubeRadius * 0.7;
+    const surfaceOffset = tubeRadius + 0.008;
     const curveState = { biteAmount: 0 };
     const surfaceCurve = new THREE.Curve();
     surfaceCurve.getPoint = (time, target = new THREE.Vector3()) => {
@@ -793,11 +813,15 @@ export function createBurgerModel3D(THREE, options = {}) {
       amount: normalized.amount,
     });
     mesh.userData.surfaceOffset = surfaceOffset;
+    mesh.userData.tubeRadius = tubeRadius;
+    mesh.userData.preview = previewKey !== null;
+    if (previewKey !== null) mesh.userData.previewKey = previewKey;
     mesh.userData.inputPointCount = normalized.points.length;
     mesh.userData.routePointCount = pathPoints.length;
     const entry = {
       mesh,
       stroke: normalized,
+      previewKey,
       curveState,
       basePositions: Float32Array.from(geometry.attributes.position.array),
       baseNormals: Float32Array.from(geometry.attributes.normal.array),
@@ -818,6 +842,8 @@ export function createBurgerModel3D(THREE, options = {}) {
   };
 
   const replaceSauceEntries = (replacements) => {
+    for (const entry of previewEntriesByKey.values()) disposeSauceEntry(entry);
+    previewEntriesByKey.clear();
     const previous = sauceEntries.splice(0, sauceEntries.length, ...replacements);
     for (const entry of previous) entry.mesh.removeFromParent();
     for (const entry of replacements) layers.get(entry.stroke.layerId).add(entry.mesh);
@@ -832,6 +858,57 @@ export function createBurgerModel3D(THREE, options = {}) {
     sauceEntries.push(entry);
     if (sauceEntries.length > MAX_STROKES) disposeSauceEntry(sauceEntries.shift());
     return entry.mesh;
+  };
+
+  const assertPreviewIdentifier = (value, label) => {
+    if (typeof value !== "string" || !value.trim()) {
+      throw new TypeError(`${label} must be a non-empty string`);
+    }
+    return value;
+  };
+
+  const previewSauceStroke = (previewKey, stroke) => {
+    assertActive(disposed);
+    const key = assertPreviewIdentifier(previewKey, "previewKey");
+    const normalized = validateStroke(stroke);
+    const next = createSauceEntry(normalized, `preview:${key}`, key);
+    layers.get(normalized.layerId).add(next.mesh);
+    const previous = previewEntriesByKey.get(key);
+    previewEntriesByKey.set(key, next);
+    if (previous) disposeSauceEntry(previous);
+    return next.mesh;
+  };
+
+  const matchingPreviewEntries = (gestureId) => {
+    const id = assertPreviewIdentifier(gestureId, "gestureId");
+    const prefix = `${id}:`;
+    return [...previewEntriesByKey.entries()].filter(([key]) => key.startsWith(prefix));
+  };
+
+  const commitSaucePreviews = (gestureId) => {
+    assertActive(disposed);
+    const matches = matchingPreviewEntries(gestureId);
+    const meshes = [];
+    for (const [key, entry] of matches) {
+      previewEntriesByKey.delete(key);
+      entry.previewKey = null;
+      entry.mesh.userData.preview = false;
+      delete entry.mesh.userData.previewKey;
+      sauceEntries.push(entry);
+      meshes.push(entry.mesh);
+      if (sauceEntries.length > MAX_STROKES) disposeSauceEntry(sauceEntries.shift());
+    }
+    return Object.freeze(meshes);
+  };
+
+  const cancelSaucePreviews = (gestureId) => {
+    assertActive(disposed);
+    const matches = matchingPreviewEntries(gestureId);
+    for (const [key, entry] of matches) {
+      previewEntriesByKey.delete(key);
+      disposeSauceEntry(entry);
+    }
+    return matches.length;
   };
 
   const setLayerPose = (layerId, pose = {}) => {
@@ -1004,6 +1081,9 @@ export function createBurgerModel3D(THREE, options = {}) {
     if (normalizedAmount === previousAmount) return;
     applyBiteGeometry(normalizedAmount);
     for (const entry of sauceEntries) applySauceBite(entry, normalizedAmount);
+    for (const entry of previewEntriesByKey.values()) {
+      applySauceBite(entry, normalizedAmount);
+    }
     root.userData.biteAmount = normalizedAmount;
   };
 
@@ -1013,7 +1093,7 @@ export function createBurgerModel3D(THREE, options = {}) {
     root,
     layers: readonlyLayers,
     selectableSurfaces,
-    selectionHalo,
+    selectionFeedback,
     noRaycast: NO_RAYCAST,
     getLayer,
     getLayerOrder() {
@@ -1032,16 +1112,16 @@ export function createBurgerModel3D(THREE, options = {}) {
       assertActive(disposed);
       assertLayerId(layerId);
       if (!highlighted) {
-        selectionHalo.visible = false;
-        selectionHalo.removeFromParent();
+        selectionFeedback.visible = false;
+        selectionFeedback.removeFromParent();
         return false;
       }
       const layer = layers.get(layerId);
-      layer.add(selectionHalo);
-      selectionHalo.position.set(0, layer.userData.surfaceY + 0.08, 0);
+      layer.add(selectionFeedback);
+      selectionFeedback.position.set(0, layer.userData.surfaceY + 0.045, 0);
       const radius = layer.userData.surfaceRadius;
-      selectionHalo.scale.set(radius, radius, 1);
-      selectionHalo.visible = true;
+      selectionFeedback.scale.set(radius * 1.04, radius * 1.04, 1);
+      selectionFeedback.visible = true;
       return true;
     },
     reorderLayer,
@@ -1049,6 +1129,9 @@ export function createBurgerModel3D(THREE, options = {}) {
     applyComposition,
     projectSurfacePoint,
     addSauceStroke,
+    previewSauceStroke,
+    commitSaucePreviews,
+    cancelSaucePreviews,
     clearSauces,
     setBiteAmount,
     getSnapshot,
@@ -1064,6 +1147,8 @@ export function createBurgerModel3D(THREE, options = {}) {
     dispose() {
       if (disposed) return;
       while (sauceEntries.length) disposeSauceEntry(sauceEntries.pop());
+      for (const entry of previewEntriesByKey.values()) disposeSauceEntry(entry);
+      previewEntriesByKey.clear();
       disposed = true;
       root.removeFromParent();
       for (const geometry of ownedGeometries) geometry.dispose();
