@@ -643,6 +643,41 @@ test("orbits blank or prep space with bounded yaw and pitch", () => {
   controller.dispose();
 });
 
+test("wraps cooking yaw through a full orbit instead of stopping at the side", () => {
+  const canvas = createCanvas();
+  const camera = new THREE.PerspectiveCamera();
+  camera.position.set(0, 5, 10);
+  camera.lookAt(0, 0, 0);
+  camera.updateMatrixWorld(true);
+  const changes = [];
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    raycast: () => null,
+    cameraTarget: { x: 0, y: 0, z: 0 },
+    orbitSensitivity: 0.0042,
+    orbitLimits: {
+      minYaw: -Math.PI,
+      maxYaw: Math.PI,
+      minPitch: 0.12,
+      maxPitch: 1.45,
+      minDistance: 5,
+      maxDistance: 45,
+      wrapYaw: true,
+    },
+    onCameraChange: (detail) => changes.push(detail),
+  });
+
+  canvas.dispatch("pointerdown", pointer(90, 0, 0));
+  canvas.dispatch("pointermove", pointer(90, 1000, 0));
+  const expected = ((-4.2 + Math.PI) % (Math.PI * 2) + Math.PI * 2)
+    % (Math.PI * 2) - Math.PI;
+  assert.ok(Math.abs(changes.at(-1).yaw - expected) < 1e-9);
+  assert.notEqual(Math.abs(changes.at(-1).yaw), Math.PI);
+  controller.dispose();
+});
+
 test("pinches within zoom limits and resumes one-pointer orbit without a jump", () => {
   const canvas = createCanvas();
   const camera = new THREE.PerspectiveCamera();

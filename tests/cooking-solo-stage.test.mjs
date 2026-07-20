@@ -94,7 +94,7 @@ test("integrates one real Three scene, workbench, burger, bottles, and controlle
   stage.dispose();
 });
 
-test("keeps cooking orbit controlled while allowing close food inspection", () => {
+test("keeps full cooking orbit while allowing low, high, and close food inspection", () => {
   let configuration;
   const controller = {
     resetCamera: () => true,
@@ -111,12 +111,13 @@ test("keeps cooking orbit controlled while allowing close food inspection", () =
   });
 
   assert.deepEqual(configuration.orbitLimits, {
-    minYaw: -0.78,
-    maxYaw: 0.78,
-    minPitch: 0.5,
-    maxPitch: 0.95,
-    minDistance: 6,
-    maxDistance: 32,
+    minYaw: -Math.PI,
+    maxYaw: Math.PI,
+    minPitch: 0.12,
+    maxPitch: 1.45,
+    minDistance: 5,
+    maxDistance: 45,
+    wrapYaw: true,
   });
   stage.dispose();
 });
