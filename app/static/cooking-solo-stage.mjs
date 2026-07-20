@@ -25,8 +25,7 @@ import {
   reconcileCookingTutorial,
 } from "./cooking-tutorial-state.mjs";
 
-const BIN_LAYER_SCALE = 0.54;
-const PREP_LAYER_SCALE = 1;
+const LAYER_PRESENTATION_SCALE = 0.72;
 const STACK_GAP = 0.065;
 const EXPLODED_GAP = 0.42;
 const SNAP_DURATION = 190;
@@ -168,12 +167,12 @@ export function createSoloCookingStage({
   host.camera.fov = cameraView.fov;
   host.camera.near = cameraView.near;
   host.camera.far = cameraView.far;
-  // The generic workbench camera includes generous editor margins. Pull it closer
-  // for the playable phone view so every food piece remains a practical touch target.
+  // The generic workbench camera includes editor margins. The phone composition
+  // intentionally crops only decorative counter edges while retaining every control.
   host.camera.position.set(
-    cameraView.position.x * 0.7,
-    cameraView.position.y * 0.7,
-    cameraView.position.z * 0.7,
+    cameraView.position.x * 0.52,
+    cameraView.position.y * 0.52,
+    cameraView.position.z * 0.52,
   );
   host.camera.lookAt(cameraView.target.x, cameraView.target.y, cameraView.target.z);
   host.camera.updateProjectionMatrix?.();
@@ -220,7 +219,11 @@ export function createSoloCookingStage({
       const y = cursorY + halfHeight + (expanded ? index * EXPLODED_GAP : 0);
       result.set(layerId, {
         position: new THREE.Vector3(0, y, 0),
-        scale: new THREE.Vector3(PREP_LAYER_SCALE, PREP_LAYER_SCALE, PREP_LAYER_SCALE),
+        scale: new THREE.Vector3(
+          LAYER_PRESENTATION_SCALE,
+          LAYER_PRESENTATION_SCALE,
+          LAYER_PRESENTATION_SCALE,
+        ),
         yaw: state.rotations[layerId],
       });
       cursorY += halfHeight * 2 + STACK_GAP;
@@ -232,7 +235,11 @@ export function createSoloCookingStage({
       const local = burger.root.worldToLocal(world.clone());
       result.set(layerId, {
         position: local,
-        scale: new THREE.Vector3(BIN_LAYER_SCALE, BIN_LAYER_SCALE, BIN_LAYER_SCALE),
+        scale: new THREE.Vector3(
+          LAYER_PRESENTATION_SCALE,
+          LAYER_PRESENTATION_SCALE,
+          LAYER_PRESENTATION_SCALE,
+        ),
         yaw: state.rotations[layerId],
       });
     }
@@ -253,10 +260,10 @@ export function createSoloCookingStage({
       transitions.set(layerId, {
         start: lastFrameTime,
         fromPosition: layer.position.clone(),
-        fromScale: layer.scale.clone(),
         fromYaw: layer.rotation.y,
         target,
       });
+      layer.scale.copy(target.scale);
     }
     workbench.root.updateMatrixWorld?.(true);
   };
@@ -442,7 +449,6 @@ export function createSoloCookingStage({
       const eased = 1 - (1 - progress) ** 3;
       const layer = burger.getLayer(layerId);
       layer.position.lerpVectors(transition.fromPosition, transition.target.position, eased);
-      layer.scale.lerpVectors(transition.fromScale, transition.target.scale, eased);
       layer.rotation.y = transition.fromYaw
         + (transition.target.yaw - transition.fromYaw) * eased;
       if (progress >= 1) transitions.delete(layerId);
@@ -464,7 +470,9 @@ export function createSoloCookingStage({
     tools,
     controller,
     celebration,
-    binLayerScale: BIN_LAYER_SCALE,
+    layerPresentationScale: LAYER_PRESENTATION_SCALE,
+    binLayerScale: LAYER_PRESENTATION_SCALE,
+    prepLayerScale: LAYER_PRESENTATION_SCALE,
     getState: () => state,
     getTutorial: () => tutorial,
     getSelectedLayerId: () => selectedLayerId,

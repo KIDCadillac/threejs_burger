@@ -59,6 +59,8 @@ test("lays stations around a clear central assembly area inside portrait-friendl
   assert.equal(new Set(transformKeys).size, stations.length);
   assert.ok(layout.ingredients.some(({ position }) => position.z < -2.5), "ingredients need a back row");
   assert.ok(layout.ingredients.some(({ position }) => Math.abs(position.x) > 3.5), "ingredients need side bins");
+  assert.ok(layout.ingredients.every(({ halfExtent }) => halfExtent.x >= 0.69
+    && halfExtent.z >= 0.69), "ingredient bins visibly support the larger food scale");
   assert.ok(layout.tools.every(({ position }) => position.z > 2.5), "tools stay near the reachable front edge");
 
   for (const station of stations) {

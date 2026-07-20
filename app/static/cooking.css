@@ -85,7 +85,7 @@ canvas:focus-visible {
 
 .cooking-stage {
   position: relative;
-  min-height: 34rem;
+  min-height: clamp(38rem, 72dvh, 48rem);
   margin: 12px 0;
   overflow: hidden;
   border: 1px solid rgba(255, 206, 122, 0.25);
@@ -97,7 +97,7 @@ canvas:focus-visible {
 #cooking-canvas {
   display: block;
   width: 100%;
-  height: 34rem;
+  height: clamp(38rem, 72dvh, 48rem);
   touch-action: none;
 }
 

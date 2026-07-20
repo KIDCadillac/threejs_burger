@@ -198,7 +198,9 @@ test("resolves visible top, bottom, and forgiving home drop intentions", () => {
 test("places seven actual independent layer groups into their matching U-shaped bins", () => {
   const { stage } = harness();
 
-  assert.ok(stage.binLayerScale >= 0.5, "bin food remains large enough for a phone touch target");
+  assert.equal(stage.layerPresentationScale, 0.72);
+  assert.equal(stage.binLayerScale, stage.layerPresentationScale);
+  assert.equal(stage.prepLayerScale, stage.layerPresentationScale);
   for (const layerId of BURGER_LAYER_IDS) {
     const layer = stage.burger.getLayer(layerId);
     const station = stage.workbench.getStation("ingredient", layerId);
@@ -211,25 +213,46 @@ test("places seven actual independent layer groups into their matching U-shaped 
   stage.dispose();
 });
 
-test("fills a phone canvas while keeping the complete workbench inside the camera", () => {
+test("fills a tall phone with a larger prep board while keeping every control visible", () => {
   const { stage, host } = harness();
-  host.camera.aspect = 390 / 544;
+  host.camera.aspect = 390 / 608;
   host.camera.updateProjectionMatrix();
   host.camera.updateMatrixWorld(true);
-  const { bounds } = stage.workbench.getLayout();
-  let maximumX = 0;
-  let maximumY = 0;
-  for (const x of [bounds.minX, bounds.maxX]) {
-    for (const y of [-0.5, 1.5]) {
-      for (const z of [bounds.minZ, bounds.maxZ]) {
-        const point = new THREE.Vector3(x, y, z).project(host.camera);
-        maximumX = Math.max(maximumX, Math.abs(point.x));
-        maximumY = Math.max(maximumY, Math.abs(point.y));
+  const layout = stage.workbench.getLayout();
+  const prepLeft = new THREE.Vector3(layout.prep.bounds.minX, 0, 0).project(host.camera);
+  const prepRight = new THREE.Vector3(layout.prep.bounds.maxX, 0, 0).project(host.camera);
+  const prepPixels = (prepRight.x - prepLeft.x) * 390 / 2;
+  assert.ok(prepPixels >= 210, `prep board is only ${prepPixels}px wide`);
+
+  for (const station of [...layout.ingredients, ...layout.tools]) {
+    for (const x of [station.bounds.minX, station.bounds.maxX]) {
+      for (const y of [0, 1.5]) {
+        for (const z of [station.bounds.minZ, station.bounds.maxZ]) {
+          const point = new THREE.Vector3(x, y, z).project(host.camera);
+          assert.ok(Math.abs(point.x) <= 1, `${station.id} is outside phone width`);
+          assert.ok(Math.abs(point.y) <= 1, `${station.id} is outside phone height`);
+        }
       }
     }
   }
-  assert.ok(maximumX >= 0.8, `workbench wastes phone width: ${maximumX}`);
-  assert.ok(maximumX <= 1 && maximumY <= 1, "workbench stays fully visible");
+  stage.dispose();
+});
+
+test("keeps one food scale before, during, and after plate snapping", () => {
+  const { stage } = harness();
+  const layer = stage.burger.getLayer("patty");
+  const expected = [0.72, 0.72, 0.72];
+  assert.deepEqual(layer.scale.toArray(), expected);
+
+  stage.dropLayer("patty", { kind: "prep" });
+  assert.deepEqual(layer.scale.toArray(), expected, "drop start does not resize the ingredient");
+  stage.tick(95);
+  assert.deepEqual(layer.scale.toArray(), expected, "snap midpoint does not resize the ingredient");
+  stage.tick(190);
+  assert.deepEqual(layer.scale.toArray(), expected, "settled plate food remains the same size");
+  stage.dropLayer("patty", { kind: "bin" });
+  stage.tick(380);
+  assert.deepEqual(layer.scale.toArray(), expected, "returning home also preserves size");
   stage.dispose();
 });
 

@@ -79,6 +79,7 @@ test("mobile CSS protects touch targets, safe areas, WebGL states, and reduced m
     ".tutorial-coach",
     ".tutorial-pointer",
     ".finish-sheet",
+    "height: clamp(38rem, 72dvh, 48rem)",
   ]) assert.ok(css.includes(marker), marker);
   assert.doesNotMatch(css, /background-image\s*:\s*url\(/i);
 });
