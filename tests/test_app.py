@@ -133,16 +133,17 @@ def test_root_catalog_assets_and_cooking_route_are_served() -> None:
     assert "自由料理台" in cooking.text
 
 
-def test_static_home_matches_the_current_mixed_snack_mode_before_javascript_loads() -> None:
+def test_root_is_the_cooking_catalog_while_the_legacy_snack_bundle_is_preserved() -> None:
     page = client.get("/").text
     script = client.get("/static/app.js").text
 
-    for source in (page, script):
-        assert "零食乱斗篇" in source
-        assert "同一盘公共零食，各自秘密埋伏。" in source
-        assert "薯条篇" not in source
-        assert "调一根整蛊薯条" not in source
-    assert '<div class="brand-mark" aria-hidden="true"><span>🍽️</span></div>' in page
+    assert "自由料理" in page
+    assert "深夜寿司店" in page
+    assert "零食乱斗篇" not in page
+    assert "零食乱斗篇" in script
+    assert "同一盘公共零食，各自秘密埋伏。" in script
+    assert "薯条篇" not in script
+    assert "调一根整蛊薯条" not in script
 
 
 def test_websocket_create_and_join_room() -> None:
@@ -536,16 +537,13 @@ def test_removed_tick_room_returns_connected_players_home() -> None:
     assert hub.broadcasted == []
 
 
-def test_client_offers_practice_from_home_and_matching() -> None:
-    page = client.get("/").text
+def test_legacy_multiplayer_bundle_still_offers_practice_from_matching() -> None:
     script = client.get("/static/app.js").text
 
-    assert 'data-action="start-practice"' in page
     assert script.count('data-action="start-practice"') >= 2
     assert 'type: "practice.start"' in script
     assert "单人练习" in script
     assert "没人？和电脑玩" in script
-    assert "电脑吃货" in page
     assert "电脑吃货" in script
 
 
@@ -553,8 +551,7 @@ def test_mode_name_does_not_force_witch_characters() -> None:
     page = client.get("/").text
     script = client.get("/static/app.js").text
 
-    assert "女巫的毒药" in page
-    assert 'button__icon">🎮' in page
+    assert "女巫" not in page
     assert 'button__icon">🎮' in script
     assert 'aria-label="休闲零食操作台"' in script
     assert 'aria-label="两名玩家面对面观察公共零食"' in script
@@ -566,7 +563,6 @@ def test_mode_name_does_not_force_witch_characters() -> None:
         "🧙",
         "魔法餐桌",
     ):
-        assert forced_character_copy not in page
         assert forced_character_copy not in script
 
 
@@ -726,16 +722,13 @@ def test_character_reaction_stage_is_served_as_an_articulated_svg() -> None:
 
 
 def test_character_reaction_styles_define_food_and_full_body_motion() -> None:
-    page = client.get("/").text
     response = client.get("/static/character-reaction.css")
+    script = client.get("/static/app.js").text
     styles = response.text
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/css")
-    assert 'href="/static/character-reaction.css"' in page
-    assert page.index('href="/static/styles.css"') < page.index(
-        'href="/static/character-reaction.css"'
-    )
+    assert 'from "/static/character-reaction.mjs"' in script
     for marker in (
         '[data-phase="reach"]',
         '[data-phase="bite"]',

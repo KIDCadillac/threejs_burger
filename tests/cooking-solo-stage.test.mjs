@@ -559,7 +559,7 @@ test("a quick drag cancels an older transition before the next animation frame",
   stage.dispose();
 });
 
-test("repeated mixed sauce callbacks create volumetric burger tubes and update composition", () => {
+test("repeated mixed sauce callbacks create surface-safe burger ribbons and update composition", () => {
   const { stage } = harness();
   stage.applySauceStroke(sampleStroke("chili"));
   stage.applySauceStroke(sampleStroke("mustard"));
@@ -576,7 +576,7 @@ test("repeated mixed sauce callbacks create volumetric burger tubes and update c
     if (object.userData.sauceStroke) sauceMeshes.push(object);
   });
   assert.equal(sauceMeshes.length, 3);
-  assert.ok(sauceMeshes.every(({ geometry }) => geometry instanceof THREE.TubeGeometry));
+  assert.ok(sauceMeshes.every(({ geometry }) => geometry.userData.sauceShape === "surface-ribbon"));
   stage.dispose();
 });
 

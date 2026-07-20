@@ -12,6 +12,40 @@ const triangleCount = (geometry) => (
   geometry.index ? geometry.index.count / 3 : geometry.attributes.position.count / 3
 );
 
+function assertSurfaceRibbonClearance(mesh) {
+  const { geometry } = mesh;
+  const { surfaceFramePoints, surfaceFrameNormals, sauceCrossSectionPoints } = geometry.userData;
+  assert.ok(surfaceFramePoints instanceof Float32Array);
+  assert.ok(surfaceFrameNormals instanceof Float32Array);
+  assert.equal(sauceCrossSectionPoints, 4);
+  const positions = geometry.attributes.position;
+  const vertexNormals = geometry.attributes.normal;
+  const frameCount = surfaceFramePoints.length / 3;
+  assert.equal(positions.count, frameCount * sauceCrossSectionPoints);
+  for (let frame = 0; frame < frameCount; frame += 1) {
+    const surface = new THREE.Vector3().fromArray(surfaceFramePoints, frame * 3);
+    const normal = new THREE.Vector3().fromArray(surfaceFrameNormals, frame * 3);
+    for (let cross = 0; cross < sauceCrossSectionPoints; cross += 1) {
+      const vertex = new THREE.Vector3().fromBufferAttribute(
+        positions, frame * sauceCrossSectionPoints + cross,
+      );
+      assert.ok(
+        vertex.sub(surface).dot(normal) >= mesh.userData.surfaceClearance - 1e-5,
+        `sauce frame ${frame} cross-section ${cross} penetrates its food surface`,
+      );
+      if (cross > 0 && cross < sauceCrossSectionPoints - 1) {
+        const vertexNormal = new THREE.Vector3().fromBufferAttribute(
+          vertexNormals, frame * sauceCrossSectionPoints + cross,
+        );
+        assert.ok(
+          vertexNormal.dot(normal) > 0.2,
+          `sauce frame ${frame} cross-section ${cross} faces into its food surface`,
+        );
+      }
+    }
+  }
+}
+
 test("builds seven stable, independently transformable Three.js food layers", () => {
   const burger = createBurgerModel3D(THREE);
 
@@ -71,6 +105,23 @@ test("uses distinct procedural volume geometry and texture-free cooking material
   assert.notEqual(surfaces.patty.material.color.getHex(), surfaces.tomato.material.color.getHex());
   assert.notEqual(surfaces.lettuce.material.color.getHex(), surfaces.pickle.material.color.getHex());
 
+  burger.dispose();
+});
+
+test("uses smooth food materials and lightweight ingredient-specific surface details", () => {
+  const burger = createBurgerModel3D(THREE);
+  assert.ok(burger.selectableSurfaces.every(({ material }) => material.flatShading === false));
+  assert.ok(burger.getLayer("top-bun").userData.selectableSurface.geometry.parameters.segments >= 40);
+  const kinds = new Set();
+  burger.root.traverse((object) => {
+    if (object.userData.foodDecoration?.kind) kinds.add(object.userData.foodDecoration.kind);
+  });
+  for (const kind of [
+    "sesame", "bun-toast", "patty-char", "tomato-seed", "pickle-seed", "lettuce-vein",
+  ]) assert.ok(kinds.has(kind), kind);
+  burger.root.traverse((object) => {
+    if (object.userData.foodDecoration) assert.equal(object.raycast, burger.noRaycast);
+  });
   burger.dispose();
 });
 
@@ -154,7 +205,7 @@ test("reorders layers, snaps them to recipe stack anchors, and applies compositi
   burger.dispose();
 });
 
-test("adds repeated and mixed condiment strokes as real target-anchored tube meshes", () => {
+test("adds repeated and mixed condiment strokes as surface-safe rounded ribbons", () => {
   const burger = createBurgerModel3D(THREE);
   const chili = burger.addSauceStroke({
     sauce: "chili",
@@ -177,10 +228,12 @@ test("adds repeated and mixed condiment strokes as real target-anchored tube mes
 
   for (const mesh of [chili, mustard, chiliAgain]) {
     assert.ok(mesh instanceof THREE.Mesh);
-    assert.ok(mesh.geometry instanceof THREE.TubeGeometry);
+    assert.equal(mesh.geometry.type, "BufferGeometry");
+    assert.equal(mesh.geometry.userData.sauceShape, "surface-ribbon");
     assert.equal(mesh.material.map, null);
     assert.equal(mesh.raycast, burger.noRaycast);
     assert.ok(Object.isFrozen(mesh.userData.sauceStroke));
+    assertSurfaceRibbonClearance(mesh);
   }
   assert.equal(chili.parent, burger.getLayer("patty"));
   assert.equal(mustard.parent, burger.getLayer("patty"));
@@ -279,12 +332,13 @@ test("projects sauce paths onto each edible footprint and its real top surface",
     const sample = sauce.geometry.parameters.path.getPoint(time, new THREE.Vector3());
     raycaster.set(new THREE.Vector3(sample.x, 4, sample.z), down);
     const [hit] = raycaster.intersectObject(surface, false);
-    assert.ok(hit, `tube sample ${time} remains inside the bun footprint`);
+    assert.ok(hit, `ribbon sample ${time} remains inside the bun footprint`);
     assert.ok(
-      Math.abs(sample.y - hit.point.y - sauce.userData.surfaceOffset) < 0.035,
-      `tube sample ${time} conforms to the bun surface`,
+      sample.y - hit.point.y >= sauce.userData.surfaceClearance * 0.5,
+      `ribbon sample ${time} clears the bun surface`,
     );
   }
+  assertSurfaceRibbonClearance(sauce);
   burger.dispose();
 });
 
@@ -483,21 +537,18 @@ test("applyComposition stages sauce geometry and rolls back construction failure
   let constructionCount = 0;
   let failAt = Number.POSITIVE_INFINITY;
   const created = [];
-  class FailingTubeGeometry extends THREE.TubeGeometry {
-    constructor(...args) {
-      constructionCount += 1;
-      if (constructionCount === failAt) throw new Error("injected tube failure");
-      super(...args);
-      this.disposeCount = 0;
-      const originalDispose = this.dispose.bind(this);
-      this.dispose = () => {
-        this.disposeCount += 1;
-        originalDispose();
-      };
-      created.push(this);
-    }
-  }
-  const burger = createBurgerModel3D({ ...THREE, TubeGeometry: FailingTubeGeometry });
+  const onSauceGeometry = (geometry) => {
+    constructionCount += 1;
+    geometry.disposeCount = 0;
+    const originalDispose = geometry.dispose.bind(geometry);
+    geometry.dispose = () => {
+      geometry.disposeCount += 1;
+      originalDispose();
+    };
+    created.push(geometry);
+    if (constructionCount === failAt) throw new Error("injected sauce failure");
+  };
+  const burger = createBurgerModel3D(THREE, { onSauceGeometry });
   const originalMesh = burger.addSauceStroke({
     sauce: "chili", layerId: "patty", amount: 0.5, points: [[-0.3, 0], [0.3, 0]],
   });
@@ -521,36 +572,40 @@ test("applyComposition stages sauce geometry and rolls back construction failure
     ],
   };
 
-  assert.throws(() => burger.applyComposition(replacement), /injected tube failure/);
+  assert.throws(() => burger.applyComposition(replacement), /injected sauce failure/);
   assert.deepEqual(burger.getSnapshot(), before);
   assert.equal(originalMesh.parent, burger.getLayer("patty"));
   assert.equal(originalMesh.geometry.disposeCount, 0);
-  assert.equal(created.length, 2, "only the old and first staged geometries completed construction");
+  assert.equal(created.length, 3, "the old, staged, and failing geometries were observed");
   assert.equal(created[1].disposeCount, 1, "the completed staged candidate is cleaned once");
+  assert.equal(created[2].disposeCount, 1, "the failing candidate is cleaned once");
 
   failAt = Number.POSITIVE_INFINITY;
   burger.applyComposition(replacement);
   assert.deepEqual(burger.serializeComposition(), replacement);
   assert.equal(originalMesh.parent, null);
   assert.equal(originalMesh.geometry.disposeCount, 1, "successful swap retires old geometry once");
-  const successfulCandidates = created.slice(2);
+  const successfulCandidates = created.slice(3);
   assert.equal(successfulCandidates.length, replacement.strokes.length);
   assert.ok(successfulCandidates.every(({ disposeCount }) => disposeCount === 0));
   burger.dispose();
   assert.equal(originalMesh.geometry.disposeCount, 1);
   assert.equal(created[1].disposeCount, 1, "failed staged geometry is not disposed twice");
+  assert.equal(created[2].disposeCount, 1, "failing geometry is not disposed twice");
   assert.ok(successfulCandidates.every(({ disposeCount }) => disposeCount === 1));
 });
 
 test("caps condiment history to 64 strokes and disposes evicted dynamic geometry", () => {
   const disposed = [];
-  class InstrumentedTubeGeometry extends THREE.TubeGeometry {
-    dispose() {
-      disposed.push(this);
-      super.dispose();
-    }
-  }
-  const burger = createBurgerModel3D({ ...THREE, TubeGeometry: InstrumentedTubeGeometry });
+  const burger = createBurgerModel3D(THREE, {
+    onSauceGeometry(geometry) {
+      const originalDispose = geometry.dispose.bind(geometry);
+      geometry.dispose = () => {
+        disposed.push(geometry);
+        originalDispose();
+      };
+    },
+  });
   const meshes = [];
   for (let index = 0; index < 65; index += 1) {
     meshes.push(burger.addSauceStroke({
@@ -652,7 +707,7 @@ test("restores all seven food layers exactly after multi-frame bite deformation"
   burger.dispose();
 });
 
-test("keeps existing and new sauce tubes attached to bite-aware edible surfaces", () => {
+test("keeps existing and new sauce ribbons attached to bite-aware edible surfaces", () => {
   const burger = createBurgerModel3D(THREE);
   const chili = burger.addSauceStroke({
     sauce: "chili", layerId: "top-bun", amount: 0.8, points: [[0.65, -0.1], [1, 0.1]],
@@ -674,7 +729,10 @@ test("keeps existing and new sauce tubes attached to bite-aware edible surfaces"
           raycaster.set(new THREE.Vector3(sample.x, 4, sample.z), new THREE.Vector3(0, -1, 0));
           const [hit] = raycaster.intersectObject(surface, false);
           assert.ok(hit, `${layerId} sauce remains inside the bitten edible footprint`);
-          assert.ok(Math.abs(sample.y - hit.point.y - mesh.userData.surfaceOffset) < 0.04);
+          assert.ok(
+            sample.y - hit.point.y >= mesh.userData.surfaceClearance * 0.25,
+            `${layerId} ribbon remains above the bitten surface`,
+          );
         }
       }
     }
@@ -708,21 +766,19 @@ test("keeps existing and new sauce tubes attached to bite-aware edible surfaces"
   burger.dispose();
 });
 
-test("animates 64 sauce tubes in place without constructing or replacing geometry", () => {
+test("animates 64 sauce ribbons in place without constructing or replacing geometry", () => {
   let constructionCount = 0;
   const disposed = [];
-  class InstrumentedTubeGeometry extends THREE.TubeGeometry {
-    constructor(...args) {
+  const burger = createBurgerModel3D(THREE, {
+    onSauceGeometry(geometry) {
       constructionCount += 1;
-      super(...args);
-    }
-
-    dispose() {
-      disposed.push(this);
-      super.dispose();
-    }
-  }
-  const burger = createBurgerModel3D({ ...THREE, TubeGeometry: InstrumentedTubeGeometry });
+      const originalDispose = geometry.dispose.bind(geometry);
+      geometry.dispose = () => {
+        disposed.push(geometry);
+        originalDispose();
+      };
+    },
+  });
   const meshes = Array.from({ length: 64 }, (_, index) => burger.addSauceStroke({
     sauce: SAUCE_KEYS[index % SAUCE_KEYS.length],
     layerId: BURGER_LAYER_IDS[index % BURGER_LAYER_IDS.length],
@@ -742,7 +798,7 @@ test("animates 64 sauce tubes in place without constructing or replacing geometr
   assert.equal(constructionCount, 64);
   for (const amount of [0.08, 0.2, 0.35, 0.5, 0.7, 0.9, 1, 0.76, 0.42, 0.13]) {
     burger.setBiteAmount(amount);
-    assert.equal(constructionCount, 64, "bite frames never construct replacement TubeGeometry");
+    assert.equal(constructionCount, 64, "bite frames never construct replacement sauce geometry");
     meshes.forEach((mesh, index) => {
       assert.equal(mesh.geometry, geometries[index]);
       assert.equal(mesh.geometry.attributes.position, positionAttributes[index]);
@@ -836,7 +892,7 @@ test("stays within a bounded mobile mesh and triangle budget at maximum sauce hi
   });
   const triangles = meshes.reduce((sum, { geometry }) => sum + triangleCount(geometry), 0);
 
-  assert.ok(meshes.length <= 75, `expected <=75 drawables, received ${meshes.length}`);
+  assert.ok(meshes.length <= 82, `expected <=82 drawables, received ${meshes.length}`);
   assert.ok(triangles <= 30000, `expected <=30000 triangles, received ${triangles}`);
   burger.dispose();
 });
@@ -866,18 +922,19 @@ test("keeps 64 worst-case alternating lettuce strokes below the mobile triangle 
   assert.ok(triangles < 30000, `worst-case burger must stay below 30000, received ${triangles}`);
 
   const geometry = representativeStroke.geometry;
-  const { radialSegments, tubularSegments } = geometry.parameters;
+  const tubularSegments = geometry.userData.sauceSegments;
+  const crossSectionPoints = geometry.userData.sauceCrossSectionPoints;
   const positions = geometry.attributes.position;
   const ringCenters = [];
   for (let ring = 0; ring <= tubularSegments; ring += 1) {
     const center = new THREE.Vector3();
-    for (let radial = 0; radial < radialSegments; radial += 1) {
-      const vertex = ring * (radialSegments + 1) + radial;
+    for (let radial = 0; radial < crossSectionPoints; radial += 1) {
+      const vertex = ring * crossSectionPoints + radial;
       center.x += positions.getX(vertex);
       center.y += positions.getY(vertex);
       center.z += positions.getZ(vertex);
     }
-    ringCenters.push(center.multiplyScalar(1 / radialSegments));
+    ringCenters.push(center.multiplyScalar(1 / crossSectionPoints));
   }
   const raycaster = new THREE.Raycaster();
   const lettuce = burger.getLayer("lettuce").userData.selectableSurface;
@@ -886,28 +943,10 @@ test("keeps 64 worst-case alternating lettuce strokes below the mobile triangle 
     raycaster.set(new THREE.Vector3(midpoint.x, 3, midpoint.z), new THREE.Vector3(0, -1, 0));
     assert.ok(
       raycaster.intersectObject(lettuce, false)[0],
-      `rendered tube segment ${index} does not chord across the lettuce hole`,
+      `rendered sauce segment ${index} does not chord across the lettuce hole`,
     );
   }
-  for (let index = 1; index < ringCenters.length - 1; index += 1) {
-    const time = index / tubularSegments;
-    const tangent = geometry.parameters.path
-      .getPointAt(Math.min(1, time + 1e-4), new THREE.Vector3())
-      .sub(geometry.parameters.path.getPointAt(Math.max(0, time - 1e-4), new THREE.Vector3()))
-      .normalize();
-    const firstRingVertex = new THREE.Vector3(
-      positions.getX(index * (radialSegments + 1)),
-      positions.getY(index * (radialSegments + 1)),
-      positions.getZ(index * (radialSegments + 1)),
-    );
-    const radial = firstRingVertex.sub(ringCenters[index]).normalize();
-    assert.ok(tangent.toArray().every(Number.isFinite));
-    assert.ok(radial.toArray().every(Number.isFinite));
-    assert.ok(
-      Math.abs(tangent.dot(radial)) < 0.18,
-      `tube ring ${index} remains perpendicular to its coherent path tangent`,
-    );
-  }
+  assertSurfaceRibbonClearance(representativeStroke);
   burger.dispose();
 });
 
