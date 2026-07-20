@@ -242,6 +242,67 @@ test("projects sauce paths onto each edible footprint and its real top surface",
   burger.dispose();
 });
 
+test("routes every legal lettuce stroke continuously around the annular hole", () => {
+  const cases = [
+    [[-1, 0], [1, 0]],
+    [[1, 0], [-1, 0]],
+    [[0, -1], [0, 1]],
+    [[-0.02, 0], [0.02, 0]],
+    [[-1, 0], [1, 0], [-0.8, 0.2], [0.8, -0.2]],
+    [[0, 0], [0, 0]],
+    Array.from({ length: 24 }, (_, index) => [
+      index % 2 === 0 ? -1 : 1,
+      index % 4 < 2 ? 0.04 : -0.04,
+    ]),
+  ];
+  for (const points of cases) {
+    const burger = createBurgerModel3D(THREE);
+    const sauce = burger.addSauceStroke({
+      sauce: "sour",
+      layerId: "lettuce",
+      amount: 0.5,
+      points,
+    });
+    const path = sauce.geometry.parameters.path;
+    const first = path.getPointAt(0, new THREE.Vector3());
+    const last = path.getPointAt(1, new THREE.Vector3());
+    const expectedFirst = burger.projectSurfacePoint("lettuce", points[0]);
+    const expectedLast = burger.projectSurfacePoint("lettuce", points.at(-1));
+    closeTo(first.x, expectedFirst.x, 0.025);
+    closeTo(first.z, expectedFirst.z, 0.025);
+    closeTo(last.x, expectedLast.x, 0.025);
+    closeTo(last.z, expectedLast.z, 0.025);
+    assert.equal(sauce.userData.inputPointCount, points.length);
+    assert.ok(sauce.userData.routePointCount <= 93, "24 inputs have a bounded generated route");
+    assert.ok(
+      [...sauce.geometry.attributes.position.array].every(Number.isFinite),
+      "generated tube vertices never contain NaN",
+    );
+
+    const raycaster = new THREE.Raycaster();
+    const surface = burger.getLayer("lettuce").userData.selectableSurface;
+    let previous = null;
+    let totalDistance = 0;
+    const sampleCount = Math.max(64, sauce.userData.routePointCount * 2);
+    for (let index = 0; index <= sampleCount; index += 1) {
+      const sample = path.getPointAt(index / sampleCount, new THREE.Vector3());
+      assert.ok(sample.toArray().every(Number.isFinite), "route never generates NaN");
+      raycaster.set(new THREE.Vector3(sample.x, 3, sample.z), new THREE.Vector3(0, -1, 0));
+      const [hit] = raycaster.intersectObject(surface, false);
+      assert.ok(hit, "every generated sample stays on the actual lettuce annulus");
+      assert.ok(Math.abs(sample.y - hit.point.y - sauce.userData.surfaceOffset) < 0.04);
+      if (previous) {
+        const step = previous.distanceTo(sample);
+        assert.ok(step < 0.4, `route remains continuous (${step})`);
+        totalDistance += step;
+      }
+      previous = sample;
+    }
+    assert.ok(totalDistance > 0.01, "tube curve is non-degenerate");
+    burger.dispose();
+  }
+});
+
 test("strictly rejects invalid layer poses, ordering, and condiment data", () => {
   const burger = createBurgerModel3D(THREE);
   const invalidCalls = [

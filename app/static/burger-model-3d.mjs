@@ -6,6 +6,7 @@ const MAX_POINTS = 24;
 const COLLAPSED_OVERLAP = 0.035;
 const EXPANDED_GAP = 0.42;
 const NO_RAYCAST = () => {};
+const LETTUCE_INNER_CLEARANCE = 0.075;
 const COMPOSITION_KEYS = Object.freeze(["food", "layerOrder", "layerPoses", "strokes"]);
 const POSE_KEYS = Object.freeze(["x", "z", "yaw"]);
 const STROKE_KEYS = Object.freeze(["sauce", "layerId", "amount", "points"]);
@@ -184,7 +185,7 @@ function createLettuceGeometry(THREE) {
     const nextTopInner = nextTopOuter + 1;
     const nextBottomOuter = nextTopOuter + 2;
     const nextBottomInner = nextTopOuter + 3;
-    indices.push(topOuter, nextTopOuter, nextTopInner, topOuter, nextTopInner, topInner);
+    indices.push(topOuter, nextTopInner, nextTopOuter, topOuter, topInner, nextTopInner);
     indices.push(bottomOuter, bottomInner, nextBottomInner, bottomOuter, nextBottomInner, nextBottomOuter);
     indices.push(topOuter, bottomOuter, nextBottomOuter, topOuter, nextBottomOuter, nextTopOuter);
     indices.push(topInner, nextTopInner, nextBottomInner, topInner, nextBottomInner, bottomInner);
@@ -314,7 +315,9 @@ function clampLocalFootprint(profile, x, z) {
   const directionX = Math.cos(angle);
   const directionZ = Math.sin(angle);
   const outer = footprintBoundary(profile, angle) * profile.margin;
-  const inner = profile.kind === "annulus" ? lettuceInnerRadius(angle) + 0.035 : 0;
+  const inner = profile.kind === "annulus"
+    ? lettuceInnerRadius(angle) + LETTUCE_INNER_CLEARANCE
+    : 0;
   const distance = Math.min(outer, Math.max(inner, Math.hypot(x, z)));
   return [directionX * distance, directionZ * distance];
 }
@@ -323,9 +326,90 @@ function projectNormalizedFootprint(profile, normalizedX, normalizedZ) {
   const normalizedDistance = Math.min(1, Math.hypot(normalizedX, normalizedZ));
   const angle = normalizedDistance < 1e-8 ? 0 : Math.atan2(normalizedZ, normalizedX);
   const outer = footprintBoundary(profile, angle) * profile.margin;
-  const inner = profile.kind === "annulus" ? lettuceInnerRadius(angle) + 0.035 : 0;
+  const inner = profile.kind === "annulus"
+    ? lettuceInnerRadius(angle) + LETTUCE_INNER_CLEARANCE
+    : 0;
   const distance = inner + normalizedDistance * (outer - inner);
   return [Math.cos(angle) * distance, Math.sin(angle) * distance];
+}
+
+function segmentEntersLettuceHole(start, end) {
+  for (let step = 0; step <= 16; step += 1) {
+    const progress = step / 16;
+    const x = start.x + (end.x - start.x) * progress;
+    const z = start.z + (end.z - start.z) * progress;
+    const angle = Math.hypot(x, z) < 1e-8 ? 0 : Math.atan2(z, x);
+    if (Math.hypot(x, z) < lettuceInnerRadius(angle) + LETTUCE_INNER_CLEARANCE + 0.01) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function preferredAnnularDelta(startAngle, endAngle, coincident) {
+  if (coincident) return Math.PI / 3;
+  let delta = Math.atan2(
+    Math.sin(endAngle - startAngle),
+    Math.cos(endAngle - startAngle),
+  );
+  if (Math.abs(Math.abs(delta) - Math.PI) < 1e-6) {
+    const positiveMidpoint = startAngle + Math.PI / 2;
+    const negativeMidpoint = startAngle - Math.PI / 2;
+    const score = (angle) => Math.sin(angle) * 2 + Math.cos(angle);
+    delta = score(positiveMidpoint) >= score(negativeMidpoint) ? Math.PI : -Math.PI;
+  }
+  return delta;
+}
+
+function routeLettucePath(THREE, points) {
+  const routed = [points[0].clone()];
+  for (let index = 1; index < points.length; index += 1) {
+    const start = points[index - 1];
+    const end = points[index];
+    if (segmentEntersLettuceHole(start, end)) {
+      const coincident = start.distanceToSquared(end) < 1e-10;
+      const startAngle = Math.atan2(start.z, start.x);
+      const endAngle = Math.atan2(end.z, end.x);
+      const delta = preferredAnnularDelta(startAngle, endAngle, coincident);
+      for (const progress of [0.25, 0.5, 0.75]) {
+        const angle = startAngle + delta * progress;
+        const radius = lettuceInnerRadius(angle) + LETTUCE_INNER_CLEARANCE + 0.025;
+        routed.push(new THREE.Vector3(
+          Math.cos(angle) * radius,
+          0,
+          Math.sin(angle) * radius,
+        ));
+      }
+    }
+    routed.push(end.clone());
+  }
+  return routed;
+}
+
+function ensureNonDegeneratePath(THREE, points, profile) {
+  let length = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    length += points[index - 1].distanceTo(points[index]);
+  }
+  if (length > 1e-5) return points;
+  const first = points[0];
+  let candidate;
+  if (profile.kind === "annulus") {
+    const angle = Math.atan2(first.z, first.x) + 0.12;
+    const radius = Math.max(
+      Math.hypot(first.x, first.z),
+      lettuceInnerRadius(angle) + LETTUCE_INNER_CLEARANCE + 0.025,
+    );
+    candidate = new THREE.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
+  } else {
+    const [x, z] = clampLocalFootprint(profile, first.x + 0.045, first.z);
+    candidate = new THREE.Vector3(x, 0, z);
+    if (candidate.distanceToSquared(first) < 1e-10) {
+      const [fallbackX, fallbackZ] = clampLocalFootprint(profile, first.x - 0.045, first.z);
+      candidate.set(fallbackX, 0, fallbackZ);
+    }
+  }
+  return [points[0], candidate, ...points.slice(1)];
 }
 
 function buildLayerDefinitions(THREE) {
@@ -564,14 +648,21 @@ export function createBurgerModel3D(THREE, options = {}) {
     assertActive(disposed);
     const normalized = validateStroke(stroke);
     const layer = layers.get(normalized.layerId);
-    const pathPoints = normalized.points.map(([x, z]) => {
+    const profile = footprintsById.get(normalized.layerId);
+    let pathPoints = normalized.points.map(([x, z]) => {
       const [localX, localZ] = projectNormalizedFootprint(
-        footprintsById.get(normalized.layerId), x, z,
+        profile, x, z,
       );
       return new THREE.Vector3(localX, 0, localZ);
     });
+    if (profile.kind === "annulus") pathPoints = routeLettucePath(THREE, pathPoints);
+    pathPoints = ensureNonDegeneratePath(THREE, pathPoints, profile);
     const planarCurve = new THREE.CatmullRomCurve3(pathPoints, false, "centripetal");
-    const tubularSegments = Math.min(32, Math.max(8, (pathPoints.length - 1) * 3));
+    const tubularSegments = Math.min(96, Math.max(
+      8,
+      pathPoints.length - 1,
+      (normalized.points.length - 1) * 3,
+    ));
     const tubeRadius = 0.025 + normalized.amount * 0.035;
     const surfaceOffset = tubeRadius * 0.7;
     const surfaceCurve = new THREE.Curve();
@@ -581,7 +672,7 @@ export function createBurgerModel3D(THREE, options = {}) {
       return target.set(surface.x, surface.y + surfaceOffset, surface.z);
     };
     const geometry = new THREE.TubeGeometry(
-      surfaceCurve, tubularSegments, tubeRadius, 5, false,
+      surfaceCurve, tubularSegments, tubeRadius, 3, false,
     );
     const mesh = new THREE.Mesh(geometry, sauceMaterials.get(normalized.sauce));
     mesh.name = `sauce:${normalized.sauce}:${normalized.layerId}:${sauceEntries.length}`;
@@ -593,6 +684,8 @@ export function createBurgerModel3D(THREE, options = {}) {
       amount: normalized.amount,
     });
     mesh.userData.surfaceOffset = surfaceOffset;
+    mesh.userData.inputPointCount = normalized.points.length;
+    mesh.userData.routePointCount = pathPoints.length;
     layer.add(mesh);
     sauceEntries.push({ mesh, stroke: normalized });
     if (sauceEntries.length > MAX_STROKES) disposeSauceEntry(sauceEntries.shift());
