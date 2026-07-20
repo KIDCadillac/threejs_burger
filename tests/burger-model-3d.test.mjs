@@ -547,6 +547,65 @@ test("applies observable reversible vertex-level bite deformation", () => {
   burger.dispose();
 });
 
+test("restores all seven food layers exactly after multi-frame bite deformation", () => {
+  const burger = createBurgerModel3D(THREE);
+  const records = BURGER_LAYER_IDS.map((layerId) => {
+    const geometry = burger.getLayer(layerId).userData.selectableSurface.geometry;
+    return {
+      layerId,
+      geometry,
+      position: geometry.attributes.position,
+      normal: geometry.attributes.normal,
+      positionArray: geometry.attributes.position.array,
+      normalArray: geometry.attributes.normal.array,
+      basePositions: [...geometry.attributes.position.array],
+      baseNormals: [...geometry.attributes.normal.array],
+      boundingBox: geometry.boundingBox,
+      boundingSphere: geometry.boundingSphere,
+      baseBounds: {
+        min: geometry.boundingBox.min.toArray(),
+        max: geometry.boundingBox.max.toArray(),
+        center: geometry.boundingSphere.center.toArray(),
+        radius: geometry.boundingSphere.radius,
+      },
+    };
+  });
+
+  for (const amount of [0.12, 0.38, 0.67, 1, 0.81, 0.46, 0.19]) {
+    burger.setBiteAmount(amount);
+    for (const record of records) {
+      const { geometry, normal } = record;
+      assert.equal(geometry.attributes.position, record.position);
+      assert.equal(geometry.attributes.normal, normal);
+      assert.equal(geometry.attributes.position.array, record.positionArray);
+      assert.equal(geometry.attributes.normal.array, record.normalArray);
+      assert.equal(geometry.boundingBox, record.boundingBox);
+      assert.equal(geometry.boundingSphere, record.boundingSphere);
+      for (let index = 0; index < normal.count; index += 1) {
+        const length = Math.hypot(normal.getX(index), normal.getY(index), normal.getZ(index));
+        assert.ok(Number.isFinite(length), `${record.layerId} normal ${index} stays finite`);
+        assert.ok(length > 0.999 && length < 1.001, `${record.layerId} normal ${index} stays unit`);
+      }
+    }
+  }
+
+  burger.setBiteAmount(0);
+  for (const record of records) {
+    const { geometry } = record;
+    assert.deepEqual([...geometry.attributes.position.array], record.basePositions);
+    assert.deepEqual([...geometry.attributes.normal.array], record.baseNormals);
+    assert.equal(geometry.attributes.position, record.position);
+    assert.equal(geometry.attributes.normal, record.normal);
+    assert.equal(geometry.boundingBox, record.boundingBox);
+    assert.equal(geometry.boundingSphere, record.boundingSphere);
+    assert.deepEqual(geometry.boundingBox.min.toArray(), record.baseBounds.min);
+    assert.deepEqual(geometry.boundingBox.max.toArray(), record.baseBounds.max);
+    assert.deepEqual(geometry.boundingSphere.center.toArray(), record.baseBounds.center);
+    assert.equal(geometry.boundingSphere.radius, record.baseBounds.radius);
+  }
+  burger.dispose();
+});
+
 test("keeps existing and new sauce tubes attached to bite-aware edible surfaces", () => {
   const burger = createBurgerModel3D(THREE);
   const chili = burger.addSauceStroke({

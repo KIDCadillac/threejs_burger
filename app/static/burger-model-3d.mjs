@@ -562,11 +562,14 @@ export function createBurgerModel3D(THREE, options = {}) {
     ownedGeometries.add(definition.geometry);
     ownedGeometries.add(projectionGeometry);
     ownedMaterials.add(definition.material);
-    const biteSource = Float32Array.from(definition.geometry.attributes.position.array);
+    const biteSource = {
+      positions: Float32Array.from(definition.geometry.attributes.position.array),
+      normals: Float32Array.from(definition.geometry.attributes.normal.array),
+    };
     biteSources.set(definition.geometry, biteSource);
     let maxRadius = 0;
-    for (let index = 0; index < biteSource.length; index += 3) {
-      maxRadius = Math.max(maxRadius, Math.abs(biteSource[index]));
+    for (let index = 0; index < biteSource.positions.length; index += 3) {
+      maxRadius = Math.max(maxRadius, Math.abs(biteSource.positions[index]));
     }
     biteThresholdsById.set(definition.id, maxRadius * 0.12);
   }
@@ -935,21 +938,38 @@ export function createBurgerModel3D(THREE, options = {}) {
       const geometry = surface.geometry;
       const source = biteSources.get(geometry);
       const position = geometry.attributes.position;
+      const normal = geometry.attributes.normal;
       const threshold = biteThresholdsById.get(layerId);
-      for (let index = 0; index < position.count; index += 1) {
-        const offset = index * 3;
-        const sourceX = source[offset];
-        const sourceY = source[offset + 1];
-        const sourceZ = source[offset + 2];
-        position.setXYZ(
-          index,
-          biteX(sourceX, normalizedAmount, threshold),
-          sourceY,
-          sourceZ,
-        );
+      const biteScale = 1 - normalizedAmount * 0.6;
+      if (normalizedAmount === 0) {
+        position.array.set(source.positions);
+        normal.array.set(source.normals);
+      } else {
+        for (let index = 0; index < position.count; index += 1) {
+          const offset = index * 3;
+          const sourceX = source.positions[offset];
+          const sourceY = source.positions[offset + 1];
+          const sourceZ = source.positions[offset + 2];
+          position.setXYZ(index, biteX(sourceX, normalizedAmount, threshold), sourceY, sourceZ);
+          let normalX = source.normals[offset];
+          let normalY = source.normals[offset + 1];
+          let normalZ = source.normals[offset + 2];
+          if (sourceX > threshold) normalX /= biteScale;
+          const normalLength = Math.hypot(normalX, normalY, normalZ);
+          if (normalLength > 1e-12) {
+            normalX /= normalLength;
+            normalY /= normalLength;
+            normalZ /= normalLength;
+          } else {
+            normalX = 0;
+            normalY = 1;
+            normalZ = 0;
+          }
+          normal.setXYZ(index, normalX, normalY, normalZ);
+        }
       }
       position.needsUpdate = true;
-      geometry.computeVertexNormals();
+      normal.needsUpdate = true;
       geometry.computeBoundingBox();
       geometry.computeBoundingSphere();
       surfaceBoundsById.get(layerId).copy(geometry.boundingBox);
