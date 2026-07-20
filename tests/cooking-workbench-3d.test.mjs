@@ -331,16 +331,19 @@ test("disposes shared geometry and material resources once and remains idempoten
   assert.equal(workbench.setHighlighted("ingredient", "rice", true), false);
 });
 
-test("reuses one prep landing cue for top and bottom intent", () => {
+test("reuses one close-fitting prep cue for every indexed insertion gap", () => {
   const workbench = createCookingWorkbench3D(THREE);
   assert.equal(workbench.dropCue.visible, false);
-  workbench.setDropCue("top", { y: 1.6 });
+  workbench.setDropCue({ targetIndex: 1, y: 1.6, radius: 0.92 });
   assert.equal(workbench.dropCue.visible, true);
-  assert.equal(workbench.dropCue.userData.intent, "top");
+  assert.equal(workbench.dropCue.userData.targetIndex, 1);
   assert.equal(workbench.dropCue.position.y, 1.6);
-  workbench.setDropCue("bottom", { y: 0.4 });
-  assert.equal(workbench.dropCue.userData.intent, "bottom");
+  assert.ok(workbench.dropCue.scale.x < 1.1);
+  assert.throws(() => workbench.setDropCue({ targetIndex: -1, y: 1, radius: 1 }), TypeError);
+  assert.throws(() => workbench.setDropCue({ targetIndex: 0, y: NaN, radius: 1 }), TypeError);
+  assert.throws(() => workbench.setDropCue({ targetIndex: 0, y: 1, radius: 0 }), TypeError);
   workbench.clearDropCue();
   assert.equal(workbench.dropCue.visible, false);
+  assert.equal(Object.hasOwn(workbench.dropCue.userData, "targetIndex"), false);
   workbench.dispose();
 });

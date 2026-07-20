@@ -79,6 +79,14 @@ function visibleLayerInterval(layer) {
   };
 }
 
+function readLayerTransform(layer) {
+  return {
+    position: layer.position.toArray(),
+    rotation: layer.rotation.toArray(),
+    scale: layer.scale.toArray(),
+  };
+}
+
 class FakeVisibilityDocument {
   constructor() {
     this.visibilityState = "visible";
@@ -171,7 +179,7 @@ test("keeps full cooking orbit while allowing low, high, and close food inspecti
   stage.dispose();
 });
 
-test("resolves visible top, bottom, and forgiving home drop intentions", () => {
+test("resolves visible indexed gaps and a forgiving home drop intention", () => {
   let configuration;
   const changes = [];
   const controller = {
@@ -224,7 +232,7 @@ test("resolves visible top, bottom, and forgiving home drop intentions", () => {
     pose: { rotation: { y: 0 } },
   });
   assert.deepEqual(changes.at(-1).dropIntent, {
-    kind: "prep", intent: "top", id: "tomato", targetIndex: 3,
+    kind: "prep", intent: "insert", id: "tomato", targetIndex: 3, slotCount: 4,
   });
   const unchangedCount = changes.length;
   configuration.onMove({
@@ -236,7 +244,8 @@ test("resolves visible top, bottom, and forgiving home drop intentions", () => {
     id: "tomato", reason: "drag", point: { x: 0, y: 0, z: bottomZ },
     pose: { rotation: { y: 0 } },
   });
-  assert.equal(changes.at(-1).dropIntent.intent, "bottom");
+  assert.equal(changes.at(-1).dropIntent.intent, "insert");
+  assert.equal(changes.at(-1).dropIntent.targetIndex, 0);
 
   configuration.onDrop({
     id: "tomato", anchor: stage.workbench.prep.dropAnchor, targetIndex: 0,
@@ -329,7 +338,7 @@ test("stacks all seven scaled layers in visible contact without cumulative air g
   stage.dispose();
 });
 
-test("held food highlights while top and bottom previews move the real stack", () => {
+test("held food highlights while indexed previews open only the required gap", () => {
   const { stage, configuration } = stageHarnessWithConfiguration();
   stage.dropLayer("bottom-bun", { kind: "prep" });
   stage.tick(1000);
@@ -340,26 +349,76 @@ test("held food highlights while top and bottom previews move the real stack", (
   assert.equal(stage.burger.selectionHalo.parent, stage.burger.getLayer("patty"));
   const points = prepIntentPoints(stage);
   configuration.onMove({ id: "patty", reason: "drag", point: points.top });
-  assert.equal(stage.workbench.dropCue.userData.intent, "top");
-  assert.ok(bun.position.y < baseY);
+  assert.equal(stage.workbench.dropCue.userData.targetIndex, 1);
+  assert.equal(bun.position.y, baseY);
 
   configuration.onMove({ id: "patty", reason: "drag", point: points.bottom });
-  assert.equal(stage.workbench.dropCue.userData.intent, "bottom");
+  assert.equal(stage.workbench.dropCue.userData.targetIndex, 0);
   assert.ok(bun.position.y > baseY);
   stage.dispose();
 });
 
-test("top insertion impacts above, rebounds, and finishes at exact contact targets", () => {
+test("middle insertion opens only the upper stack and never moves bin ingredients", () => {
+  const { stage, configuration } = stageHarnessWithConfiguration();
+  stage.dropLayer("bottom-bun", { kind: "prep" });
+  stage.dropLayer("patty", { kind: "prep" });
+  stage.tick(1000);
+
+  const bottomBun = stage.burger.getLayer("bottom-bun");
+  const patty = stage.burger.getLayer("patty");
+  const bottomBefore = bottomBun.position.y;
+  const pattyBefore = patty.position.y;
+  const untouchedIds = ["tomato", "lettuce", "pickle", "top-bun"];
+  const homes = new Map(untouchedIds.map((id) => (
+    [id, readLayerTransform(stage.burger.getLayer(id))]
+  )));
+
+  configuration.onPick({ id: "cheese" });
+  const prep = stage.workbench.getLayout().prep.bounds;
+  configuration.onMove({
+    id: "cheese",
+    reason: "drag",
+    point: new THREE.Vector3(0, 0, (prep.minZ + prep.maxZ) / 2),
+  });
+
+  assert.equal(stage.workbench.dropCue.userData.targetIndex, 1);
+  assert.equal(bottomBun.position.y, bottomBefore, "lower layer stays authoritative");
+  assert.ok(patty.position.y > pattyBefore, "upper layer opens the middle gap");
+  for (const id of untouchedIds) {
+    assert.deepEqual(readLayerTransform(stage.burger.getLayer(id)), homes.get(id), id);
+  }
+
+  configuration.onDrop({
+    id: "cheese",
+    anchor: stage.workbench.prep.dropAnchor,
+    targetIndex: 1,
+  });
+  stage.tick(1070);
+  assert.equal(bottomBun.position.y, bottomBefore, "lower layer remains still during insertion");
+  assert.ok(patty.position.y > pattyBefore, "upper layer remains open during insertion");
+  for (const id of untouchedIds) {
+    assert.deepEqual(readLayerTransform(stage.burger.getLayer(id)), homes.get(id), id);
+  }
+
+  stage.tick(1380);
+  assert.deepEqual(stage.getState().assembledOrder, ["bottom-bun", "cheese", "patty"]);
+  for (const id of untouchedIds) {
+    assert.deepEqual(readLayerTransform(stage.burger.getLayer(id)), homes.get(id), id);
+  }
+  stage.dispose();
+});
+
+test("top insertion rebounds and finishes at its exact contact target", () => {
   const { stage, configuration, vibrations } = stageHarnessWithConfiguration();
   const patty = stage.burger.getLayer("patty");
   const finalY = stage.workbench.prep.dropAnchor.position.y
     + patty.userData.halfHeight * stage.layerPresentationScale;
   configuration.onPick({ id: "patty" });
   configuration.onDrop({ id: "patty", anchor: stage.workbench.prep.dropAnchor, targetIndex: 0 });
-  stage.tick(150);
-  stage.tick(190);
+  stage.tick(290);
+  stage.tick(320);
   assert.ok(patty.position.y > finalY, "top layer rebounds above its contact target");
-  stage.tick(300);
+  stage.tick(380);
   assert.ok(Math.abs(patty.position.y - finalY) < 1e-9);
   assert.deepEqual(vibrations, [12]);
   stage.dispose();
