@@ -2,6 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "../app/static/vendor/three.module.min.js";
 import { createCookingInteractionController } from "../app/static/cooking-interaction-controller.mjs";
+import { createCookingWorkbench3D } from "../app/static/cooking-workbench-3d.mjs";
+import { createBurgerModel3D } from "../app/static/burger-model-3d.mjs";
+import { createCondimentTools3D } from "../app/static/condiment-tools-3d.mjs";
 
 class FakeEventTarget {
   constructor() {
@@ -49,6 +52,55 @@ function pointer(pointerId, clientX, clientY, extra = {}) {
     pointerType: "touch",
     preventDefault() {},
     ...extra,
+  };
+}
+
+function createPouringScene() {
+  const canvas = createCanvas();
+  const documentTarget = new FakeEventTarget();
+  documentTarget.hidden = false;
+  const scene = new THREE.Scene();
+  const workbench = createCookingWorkbench3D(THREE);
+  scene.add(workbench.root);
+  const burger = createBurgerModel3D(THREE);
+  workbench.prep.anchor.add(burger.root);
+  burger.root.position.y = 0.48;
+  burger.setExpanded(true);
+  const tools = createCondimentTools3D(THREE, { toolDocks: workbench.toolDocks });
+  const camera = new THREE.PerspectiveCamera(44, 1, 0.1, 100);
+  camera.position.set(0, 12, 14);
+  camera.lookAt(0, 0, 0);
+  scene.updateMatrixWorld(true);
+  return {
+    canvas,
+    documentTarget,
+    scene,
+    workbench,
+    burger,
+    tools,
+    camera,
+    dispose() {
+      tools.dispose();
+      burger.dispose();
+      workbench.dispose();
+    },
+  };
+}
+
+function layerWorldPoint(burger, layerId, normalizedX, normalizedZ) {
+  const layer = burger.getLayer(layerId);
+  const surface = layer.userData.selectableSurface;
+  surface.geometry.computeBoundingBox();
+  const bounds = surface.geometry.boundingBox;
+  const radiusX = Math.max(Math.abs(bounds.min.x), Math.abs(bounds.max.x));
+  const radiusZ = Math.max(Math.abs(bounds.min.z), Math.abs(bounds.max.z));
+  return {
+    object: surface,
+    point: surface.localToWorld(new THREE.Vector3(
+      normalizedX * radiusX,
+      bounds.max.y,
+      normalizedZ * radiusZ,
+    )),
   };
 }
 
@@ -1053,4 +1105,370 @@ test("rejects a parented camera because orbit math is defined in world space", (
     () => createCookingInteractionController({ THREE, canvas, camera }),
     /camera must not be parented/i,
   );
+});
+
+test("bottle surfaces win over food, drag camera-aware, tilt, preview, and commit a frozen stroke", () => {
+  const harness = createPouringScene();
+  const { canvas, camera, documentTarget, burger, tools } = harness;
+  const chili = tools.get("chili");
+  const homePosition = chili.root.position.clone();
+  const homeQuaternion = chili.root.quaternion.clone();
+  const committed = [];
+  let nozzleQueries = 0;
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    documentTarget,
+    selectableSurfaces: burger.selectableSurfaces,
+    condimentTools: tools,
+    foodSurfaces: burger.selectableSurfaces,
+    prepPlaneY: 0.48,
+    projectToPrep: ({ clientX, clientY }) => new THREE.Vector3(
+      (clientX - 100) / 20,
+      0.48,
+      (clientY - 100) / 20,
+    ),
+    raycast: ({ kind, surfaces, event }) => {
+      if (kind === "condiment") {
+        assert.deepEqual(surfaces, tools.selectableSurfaces);
+        return { object: chili.body, point: chili.body.getWorldPosition(new THREE.Vector3()) };
+      }
+      if (kind === "nozzle") {
+        nozzleQueries += 1;
+        assert.deepEqual(surfaces, burger.selectableSurfaces);
+        return layerWorldPoint(
+          burger,
+          "patty",
+          (event.clientX - 100) / 50,
+          (event.clientY - 100) / 50,
+        );
+      }
+      throw new Error(`unexpected hit-test kind: ${kind}`);
+    },
+    onSauceStroke: (stroke) => {
+      assert.equal(Object.isFrozen(stroke), true);
+      assert.equal(Object.isFrozen(stroke.points), true);
+      assert.ok(stroke.points.every(Object.isFrozen));
+      committed.push(stroke);
+      burger.addSauceStroke(stroke);
+    },
+  });
+
+  canvas.dispatch("pointerdown", pointer(81, 100, 100, { pressure: 0.35 }));
+  assert.equal(controller.getState(), "dragging-bottle");
+  assert.deepEqual([...canvas.captured], [81]);
+  assert.equal(chili.root.userData.active, true);
+  canvas.dispatch("pointermove", pointer(81, 108, 104, { pressure: 0.5 }));
+  canvas.dispatch("pointermove", pointer(81, 120, 110, { pressure: 0.7 }));
+
+  assert.ok(chili.root.position.distanceTo(homePosition) > 0.2);
+  assert.ok(chili.root.quaternion.angleTo(homeQuaternion) > 0.01);
+  assert.equal(tools.previewRoot.children.length, 1);
+  assert.ok(tools.previewRoot.children[0] instanceof THREE.Line);
+  assert.ok(tools.previewRoot.children[0].geometry instanceof THREE.BufferGeometry);
+  assert.ok(nozzleQueries >= 2);
+
+  canvas.dispatch("pointerup", pointer(81, 120, 110, { pressure: 0.7 }));
+
+  assert.equal(controller.getState(), "idle");
+  assert.deepEqual(canvas.released, [81]);
+  assert.equal(committed.length, 1);
+  assert.equal(committed[0].sauce, "chili");
+  assert.equal(committed[0].layerId, "patty");
+  assert.ok(committed[0].points.length >= 2);
+  assert.ok(committed[0].amount >= 0.01 && committed[0].amount <= 1);
+  assert.equal(burger.serializeComposition().strokes.length, 1);
+  assert.equal(tools.previewRoot.children.length, 0);
+  assert.ok(chili.root.position.distanceTo(homePosition) < 1e-9);
+  assert.ok(chili.root.quaternion.angleTo(homeQuaternion) < 1e-9);
+  assert.equal(chili.root.userData.active, false);
+  controller.dispose();
+  harness.dispose();
+});
+
+test("real camera rays pick an exact bottle solid and its gravity stream hits only real food solids", () => {
+  const harness = createPouringScene();
+  const { canvas, camera, burger, tools, scene } = harness;
+  scene.updateMatrixWorld(true);
+  camera.updateMatrixWorld(true);
+  const toScreen = (worldPoint) => {
+    const ndc = worldPoint.clone().project(camera);
+    return { x: (ndc.x + 1) * 100, y: (1 - ndc.y) * 100 };
+  };
+  const bottlePoint = toScreen(tools.get("chili").body.getWorldPosition(new THREE.Vector3()));
+  const prepPoint = toScreen(new THREE.Vector3(0, 0.48, 0));
+  const strokes = [];
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    condimentTools: tools,
+    foodSurfaces: burger.selectableSurfaces,
+    prepPlaneY: 0.48,
+    onSauceStroke: (stroke) => strokes.push(stroke),
+  });
+
+  canvas.dispatch("pointerdown", pointer(811, bottlePoint.x, bottlePoint.y));
+  assert.equal(controller.getState(), "dragging-bottle");
+  canvas.dispatch("pointermove", pointer(811, prepPoint.x - 6, prepPoint.y));
+  canvas.dispatch("pointermove", pointer(811, prepPoint.x + 6, prepPoint.y));
+  canvas.dispatch("pointerup", pointer(811, prepPoint.x + 6, prepPoint.y));
+
+  assert.equal(strokes.length, 1);
+  assert.ok(burger.selectableSurfaces.some((surface) => (
+    surface.userData.cookingSelectable.layerId === strokes[0].layerId
+  )));
+  controller.dispose();
+  harness.dispose();
+});
+
+test("thins sauce points, caps them at 24, and safely splits a gesture when layers change", () => {
+  const harness = createPouringScene();
+  const { canvas, camera, burger, tools } = harness;
+  const mustard = tools.get("mustard");
+  const strokes = [];
+  let activeLayer = "cheese";
+  let nozzleSample = 0;
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    condimentTools: tools,
+    foodSurfaces: burger.selectableSurfaces,
+    projectToPrep: ({ clientX, clientY }) => new THREE.Vector3(clientX / 20, 0, clientY / 20),
+    raycast: ({ kind, event }) => {
+      if (kind === "condiment") {
+        return { object: mustard.cap, point: mustard.cap.getWorldPosition(new THREE.Vector3()) };
+      }
+      if (kind === "nozzle") {
+        const value = -0.9 + (nozzleSample % 20) * 0.09;
+        const row = Math.floor(nozzleSample / 20) * 0.12 - 0.3;
+        nozzleSample += 1;
+        return layerWorldPoint(burger, activeLayer, value, row);
+      }
+      return null;
+    },
+    onSauceStroke: (stroke) => strokes.push(stroke),
+  });
+
+  canvas.dispatch("pointerdown", pointer(82, 10, 10));
+  for (let index = 0; index < 80; index += 1) {
+    if (index === 42) activeLayer = "tomato";
+    canvas.dispatch("pointermove", pointer(82, 14 + index * 1.15, 20 + index));
+  }
+  canvas.dispatch("pointerup", pointer(82, 110, 100));
+
+  assert.deepEqual(strokes.map(({ layerId }) => layerId), ["cheese", "tomato"]);
+  for (const stroke of strokes) {
+    assert.equal(stroke.points.length, 24, "each long segment is capped at 24 points");
+    for (let index = 1; index < stroke.points.length; index += 1) {
+      const [x0, z0] = stroke.points[index - 1];
+      const [x1, z1] = stroke.points[index];
+      assert.ok(Math.hypot(x1 - x0, z1 - z0) >= 0.04 - 1e-9);
+    }
+  }
+  assert.equal(tools.previewRoot.children.length, 0);
+  controller.dispose();
+  harness.dispose();
+});
+
+test("supports repeated mixed condiment gestures on arbitrary burger layers", () => {
+  const harness = createPouringScene();
+  const { canvas, camera, burger, tools } = harness;
+  const strokes = [];
+  let selectedSauce = "sour";
+  let selectedLayer = "lettuce";
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    condimentTools: tools,
+    foodSurfaces: burger.selectableSurfaces,
+    projectToPrep: ({ clientX, clientY }) => new THREE.Vector3(clientX / 25, 0, clientY / 25),
+    raycast: ({ kind, event }) => {
+      const bottle = tools.get(selectedSauce);
+      if (kind === "condiment") {
+        return { object: bottle.nozzle, point: bottle.nozzle.getWorldPosition(new THREE.Vector3()) };
+      }
+      if (kind === "nozzle") {
+        return layerWorldPoint(
+          burger,
+          selectedLayer,
+          (event.clientX - 100) / 40,
+          (event.clientY - 100) / 40,
+        );
+      }
+      return null;
+    },
+    onSauceStroke: (stroke) => strokes.push(stroke),
+  });
+
+  for (const [pointerId, sauce, layerId] of [
+    [91, "sour", "lettuce"],
+    [92, "sticky", "top-bun"],
+    [93, "sour", "pickle"],
+  ]) {
+    selectedSauce = sauce;
+    selectedLayer = layerId;
+    canvas.dispatch("pointerdown", pointer(pointerId, 100, 100));
+    canvas.dispatch("pointermove", pointer(pointerId, 106, 104));
+    canvas.dispatch("pointermove", pointer(pointerId, 116, 112));
+    canvas.dispatch("pointerup", pointer(pointerId, 116, 112));
+  }
+
+  assert.deepEqual(strokes.map(({ sauce, layerId }) => [sauce, layerId]), [
+    ["sour", "lettuce"],
+    ["sticky", "top-bun"],
+    ["sour", "pickle"],
+  ]);
+  controller.dispose();
+  harness.dispose();
+});
+
+test("discards short and no-target bottle gestures but still returns exactly to dock", () => {
+  const harness = createPouringScene();
+  const { canvas, camera, tools } = harness;
+  const sticky = tools.get("sticky");
+  const home = sticky.root.position.clone();
+  const committed = [];
+  let foodHit = null;
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    condimentTools: tools,
+    foodSurfaces: [],
+    projectToPrep: ({ clientX, clientY }) => new THREE.Vector3(clientX / 10, 0, clientY / 10),
+    raycast: ({ kind }) => (kind === "condiment"
+      ? { object: sticky.body, point: sticky.body.getWorldPosition(new THREE.Vector3()) }
+      : foodHit),
+    onSauceStroke: (stroke) => committed.push(stroke),
+  });
+
+  canvas.dispatch("pointerdown", pointer(101, 10, 10));
+  canvas.dispatch("pointermove", pointer(101, 30, 30));
+  canvas.dispatch("pointerup", pointer(101, 30, 30));
+  assert.equal(committed.length, 0);
+  assert.ok(sticky.root.position.distanceTo(home) < 1e-9);
+
+  const fakeLayer = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+  fakeLayer.userData.cookingSelectable = Object.freeze({
+    kind: "food-layer", food: "burger", layerId: "patty",
+  });
+  foodHit = { object: fakeLayer, point: new THREE.Vector3() };
+  controller.setFoodSurfaces([fakeLayer]);
+  canvas.dispatch("pointerdown", pointer(102, 10, 10));
+  canvas.dispatch("pointermove", pointer(102, 11, 11));
+  canvas.dispatch("pointerup", pointer(102, 11, 11));
+  assert.equal(committed.length, 0, "a one-point stroke is discarded");
+  assert.ok(sticky.root.position.distanceTo(home) < 1e-9);
+  fakeLayer.geometry.dispose();
+  fakeLayer.material.dispose();
+  controller.dispose();
+  harness.dispose();
+});
+
+test("cancel, hidden document, context loss, and ignored second touch roll back without committing", () => {
+  for (const cancellation of [
+    "pointercancel", "hidden", "lostpointercapture", "webglcontextlost",
+  ]) {
+    const harness = createPouringScene();
+    const { canvas, camera, documentTarget, burger, tools } = harness;
+    const bottle = tools.get("chili");
+    const home = bottle.root.position.clone();
+    const committed = [];
+    const controller = createCookingInteractionController({
+      THREE,
+      canvas,
+      camera,
+      documentTarget,
+      condimentTools: tools,
+      foodSurfaces: burger.selectableSurfaces,
+      projectToPrep: ({ clientX, clientY }) => new THREE.Vector3(clientX / 10, 0, clientY / 10),
+      raycast: ({ kind, event }) => (kind === "condiment"
+        ? { object: bottle.body, point: bottle.body.getWorldPosition(new THREE.Vector3()) }
+        : layerWorldPoint(burger, "patty", event.clientX / 100, event.clientY / 100)),
+      onSauceStroke: (stroke) => committed.push(stroke),
+    });
+    canvas.dispatch("pointerdown", pointer(111, 10, 10));
+    canvas.dispatch("pointermove", pointer(111, 20, 20));
+    canvas.dispatch("pointerdown", pointer(112, 40, 40));
+    assert.equal(controller.getState(), "dragging-bottle", "second pointer is ignored");
+    assert.equal(canvas.captured.has(112), false);
+    if (cancellation === "hidden") {
+      documentTarget.hidden = true;
+      documentTarget.dispatch("visibilitychange");
+    } else {
+      canvas.dispatch(cancellation, pointer(111, 20, 20));
+    }
+    assert.equal(controller.getState(), "idle", cancellation);
+    assert.equal(committed.length, 0, cancellation);
+    assert.equal(tools.previewRoot.children.length, 0, cancellation);
+    assert.ok(bottle.root.position.distanceTo(home) < 1e-9, cancellation);
+    assert.equal(canvas.captured.has(111), false, cancellation);
+    controller.dispose();
+    harness.dispose();
+  }
+});
+
+test("cleans up and docks before propagating a sauce callback error", () => {
+  const harness = createPouringScene();
+  const { canvas, camera, burger, tools } = harness;
+  const bottle = tools.get("mustard");
+  const home = bottle.root.position.clone();
+  const expected = new Error("save failed");
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    condimentTools: tools,
+    foodSurfaces: burger.selectableSurfaces,
+    projectToPrep: ({ clientX, clientY }) => new THREE.Vector3(clientX / 10, 0, clientY / 10),
+    raycast: ({ kind, event }) => (kind === "condiment"
+      ? { object: bottle.body, point: bottle.body.getWorldPosition(new THREE.Vector3()) }
+      : layerWorldPoint(burger, "bottom-bun", event.clientX / 50, event.clientY / 50)),
+    onSauceStroke: () => { throw expected; },
+  });
+  canvas.dispatch("pointerdown", pointer(121, 2, 2));
+  canvas.dispatch("pointermove", pointer(121, 12, 12));
+  canvas.dispatch("pointermove", pointer(121, 22, 22));
+
+  assert.throws(() => canvas.dispatch("pointerup", pointer(121, 22, 22)), expected);
+  assert.equal(controller.getState(), "idle");
+  assert.equal(tools.previewRoot.children.length, 0);
+  assert.equal(canvas.captured.has(121), false);
+  assert.ok(bottle.root.position.distanceTo(home) < 1e-9);
+  assert.doesNotThrow(() => controller.dispose());
+  harness.dispose();
+});
+
+test("dispose during an active bottle gesture removes preview and never commits", () => {
+  const harness = createPouringScene();
+  const { canvas, camera, burger, tools } = harness;
+  const bottle = tools.get("sour");
+  const home = bottle.root.position.clone();
+  const committed = [];
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    condimentTools: tools,
+    foodSurfaces: burger.selectableSurfaces,
+    projectToPrep: ({ clientX, clientY }) => new THREE.Vector3(clientX / 10, 0, clientY / 10),
+    raycast: ({ kind, event }) => (kind === "condiment"
+      ? { object: bottle.cap, point: bottle.cap.getWorldPosition(new THREE.Vector3()) }
+      : layerWorldPoint(burger, "pickle", event.clientX / 50, event.clientY / 50)),
+    onSauceStroke: (stroke) => committed.push(stroke),
+  });
+  canvas.dispatch("pointerdown", pointer(131, 2, 2));
+  canvas.dispatch("pointermove", pointer(131, 12, 12));
+  assert.equal(tools.previewRoot.children.length, 1);
+
+  controller.dispose();
+  assert.equal(committed.length, 0);
+  assert.equal(tools.previewRoot.children.length, 0);
+  assert.equal(canvas.captured.has(131), false);
+  assert.ok(bottle.root.position.distanceTo(home) < 1e-9);
+  harness.dispose();
 });

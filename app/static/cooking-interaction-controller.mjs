@@ -1,3 +1,5 @@
+import { BURGER_LAYER_IDS, SAUCE_KEYS } from "./cooking-state.mjs";
+
 function requireEventTarget(value, label) {
   if (!value?.addEventListener || !value?.removeEventListener) {
     throw new TypeError(`${label} must be an event target`);
@@ -117,10 +119,15 @@ export function createCookingInteractionController({
   documentTarget = globalThis.document,
   selectableSurfaces = [],
   draggables = [],
+  condimentTools = null,
+  foodSurfaces = [],
   raycast: injectedRaycast,
   projectToPrep,
   prepPlaneY = 0,
   dragLift = 0.35,
+  bottleLift = 1.45,
+  maxBottleTilt = Math.PI / 3,
+  saucePointSpacing = 0.04,
   prepBounds = null,
   cameraTarget = { x: 0, y: 0, z: 0 },
   orbitLimits = {},
@@ -132,6 +139,7 @@ export function createCookingInteractionController({
   onInvalid = () => {},
   onSelection = () => {},
   onCameraChange = () => {},
+  onSauceStroke = () => {},
 } = {}) {
   if (!THREE?.Raycaster || !THREE?.Vector2) {
     throw new TypeError("A compatible Three.js namespace is required");
@@ -148,18 +156,46 @@ export function createCookingInteractionController({
     throw new TypeError("selectableSurfaces must be an array");
   }
   if (!Array.isArray(draggables)) throw new TypeError("draggables must be an array");
+  if (!Array.isArray(foodSurfaces)) throw new TypeError("foodSurfaces must be an array");
   requireFunction(onPick, "onPick");
   requireFunction(onMove, "onMove");
   requireFunction(onDrop, "onDrop");
   requireFunction(onInvalid, "onInvalid");
   requireFunction(onSelection, "onSelection");
   requireFunction(onCameraChange, "onCameraChange");
+  requireFunction(onSauceStroke, "onSauceStroke");
   if (injectedRaycast !== undefined) requireFunction(injectedRaycast, "raycast");
   if (projectToPrep !== undefined) requireFunction(projectToPrep, "projectToPrep");
   if (resolveDrop !== undefined) requireFunction(resolveDrop, "resolveDrop");
   const normalizedDragLift = finiteNumber(dragLift, 0.35, "dragLift");
+  const normalizedBottleLift = finiteNumber(bottleLift, 1.45, "bottleLift");
+  const normalizedMaxBottleTilt = finiteNumber(
+    maxBottleTilt, Math.PI / 3, "maxBottleTilt",
+  );
+  const normalizedSaucePointSpacing = finiteNumber(
+    saucePointSpacing, 0.04, "saucePointSpacing",
+  );
   const normalizedPrepPlaneY = finiteNumber(prepPlaneY, 0, "prepPlaneY");
   if (normalizedDragLift < 0) throw new TypeError("dragLift must not be negative");
+  if (normalizedBottleLift <= 0) throw new TypeError("bottleLift must be positive");
+  if (normalizedMaxBottleTilt <= 0 || normalizedMaxBottleTilt > Math.PI / 2) {
+    throw new TypeError("maxBottleTilt must be between zero and pi / 2");
+  }
+  if (normalizedSaucePointSpacing < 0.04 || normalizedSaucePointSpacing > 1) {
+    throw new TypeError("saucePointSpacing must be between 0.04 and 1");
+  }
+  if (condimentTools !== null) {
+    if (!condimentTools || typeof condimentTools !== "object" || Array.isArray(condimentTools)) {
+      throw new TypeError("condimentTools must be a condiment tool set");
+    }
+    for (const method of ["get", "dock", "setTilt", "setActive"]) {
+      requireFunction(condimentTools[method], `condimentTools.${method}`);
+    }
+    if (!Array.isArray(condimentTools.selectableSurfaces)) {
+      throw new TypeError("condimentTools.selectableSurfaces must be an array");
+    }
+    requireObject3D(condimentTools.previewRoot, "condimentTools.previewRoot");
+  }
   const normalizedPrepBounds = copyBounds(prepBounds);
   if (!cameraTarget || typeof cameraTarget !== "object" || Array.isArray(cameraTarget)
     || ![cameraTarget.x, cameraTarget.y, cameraTarget.z].every(Number.isFinite)) {
@@ -185,13 +221,18 @@ export function createCookingInteractionController({
   const worldScratch = new THREE.Vector3();
   const localScratch = new THREE.Vector3();
   const desiredScratch = new THREE.Vector3();
+  const nozzleScratch = new THREE.Vector3();
+  const nozzleDirectionScratch = new THREE.Vector3();
   let surfaces = [];
+  let edibleSurfaces = [];
+  const edibleSurfaceSet = new Set();
   const baseSurfaces = new Set();
   const draggableBySurface = new Map();
   const draggableById = new Map();
   let state = "idle";
   let disposed = false;
   let dragSession = null;
+  let bottleSession = null;
   let selected = null;
   let orbitSession = null;
   let pinchSession = null;
@@ -200,6 +241,26 @@ export function createCookingInteractionController({
   let contextLost = false;
   let explicitlyPaused = false;
   let mutationEpoch = 0;
+
+  const condimentSurfaceMap = new Map();
+  if (condimentTools) {
+    for (const surface of condimentTools.selectableSurfaces) {
+      requireObject3D(surface, "condiment selectable surface");
+      const metadata = surface.userData?.cookingSelectable;
+      const sauce = metadata?.sauce;
+      if (metadata?.kind !== "condiment-bottle" || !SAUCE_KEYS.includes(sauce)) {
+        throw new TypeError("Condiment surfaces need exact condiment-bottle metadata");
+      }
+      const bottle = condimentTools.get(sauce);
+      if (!bottle?.root?.isObject3D || !bottle?.nozzleAnchor?.isObject3D) {
+        throw new TypeError(`Condiment ${sauce} is missing a bottle root or nozzle anchor`);
+      }
+      if (!bottle.selectableSurfaces?.includes(surface)) {
+        throw new TypeError(`Condiment ${sauce} does not own its selectable surface`);
+      }
+      condimentSurfaceMap.set(surface, bottle);
+    }
+  }
 
   const validateSurface = (surface) => {
     requireObject3D(surface, "selectable surface");
@@ -216,6 +277,24 @@ export function createCookingInteractionController({
     baseSurfaces.clear();
     validated.forEach((surface) => baseSurfaces.add(surface));
     rebuildSurfaces();
+    mutationEpoch += 1;
+  };
+
+  const setEdibleSurfaces = (nextSurfaces) => {
+    if (!Array.isArray(nextSurfaces)) throw new TypeError("foodSurfaces must be an array");
+    const validated = nextSurfaces.map(validateSurface);
+    if (new Set(validated).size !== validated.length) {
+      throw new TypeError("foodSurfaces must not contain duplicates");
+    }
+    for (const surface of validated) {
+      const metadata = surface.userData?.cookingSelectable;
+      if (metadata?.kind !== "food-layer" || !BURGER_LAYER_IDS.includes(metadata.layerId)) {
+        throw new TypeError("foodSurfaces must be explicit burger food-layer surfaces");
+      }
+    }
+    edibleSurfaces = [...validated];
+    edibleSurfaceSet.clear();
+    validated.forEach((surface) => edibleSurfaceSet.add(surface));
     mutationEpoch += 1;
   };
 
@@ -253,6 +332,7 @@ export function createCookingInteractionController({
   };
 
   setBaseSurfaces(selectableSurfaces);
+  setEdibleSurfaces(foodSurfaces);
   for (const record of draggables) registerRecord(record);
 
   const setPointerRay = (event) => {
@@ -269,16 +349,56 @@ export function createCookingInteractionController({
     return true;
   };
 
-  const defaultHitTest = (event) => {
+  const defaultHitTest = (event, candidateSurfaces = surfaces) => {
     if (!setPointerRay(event)) return null;
-    return raycaster.intersectObjects(surfaces, false)[0] ?? null;
+    return raycaster.intersectObjects(candidateSurfaces, false)[0] ?? null;
   };
 
-  const hitTest = (event) => (
+  const hitTest = (event, candidateSurfaces = surfaces, kind = undefined) => (
     injectedRaycast
-      ? injectedRaycast(Object.freeze({ event, camera, surfaces: Object.freeze([...surfaces]), raycaster }))
-      : defaultHitTest(event)
+      ? injectedRaycast(Object.freeze({
+        event,
+        camera,
+        surfaces: Object.freeze([...candidateSurfaces]),
+        raycaster,
+        ...(kind ? { kind } : {}),
+      }))
+      : defaultHitTest(event, candidateSurfaces)
   );
+
+  const condimentHitTest = (event) => {
+    if (!condimentTools) return null;
+    const hit = hitTest(event, condimentTools.selectableSurfaces, "condiment");
+    return hit && condimentSurfaceMap.has(hit.object) ? hit : null;
+  };
+
+  const nozzleHitTest = (event, bottle) => {
+    if (!edibleSurfaces.length) return null;
+    bottle.nozzleAnchor.updateWorldMatrix?.(true, false);
+    bottle.nozzleAnchor.getWorldPosition(nozzleScratch);
+    // The bottle visibly tilts, while its squeeze stream remains gravity-led from the
+    // real nozzle position. This keeps a large dock-to-board swipe controllable.
+    nozzleDirectionScratch.set(0, -1, 0);
+    raycaster.set(nozzleScratch, nozzleDirectionScratch);
+    raycaster.near = 0;
+    raycaster.far = 8;
+    const hit = injectedRaycast
+      ? injectedRaycast(Object.freeze({
+        event,
+        camera,
+        surfaces: Object.freeze([...edibleSurfaces]),
+        raycaster,
+        kind: "nozzle",
+        origin: Object.freeze({ x: nozzleScratch.x, y: nozzleScratch.y, z: nozzleScratch.z }),
+        direction: Object.freeze({
+          x: nozzleDirectionScratch.x,
+          y: nozzleDirectionScratch.y,
+          z: nozzleDirectionScratch.z,
+        }),
+      }))
+      : raycaster.intersectObjects(edibleSurfaces, false)[0] ?? null;
+    return hit && edibleSurfaceSet.has(hit.object) ? hit : null;
+  };
 
   const projectedPoint = (event, output = new THREE.Vector3()) => {
     const point = projectToPrep
@@ -303,6 +423,166 @@ export function createCookingInteractionController({
     point.x >= normalizedPrepBounds.minX && point.x <= normalizedPrepBounds.maxX
       && point.z >= normalizedPrepBounds.minZ && point.z <= normalizedPrepBounds.maxZ
   );
+
+  const previewColors = Object.freeze({
+    chili: 0xd83c2c,
+    mustard: 0xe8b62d,
+    sour: 0x82b848,
+    sticky: 0x734231,
+  });
+
+  const pointerPressure = (event) => {
+    const pressure = event?.pressure;
+    return typeof pressure === "number" && Number.isFinite(pressure) && pressure > 0
+      ? clamp(pressure, 0.01, 1)
+      : 0.45;
+  };
+
+  const detachedFrozenStroke = (sauce, layerId, amount, points) => Object.freeze({
+    sauce,
+    layerId,
+    amount: clamp(amount, 0.01, 1),
+    points: Object.freeze(points.map(([x, z]) => Object.freeze([x, z]))),
+  });
+
+  const destroyBottlePreview = (session) => {
+    const preview = session?.preview;
+    if (!preview) return;
+    preview.line.removeFromParent();
+    preview.geometry.dispose();
+    preview.material.dispose();
+    session.preview = null;
+  };
+
+  const ensureBottlePreview = (session) => {
+    if (session.preview) return session.preview;
+    const positions = new Float32Array(25 * 3);
+    const geometry = new THREE.BufferGeometry();
+    const attribute = new THREE.BufferAttribute(positions, 3);
+    attribute.setUsage?.(THREE.DynamicDrawUsage);
+    geometry.setAttribute("position", attribute);
+    geometry.setDrawRange(0, 0);
+    const material = new THREE.LineBasicMaterial({
+      color: previewColors[session.bottle.sauce],
+      transparent: true,
+      opacity: 0.92,
+      depthWrite: false,
+    });
+    const line = new THREE.Line(geometry, material);
+    line.name = `condiment-preview:${session.bottle.sauce}`;
+    line.raycast = condimentTools.noRaycast ?? (() => {});
+    condimentTools.previewRoot.add(line);
+    session.preview = { line, geometry, material, positions };
+    return session.preview;
+  };
+
+  const updateBottlePreview = (session) => {
+    const segment = session.currentSegment;
+    if (!segment?.worldPoints.length) {
+      destroyBottlePreview(session);
+      return;
+    }
+    const preview = ensureBottlePreview(session);
+    condimentTools.previewRoot.updateWorldMatrix?.(true, false);
+    session.bottle.nozzleAnchor.updateWorldMatrix?.(true, false);
+    const worldPoints = [
+      session.bottle.nozzleAnchor.getWorldPosition(new THREE.Vector3()),
+      ...segment.worldPoints,
+    ].slice(0, 25);
+    worldPoints.forEach((worldPoint, index) => {
+      const localPoint = condimentTools.previewRoot.worldToLocal(worldPoint.clone());
+      preview.positions[index * 3] = localPoint.x;
+      preview.positions[index * 3 + 1] = localPoint.y;
+      preview.positions[index * 3 + 2] = localPoint.z;
+    });
+    preview.geometry.setDrawRange(0, worldPoints.length);
+    preview.geometry.attributes.position.needsUpdate = true;
+    preview.geometry.computeBoundingSphere();
+  };
+
+  const normalizedFoodHit = (hit) => {
+    if (!hit || !edibleSurfaceSet.has(hit.object) || !hit.point) return null;
+    const surface = hit.object;
+    const metadata = surface.userData?.cookingSelectable;
+    if (metadata?.kind !== "food-layer" || !BURGER_LAYER_IDS.includes(metadata.layerId)) return null;
+    if (![hit.point.x, hit.point.y, hit.point.z].every(Number.isFinite)) return null;
+    surface.geometry?.computeBoundingBox?.();
+    const bounds = surface.geometry?.boundingBox;
+    if (!bounds) return null;
+    surface.updateWorldMatrix?.(true, false);
+    const local = surface.worldToLocal(hit.point.clone());
+    const centerX = (bounds.min.x + bounds.max.x) / 2;
+    const centerZ = (bounds.min.z + bounds.max.z) / 2;
+    const halfX = Math.max((bounds.max.x - bounds.min.x) / 2, 1e-6);
+    const halfZ = Math.max((bounds.max.z - bounds.min.z) / 2, 1e-6);
+    return {
+      layerId: metadata.layerId,
+      point: Object.freeze([
+        clamp((local.x - centerX) / halfX, -1, 1),
+        clamp((local.z - centerZ) / halfZ, -1, 1),
+      ]),
+      worldPoint: hit.point.clone(),
+    };
+  };
+
+  const finalizeCurrentBottleSegment = (session) => {
+    if (session.currentSegment?.points.length >= 2) {
+      session.completedSegments.push({
+        layerId: session.currentSegment.layerId,
+        points: session.currentSegment.points.map(([x, z]) => [x, z]),
+      });
+    }
+    session.currentSegment = null;
+  };
+
+  const sampleBottleTarget = (session, event) => {
+    const normalized = normalizedFoodHit(nozzleHitTest(event, session.bottle));
+    session.pressureTotal += pointerPressure(event);
+    session.pressureSamples += 1;
+    if (!normalized) {
+      updateBottlePreview(session);
+      return;
+    }
+    if (!session.currentSegment || session.currentSegment.layerId !== normalized.layerId) {
+      finalizeCurrentBottleSegment(session);
+      destroyBottlePreview(session);
+      session.currentSegment = {
+        layerId: normalized.layerId,
+        points: [],
+        worldPoints: [],
+      };
+    }
+    const points = session.currentSegment.points;
+    const prior = points.at(-1);
+    if (points.length >= 24 || (prior && Math.hypot(
+      normalized.point[0] - prior[0], normalized.point[1] - prior[1],
+    ) < normalizedSaucePointSpacing)) {
+      updateBottlePreview(session);
+      return;
+    }
+    points.push([normalized.point[0], normalized.point[1]]);
+    session.currentSegment.worldPoints.push(normalized.worldPoint);
+    updateBottlePreview(session);
+  };
+
+  const moveBottle = (session, event) => {
+    const point = projectedPoint(event, projectedScratch);
+    if (point) {
+      desiredScratch.set(point.x, point.y + normalizedBottleLift, point.z);
+      setWorldPosition(session.bottle.root, desiredScratch);
+    }
+    const coordinates = pointerCoordinates(event);
+    const dx = coordinates.x - session.startPointer.x;
+    const dy = coordinates.y - session.startPointer.y;
+    const pressure = pointerPressure(event);
+    condimentTools.setTilt(session.bottle.sauce, {
+      x: clamp(0.22 + dy * 0.008 + pressure * 0.22,
+        -normalizedMaxBottleTilt, normalizedMaxBottleTilt),
+      z: clamp(-dx * 0.009, -normalizedMaxBottleTilt, normalizedMaxBottleTilt),
+    });
+    condimentTools.setActive(session.bottle.sauce, true);
+    sampleBottleTarget(session, event);
+  };
 
   const implicitDraggable = (surface) => {
     const metadata = surface?.userData?.cookingSelectable;
@@ -407,14 +687,28 @@ export function createCookingInteractionController({
   const cancelGesture = (reason, error = null) => {
     const pointerIds = [...activePointers.keys()];
     const cancelledDrag = dragSession;
+    const cancelledBottle = bottleSession;
     activePointers.clear();
     dragSession = null;
+    bottleSession = null;
     orbitSession = null;
     pinchSession = null;
     state = "idle";
     mutationEpoch += 1;
     let invalidDetail = null;
-    if (cancelledDrag) {
+    if (cancelledBottle) {
+      destroyBottlePreview(cancelledBottle);
+      condimentTools.setActive(cancelledBottle.bottle.sauce, false);
+      condimentTools.dock(cancelledBottle.bottle.sauce);
+      invalidDetail = Object.freeze({
+        id: cancelledBottle.bottle.sauce,
+        object: cancelledBottle.bottle.root,
+        kind: "condiment-bottle",
+        reason,
+        ...(error ? { error } : {}),
+        restoredPose: detachedPose(cancelledBottle.bottle.root),
+      });
+    } else if (cancelledDrag) {
       const { draggable, snapshot } = cancelledDrag;
       restoreTransform(draggable.object, snapshot);
       invalidDetail = Object.freeze({
@@ -439,12 +733,44 @@ export function createCookingInteractionController({
     let transactionSession = null;
     try {
       const point = pointerCoordinates(event);
+      if (state === "dragging-bottle" && bottleSession) return;
       if (activePointers.has(event.pointerId) || activePointers.size >= 2) return;
       activePointers.set(event.pointerId, point);
       canvas.setPointerCapture?.(event.pointerId);
       event.preventDefault?.();
       if (activePointers.size === 2) {
         beginPinch();
+        return;
+      }
+      const condimentHit = condimentHitTest(event);
+      if (condimentHit) {
+        const bottle = condimentSurfaceMap.get(condimentHit.object);
+        transactionSession = {
+          kind: "condiment-bottle",
+          pointerId: event.pointerId,
+          bottle,
+          snapshot: snapshotTransform(bottle.root),
+          homePose: bottle.homePose,
+          startPointer: point,
+          completedSegments: [],
+          currentSegment: null,
+          pressureTotal: 0,
+          pressureSamples: 0,
+          preview: null,
+          epoch: mutationEpoch,
+        };
+        bottleSession = transactionSession;
+        state = "dragging-bottle";
+        condimentTools.setActive(bottle.sauce, true);
+        const startProjection = projectedPoint(event, projectedScratch);
+        if (startProjection) {
+          desiredScratch.set(
+            startProjection.x,
+            startProjection.y + normalizedBottleLift,
+            startProjection.z,
+          );
+          setWorldPosition(bottle.root, desiredScratch);
+        }
         return;
       }
       const hit = hitTest(event);
@@ -496,7 +822,10 @@ export function createCookingInteractionController({
       }
     } catch (error) {
       try {
-        if (transactionSession && dragSession === transactionSession) {
+        if (transactionSession?.kind === "condiment-bottle"
+          && bottleSession === transactionSession) {
+          cancelGesture("pointer-down-error", error);
+        } else if (transactionSession && dragSession === transactionSession) {
           cancelGesture("pointer-down-error", error);
         } else {
           activePointers.delete(event.pointerId);
@@ -519,6 +848,15 @@ export function createCookingInteractionController({
     const coordinates = pointerCoordinates(event);
     activePointers.set(event.pointerId, coordinates);
     event.preventDefault?.();
+    if (state === "dragging-bottle" && bottleSession?.pointerId === event.pointerId) {
+      try {
+        moveBottle(bottleSession, event);
+      } catch (error) {
+        cancelGesture("bottle-move-error", error);
+        throw error;
+      }
+      return;
+    }
     if (state === "pinching" && activePointers.size >= 2) {
       const [first, second] = [...activePointers.values()];
       const distance = Math.max(pointerDistance(first, second), 1e-6);
@@ -659,9 +997,42 @@ export function createCookingInteractionController({
     return local;
   };
 
+  const finishBottleGesture = (event) => {
+    const session = bottleSession;
+    if (!session || session.pointerId !== event.pointerId) return;
+    try {
+      moveBottle(session, event);
+    } catch (error) {
+      cancelGesture("bottle-finish-error", error);
+      throw error;
+    }
+    finalizeCurrentBottleSegment(session);
+    const amount = session.pressureSamples
+      ? session.pressureTotal / session.pressureSamples
+      : pointerPressure(event);
+    const strokes = session.completedSegments.map(({ layerId, points }) => (
+      detachedFrozenStroke(session.bottle.sauce, layerId, amount, points)
+    ));
+    destroyBottlePreview(session);
+    condimentTools.setActive(session.bottle.sauce, false);
+    condimentTools.dock(session.bottle.sauce);
+    bottleSession = null;
+    dragSession = null;
+    orbitSession = null;
+    pinchSession = null;
+    state = "idle";
+    activePointers.delete(event.pointerId);
+    releaseCapture(event.pointerId);
+    for (const stroke of strokes) onSauceStroke(stroke);
+  };
+
   const handlePointerUp = (event) => {
     if (disposed || !activePointers.has(event.pointerId)) return;
     event.preventDefault?.();
+    if (state === "dragging-bottle" && bottleSession?.pointerId === event.pointerId) {
+      finishBottleGesture(event);
+      return;
+    }
     if (state === "pinching") {
       activePointers.delete(event.pointerId);
       releaseCapture(event.pointerId);
@@ -827,11 +1198,20 @@ export function createCookingInteractionController({
       return selected?.id ?? null;
     },
     getSelectableSurfaces() {
-      return Object.freeze([...surfaces]);
+      return Object.freeze([
+        ...(condimentTools?.selectableSurfaces ?? []),
+        ...surfaces,
+      ]);
     },
     setSelectableSurfaces(nextSurfaces) {
       if (disposed) return false;
       setBaseSurfaces(nextSurfaces);
+      return true;
+    },
+    setFoodSurfaces(nextSurfaces) {
+      if (disposed) return false;
+      if (bottleSession) cancelGesture("food-surfaces-changed");
+      setEdibleSurfaces(nextSurfaces);
       return true;
     },
     registerDraggable(record) {
