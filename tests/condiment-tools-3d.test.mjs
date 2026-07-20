@@ -86,6 +86,23 @@ test("tilts, activates, and returns a bottle to its exact immutable home pose", 
   tools.setTilt("chili", { x: 99, z: -99 });
   assert.ok(Math.abs(chili.root.rotation.x) <= Math.PI / 3 + 1e-9);
   assert.ok(Math.abs(chili.root.rotation.z) <= Math.PI / 3 + 1e-9);
+  tools.setTilt("chili", {
+    worldDirection: { x: 1, y: -0.01, z: 0.25 },
+    maxTilt: 0.2,
+  });
+  workbench.root.updateMatrixWorld(true);
+  const aimedDirection = chili.root.localToWorld(new THREE.Vector3(0, -1, 0))
+    .sub(chili.root.localToWorld(new THREE.Vector3()))
+    .normalize();
+  assert.ok(aimedDirection.angleTo(new THREE.Vector3(0, -1, 0)) <= 0.2 + 1e-9);
+  tools.setTilt("chili", { worldDirection: { x: 0, y: 0, z: 0 } });
+  assert.ok(chili.root.quaternion.angleTo(homeQuaternion) < 1e-9);
+  assert.ok([
+    chili.root.quaternion.x,
+    chili.root.quaternion.y,
+    chili.root.quaternion.z,
+    chili.root.quaternion.w,
+  ].every(Number.isFinite));
   chili.root.position.set(5, 6, 7);
 
   assert.equal(tools.dock("chili"), true);
@@ -95,6 +112,10 @@ test("tilts, activates, and returns a bottle to its exact immutable home pose", 
   closeVector(chili.root.scale, homeScale);
   assert.throws(() => tools.setTilt("ketchup", { x: 0, z: 0 }), /unknown condiment/i);
   assert.throws(() => tools.setTilt("chili", { x: Number.NaN, z: 0 }), /finite/i);
+  assert.throws(
+    () => tools.setTilt("chili", { worldDirection: { x: 0, y: Number.NaN, z: 0 } }),
+    /finite/i,
+  );
   tools.dispose();
   workbench.dispose();
 });

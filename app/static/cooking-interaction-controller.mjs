@@ -1,5 +1,9 @@
 import { BURGER_LAYER_IDS, SAUCE_KEYS } from "./cooking-state.mjs";
 
+const PREVIEW_MAX_POINTS = 25;
+const PREVIEW_RADIAL_SEGMENTS = 5;
+const PREVIEW_TUBE_RADIUS = 0.045;
+
 function requireEventTarget(value, label) {
   if (!value?.addEventListener || !value?.removeEventListener) {
     throw new TypeError(`${label} must be an event target`);
@@ -223,6 +227,8 @@ export function createCookingInteractionController({
   const desiredScratch = new THREE.Vector3();
   const nozzleScratch = new THREE.Vector3();
   const nozzleDirectionScratch = new THREE.Vector3();
+  const bottleAimScratch = new THREE.Vector3();
+  const bottleOriginScratch = new THREE.Vector3();
   let surfaces = [];
   let edibleSurfaces = [];
   const edibleSurfaceSet = new Set();
@@ -448,7 +454,7 @@ export function createCookingInteractionController({
   const destroyBottlePreview = (session) => {
     const preview = session?.preview;
     if (!preview) return;
-    preview.line.removeFromParent();
+    preview.mesh.removeFromParent();
     preview.geometry.dispose();
     preview.material.dispose();
     session.preview = null;
@@ -456,23 +462,70 @@ export function createCookingInteractionController({
 
   const ensureBottlePreview = (session) => {
     if (session.preview) return session.preview;
-    const positions = new Float32Array(25 * 3);
+    const positions = new Float32Array(
+      PREVIEW_MAX_POINTS * PREVIEW_RADIAL_SEGMENTS * 3,
+    );
+    const normals = new Float32Array(positions.length);
+    const indices = new Uint16Array(
+      (PREVIEW_MAX_POINTS - 1) * PREVIEW_RADIAL_SEGMENTS * 6,
+    );
+    let indexOffset = 0;
+    for (let ring = 0; ring < PREVIEW_MAX_POINTS - 1; ring += 1) {
+      for (let side = 0; side < PREVIEW_RADIAL_SEGMENTS; side += 1) {
+        const nextSide = (side + 1) % PREVIEW_RADIAL_SEGMENTS;
+        const current = ring * PREVIEW_RADIAL_SEGMENTS + side;
+        const currentNext = ring * PREVIEW_RADIAL_SEGMENTS + nextSide;
+        const following = (ring + 1) * PREVIEW_RADIAL_SEGMENTS + side;
+        const followingNext = (ring + 1) * PREVIEW_RADIAL_SEGMENTS + nextSide;
+        indices[indexOffset] = current;
+        indices[indexOffset + 1] = following;
+        indices[indexOffset + 2] = followingNext;
+        indices[indexOffset + 3] = current;
+        indices[indexOffset + 4] = followingNext;
+        indices[indexOffset + 5] = currentNext;
+        indexOffset += 6;
+      }
+    }
     const geometry = new THREE.BufferGeometry();
-    const attribute = new THREE.BufferAttribute(positions, 3);
-    attribute.setUsage?.(THREE.DynamicDrawUsage);
-    geometry.setAttribute("position", attribute);
+    const positionAttribute = new THREE.BufferAttribute(positions, 3);
+    const normalAttribute = new THREE.BufferAttribute(normals, 3);
+    positionAttribute.setUsage?.(THREE.DynamicDrawUsage);
+    normalAttribute.setUsage?.(THREE.DynamicDrawUsage);
+    geometry.setAttribute("position", positionAttribute);
+    geometry.setAttribute("normal", normalAttribute);
+    geometry.setIndex(new THREE.BufferAttribute(indices, 1));
     geometry.setDrawRange(0, 0);
-    const material = new THREE.LineBasicMaterial({
+    geometry.userData.tubeRadius = PREVIEW_TUBE_RADIUS;
+    geometry.userData.tubeRadialSegments = PREVIEW_RADIAL_SEGMENTS;
+    geometry.userData.tubePointCount = 0;
+    const material = new THREE.MeshStandardMaterial({
       color: previewColors[session.bottle.sauce],
+      roughness: 0.6,
+      metalness: 0,
       transparent: true,
       opacity: 0.92,
       depthWrite: false,
     });
-    const line = new THREE.Line(geometry, material);
-    line.name = `condiment-preview:${session.bottle.sauce}`;
-    line.raycast = condimentTools.noRaycast ?? (() => {});
-    condimentTools.previewRoot.add(line);
-    session.preview = { line, geometry, material, positions };
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = `condiment-preview:${session.bottle.sauce}`;
+    mesh.raycast = condimentTools.noRaycast ?? (() => {});
+    mesh.frustumCulled = false;
+    condimentTools.previewRoot.add(mesh);
+    session.preview = {
+      mesh,
+      geometry,
+      material,
+      positions,
+      normals,
+      localPoints: Array.from(
+        { length: PREVIEW_MAX_POINTS }, () => new THREE.Vector3(),
+      ),
+      tangent: new THREE.Vector3(),
+      normal: new THREE.Vector3(),
+      binormal: new THREE.Vector3(),
+      radial: new THREE.Vector3(),
+      worldPoint: new THREE.Vector3(),
+    };
     return session.preview;
   };
 
@@ -485,18 +538,48 @@ export function createCookingInteractionController({
     const preview = ensureBottlePreview(session);
     condimentTools.previewRoot.updateWorldMatrix?.(true, false);
     session.bottle.nozzleAnchor.updateWorldMatrix?.(true, false);
-    const worldPoints = [
-      session.bottle.nozzleAnchor.getWorldPosition(new THREE.Vector3()),
-      ...segment.worldPoints,
-    ].slice(0, 25);
-    worldPoints.forEach((worldPoint, index) => {
-      const localPoint = condimentTools.previewRoot.worldToLocal(worldPoint.clone());
-      preview.positions[index * 3] = localPoint.x;
-      preview.positions[index * 3 + 1] = localPoint.y;
-      preview.positions[index * 3 + 2] = localPoint.z;
-    });
-    preview.geometry.setDrawRange(0, worldPoints.length);
+    const pointCount = Math.min(segment.worldPoints.length + 1, PREVIEW_MAX_POINTS);
+    session.bottle.nozzleAnchor.getWorldPosition(preview.worldPoint);
+    preview.localPoints[0].copy(preview.worldPoint);
+    condimentTools.previewRoot.worldToLocal(preview.localPoints[0]);
+    for (let pointIndex = 1; pointIndex < pointCount; pointIndex += 1) {
+      preview.localPoints[pointIndex].copy(segment.worldPoints[pointIndex - 1]);
+      condimentTools.previewRoot.worldToLocal(preview.localPoints[pointIndex]);
+    }
+    for (let pointIndex = 0; pointIndex < pointCount; pointIndex += 1) {
+      const before = preview.localPoints[Math.max(0, pointIndex - 1)];
+      const after = preview.localPoints[Math.min(pointCount - 1, pointIndex + 1)];
+      preview.tangent.subVectors(after, before);
+      if (preview.tangent.lengthSq() < 1e-12) preview.tangent.set(0, -1, 0);
+      else preview.tangent.normalize();
+      if (Math.abs(preview.tangent.y) < 0.9) preview.normal.set(0, 1, 0);
+      else preview.normal.set(1, 0, 0);
+      preview.normal.crossVectors(preview.tangent, preview.normal).normalize();
+      preview.binormal.crossVectors(preview.tangent, preview.normal).normalize();
+      for (let side = 0; side < PREVIEW_RADIAL_SEGMENTS; side += 1) {
+        const angle = (side / PREVIEW_RADIAL_SEGMENTS) * Math.PI * 2;
+        preview.radial.copy(preview.normal).multiplyScalar(Math.cos(angle));
+        preview.radial.addScaledVector(preview.binormal, Math.sin(angle));
+        const vertexIndex = pointIndex * PREVIEW_RADIAL_SEGMENTS + side;
+        const positionOffset = vertexIndex * 3;
+        preview.positions[positionOffset] = preview.localPoints[pointIndex].x
+          + preview.radial.x * PREVIEW_TUBE_RADIUS;
+        preview.positions[positionOffset + 1] = preview.localPoints[pointIndex].y
+          + preview.radial.y * PREVIEW_TUBE_RADIUS;
+        preview.positions[positionOffset + 2] = preview.localPoints[pointIndex].z
+          + preview.radial.z * PREVIEW_TUBE_RADIUS;
+        preview.normals[positionOffset] = preview.radial.x;
+        preview.normals[positionOffset + 1] = preview.radial.y;
+        preview.normals[positionOffset + 2] = preview.radial.z;
+      }
+    }
+    preview.geometry.userData.tubePointCount = pointCount;
+    preview.geometry.setDrawRange(
+      0,
+      Math.max(0, pointCount - 1) * PREVIEW_RADIAL_SEGMENTS * 6,
+    );
     preview.geometry.attributes.position.needsUpdate = true;
+    preview.geometry.attributes.normal.needsUpdate = true;
     preview.geometry.computeBoundingSphere();
   };
 
@@ -539,13 +622,9 @@ export function createCookingInteractionController({
     const normalized = normalizedFoodHit(nozzleHitTest(event, session.bottle));
     session.pressureTotal += pointerPressure(event);
     session.pressureSamples += 1;
-    if (!normalized) {
-      updateBottlePreview(session);
-      return;
-    }
+    if (!normalized) return null;
     if (!session.currentSegment || session.currentSegment.layerId !== normalized.layerId) {
       finalizeCurrentBottleSegment(session);
-      destroyBottlePreview(session);
       session.currentSegment = {
         layerId: normalized.layerId,
         points: [],
@@ -557,12 +636,11 @@ export function createCookingInteractionController({
     if (points.length >= 24 || (prior && Math.hypot(
       normalized.point[0] - prior[0], normalized.point[1] - prior[1],
     ) < normalizedSaucePointSpacing)) {
-      updateBottlePreview(session);
-      return;
+      return normalized;
     }
     points.push([normalized.point[0], normalized.point[1]]);
     session.currentSegment.worldPoints.push(normalized.worldPoint);
-    updateBottlePreview(session);
+    return normalized;
   };
 
   const moveBottle = (session, event) => {
@@ -571,17 +649,27 @@ export function createCookingInteractionController({
       desiredScratch.set(point.x, point.y + normalizedBottleLift, point.z);
       setWorldPosition(session.bottle.root, desiredScratch);
     }
-    const coordinates = pointerCoordinates(event);
-    const dx = coordinates.x - session.startPointer.x;
-    const dy = coordinates.y - session.startPointer.y;
-    const pressure = pointerPressure(event);
-    condimentTools.setTilt(session.bottle.sauce, {
-      x: clamp(0.22 + dy * 0.008 + pressure * 0.22,
-        -normalizedMaxBottleTilt, normalizedMaxBottleTilt),
-      z: clamp(-dx * 0.009, -normalizedMaxBottleTilt, normalizedMaxBottleTilt),
-    });
+    // Hit-test from a stable home pose, then aim the physical nozzle in world space.
+    // The prep projection itself came from the active camera, so the fallback is also
+    // camera-aware without coupling screen X/Y to fixed bottle-local axes.
+    condimentTools.setTilt(session.bottle.sauce, { x: 0, z: 0 });
     condimentTools.setActive(session.bottle.sauce, true);
-    sampleBottleTarget(session, event);
+    const targetHit = sampleBottleTarget(session, event);
+    const targetWorld = targetHit?.worldPoint ?? point;
+    if (targetWorld) {
+      session.bottle.root.updateWorldMatrix?.(true, false);
+      session.bottle.root.getWorldPosition(bottleOriginScratch);
+      bottleAimScratch.subVectors(targetWorld, bottleOriginScratch);
+      condimentTools.setTilt(session.bottle.sauce, {
+        worldDirection: {
+          x: bottleAimScratch.x,
+          y: bottleAimScratch.y,
+          z: bottleAimScratch.z,
+        },
+        maxTilt: normalizedMaxBottleTilt,
+      });
+    }
+    updateBottlePreview(session);
   };
 
   const implicitDraggable = (surface) => {
@@ -751,7 +839,6 @@ export function createCookingInteractionController({
           bottle,
           snapshot: snapshotTransform(bottle.root),
           homePose: bottle.homePose,
-          startPointer: point,
           completedSegments: [],
           currentSegment: null,
           pressureTotal: 0,

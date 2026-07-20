@@ -55,6 +55,13 @@ function pointer(pointerId, clientX, clientY, extra = {}) {
   };
 }
 
+function closeVector(actual, expected, epsilon = 1e-9) {
+  assert.ok(actual.distanceTo(expected) <= epsilon, [
+    `expected ${expected.toArray().join(",")}`,
+    `received ${actual.toArray().join(",")}`,
+  ].join("; "));
+}
+
 function createPouringScene() {
   const canvas = createCanvas();
   const documentTarget = new FakeEventTarget();
@@ -1165,8 +1172,15 @@ test("bottle surfaces win over food, drag camera-aware, tilt, preview, and commi
   assert.ok(chili.root.position.distanceTo(homePosition) > 0.2);
   assert.ok(chili.root.quaternion.angleTo(homeQuaternion) > 0.01);
   assert.equal(tools.previewRoot.children.length, 1);
-  assert.ok(tools.previewRoot.children[0] instanceof THREE.Line);
-  assert.ok(tools.previewRoot.children[0].geometry instanceof THREE.BufferGeometry);
+  const preview = tools.previewRoot.children[0];
+  assert.ok(preview instanceof THREE.Mesh, "live sauce preview is a volumetric mesh");
+  assert.ok(preview.geometry instanceof THREE.BufferGeometry);
+  assert.ok(preview.geometry.userData.tubeRadius > 0, "preview tube has nonzero radius");
+  assert.ok(preview.geometry.userData.tubeRadialSegments >= 3);
+  assert.ok(preview.geometry.userData.tubeRadialSegments <= 6, "mobile radial budget");
+  assert.equal(preview.raycast, tools.noRaycast);
+  assert.ok(preview.geometry.getAttribute("position").count <= 25 * 6);
+  assert.ok(preview.geometry.drawRange.count <= 24 * 6 * 6, "mobile triangle budget");
   assert.ok(nozzleQueries >= 2);
 
   canvas.dispatch("pointerup", pointer(81, 120, 110, { pressure: 0.7 }));
@@ -1185,6 +1199,184 @@ test("bottle surfaces win over food, drag camera-aware, tilt, preview, and commi
   assert.equal(chili.root.userData.active, false);
   controller.dispose();
   harness.dispose();
+});
+
+test("reuses one bounded volumetric preview and disposes it exactly once", () => {
+  const harness = createPouringScene();
+  const {
+    canvas, camera, burger, tools, scene,
+  } = harness;
+  const chili = tools.get("chili");
+  const geometries = [];
+  const materials = [];
+  const instrumentedTHREE = {
+    ...THREE,
+    BufferGeometry: class extends THREE.BufferGeometry {
+      constructor(...args) {
+        super(...args);
+        this.disposeCalls = 0;
+        geometries.push(this);
+      }
+
+      dispose() {
+        this.disposeCalls += 1;
+        super.dispose();
+      }
+    },
+    MeshStandardMaterial: class extends THREE.MeshStandardMaterial {
+      constructor(...args) {
+        super(...args);
+        this.disposeCalls = 0;
+        materials.push(this);
+      }
+
+      dispose() {
+        this.disposeCalls += 1;
+        super.dispose();
+      }
+    },
+  };
+  let activeLayer = "patty";
+  let latestTarget = null;
+  const controller = createCookingInteractionController({
+    THREE: instrumentedTHREE,
+    canvas,
+    camera,
+    condimentTools: tools,
+    foodSurfaces: burger.selectableSurfaces,
+    projectToPrep: ({ clientX, clientY }) => new THREE.Vector3(
+      clientX / 40,
+      0.48,
+      clientY / 40,
+    ),
+    raycast: ({ kind, event }) => {
+      if (kind === "condiment") {
+        return { object: chili.body, point: chili.body.getWorldPosition(new THREE.Vector3()) };
+      }
+      latestTarget = layerWorldPoint(
+        burger,
+        activeLayer,
+        ((event.clientX % 20) - 10) / 20,
+        ((event.clientY % 20) - 10) / 20,
+      );
+      return latestTarget;
+    },
+  });
+
+  canvas.dispatch("pointerdown", pointer(812, 10, 10));
+  for (let index = 0; index < 60; index += 1) {
+    activeLayer = index % 2 ? "cheese" : "patty";
+    canvas.dispatch("pointermove", pointer(812, 20 + index, 30 + index));
+  }
+
+  assert.equal(geometries.length, 1, "pointer moves and layer splits reuse one geometry");
+  assert.equal(materials.length, 1, "pointer moves and layer splits reuse one material");
+  const preview = tools.previewRoot.children[0];
+  assert.ok(preview instanceof THREE.Mesh);
+  assert.equal(preview.material.color.getHex(), 0xd83c2c, "mesh keeps sauce color");
+  const { tubePointCount, tubeRadialSegments, tubeRadius } = preview.geometry.userData;
+  assert.ok(tubeRadius > 0);
+  assert.ok(tubePointCount >= 2 && tubePointCount <= 25);
+  assert.ok(tubeRadialSegments >= 3 && tubeRadialSegments <= 6);
+  const position = preview.geometry.getAttribute("position");
+  const ringCenter = (ringIndex) => {
+    const center = new THREE.Vector3();
+    for (let side = 0; side < tubeRadialSegments; side += 1) {
+      center.add(new THREE.Vector3().fromBufferAttribute(
+        position,
+        ringIndex * tubeRadialSegments + side,
+      ));
+    }
+    return preview.localToWorld(center.multiplyScalar(1 / tubeRadialSegments));
+  };
+  scene.updateMatrixWorld(true);
+  closeVector(
+    ringCenter(0),
+    chili.nozzleAnchor.getWorldPosition(new THREE.Vector3()),
+    1e-5,
+  );
+  closeVector(ringCenter(tubePointCount - 1), latestTarget.point, 1e-5);
+  assert.equal(preview.raycast, tools.noRaycast);
+  assert.ok(preview.geometry.drawRange.count / 3 <= 240, "preview stays under 240 triangles");
+
+  canvas.dispatch("pointerup", pointer(812, 80, 90));
+  assert.equal(tools.previewRoot.children.length, 0);
+  assert.equal(geometries[0].disposeCalls, 1);
+  assert.equal(materials[0].disposeCalls, 1);
+  controller.dispose();
+  assert.equal(geometries[0].disposeCalls, 1, "controller dispose is idempotent for preview");
+  assert.equal(materials[0].disposeCalls, 1, "controller dispose is idempotent for material");
+  harness.dispose();
+});
+
+test("aims the bottle nozzle at the same world target across camera yaws and a transformed parent", () => {
+  const aimedDirections = [];
+  for (const cameraYaw of [0, Math.PI / 2]) {
+    const harness = createPouringScene();
+    const {
+      canvas, camera, burger, tools, scene, workbench,
+    } = harness;
+    workbench.root.position.set(2.4, 0.7, -1.6);
+    workbench.root.rotation.set(0.12, 0.68, -0.08);
+    workbench.root.scale.set(1.25, 0.85, 1.1);
+    camera.position.set(
+      Math.sin(cameraYaw) * 16,
+      12,
+      Math.cos(cameraYaw) * 16,
+    );
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld(true);
+    scene.updateMatrixWorld(true);
+    const chili = tools.get("chili");
+    const targetHit = layerWorldPoint(burger, "patty", 0.55, -0.35);
+    const targetWorld = targetHit.point.clone();
+    const dragWorld = targetWorld.clone().add(new THREE.Vector3(-0.72, 0, 0.46));
+    const controller = createCookingInteractionController({
+      THREE,
+      canvas,
+      camera,
+      condimentTools: tools,
+      foodSurfaces: burger.selectableSurfaces,
+      bottleLift: 1.45,
+      maxBottleTilt: Math.PI / 3,
+      projectToPrep: () => dragWorld.clone(),
+      raycast: ({ kind }) => (kind === "condiment"
+        ? { object: chili.body, point: chili.body.getWorldPosition(new THREE.Vector3()) }
+        : { object: targetHit.object, point: targetWorld.clone() }),
+    });
+
+    canvas.dispatch("pointerdown", pointer(813, 100, 100, { pressure: 0.5 }));
+    canvas.dispatch("pointermove", pointer(813, 112, 109, { pressure: 0.65 }));
+    scene.updateMatrixWorld(true);
+
+    const bottleOrigin = chili.root.localToWorld(new THREE.Vector3());
+    const nozzleDirection = chili.root.localToWorld(new THREE.Vector3(0, -1, 0))
+      .sub(bottleOrigin)
+      .normalize();
+    const expectedDirection = targetWorld.clone().sub(
+      chili.root.getWorldPosition(new THREE.Vector3()),
+    ).normalize();
+    assert.ok(nozzleDirection.dot(expectedDirection) > 0.995, [
+      `camera yaw ${cameraYaw}: nozzle must lean at food target`,
+      `nozzle ${nozzleDirection.toArray().join(",")}`,
+      `target ${expectedDirection.toArray().join(",")}`,
+    ].join("; "));
+    assert.ok([
+      chili.root.quaternion.x,
+      chili.root.quaternion.y,
+      chili.root.quaternion.z,
+      chili.root.quaternion.w,
+    ].every(Number.isFinite), "transformed-parent aim must stay finite");
+    aimedDirections.push(nozzleDirection);
+
+    canvas.dispatch("pointercancel", pointer(813, 112, 109));
+    controller.dispose();
+    harness.dispose();
+  }
+  assert.ok(aimedDirections[0].dot(aimedDirections[1]) > 0.999999, [
+    "the same world drag target must not change when the camera rotates",
+    aimedDirections.map((value) => value.toArray().join(",")).join(" vs "),
+  ].join("; "));
 });
 
 test("real camera rays pick an exact bottle solid and its gravity stream hits only real food solids", () => {

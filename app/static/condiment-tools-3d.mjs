@@ -150,6 +150,13 @@ export function createCondimentTools3D(THREE, { toolDocks } = {}) {
   const bottles = new Map();
   const selectableSurfaces = [];
   const homePoses = new Map();
+  const directionScratch = new THREE.Vector3();
+  const homeDirectionScratch = new THREE.Vector3();
+  const axisScratch = new THREE.Vector3();
+  const clampedDirectionScratch = new THREE.Vector3();
+  const parentInverseScratch = new THREE.Matrix4();
+  const homeQuaternionScratch = new THREE.Quaternion();
+  const deltaQuaternionScratch = new THREE.Quaternion();
 
   for (const sauce of SAUCE_KEYS) {
     const dock = dockById.get(sauce);
@@ -237,9 +244,70 @@ export function createCondimentTools3D(THREE, { toolDocks } = {}) {
       if (!tilt || typeof tilt !== "object" || Array.isArray(tilt)) {
         throw new TypeError("tilt must be an object");
       }
+      const pose = homePoses.get(sauce);
+      if (tilt.worldDirection !== undefined) {
+        const worldDirection = tilt.worldDirection;
+        if (!worldDirection || typeof worldDirection !== "object"
+          || Array.isArray(worldDirection)) {
+          throw new TypeError("tilt.worldDirection must be a vector object");
+        }
+        directionScratch.set(
+          finite(worldDirection.x, "tilt.worldDirection.x"),
+          finite(worldDirection.y, "tilt.worldDirection.y"),
+          finite(worldDirection.z, "tilt.worldDirection.z"),
+        );
+        homeQuaternionScratch.set(
+          pose.quaternion.x,
+          pose.quaternion.y,
+          pose.quaternion.z,
+          pose.quaternion.w,
+        );
+        if (directionScratch.lengthSq() < 1e-12) {
+          bottle.root.quaternion.copy(homeQuaternionScratch);
+          return true;
+        }
+        bottle.root.parent?.updateWorldMatrix?.(true, false);
+        if (bottle.root.parent) {
+          parentInverseScratch.copy(bottle.root.parent.matrixWorld).invert();
+          directionScratch.transformDirection(parentInverseScratch);
+        } else {
+          directionScratch.normalize();
+        }
+        homeDirectionScratch.set(0, -1, 0).applyQuaternion(homeQuaternionScratch).normalize();
+        const maximum = clamp(
+          finite(tilt.maxTilt ?? MAX_TILT, "tilt.maxTilt"),
+          0,
+          MAX_TILT,
+        );
+        const angle = homeDirectionScratch.angleTo(directionScratch);
+        clampedDirectionScratch.copy(directionScratch);
+        if (angle > maximum) {
+          axisScratch.crossVectors(homeDirectionScratch, directionScratch);
+          if (axisScratch.lengthSq() < 1e-12) {
+            axisScratch.set(1, 0, 0);
+            if (Math.abs(axisScratch.dot(homeDirectionScratch)) > 0.9) {
+              axisScratch.set(0, 0, 1);
+            }
+            axisScratch.cross(homeDirectionScratch);
+          }
+          axisScratch.normalize();
+          deltaQuaternionScratch.setFromAxisAngle(axisScratch, maximum);
+          clampedDirectionScratch.copy(homeDirectionScratch)
+            .applyQuaternion(deltaQuaternionScratch)
+            .normalize();
+        }
+        deltaQuaternionScratch.setFromUnitVectors(
+          homeDirectionScratch,
+          clampedDirectionScratch,
+        );
+        bottle.root.quaternion.multiplyQuaternions(
+          deltaQuaternionScratch,
+          homeQuaternionScratch,
+        ).normalize();
+        return true;
+      }
       const x = clamp(finite(tilt.x ?? 0, "tilt.x"), -MAX_TILT, MAX_TILT);
       const z = clamp(finite(tilt.z ?? 0, "tilt.z"), -MAX_TILT, MAX_TILT);
-      const pose = homePoses.get(sauce);
       bottle.root.quaternion.set(
         pose.quaternion.x,
         pose.quaternion.y,
