@@ -46,6 +46,21 @@ def test_health() -> None:
     assert response.json() == {"status": "ok"}
 
 
+def test_vendored_three_module_and_license_are_served_locally() -> None:
+    module = client.get("/static/vendor/three.module.min.js")
+    core = client.get("/static/vendor/three.core.min.js")
+    license_text = client.get("/static/vendor/three.LICENSE.txt")
+
+    assert module.status_code == 200
+    assert 350_000 < len(module.content) < 400_000
+    assert b"cdn" not in module.content.lower()
+    assert core.status_code == 200
+    assert 380_000 < len(core.content) < 420_000
+    assert b"cdn" not in core.content.lower()
+    assert license_text.status_code == 200
+    assert "MIT License" in license_text.text
+
+
 def test_home_page_contains_game_title() -> None:
     response = client.get("/")
 
