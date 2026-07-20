@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import importlib.util
 
 import pytest
@@ -12,10 +13,22 @@ from app.service import GameService
 
 client = TestClient(app)
 
+THREE_VENDOR_SHA256 = {
+    "three.module.min.js": "86bcee248b64f44bcfc23c331ae74619061957d59cab040171dcb6fb5900beb6",
+    "three.core.min.js": "05b2609338c76cd65daf74f3ac515bc9a5045e1b3b33edc07d8c9bd55250fa90",
+    "three.LICENSE.txt": "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc",
+}
+
 PLAYER_CREDENTIALS = {
     "p1": "p1-private-credential-1234567890abcdef",
     "p2": "p2-private-credential-1234567890abcdef",
 }
+
+
+def assert_vendored_sha256(content: bytes, filename: str) -> None:
+    actual = hashlib.sha256(content).hexdigest()
+    expected = THREE_VENDOR_SHA256[filename]
+    assert actual == expected, f"{filename} SHA-256 is {actual}, expected {expected}"
 
 
 def ws_path(player_id: str, credential: str | None = None) -> str:
@@ -52,13 +65,25 @@ def test_vendored_three_module_and_license_are_served_locally() -> None:
     license_text = client.get("/static/vendor/three.LICENSE.txt")
 
     assert module.status_code == 200
+    assert_vendored_sha256(module.content, "three.module.min.js")
     assert 350_000 < len(module.content) < 400_000
     assert b"cdn" not in module.content.lower()
     assert core.status_code == 200
+    assert_vendored_sha256(core.content, "three.core.min.js")
     assert 380_000 < len(core.content) < 420_000
     assert b"cdn" not in core.content.lower()
     assert license_text.status_code == 200
+    assert_vendored_sha256(license_text.content, "three.LICENSE.txt")
     assert "MIT License" in license_text.text
+
+
+def test_vendored_three_integrity_check_rejects_a_mutated_byte() -> None:
+    original = client.get("/static/vendor/three.LICENSE.txt").content
+    mutated = bytearray(original)
+    mutated[-1] ^= 1
+
+    with pytest.raises(AssertionError, match="three.LICENSE.txt SHA-256"):
+        assert_vendored_sha256(bytes(mutated), "three.LICENSE.txt")
 
 
 def test_home_page_contains_game_title() -> None:
