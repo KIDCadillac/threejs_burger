@@ -62,6 +62,104 @@ test("moving top-bun leaves the input and every unrelated pose unchanged", () =>
   );
 });
 
+test("state updates structurally share every unchanged immutable branch", () => {
+  const initial = addSauceStroke(createCookingState(), {
+    sauce: "chili",
+    layerId: "patty",
+    amount: 0.4,
+    points: [[-0.5, 0], [0.5, 0]],
+  });
+
+  const moved = moveLayer(initial, "top-bun", { x: 0.25, z: 0, yaw: 0 });
+  assert.equal(moved.strokes, initial.strokes);
+  assert.equal(
+    moved.layers.find(({ id }) => id === "patty"),
+    initial.layers.find(({ id }) => id === "patty"),
+  );
+  assert.notEqual(
+    moved.layers.find(({ id }) => id === "top-bun"),
+    initial.layers.find(({ id }) => id === "top-bun"),
+  );
+
+  const reordered = reorderLayer(moved, "cheese", 5);
+  assert.equal(reordered.strokes, moved.strokes);
+  for (const layerId of ["bottom-bun", "patty", "top-bun"]) {
+    assert.equal(
+      reordered.layers.find(({ id }) => id === layerId),
+      moved.layers.find(({ id }) => id === layerId),
+    );
+  }
+  for (const layerId of ["cheese", "tomato", "lettuce", "pickle"]) {
+    assert.notEqual(
+      reordered.layers.find(({ id }) => id === layerId),
+      moved.layers.find(({ id }) => id === layerId),
+    );
+  }
+
+  const sauced = addSauceStroke(reordered, {
+    sauce: "mustard",
+    layerId: "cheese",
+    amount: 0.3,
+    points: [[-0.25, 0], [0.25, 0]],
+  });
+  assert.equal(sauced.layers, reordered.layers);
+  assert.notEqual(sauced.strokes, reordered.strokes);
+  assert.equal(sauced.strokes[0], reordered.strokes[0]);
+  assert.equal(sauced.strokes[0].points, reordered.strokes[0].points);
+});
+
+test("owned state is deeply frozen and shared branches cannot corrupt prior states", () => {
+  const firstPoint = [-0.5, 0];
+  const inputPoints = [firstPoint, [0.5, 0]];
+  const inputStroke = {
+    sauce: "chili",
+    layerId: "patty",
+    amount: 0.4,
+    points: inputPoints,
+  };
+  const state = addSauceStroke(createCookingState(), inputStroke);
+
+  inputStroke.amount = 0.9;
+  firstPoint[0] = 0.9;
+  inputPoints.push([0, 0]);
+  assert.deepEqual(state.strokes[0], {
+    sauce: "chili",
+    layerId: "patty",
+    amount: 0.4,
+    points: [[-0.5, 0], [0.5, 0]],
+  });
+
+  const later = moveLayer(state, "top-bun", { x: 0.3, z: 0, yaw: 0 });
+  assert.equal(later.strokes, state.strokes);
+  assert.equal(
+    later.layers.find(({ id }) => id === "patty"),
+    state.layers.find(({ id }) => id === "patty"),
+  );
+
+  for (const candidate of [state, later]) {
+    assert.equal(Object.isFrozen(candidate), true);
+    assert.equal(Object.isFrozen(candidate.layers), true);
+    assert.equal(Object.isFrozen(candidate.strokes), true);
+    assert.ok(candidate.layers.every((layer) => (
+      Object.isFrozen(layer) && Object.isFrozen(layer.pose)
+    )));
+    assert.ok(candidate.strokes.every((stroke) => (
+      Object.isFrozen(stroke)
+      && Object.isFrozen(stroke.points)
+      && stroke.points.every(Object.isFrozen)
+    )));
+  }
+
+  const priorPayload = serializeComposition(state);
+  assert.throws(() => {
+    later.strokes[0].points[0][0] = 1;
+  }, TypeError);
+  assert.throws(() => {
+    later.layers.find(({ id }) => id === "patty").pose.x = 1;
+  }, TypeError);
+  assert.deepEqual(serializeComposition(state), priorPayload);
+});
+
 test("reordering cheese inserts it at stack position five without mutation", () => {
   const initial = createCookingState();
   const initialSnapshot = structuredClone(initial);
@@ -138,6 +236,37 @@ test("repeated and mixed condiment strokes serialize in insertion order", () => 
   assert.deepEqual(payload.layerOrder, BURGER_LAYER_IDS);
 });
 
+test("a sauce stroke requires at least two valid two-coordinate points", () => {
+  const initial = createCookingState();
+
+  assert.throws(
+    () => addSauceStroke(initial, {
+      sauce: "chili",
+      layerId: "patty",
+      amount: 0.4,
+      points: [[0, 0], [0], "invalid"],
+    }),
+    TypeError,
+  );
+  assert.throws(
+    () => addSauceStroke(initial, {
+      sauce: "chili",
+      layerId: "patty",
+      amount: 0.4,
+      points: [],
+    }),
+    TypeError,
+  );
+
+  const state = addSauceStroke(initial, {
+    sauce: "mustard",
+    layerId: "cheese",
+    amount: 0.3,
+    points: [[0], [-0.5, 0], [0.5, 0], [0, 0, 0], null],
+  });
+  assert.deepEqual(state.strokes[0].points, [[-0.5, 0], [0.5, 0]]);
+});
+
 test("network bounds retain the newest 64 strokes and 24 points with all sauces", () => {
   let state = createCookingState();
 
@@ -211,7 +340,7 @@ test("numeric inputs are clamped and non-finite or non-number values normalize s
     sauce: "sour",
     layerId: "cheese",
     amount: 4,
-    points: [[-4, 4]],
+    points: [[-4, 4], [0, 0]],
   });
 
   assert.deepEqual(
@@ -229,7 +358,7 @@ test("numeric inputs are clamped and non-finite or non-number values normalize s
     points: [[0, 0], [0, -1], [1, 0]],
   });
   assert.equal(sauced.strokes[1].amount, 1);
-  assert.deepEqual(sauced.strokes[1].points, [[-1, 1]]);
+  assert.deepEqual(sauced.strokes[1].points, [[-1, 1], [0, 0]]);
 
   const payload = serializeComposition(sauced);
   const numericValues = [

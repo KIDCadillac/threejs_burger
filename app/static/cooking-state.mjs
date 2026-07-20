@@ -19,18 +19,9 @@ const clampFiniteNumber = (value, minimum, maximum) => {
   return Object.is(clampedValue, -0) ? 0 : clampedValue;
 };
 
-const copyStroke = (stroke) => ({
+const detachStroke = (stroke) => ({
   ...stroke,
   points: stroke.points.map((point) => [...point]),
-});
-
-const copyState = (state) => ({
-  ...state,
-  layers: state.layers.map((layer) => ({
-    ...layer,
-    pose: { ...layer.pose },
-  })),
-  strokes: state.strokes.map(copyStroke),
 });
 
 const assertLayerId = (layerId) => {
@@ -40,39 +31,46 @@ const assertLayerId = (layerId) => {
 };
 
 export function createCookingState() {
-  return {
+  const layers = BURGER_LAYER_IDS.map((id, order) => Object.freeze({
+    id,
+    order,
+    pose: Object.freeze({ x: 0, z: 0, yaw: 0 }),
+  }));
+  return Object.freeze({
     food: "burger",
     expanded: false,
-    layers: BURGER_LAYER_IDS.map((id, order) => ({
-      id,
-      order,
-      pose: { x: 0, z: 0, yaw: 0 },
-    })),
-    strokes: [],
-  };
+    layers: Object.freeze(layers),
+    strokes: Object.freeze([]),
+  });
 }
 
 export function moveLayer(state, layerId, pose) {
   assertLayerId(layerId);
-  const next = copyState(state);
-  const layer = next.layers.find(({ id }) => id === layerId);
+  const layer = state.layers.find(({ id }) => id === layerId);
 
   if (!layer) {
     throw new TypeError(`State does not contain burger layer: ${layerId}`);
   }
 
-  layer.pose = {
-    x: clampFiniteNumber(pose?.x, -1, 1),
-    z: clampFiniteNumber(pose?.z, -1, 1),
-    yaw: clampFiniteNumber(pose?.yaw, -Math.PI, Math.PI),
-  };
-  return next;
+  const movedLayer = Object.freeze({
+    ...layer,
+    pose: Object.freeze({
+      x: clampFiniteNumber(pose?.x, -1, 1),
+      z: clampFiniteNumber(pose?.z, -1, 1),
+      yaw: clampFiniteNumber(pose?.yaw, -Math.PI, Math.PI),
+    }),
+  });
+  return Object.freeze({
+    ...state,
+    layers: Object.freeze(
+      state.layers.map((item) => (item === layer ? movedLayer : item)),
+    ),
+  });
 }
 
 export function reorderLayer(state, layerId, targetIndex) {
   assertLayerId(layerId);
-  const next = copyState(state);
-  const ordered = next.layers.sort((left, right) => left.order - right.order);
+  const ordered = [...state.layers].sort((left, right) => left.order - right.order);
   const sourceIndex = ordered.findIndex(({ id }) => id === layerId);
 
   if (sourceIndex === -1) {
@@ -82,8 +80,12 @@ export function reorderLayer(state, layerId, targetIndex) {
   const [selectedLayer] = ordered.splice(sourceIndex, 1);
   const insertionIndex = Math.round(clampFiniteNumber(targetIndex, 0, ordered.length));
   ordered.splice(insertionIndex, 0, selectedLayer);
-  next.layers = ordered.map((layer, order) => ({ ...layer, order }));
-  return next;
+  return Object.freeze({
+    ...state,
+    layers: Object.freeze(ordered.map((layer, order) => (
+      layer.order === order ? layer : Object.freeze({ ...layer, order })
+    ))),
+  });
 }
 
 export function addSauceStroke(state, stroke) {
@@ -92,18 +94,29 @@ export function addSauceStroke(state, stroke) {
   }
   assertLayerId(stroke?.layerId);
 
-  const next = copyState(state);
-  next.strokes.push({
+  const validPoints = Array.isArray(stroke.points)
+    ? stroke.points.filter((point) => Array.isArray(point) && point.length === 2)
+    : [];
+  if (validPoints.length < 2) {
+    throw new TypeError("Sauce strokes require at least two valid points");
+  }
+
+  const points = Object.freeze(validPoints.slice(0, MAX_POINTS).map((point) => (
+    Object.freeze([
+      clampFiniteNumber(point?.[0], -1, 1),
+      clampFiniteNumber(point?.[1], -1, 1),
+    ])
+  )));
+  const nextStroke = Object.freeze({
     sauce: stroke.sauce,
     layerId: stroke.layerId,
     amount: clampFiniteNumber(stroke.amount, 0.01, 1),
-    points: stroke.points.slice(0, MAX_POINTS).map((point) => [
-      clampFiniteNumber(point?.[0], -1, 1),
-      clampFiniteNumber(point?.[1], -1, 1),
-    ]),
+    points,
   });
-  next.strokes = next.strokes.slice(-MAX_STROKES);
-  return next;
+  return Object.freeze({
+    ...state,
+    strokes: Object.freeze([...state.strokes, nextStroke].slice(-MAX_STROKES)),
+  });
 }
 
 export function serializeComposition(state) {
@@ -115,6 +128,6 @@ export function serializeComposition(state) {
     layerPoses: Object.fromEntries(
       state.layers.map(({ id, pose }) => [id, { ...pose }]),
     ),
-    strokes: state.strokes.map(copyStroke),
+    strokes: state.strokes.map(detachStroke),
   };
 }
