@@ -158,8 +158,8 @@ assert.deepEqual(configuration.orbitLimits, {
   maxYaw: 0.78,
   minPitch: 0.5,
   maxPitch: 0.95,
-  minDistance: 16.7,
-  maxDistance: 23,
+  minDistance: 6,
+  maxDistance: 32,
 });
 ```
 

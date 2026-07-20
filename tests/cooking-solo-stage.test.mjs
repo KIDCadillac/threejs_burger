@@ -86,7 +86,7 @@ test("integrates one real Three scene, workbench, burger, bottles, and controlle
   stage.dispose();
 });
 
-test("constrains cooking camera gestures to a usable mobile composition", () => {
+test("keeps cooking orbit controlled while allowing close food inspection", () => {
   let configuration;
   const controller = {
     resetCamera: () => true,
@@ -107,8 +107,8 @@ test("constrains cooking camera gestures to a usable mobile composition", () => 
     maxYaw: 0.78,
     minPitch: 0.5,
     maxPitch: 0.95,
-    minDistance: 16.7,
-    maxDistance: 23,
+    minDistance: 6,
+    maxDistance: 32,
   });
   stage.dispose();
 });
