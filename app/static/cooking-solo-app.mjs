@@ -46,7 +46,11 @@ function sauceSummary(strokes) {
 
 export function bootSoloCookingPage(
   documentTarget = globalThis.document,
-  { windowTarget = globalThis, stageFactory = createSoloCookingStage } = {},
+  {
+    windowTarget = globalThis,
+    stageFactory = createSoloCookingStage,
+    manageLoading = true,
+  } = {},
 ) {
   const canvas = documentTarget?.querySelector?.("#cooking-canvas");
   if (!canvas) throw new Error("Missing #cooking-canvas");
@@ -143,7 +147,7 @@ export function bootSoloCookingPage(
         elements.status.textContent = error?.message ?? "WebGL 运行异常";
       },
     });
-    elements.loading.hidden = true;
+    if (manageLoading) elements.loading.hidden = true;
     render(latest ?? {
       reason: "ready",
       state: stage.getState(),
@@ -187,5 +191,3 @@ export function bootSoloCookingPage(
     return null;
   }
 }
-
-if (globalThis.document) bootSoloCookingPage(globalThis.document);

@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 const htmlPath = new URL("../app/static/cooking.html", import.meta.url);
 const cssPath = new URL("../app/static/cooking.css", import.meta.url);
 const appPath = new URL("../app/static/cooking-solo-app.mjs", import.meta.url);
+const loaderPath = new URL("../app/static/cooking-loader.mjs", import.meta.url);
 
 test("standalone cooking page is accessible, Chinese, and contains the full playable HUD", async () => {
   const html = await readFile(htmlPath, "utf8");
@@ -33,6 +34,11 @@ test("standalone cooking page is accessible, Chinese, and contains the full play
     'role="status"',
     'aria-live="polite"',
     'cooking-loading',
+    'id="cooking-loading-phase"',
+    'id="cooking-loading-percent"',
+    'id="cooking-loading-elapsed"',
+    'id="cooking-loading-note"',
+    'id="cooking-loading-bar"',
     'cooking-error',
   ]) assert.ok(html.includes(marker), marker);
   assert.match(html, /自由料理台/);
@@ -40,17 +46,19 @@ test("standalone cooking page is accessible, Chinese, and contains the full play
   assert.match(html, /rel="icon" href="data:,"/);
 });
 
-test("page and module use only relative static imports with no socket or network dependency", async () => {
-  const [html, app] = await Promise.all([
+test("page and modules use only relative static imports with no socket dependency", async () => {
+  const [html, app, loader] = await Promise.all([
     readFile(htmlPath, "utf8"),
     readFile(appPath, "utf8"),
+    readFile(loaderPath, "utf8"),
   ]);
   assert.match(html, /href="\.\/cooking\.css"/);
-  assert.match(html, /src="\.\/cooking-solo-app\.mjs"/);
+  assert.match(html, /src="\.\/cooking-loader\.mjs"/);
   assert.match(app, /from "\.\/vendor\/three\.module\.min\.js"/);
   assert.match(app, /from "\.\/cooking-solo-stage\.mjs"/);
-  for (const forbidden of ["WebSocket", "fetch(", "axios", 'from "/', "https://", "http://"]) {
-    assert.equal(app.includes(forbidden), false, forbidden);
+  assert.match(loader, /import\("\.\/cooking-solo-app\.mjs"\)/);
+  for (const forbidden of ["WebSocket", "axios", 'from "/', "https://", "http://"]) {
+    assert.equal(`${app}\n${loader}`.includes(forbidden), false, forbidden);
   }
 });
 

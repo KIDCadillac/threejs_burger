@@ -154,6 +154,19 @@ test("a second boot disposes the old stage and leaves only the new click handler
   assert.deepEqual(second.calls, ["undo"]);
 });
 
+test("an external loader can keep the loading overlay until the first rendered frame", () => {
+  const page = pageHarness();
+  const stages = stageFactoryHarness();
+  const stage = bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: stages.factory,
+    manageLoading: false,
+  });
+
+  assert.ok(stage);
+  assert.equal(page.elements.loading.hidden, false);
+});
+
 test("render or lifecycle registration failure cleans the created stage and shows the error layer", () => {
   {
     const page = pageHarness();
