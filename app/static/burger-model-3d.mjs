@@ -517,6 +517,7 @@ export function createBurgerModel3D(THREE, options = {}) {
   const surfacesById = new Map();
   const footprintsById = new Map();
   const projectionMeshesById = new Map();
+  const surfaceBoundsById = new Map();
   const ownedGeometries = new Set();
   const ownedMaterials = new Set();
   const biteSources = new Map();
@@ -539,6 +540,7 @@ export function createBurgerModel3D(THREE, options = {}) {
     definition.geometry.computeBoundingBox();
     definition.geometry.computeBoundingSphere();
     const bounds = definition.geometry.boundingBox;
+    surfaceBoundsById.set(definition.id, bounds.clone());
     group.userData.halfHeight = (bounds.max.y - bounds.min.y) / 2;
     group.userData.surfaceY = bounds.max.y + 0.025;
     group.userData.surfaceRadius = Math.max(
@@ -611,18 +613,29 @@ export function createBurgerModel3D(THREE, options = {}) {
     entry.mesh.geometry.dispose();
   };
 
+  const refreshSurfaceBounds = () => {
+    for (const [layerId, surface] of surfacesById) {
+      surface.geometry.computeBoundingBox();
+      surfaceBoundsById.set(layerId, surface.geometry.boundingBox.clone());
+    }
+  };
+
   const projectLocalPoint = (layerId, x, z) => {
     const profile = footprintsById.get(layerId);
-    const [clampedX, clampedZ] = clampLocalFootprint(profile, x, z);
-    const geometry = surfacesById.get(layerId).geometry;
-    geometry.computeBoundingBox();
-    projectionRaycaster.set(
-      new THREE.Vector3(clampedX, geometry.boundingBox.max.y + 1, clampedZ),
-      projectionDirection,
-    );
-    const [hit] = projectionRaycaster.intersectObject(projectionMeshesById.get(layerId), false);
-    if (!hit) throw new Error(`Cannot project sauce onto ${layerId} surface`);
-    return new THREE.Vector3(hit.point.x, hit.point.y, hit.point.z);
+    const maxY = surfaceBoundsById.get(layerId).max.y;
+    for (let attempt = 0; attempt <= 20; attempt += 1) {
+      const scale = 1 - attempt * 0.0425;
+      const [clampedX, clampedZ] = clampLocalFootprint(profile, x * scale, z * scale);
+      projectionRaycaster.set(
+        new THREE.Vector3(clampedX, maxY + 1, clampedZ),
+        projectionDirection,
+      );
+      const [hit] = projectionRaycaster.intersectObject(
+        projectionMeshesById.get(layerId), false,
+      );
+      if (hit) return new THREE.Vector3(hit.point.x, hit.point.y, hit.point.z);
+    }
+    throw new Error(`Cannot project sauce onto ${layerId} surface`);
   };
 
   const projectSurfacePoint = (layerId, point) => {
@@ -649,10 +662,7 @@ export function createBurgerModel3D(THREE, options = {}) {
     while (sauceEntries.length) disposeSauceEntry(sauceEntries.pop());
   };
 
-  const addSauceStroke = (stroke) => {
-    assertActive(disposed);
-    const normalized = validateStroke(stroke);
-    const layer = layers.get(normalized.layerId);
+  const createSauceEntry = (normalized, nameIndex) => {
     const profile = footprintsById.get(normalized.layerId);
     let pathPoints = normalized.points.map(([x, z]) => {
       const [localX, localZ] = projectNormalizedFootprint(
@@ -679,11 +689,25 @@ export function createBurgerModel3D(THREE, options = {}) {
     // Keep TubeGeometry rings aligned with generated route controls. The inherited
     // arc-length remapping can skip an inner-rim waypoint on long alternating paths.
     surfaceCurve.getPointAt = surfaceCurve.getPoint;
+    const tangentBefore = new THREE.Vector3();
+    const tangentAfter = new THREE.Vector3();
+    const coherentTangent = (time, target = new THREE.Vector3()) => {
+      const delta = 1e-4;
+      const beforeTime = Math.max(0, time - delta);
+      const afterTime = Math.min(1, time + delta);
+      surfaceCurve.getPoint(beforeTime, tangentBefore);
+      surfaceCurve.getPoint(afterTime, tangentAfter);
+      target.subVectors(tangentAfter, tangentBefore);
+      if (target.lengthSq() < 1e-12) target.set(1, 0, 0);
+      return target.normalize();
+    };
+    surfaceCurve.getTangent = coherentTangent;
+    surfaceCurve.getTangentAt = coherentTangent;
     const geometry = new THREE.TubeGeometry(
       surfaceCurve, tubularSegments, tubeRadius, TUBE_RADIAL_SEGMENTS, false,
     );
     const mesh = new THREE.Mesh(geometry, sauceMaterials.get(normalized.sauce));
-    mesh.name = `sauce:${normalized.sauce}:${normalized.layerId}:${sauceEntries.length}`;
+    mesh.name = `sauce:${normalized.sauce}:${normalized.layerId}:${nameIndex}`;
     mesh.castShadow = true;
     mesh.raycast = NO_RAYCAST;
     mesh.userData.sauceStroke = Object.freeze({
@@ -694,10 +718,35 @@ export function createBurgerModel3D(THREE, options = {}) {
     mesh.userData.surfaceOffset = surfaceOffset;
     mesh.userData.inputPointCount = normalized.points.length;
     mesh.userData.routePointCount = pathPoints.length;
-    layer.add(mesh);
-    sauceEntries.push({ mesh, stroke: normalized });
+    return { mesh, stroke: normalized };
+  };
+
+  const stageSauceEntries = (strokes) => {
+    const staged = [];
+    try {
+      strokes.forEach((stroke, index) => staged.push(createSauceEntry(stroke, index)));
+      return staged;
+    } catch (error) {
+      for (const entry of staged) disposeSauceEntry(entry);
+      throw error;
+    }
+  };
+
+  const replaceSauceEntries = (replacements) => {
+    const previous = sauceEntries.splice(0, sauceEntries.length, ...replacements);
+    for (const entry of previous) entry.mesh.removeFromParent();
+    for (const entry of replacements) layers.get(entry.stroke.layerId).add(entry.mesh);
+    for (const entry of previous) disposeSauceEntry(entry);
+  };
+
+  const addSauceStroke = (stroke) => {
+    assertActive(disposed);
+    const normalized = validateStroke(stroke);
+    const entry = createSauceEntry(normalized, sauceEntries.length);
+    layers.get(normalized.layerId).add(entry.mesh);
+    sauceEntries.push(entry);
     if (sauceEntries.length > MAX_STROKES) disposeSauceEntry(sauceEntries.shift());
-    return mesh;
+    return entry.mesh;
   };
 
   const setLayerPose = (layerId, pose = {}) => {
@@ -802,21 +851,22 @@ export function createBurgerModel3D(THREE, options = {}) {
       }];
     }));
     const validatedStrokes = composition.strokes.map(validateStroke);
+    const stagedSauces = stageSauceEntries(validatedStrokes);
 
     order = [...composition.layerOrder];
     applyStackHeights();
-    for (const id of BURGER_LAYER_IDS) setLayerPose(id, validatedPoses[id]);
-    clearSauces();
-    for (const stroke of validatedStrokes) addSauceStroke(stroke);
+    for (const id of BURGER_LAYER_IDS) {
+      const layer = layers.get(id);
+      const pose = validatedPoses[id];
+      layer.position.x = pose.x;
+      layer.position.z = pose.z;
+      layer.rotation.set(0, pose.yaw, 0);
+    }
+    replaceSauceEntries(stagedSauces);
     return getSnapshot();
   };
 
-  const setBiteAmount = (amount) => {
-    assertActive(disposed);
-    const normalizedAmount = assertFinite(amount, "biteAmount");
-    if (normalizedAmount < 0 || normalizedAmount > 1) {
-      throw new TypeError("biteAmount must be between 0 and 1");
-    }
+  const applyBiteGeometry = (normalizedAmount) => {
     for (const surface of surfacesById.values()) {
       const geometry = surface.geometry;
       const source = biteSources.get(geometry);
@@ -843,6 +893,26 @@ export function createBurgerModel3D(THREE, options = {}) {
       geometry.computeBoundingBox();
       geometry.computeBoundingSphere();
     }
+    refreshSurfaceBounds();
+  };
+
+  const setBiteAmount = (amount) => {
+    assertActive(disposed);
+    const normalizedAmount = assertFinite(amount, "biteAmount");
+    if (normalizedAmount < 0 || normalizedAmount > 1) {
+      throw new TypeError("biteAmount must be between 0 and 1");
+    }
+    const previousAmount = root.userData.biteAmount;
+    if (normalizedAmount === previousAmount) return;
+    applyBiteGeometry(normalizedAmount);
+    let stagedSauces;
+    try {
+      stagedSauces = stageSauceEntries(sauceEntries.map(({ stroke }) => stroke));
+    } catch (error) {
+      applyBiteGeometry(previousAmount);
+      throw error;
+    }
+    replaceSauceEntries(stagedSauces);
     root.userData.biteAmount = normalizedAmount;
   };
 
@@ -896,6 +966,7 @@ export function createBurgerModel3D(THREE, options = {}) {
       surfacesById.clear();
       footprintsById.clear();
       projectionMeshesById.clear();
+      surfaceBoundsById.clear();
       biteSources.clear();
     },
   };

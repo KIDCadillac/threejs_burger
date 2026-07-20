@@ -404,6 +404,98 @@ test("applyComposition exactly matches the authoritative server recipe schema", 
   burger.dispose();
 });
 
+test("applyComposition reconstructs authoritative poses without stale tilt", () => {
+  const burger = createBurgerModel3D(THREE);
+  burger.setLayerPose("patty", {
+    position: { x: 0.7, y: 3.2, z: -0.6 },
+    rotation: { x: 0.9, y: -0.8, z: 0.7 },
+  });
+  const composition = {
+    food: "burger",
+    layerOrder: [...BURGER_LAYER_IDS],
+    layerPoses: Object.fromEntries(BURGER_LAYER_IDS.map((id) => [id, {
+      x: id === "patty" ? 0.25 : 0,
+      z: id === "patty" ? -0.15 : 0,
+      yaw: id === "patty" ? 0.45 : 0,
+    }])),
+    strokes: [{
+      sauce: "chili", layerId: "patty", amount: 0.5, points: [[-0.2, 0], [0.2, 0]],
+    }],
+  };
+
+  burger.applyComposition(composition);
+  const patty = burger.getLayer("patty");
+  closeTo(patty.position.x, 0.25);
+  closeTo(patty.position.z, -0.15);
+  closeTo(patty.rotation.x, 0);
+  closeTo(patty.rotation.y, 0.45);
+  closeTo(patty.rotation.z, 0);
+  burger.dispose();
+});
+
+test("applyComposition stages sauce geometry and rolls back construction failures", () => {
+  let constructionCount = 0;
+  let failAt = Number.POSITIVE_INFINITY;
+  const created = [];
+  class FailingTubeGeometry extends THREE.TubeGeometry {
+    constructor(...args) {
+      constructionCount += 1;
+      if (constructionCount === failAt) throw new Error("injected tube failure");
+      super(...args);
+      this.disposeCount = 0;
+      const originalDispose = this.dispose.bind(this);
+      this.dispose = () => {
+        this.disposeCount += 1;
+        originalDispose();
+      };
+      created.push(this);
+    }
+  }
+  const burger = createBurgerModel3D({ ...THREE, TubeGeometry: FailingTubeGeometry });
+  const originalMesh = burger.addSauceStroke({
+    sauce: "chili", layerId: "patty", amount: 0.5, points: [[-0.3, 0], [0.3, 0]],
+  });
+  burger.reorderLayer("pickle", 1);
+  burger.setLayerPose("cheese", {
+    position: { x: 0.4, y: 2.4, z: -0.3 },
+    rotation: { x: 0.2, y: 0.3, z: -0.1 },
+  });
+  const before = burger.getSnapshot();
+  failAt = constructionCount + 2;
+  const replacement = {
+    food: "burger",
+    layerOrder: [...BURGER_LAYER_IDS].reverse(),
+    layerPoses: Object.fromEntries(BURGER_LAYER_IDS.map((id) => [id, {
+      x: 0, z: 0, yaw: 0,
+    }])),
+    strokes: [
+      { sauce: "mustard", layerId: "cheese", amount: 0.4, points: [[-0.4, 0], [0.4, 0]] },
+      { sauce: "sour", layerId: "tomato", amount: 0.4, points: [[-0.4, 0], [0.4, 0]] },
+      { sauce: "sticky", layerId: "pickle", amount: 0.4, points: [[-0.4, 0], [0.4, 0]] },
+    ],
+  };
+
+  assert.throws(() => burger.applyComposition(replacement), /injected tube failure/);
+  assert.deepEqual(burger.getSnapshot(), before);
+  assert.equal(originalMesh.parent, burger.getLayer("patty"));
+  assert.equal(originalMesh.geometry.disposeCount, 0);
+  assert.equal(created.length, 2, "only the old and first staged geometries completed construction");
+  assert.equal(created[1].disposeCount, 1, "the completed staged candidate is cleaned once");
+
+  failAt = Number.POSITIVE_INFINITY;
+  burger.applyComposition(replacement);
+  assert.deepEqual(burger.serializeComposition(), replacement);
+  assert.equal(originalMesh.parent, null);
+  assert.equal(originalMesh.geometry.disposeCount, 1, "successful swap retires old geometry once");
+  const successfulCandidates = created.slice(2);
+  assert.equal(successfulCandidates.length, replacement.strokes.length);
+  assert.ok(successfulCandidates.every(({ disposeCount }) => disposeCount === 0));
+  burger.dispose();
+  assert.equal(originalMesh.geometry.disposeCount, 1);
+  assert.equal(created[1].disposeCount, 1, "failed staged geometry is not disposed twice");
+  assert.ok(successfulCandidates.every(({ disposeCount }) => disposeCount === 1));
+});
+
 test("caps condiment history to 64 strokes and disposes evicted dynamic geometry", () => {
   const disposed = [];
   class InstrumentedTubeGeometry extends THREE.TubeGeometry {
@@ -452,6 +544,86 @@ test("applies observable reversible vertex-level bite deformation", () => {
   burger.setBiteAmount(0);
   assert.deepEqual([...topBun.geometry.attributes.position.array], before);
   assert.equal(burger.root.userData.biteAmount, 0);
+  burger.dispose();
+});
+
+test("rebuilds existing and new sauce tubes against bite-aware edible surfaces", () => {
+  const burger = createBurgerModel3D(THREE);
+  burger.addSauceStroke({
+    sauce: "chili", layerId: "top-bun", amount: 0.8, points: [[0.65, -0.1], [1, 0.1]],
+  });
+  burger.addSauceStroke({
+    sauce: "mustard", layerId: "patty", amount: 0.5, points: [[0.7, 0], [1, 0.2]],
+  });
+
+  const assertSaucesConform = () => {
+    for (const layerId of ["top-bun", "patty"]) {
+      const layer = burger.getLayer(layerId);
+      const surface = layer.userData.selectableSurface;
+      const raycaster = new THREE.Raycaster();
+      for (const mesh of layer.children.filter(({ userData }) => userData.sauceStroke)) {
+        for (const time of [0, 0.25, 0.5, 0.75, 1]) {
+          const sample = mesh.geometry.parameters.path.getPoint(time, new THREE.Vector3());
+          raycaster.set(new THREE.Vector3(sample.x, 4, sample.z), new THREE.Vector3(0, -1, 0));
+          const [hit] = raycaster.intersectObject(surface, false);
+          assert.ok(hit, `${layerId} sauce remains inside the bitten edible footprint`);
+          assert.ok(Math.abs(sample.y - hit.point.y - mesh.userData.surfaceOffset) < 0.04);
+        }
+      }
+    }
+  };
+
+  burger.setBiteAmount(0.85);
+  assert.equal(burger.getSnapshot().strokes.length, 2);
+  assertSaucesConform();
+  burger.addSauceStroke({
+    sauce: "sticky", layerId: "top-bun", amount: 0.6, points: [[0.85, -0.15], [1, 0.15]],
+  });
+  assert.equal(burger.getSnapshot().strokes.length, 3);
+  assertSaucesConform();
+
+  burger.setBiteAmount(0);
+  assert.equal(burger.getSnapshot().strokes.length, 3);
+  assertSaucesConform();
+  burger.dispose();
+});
+
+test("rolls back bite deformation and staged sauces when a rebuild fails", () => {
+  let constructionCount = 0;
+  let failAt = Number.POSITIVE_INFINITY;
+  const created = [];
+  class FailingTubeGeometry extends THREE.TubeGeometry {
+    constructor(...args) {
+      constructionCount += 1;
+      if (constructionCount === failAt) throw new Error("injected bite rebuild failure");
+      super(...args);
+      this.disposeCount = 0;
+      const originalDispose = this.dispose.bind(this);
+      this.dispose = () => {
+        this.disposeCount += 1;
+        originalDispose();
+      };
+      created.push(this);
+    }
+  }
+  const burger = createBurgerModel3D({ ...THREE, TubeGeometry: FailingTubeGeometry });
+  const first = burger.addSauceStroke({
+    sauce: "chili", layerId: "top-bun", amount: 0.5, points: [[0.5, 0], [0.9, 0]],
+  });
+  burger.addSauceStroke({
+    sauce: "mustard", layerId: "patty", amount: 0.5, points: [[0.5, 0], [0.9, 0]],
+  });
+  const topBun = burger.getLayer("top-bun").userData.selectableSurface;
+  const beforeVertices = [...topBun.geometry.attributes.position.array];
+  const before = burger.getSnapshot();
+  failAt = constructionCount + 2;
+
+  assert.throws(() => burger.setBiteAmount(0.9), /injected bite rebuild failure/);
+  assert.deepEqual(burger.getSnapshot(), before);
+  assert.deepEqual([...topBun.geometry.attributes.position.array], beforeVertices);
+  assert.equal(first.parent, burger.getLayer("top-bun"));
+  assert.equal(first.geometry.disposeCount, 0);
+  assert.equal(created.at(-1).disposeCount, 1, "completed bite candidate is cleaned exactly once");
   burger.dispose();
 });
 
@@ -568,6 +740,25 @@ test("keeps 64 worst-case alternating lettuce strokes below the mobile triangle 
     assert.ok(
       raycaster.intersectObject(lettuce, false)[0],
       `rendered tube segment ${index} does not chord across the lettuce hole`,
+    );
+  }
+  for (let index = 1; index < ringCenters.length - 1; index += 1) {
+    const time = index / tubularSegments;
+    const tangent = geometry.parameters.path
+      .getPointAt(Math.min(1, time + 1e-4), new THREE.Vector3())
+      .sub(geometry.parameters.path.getPointAt(Math.max(0, time - 1e-4), new THREE.Vector3()))
+      .normalize();
+    const firstRingVertex = new THREE.Vector3(
+      positions.getX(index * (radialSegments + 1)),
+      positions.getY(index * (radialSegments + 1)),
+      positions.getZ(index * (radialSegments + 1)),
+    );
+    const radial = firstRingVertex.sub(ringCenters[index]).normalize();
+    assert.ok(tangent.toArray().every(Number.isFinite));
+    assert.ok(radial.toArray().every(Number.isFinite));
+    assert.ok(
+      Math.abs(tangent.dot(radial)) < 0.18,
+      `tube ring ${index} remains perpendicular to its coherent path tangent`,
     );
   }
   burger.dispose();
