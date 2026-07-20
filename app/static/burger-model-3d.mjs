@@ -1,0 +1,648 @@
+import { BURGER_LAYER_IDS, SAUCE_KEYS } from "./cooking-state.mjs";
+
+const FOOD_ID = "burger";
+const MAX_STROKES = 64;
+const MAX_POINTS = 24;
+const COLLAPSED_OVERLAP = 0.035;
+const EXPANDED_GAP = 0.42;
+const NO_RAYCAST = () => {};
+
+const SAUCE_COLORS = Object.freeze({
+  chili: 0xc72f21,
+  mustard: 0xe6ab20,
+  sour: 0x8ebf36,
+  sticky: 0x784127,
+});
+
+function assertActive(disposed) {
+  if (disposed) throw new Error("Burger model is disposed");
+}
+
+function assertLayerId(layerId) {
+  if (!BURGER_LAYER_IDS.includes(layerId)) {
+    throw new TypeError(`Unknown burger layer: ${String(layerId)}`);
+  }
+}
+
+function assertFinite(value, label) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new TypeError(`${label} must be a finite number`);
+  }
+  return value;
+}
+
+function setOptionalVector(vector, value, label) {
+  if (value === undefined) return;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError(`${label} must be an object`);
+  }
+  for (const axis of ["x", "y", "z"]) {
+    if (Object.hasOwn(value, axis)) vector[axis] = assertFinite(value[axis], `${label}.${axis}`);
+  }
+}
+
+function assertPermutation(order) {
+  if (!Array.isArray(order) || order.length !== BURGER_LAYER_IDS.length) {
+    throw new TypeError("layerOrder must contain all seven burger layers");
+  }
+  if (new Set(order).size !== order.length || order.some((id) => !BURGER_LAYER_IDS.includes(id))) {
+    throw new TypeError("layerOrder must be an exact burger layer permutation");
+  }
+}
+
+function createReadonlyMapView(source) {
+  const view = {
+    get size() {
+      return source.size;
+    },
+    get(key) {
+      return source.get(key);
+    },
+    has(key) {
+      return source.has(key);
+    },
+    keys() {
+      return source.keys();
+    },
+    values() {
+      return source.values();
+    },
+    entries() {
+      return source.entries();
+    },
+    forEach(callback, thisArg) {
+      source.forEach((value, key) => callback.call(thisArg, value, key, view));
+    },
+    [Symbol.iterator]() {
+      return source[Symbol.iterator]();
+    },
+  };
+  return Object.freeze(view);
+}
+
+function validateStroke(stroke) {
+  if (!stroke || typeof stroke !== "object" || Array.isArray(stroke)) {
+    throw new TypeError("Sauce stroke must be an object");
+  }
+  if (!SAUCE_KEYS.includes(stroke.sauce)) {
+    throw new TypeError(`Unknown sauce: ${String(stroke.sauce)}`);
+  }
+  assertLayerId(stroke.layerId);
+  const amount = assertFinite(stroke.amount, "stroke.amount");
+  if (amount < 0.01 || amount > 1) {
+    throw new TypeError("stroke.amount must be between 0.01 and 1");
+  }
+  if (!Array.isArray(stroke.points) || stroke.points.length < 2 || stroke.points.length > MAX_POINTS) {
+    throw new TypeError(`stroke.points must contain 2 to ${MAX_POINTS} points`);
+  }
+  const points = stroke.points.map((point, pointIndex) => {
+    if (!Array.isArray(point) || point.length !== 2) {
+      throw new TypeError(`stroke.points[${pointIndex}] must be an [x, z] pair`);
+    }
+    const x = assertFinite(point[0], `stroke.points[${pointIndex}][0]`);
+    const z = assertFinite(point[1], `stroke.points[${pointIndex}][1]`);
+    if (x < -1 || x > 1 || z < -1 || z > 1) {
+      throw new TypeError("Sauce point coordinates must be between -1 and 1");
+    }
+    return Object.freeze([x, z]);
+  });
+  return Object.freeze({
+    sauce: stroke.sauce,
+    layerId: stroke.layerId,
+    amount,
+    points: Object.freeze(points),
+  });
+}
+
+function createCheeseGeometry(THREE) {
+  const perimeter = [
+    [-0.96, -0.83, true], [-0.32, -1.03, false], [0.32, -1.03, false],
+    [0.96, -0.83, true], [1.04, -0.28, false], [1.01, 0.3, false],
+    [0.84, 0.96, true], [0.28, 1.02, false], [-0.3, 1.02, false],
+    [-0.88, 0.93, true], [-1.04, 0.3, false], [-1.03, -0.28, false],
+  ];
+  const positions = [];
+  for (const [x, z, corner] of perimeter) positions.push(x, corner ? -0.08 : 0.09, z);
+  for (const [x, z, corner] of perimeter) positions.push(x, corner ? -0.3 : -0.09, z);
+  positions.push(0, 0.09, 0, 0, -0.09, 0);
+  const topCenter = perimeter.length * 2;
+  const bottomCenter = topCenter + 1;
+  const indices = [];
+  for (let index = 0; index < perimeter.length; index += 1) {
+    const next = (index + 1) % perimeter.length;
+    const bottom = index + perimeter.length;
+    const nextBottom = next + perimeter.length;
+    indices.push(topCenter, next, index);
+    indices.push(bottomCenter, bottom, nextBottom);
+    indices.push(index, next, nextBottom, index, nextBottom, bottom);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function createLettuceGeometry(THREE) {
+  const segments = 30;
+  const positions = [];
+  const indices = [];
+  for (let index = 0; index < segments; index += 1) {
+    const angle = (index / segments) * Math.PI * 2;
+    const outerRadius = 1.16 + 0.12 * Math.sin(index * 2.65) + 0.05 * Math.cos(index * 4.1);
+    const innerRadius = 0.34 + 0.035 * Math.cos(index * 1.9);
+    const wave = 0.035 * Math.sin(index * 2.4);
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    positions.push(outerRadius * cos, 0.07 + wave, outerRadius * sin);
+    positions.push(innerRadius * cos, 0.055 - wave * 0.3, innerRadius * sin);
+    positions.push(outerRadius * cos, -0.07 + wave, outerRadius * sin);
+    positions.push(innerRadius * cos, -0.055 - wave * 0.3, innerRadius * sin);
+  }
+  for (let index = 0; index < segments; index += 1) {
+    const next = (index + 1) % segments;
+    const topOuter = index * 4;
+    const topInner = topOuter + 1;
+    const bottomOuter = topOuter + 2;
+    const bottomInner = topOuter + 3;
+    const nextTopOuter = next * 4;
+    const nextTopInner = nextTopOuter + 1;
+    const nextBottomOuter = nextTopOuter + 2;
+    const nextBottomInner = nextTopOuter + 3;
+    indices.push(topOuter, nextTopOuter, nextTopInner, topOuter, nextTopInner, topInner);
+    indices.push(bottomOuter, bottomInner, nextBottomInner, bottomOuter, nextBottomInner, nextBottomOuter);
+    indices.push(topOuter, bottomOuter, nextBottomOuter, topOuter, nextBottomOuter, nextTopOuter);
+    indices.push(topInner, nextTopInner, nextBottomInner, topInner, nextBottomInner, bottomInner);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function displaceCylinder(geometry, amplitude, frequency, phase = 0) {
+  const positions = geometry.attributes.position;
+  for (let index = 0; index < positions.count; index += 1) {
+    const x = positions.getX(index);
+    const z = positions.getZ(index);
+    const radius = Math.hypot(x, z);
+    if (radius < 0.05) continue;
+    const angle = Math.atan2(z, x);
+    const scale = 1 + amplitude * Math.sin(angle * frequency + phase)
+      + amplitude * 0.45 * Math.cos(angle * (frequency + 3) - phase);
+    positions.setX(index, x * scale);
+    positions.setZ(index, z * scale);
+  }
+  positions.needsUpdate = true;
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+function createBunGeometry(THREE, top) {
+  const points = top
+    ? [
+      new THREE.Vector2(0, -0.23),
+      new THREE.Vector2(0.7, -0.23),
+      new THREE.Vector2(1.12, -0.14),
+      new THREE.Vector2(1.23, 0.08),
+      new THREE.Vector2(1.15, 0.38),
+      new THREE.Vector2(0.91, 0.67),
+      new THREE.Vector2(0.55, 0.86),
+      new THREE.Vector2(0, 0.93),
+    ]
+    : [
+      new THREE.Vector2(0, -0.2),
+      new THREE.Vector2(0.78, -0.2),
+      new THREE.Vector2(1.14, -0.14),
+      new THREE.Vector2(1.22, 0.05),
+      new THREE.Vector2(1.13, 0.24),
+      new THREE.Vector2(0.76, 0.34),
+      new THREE.Vector2(0, 0.36),
+    ];
+  return new THREE.LatheGeometry(points, 24);
+}
+
+function makeMaterial(THREE, options) {
+  return new THREE.MeshPhysicalMaterial({
+    metalness: 0,
+    clearcoat: 0.04,
+    clearcoatRoughness: 0.72,
+    flatShading: true,
+    ...options,
+  });
+}
+
+function createSesameDecoration(THREE, material) {
+  const geometry = new THREE.CapsuleGeometry(0.035, 0.1, 2, 5);
+  const seeds = new THREE.InstancedMesh(geometry, material, 9);
+  seeds.name = "top-bun-sesame";
+  seeds.userData.foodDecoration = Object.freeze({ kind: "sesame", food: FOOD_ID });
+  seeds.raycast = NO_RAYCAST;
+  const dummy = new THREE.Object3D();
+  const placements = [
+    [-0.47, 0.82, -0.16, -0.35], [0, 0.91, -0.2, 0.15], [0.48, 0.81, -0.12, 0.45],
+    [-0.7, 0.67, 0.2, 0.4], [-0.25, 0.86, 0.25, -0.2], [0.3, 0.84, 0.28, 0.25],
+    [0.68, 0.66, 0.22, -0.5], [-0.38, 0.7, -0.48, 0.55], [0.38, 0.69, -0.46, -0.35],
+  ];
+  placements.forEach(([x, y, z, yaw], index) => {
+    dummy.position.set(x, y, z);
+    dummy.rotation.set(Math.PI / 2.5, yaw, 0.18 * Math.sin(index));
+    dummy.scale.setScalar(1);
+    dummy.updateMatrix();
+    seeds.setMatrixAt(index, dummy.matrix);
+  });
+  seeds.instanceMatrix.needsUpdate = true;
+  return seeds;
+}
+
+function buildLayerDefinitions(THREE) {
+  const bunMaterial = makeMaterial(THREE, {
+    color: 0xd98a36,
+    roughness: 0.62,
+  });
+  const pattyMaterial = makeMaterial(THREE, {
+    color: 0x63321f,
+    roughness: 0.92,
+  });
+  const cheeseMaterial = makeMaterial(THREE, {
+    color: 0xf3bd2f,
+    roughness: 0.52,
+  });
+  const tomatoMaterial = makeMaterial(THREE, {
+    color: 0xd8422f,
+    roughness: 0.6,
+    clearcoat: 0.12,
+  });
+  const lettuceMaterial = makeMaterial(THREE, {
+    color: 0x62a83d,
+    roughness: 0.78,
+  });
+  const pickleMaterial = makeMaterial(THREE, {
+    color: 0x769d35,
+    roughness: 0.66,
+    clearcoat: 0.08,
+  });
+  const sesameMaterial = makeMaterial(THREE, {
+    color: 0xf3d38a,
+    roughness: 0.74,
+  });
+  const bottomBun = createBunGeometry(THREE, false);
+  const patty = displaceCylinder(new THREE.CylinderGeometry(1.15, 1.18, 0.34, 26, 2), 0.035, 7, 0.4);
+  const cheese = createCheeseGeometry(THREE);
+  const tomato = displaceCylinder(new THREE.CylinderGeometry(1.02, 1.04, 0.2, 24, 1), 0.012, 6, 0.9);
+  const lettuce = createLettuceGeometry(THREE);
+  const pickle = displaceCylinder(new THREE.CylinderGeometry(0.84, 0.86, 0.18, 22, 1), 0.018, 5, 1.2);
+  const topBun = createBunGeometry(THREE, true);
+  return {
+    definitions: [
+      { id: "bottom-bun", geometry: bottomBun, material: bunMaterial },
+      { id: "patty", geometry: patty, material: pattyMaterial },
+      { id: "cheese", geometry: cheese, material: cheeseMaterial },
+      { id: "tomato", geometry: tomato, material: tomatoMaterial },
+      { id: "lettuce", geometry: lettuce, material: lettuceMaterial },
+      { id: "pickle", geometry: pickle, material: pickleMaterial },
+      { id: "top-bun", geometry: topBun, material: bunMaterial },
+    ],
+    sesameMaterial,
+  };
+}
+
+function detachStroke(stroke) {
+  return {
+    sauce: stroke.sauce,
+    layerId: stroke.layerId,
+    amount: stroke.amount,
+    points: stroke.points.map((point) => [...point]),
+  };
+}
+
+export function createBurgerModel3D(THREE, options = {}) {
+  if (!THREE?.Group || !THREE?.Mesh || !THREE?.BufferGeometry) {
+    throw new TypeError("A compatible Three.js namespace is required");
+  }
+  if (!options || typeof options !== "object" || Array.isArray(options)) {
+    throw new TypeError("options must be an object");
+  }
+
+  const root = new THREE.Group();
+  root.name = "food:burger";
+  root.userData.foodModel = Object.freeze({ food: FOOD_ID, version: 1 });
+  root.userData.biteAmount = 0;
+
+  const { definitions, sesameMaterial } = buildLayerDefinitions(THREE);
+  const layers = new Map();
+  const surfacesById = new Map();
+  const ownedGeometries = new Set();
+  const ownedMaterials = new Set();
+  const biteSources = new Map();
+
+  for (const definition of definitions) {
+    const group = new THREE.Group();
+    group.name = `food-layer:${definition.id}`;
+    group.userData.foodLayer = Object.freeze({ food: FOOD_ID, layerId: definition.id });
+    const surface = new THREE.Mesh(definition.geometry, definition.material);
+    surface.name = `food-layer:${definition.id}:surface`;
+    surface.castShadow = true;
+    surface.receiveShadow = true;
+    surface.userData.cookingSelectable = Object.freeze({
+      kind: "food-layer",
+      food: FOOD_ID,
+      layerId: definition.id,
+    });
+    definition.geometry.computeBoundingBox();
+    definition.geometry.computeBoundingSphere();
+    const bounds = definition.geometry.boundingBox;
+    group.userData.halfHeight = (bounds.max.y - bounds.min.y) / 2;
+    group.userData.surfaceY = bounds.max.y + 0.025;
+    group.userData.surfaceRadius = Math.max(
+      Math.abs(bounds.min.x), Math.abs(bounds.max.x),
+      Math.abs(bounds.min.z), Math.abs(bounds.max.z),
+    );
+    group.userData.selectableSurface = surface;
+    group.add(surface);
+    root.add(group);
+    layers.set(definition.id, group);
+    surfacesById.set(definition.id, surface);
+    ownedGeometries.add(definition.geometry);
+    ownedMaterials.add(definition.material);
+    biteSources.set(definition.geometry, Float32Array.from(definition.geometry.attributes.position.array));
+  }
+
+  const sesame = createSesameDecoration(THREE, sesameMaterial);
+  layers.get("top-bun").add(sesame);
+  ownedGeometries.add(sesame.geometry);
+  ownedMaterials.add(sesameMaterial);
+
+  const sauceMaterials = new Map(SAUCE_KEYS.map((sauce) => {
+    const material = makeMaterial(THREE, {
+      color: SAUCE_COLORS[sauce],
+      roughness: sauce === "sticky" ? 0.38 : 0.46,
+      clearcoat: sauce === "sticky" ? 0.3 : 0.2,
+    });
+    ownedMaterials.add(material);
+    return [sauce, material];
+  }));
+
+  let order = [...BURGER_LAYER_IDS];
+  let expanded = false;
+  let disposed = false;
+  const sauceEntries = [];
+
+  const applyStackHeights = ({ snapHorizontal = false, snapRotation = false } = {}) => {
+    let cursorY = 0;
+    order.forEach((id, index) => {
+      const layer = layers.get(id);
+      const halfHeight = layer.userData.halfHeight;
+      const y = cursorY + halfHeight + (expanded ? index * EXPANDED_GAP : 0);
+      layer.position.y = y;
+      layer.userData.stackY = y;
+      if (snapHorizontal) {
+        layer.position.x = 0;
+        layer.position.z = 0;
+      }
+      if (snapRotation) layer.rotation.set(0, 0, 0);
+      cursorY += halfHeight * 2 - COLLAPSED_OVERLAP;
+    });
+  };
+  applyStackHeights({ snapHorizontal: true, snapRotation: true });
+
+  const getLayer = (layerId) => {
+    assertActive(disposed);
+    assertLayerId(layerId);
+    return layers.get(layerId);
+  };
+
+  const disposeSauceEntry = (entry) => {
+    entry.mesh.removeFromParent();
+    entry.mesh.geometry.dispose();
+  };
+
+  const clearSauces = () => {
+    assertActive(disposed);
+    while (sauceEntries.length) disposeSauceEntry(sauceEntries.pop());
+  };
+
+  const addSauceStroke = (stroke) => {
+    assertActive(disposed);
+    const normalized = validateStroke(stroke);
+    const layer = layers.get(normalized.layerId);
+    const radius = layer.userData.surfaceRadius * 0.86;
+    const surfaceY = layer.userData.surfaceY;
+    const pathPoints = normalized.points.map(([x, z]) => (
+      new THREE.Vector3(x * radius, surfaceY, z * radius)
+    ));
+    const curve = new THREE.CatmullRomCurve3(pathPoints, false, "centripetal");
+    const tubularSegments = Math.min(32, Math.max(8, (pathPoints.length - 1) * 3));
+    const tubeRadius = 0.025 + normalized.amount * 0.035;
+    const geometry = new THREE.TubeGeometry(curve, tubularSegments, tubeRadius, 5, false);
+    const mesh = new THREE.Mesh(geometry, sauceMaterials.get(normalized.sauce));
+    mesh.name = `sauce:${normalized.sauce}:${normalized.layerId}:${sauceEntries.length}`;
+    mesh.castShadow = true;
+    mesh.raycast = NO_RAYCAST;
+    mesh.userData.sauceStroke = Object.freeze({
+      sauce: normalized.sauce,
+      layerId: normalized.layerId,
+      amount: normalized.amount,
+    });
+    layer.add(mesh);
+    sauceEntries.push({ mesh, stroke: normalized });
+    if (sauceEntries.length > MAX_STROKES) disposeSauceEntry(sauceEntries.shift());
+    return mesh;
+  };
+
+  const setLayerPose = (layerId, pose = {}) => {
+    assertActive(disposed);
+    const layer = getLayer(layerId);
+    if (!pose || typeof pose !== "object" || Array.isArray(pose)) {
+      throw new TypeError("pose must be an object");
+    }
+    const nextPosition = layer.position.clone();
+    const nextRotation = layer.rotation.clone();
+    setOptionalVector(nextPosition, pose.position, "pose.position");
+    setOptionalVector(nextRotation, pose.rotation, "pose.rotation");
+    if (Object.hasOwn(pose, "x")) nextPosition.x = assertFinite(pose.x, "pose.x");
+    if (Object.hasOwn(pose, "z")) nextPosition.z = assertFinite(pose.z, "pose.z");
+    if (Object.hasOwn(pose, "yaw")) nextRotation.y = assertFinite(pose.yaw, "pose.yaw");
+    layer.position.copy(nextPosition);
+    layer.rotation.copy(nextRotation);
+    return layer;
+  };
+
+  const reorderLayer = (layerId, targetIndex) => {
+    assertActive(disposed);
+    assertLayerId(layerId);
+    if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= order.length) {
+      throw new TypeError(`targetIndex must be an integer from 0 to ${order.length - 1}`);
+    }
+    const sourceIndex = order.indexOf(layerId);
+    order.splice(sourceIndex, 1);
+    order.splice(targetIndex, 0, layerId);
+    applyStackHeights();
+    return Object.freeze([...order]);
+  };
+
+  const snapLayer = (layerId, targetIndex) => {
+    assertActive(disposed);
+    if (targetIndex !== undefined) reorderLayer(layerId, targetIndex);
+    const layer = getLayer(layerId);
+    layer.position.set(0, layer.userData.stackY, 0);
+    layer.rotation.set(0, 0, 0);
+    return layer;
+  };
+
+  const getSnapshot = () => {
+    assertActive(disposed);
+    return {
+      food: FOOD_ID,
+      expanded,
+      layerOrder: [...order],
+      layerPoses: Object.fromEntries(BURGER_LAYER_IDS.map((id) => {
+        const layer = layers.get(id);
+        return [id, {
+          x: layer.position.x,
+          z: layer.position.z,
+          yaw: layer.rotation.y,
+        }];
+      })),
+      layerTransforms: Object.fromEntries(BURGER_LAYER_IDS.map((id) => {
+        const layer = layers.get(id);
+        return [id, {
+          position: { x: layer.position.x, y: layer.position.y, z: layer.position.z },
+          rotation: { x: layer.rotation.x, y: layer.rotation.y, z: layer.rotation.z },
+        }];
+      })),
+      strokes: sauceEntries.map(({ stroke }) => detachStroke(stroke)),
+      biteAmount: root.userData.biteAmount,
+    };
+  };
+
+  const applyComposition = (composition) => {
+    assertActive(disposed);
+    if (!composition || typeof composition !== "object" || Array.isArray(composition)) {
+      throw new TypeError("composition must be an object");
+    }
+    if (composition.food !== FOOD_ID) throw new TypeError("composition.food must be burger");
+    assertPermutation(composition.layerOrder);
+    if (!composition.layerPoses || typeof composition.layerPoses !== "object"
+      || Array.isArray(composition.layerPoses)) {
+      throw new TypeError("composition.layerPoses must be an object");
+    }
+    const poseKeys = Object.keys(composition.layerPoses);
+    if (poseKeys.length !== BURGER_LAYER_IDS.length
+      || poseKeys.some((id) => !BURGER_LAYER_IDS.includes(id))) {
+      throw new TypeError("composition.layerPoses must contain every burger layer exactly once");
+    }
+    if (!Array.isArray(composition.strokes) || composition.strokes.length > MAX_STROKES) {
+      throw new TypeError(`composition.strokes must contain at most ${MAX_STROKES} strokes`);
+    }
+    const validatedPoses = Object.fromEntries(BURGER_LAYER_IDS.map((id) => {
+      const pose = composition.layerPoses[id];
+      if (!pose || typeof pose !== "object" || Array.isArray(pose)) {
+        throw new TypeError(`composition.layerPoses.${id} must be an object`);
+      }
+      return [id, {
+        x: assertFinite(pose.x, `composition.layerPoses.${id}.x`),
+        z: assertFinite(pose.z, `composition.layerPoses.${id}.z`),
+        yaw: assertFinite(pose.yaw, `composition.layerPoses.${id}.yaw`),
+      }];
+    }));
+    const validatedStrokes = composition.strokes.map(validateStroke);
+
+    order = [...composition.layerOrder];
+    applyStackHeights();
+    for (const id of BURGER_LAYER_IDS) setLayerPose(id, validatedPoses[id]);
+    clearSauces();
+    for (const stroke of validatedStrokes) addSauceStroke(stroke);
+    return getSnapshot();
+  };
+
+  const setBiteAmount = (amount) => {
+    assertActive(disposed);
+    const normalizedAmount = assertFinite(amount, "biteAmount");
+    if (normalizedAmount < 0 || normalizedAmount > 1) {
+      throw new TypeError("biteAmount must be between 0 and 1");
+    }
+    for (const surface of surfacesById.values()) {
+      const geometry = surface.geometry;
+      const source = biteSources.get(geometry);
+      const position = geometry.attributes.position;
+      let maxRadius = 0;
+      for (let index = 0; index < source.length; index += 3) {
+        maxRadius = Math.max(maxRadius, Math.abs(source[index]));
+      }
+      const threshold = maxRadius * 0.12;
+      for (let index = 0; index < position.count; index += 1) {
+        const offset = index * 3;
+        const sourceX = source[offset];
+        const sourceY = source[offset + 1];
+        const sourceZ = source[offset + 2];
+        let nextX = sourceX;
+        if (sourceX > threshold) {
+          const ripple = 0.52 + 0.18 * Math.sin(sourceY * 11 + sourceZ * 6);
+          nextX = sourceX - normalizedAmount * (sourceX - threshold) * ripple;
+        }
+        position.setXYZ(index, nextX, sourceY, sourceZ);
+      }
+      position.needsUpdate = true;
+      geometry.computeVertexNormals();
+      geometry.computeBoundingBox();
+      geometry.computeBoundingSphere();
+    }
+    root.userData.biteAmount = normalizedAmount;
+  };
+
+  const selectableSurfaces = Object.freeze(BURGER_LAYER_IDS.map((id) => surfacesById.get(id)));
+  const readonlyLayers = createReadonlyMapView(layers);
+  const api = {
+    root,
+    layers: readonlyLayers,
+    selectableSurfaces,
+    noRaycast: NO_RAYCAST,
+    getLayer,
+    getLayerOrder() {
+      assertActive(disposed);
+      return Object.freeze([...order]);
+    },
+    setExpanded(value) {
+      assertActive(disposed);
+      expanded = Boolean(value);
+      applyStackHeights();
+      root.userData.expanded = expanded;
+      return expanded;
+    },
+    setLayerPose,
+    reorderLayer,
+    snapLayer,
+    applyComposition,
+    addSauceStroke,
+    clearSauces,
+    setBiteAmount,
+    getSnapshot,
+    serializeComposition() {
+      const snapshot = getSnapshot();
+      return {
+        food: snapshot.food,
+        layerOrder: snapshot.layerOrder,
+        layerPoses: snapshot.layerPoses,
+        strokes: snapshot.strokes,
+      };
+    },
+    dispose() {
+      if (disposed) return;
+      while (sauceEntries.length) disposeSauceEntry(sauceEntries.pop());
+      disposed = true;
+      root.removeFromParent();
+      for (const geometry of ownedGeometries) geometry.dispose();
+      for (const material of ownedMaterials) material.dispose();
+      ownedGeometries.clear();
+      ownedMaterials.clear();
+      layers.clear();
+      surfacesById.clear();
+      biteSources.clear();
+    },
+  };
+  return api;
+}
