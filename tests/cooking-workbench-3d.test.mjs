@@ -103,6 +103,72 @@ test("keeps maximum custom station counts physically separated", () => {
   workbench.dispose();
 });
 
+test("raycasting adjacent bins returns selectable solids and never decorative meshes", () => {
+  const workbench = createCookingWorkbench3D(THREE, {
+    ingredientIds: Array.from({ length: 12 }, (_, index) => `ingredient-${index}`),
+    toolIds: [],
+  });
+  workbench.root.updateMatrixWorld(true);
+  const first = workbench.getStation("ingredient", "ingredient-5");
+  const second = workbench.getStation("ingredient", "ingredient-7");
+  const boundaryZ = (first.bin.position.z + second.bin.position.z) / 2;
+  const raycaster = new THREE.Raycaster(
+    new THREE.Vector3(first.bin.position.x, 5, boundaryZ),
+    new THREE.Vector3(0, -1, 0),
+  );
+
+  assert.ok(Object.isFrozen(workbench.selectableSurfaces));
+  assert.equal(
+    workbench.selectableSurfaces.length,
+    1 + workbench.ingredientSlots.length + workbench.toolDocks.length,
+  );
+  assert.ok(workbench.selectableSurfaces.includes(workbench.prep.surface));
+  assert.ok(workbench.selectableSurfaces.includes(first.surface));
+  assert.ok(Object.isFrozen(first.surface.userData.cookingSelectable));
+  assert.deepEqual(first.surface.userData.cookingSelectable, {
+    kind: "ingredient",
+    id: "ingredient-5",
+    index: 5,
+  });
+
+  assert.deepEqual(raycaster.intersectObject(workbench.root, true), []);
+  workbench.setHighlighted("ingredient", first.id, true);
+  workbench.setHighlighted("ingredient", second.id, true);
+  assert.deepEqual(raycaster.intersectObject(workbench.root, true), []);
+
+  raycaster.ray.origin.set(first.bin.position.x, 5, first.bin.position.z);
+  const directHits = raycaster.intersectObjects(workbench.selectableSurfaces, false);
+  assert.deepEqual([...new Set(directHits.map(({ object }) => object))], [first.surface]);
+  const rootHits = raycaster.intersectObject(workbench.root, true);
+  assert.deepEqual([...new Set(rootHits.map(({ object }) => object))], [first.surface]);
+
+  workbench.dispose();
+});
+
+test("layout bounds and half extents describe selectable solids, not decoration", () => {
+  const workbench = createCookingWorkbench3D(THREE);
+  workbench.root.updateMatrixWorld(true);
+  const layout = workbench.getLayout();
+  const cases = [
+    [layout.prep, workbench.prep.surface],
+    ...layout.ingredients.map((entry) => [entry, workbench.getStation("ingredient", entry.id).surface]),
+    ...layout.tools.map((entry) => [entry, workbench.getStation("tool", entry.id).surface]),
+  ];
+  const closeTo = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-6);
+
+  for (const [entry, selectableSurface] of cases) {
+    const solid = new THREE.Box3().setFromObject(selectableSurface);
+    closeTo(entry.bounds.minX, solid.min.x);
+    closeTo(entry.bounds.maxX, solid.max.x);
+    closeTo(entry.bounds.minZ, solid.min.z);
+    closeTo(entry.bounds.maxZ, solid.max.z);
+    closeTo(entry.halfExtent.x, (solid.max.x - solid.min.x) / 2);
+    closeTo(entry.halfExtent.z, (solid.max.z - solid.min.z) / 2);
+  }
+
+  workbench.dispose();
+});
+
 test("provides a camera view that contains the whole workbench on a narrow phone", () => {
   const workbench = createCookingWorkbench3D(THREE);
   const { bounds, camera: view } = workbench.getLayout();

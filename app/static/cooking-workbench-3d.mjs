@@ -19,7 +19,11 @@ function normalizeIds(value, label, { minimum, maximum }) {
   return normalized;
 }
 
-const PREP_BOUNDS = Object.freeze({ minX: -2.65, maxX: 2.65, minZ: -1.75, maxZ: 1.75 });
+const NO_RAYCAST = () => {};
+const PREP_HALF_EXTENT = Object.freeze({ x: 2.55, z: 1.65 });
+const INGREDIENT_HALF_EXTENT = Object.freeze({ x: 0.59, z: 0.59 });
+const TOOL_HALF_EXTENT = Object.freeze({ x: 0.52, z: 0.52 });
+const PREP_BOUNDS = Object.freeze({ minX: -2.55, maxX: 2.55, minZ: -1.65, maxZ: 1.65 });
 const WORKSPACE_BOUNDS = Object.freeze({ minX: -5.3, maxX: 5.3, minZ: -4.9, maxZ: 4.9 });
 const PORTRAIT_CAMERA_VIEW = Object.freeze({
   fov: 44,
@@ -90,6 +94,7 @@ function createIngredientStation(THREE, resources, id, index, position) {
   group.userData.cookingStation = Object.freeze({ kind: "ingredient", id, index });
 
   const shadow = new THREE.Mesh(resources.shadowGeometry, resources.shadowMaterial);
+  shadow.raycast = NO_RAYCAST;
   shadow.rotation.x = -Math.PI / 2;
   shadow.position.y = 0.008;
   const surface = new THREE.Mesh(
@@ -103,6 +108,7 @@ function createIngredientStation(THREE, resources, id, index, position) {
   );
   surface.name = `ingredient:${id}:surface`;
   surface.position.y = 0.16;
+  surface.userData.cookingSelectable = Object.freeze({ kind: "ingredient", id, index });
   const rimOffsets = [
     [resources.binRimHorizontalGeometry, 0, 0.3, -0.61],
     [resources.binRimHorizontalGeometry, 0, 0.3, 0.61],
@@ -111,11 +117,13 @@ function createIngredientStation(THREE, resources, id, index, position) {
   ];
   const rims = rimOffsets.map(([geometry, x, y, z]) => {
     const rim = new THREE.Mesh(geometry, resources.binRimMaterial);
+    rim.raycast = NO_RAYCAST;
     rim.position.set(x, y, z);
     return rim;
   });
   const highlight = new THREE.Mesh(resources.binHighlightGeometry, resources.highlightMaterial);
   highlight.name = `ingredient:${id}:highlight`;
+  highlight.raycast = NO_RAYCAST;
   highlight.rotation.x = -Math.PI / 2;
   highlight.position.y = 0.43;
   highlight.visible = false;
@@ -145,16 +153,20 @@ function createToolStation(THREE, resources, id, index, position) {
   group.userData.cookingStation = Object.freeze({ kind: "tool", id, index });
 
   const shadow = new THREE.Mesh(resources.toolShadowGeometry, resources.shadowMaterial);
+  shadow.raycast = NO_RAYCAST;
   shadow.rotation.x = -Math.PI / 2;
   shadow.position.y = 0.008;
   const surface = new THREE.Mesh(resources.toolBaseGeometry, resources.toolBaseMaterial);
   surface.name = `tool:${id}:surface`;
   surface.position.y = 0.1;
+  surface.userData.cookingSelectable = Object.freeze({ kind: "tool", id, index });
   const rim = new THREE.Mesh(resources.toolRimGeometry, resources.toolRimMaterial);
+  rim.raycast = NO_RAYCAST;
   rim.rotation.x = Math.PI / 2;
   rim.position.y = 0.22;
   const highlight = new THREE.Mesh(resources.toolHighlightGeometry, resources.highlightMaterial);
   highlight.name = `tool:${id}:highlight`;
+  highlight.raycast = NO_RAYCAST;
   highlight.rotation.x = -Math.PI / 2;
   highlight.position.y = 0.32;
   highlight.visible = false;
@@ -199,6 +211,7 @@ export function createCookingWorkbench3D(THREE, {
   });
   const counter = new THREE.Mesh(counterGeometry, counterMaterial);
   counter.name = "workbench-counter";
+  counter.raycast = NO_RAYCAST;
   counter.position.y = -0.3;
   root.add(counter);
 
@@ -211,6 +224,7 @@ export function createCookingWorkbench3D(THREE, {
     }),
   );
   backRail.name = "workbench-back-rail";
+  backRail.raycast = NO_RAYCAST;
   backRail.position.set(0, 0.02, -4.55);
   root.add(backRail);
 
@@ -221,6 +235,7 @@ export function createCookingWorkbench3D(THREE, {
     new THREE.MeshStandardMaterial({ color: 0x8b4a2d, roughness: 0.78, flatShading: true }),
   );
   boardBase.name = "prep-board-base";
+  boardBase.raycast = NO_RAYCAST;
   boardBase.position.y = -0.01;
   const board = new THREE.Mesh(
     new THREE.BoxGeometry(5.1, 0.18, 3.3),
@@ -233,6 +248,7 @@ export function createCookingWorkbench3D(THREE, {
   );
   board.name = "prep-board";
   board.position.y = 0.08;
+  board.userData.cookingSelectable = Object.freeze({ kind: "prep", id: "prep", index: 0 });
   const plate = new THREE.Mesh(
     new THREE.CylinderGeometry(1.62, 1.72, 0.16, 28),
     new THREE.MeshStandardMaterial({
@@ -243,6 +259,7 @@ export function createCookingWorkbench3D(THREE, {
     }),
   );
   plate.name = "prep-plate";
+  plate.raycast = NO_RAYCAST;
   plate.position.y = 0.24;
   const prepDropAnchor = new THREE.Object3D();
   prepDropAnchor.name = "prep-drop-anchor";
@@ -323,24 +340,36 @@ export function createCookingWorkbench3D(THREE, {
   const stations = new Map();
   for (const slot of ingredientSlots) stations.set(`ingredient\0${slot.id}`, slot);
   for (const slot of toolDocks) stations.set(`tool\0${slot.id}`, slot);
+  const selectableSurfaces = Object.freeze([
+    board,
+    ...ingredientSlots.map(({ surface }) => surface),
+    ...toolDocks.map(({ surface }) => surface),
+  ]);
   const layout = Object.freeze({
     bounds: WORKSPACE_BOUNDS,
     camera: PORTRAIT_CAMERA_VIEW,
     prep: Object.freeze({
       position: freezePosition(prepAnchor.position),
       bounds: PREP_BOUNDS,
+      halfExtent: PREP_HALF_EXTENT,
     }),
     ingredients: Object.freeze(ingredientSlots.map((slot) => Object.freeze({
       kind: "ingredient",
       id: slot.id,
       position: freezePosition(slot.bin.position),
-      bounds: freezeBounds(slot.bin.position, 0.68, 0.68),
+      bounds: freezeBounds(
+        slot.bin.position,
+        INGREDIENT_HALF_EXTENT.x,
+        INGREDIENT_HALF_EXTENT.z,
+      ),
+      halfExtent: INGREDIENT_HALF_EXTENT,
     }))),
     tools: Object.freeze(toolDocks.map((slot) => Object.freeze({
       kind: "tool",
       id: slot.id,
       position: freezePosition(slot.dock.position),
-      bounds: freezeBounds(slot.dock.position, 0.62, 0.62),
+      bounds: freezeBounds(slot.dock.position, TOOL_HALF_EXTENT.x, TOOL_HALF_EXTENT.z),
+      halfExtent: TOOL_HALF_EXTENT,
     }))),
   });
 
@@ -372,6 +401,7 @@ export function createCookingWorkbench3D(THREE, {
     },
     ingredientSlots,
     toolDocks,
+    selectableSurfaces,
     getStation(kind, id) {
       return stations.get(`${kind}\0${id}`) ?? null;
     },
