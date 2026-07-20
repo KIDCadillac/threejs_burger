@@ -4,7 +4,16 @@ import importlib.util
 import pytest
 
 from app.domain import Phase
+from app.recipe_data import (
+    BurgerComposition,
+    composition_for_sauces,
+    parse_composition,
+)
 from app.service import GameService, RoomError
+
+
+def composition(*sauces: str) -> BurgerComposition:
+    return composition_for_sauces(sauces)
 
 
 class FakeClock:
@@ -146,8 +155,8 @@ def started_room(
     service.join_room("p2", room.code)
     service.connect("p1")
     service.connect("p2")
-    service.lock_recipe("p1", 1, ("chili", "mustard"))
-    service.lock_recipe("p2", 7, ("sour", "sticky"))
+    service.lock_recipe("p1", 0, composition("chili", "mustard"))
+    service.lock_recipe("p2", 6, composition("sour", "sticky"))
     return service, room
 
 
@@ -157,6 +166,17 @@ def test_locking_both_recipes_starts_turn_deadline() -> None:
     _, room = started_room(clock=clock)
 
     assert room.turn_deadline == clock.now() + 20
+
+
+def test_lock_recipe_preserves_the_authoritative_composition_object() -> None:
+    service = GameService(clock=FakeClock())
+    room = service.create_room("p1")
+    service.join_room("p2", room.code)
+    authoritative = composition("sticky", "chili", "sticky")
+
+    service.lock_recipe("p1", 0, authoritative)
+
+    assert room.game.players["p1"].recipe.composition is authoritative
 
 
 def test_turn_timeout_uses_only_remaining_fries() -> None:
@@ -241,7 +261,7 @@ def test_pick_rearms_deadline_and_rematch_clears_it() -> None:
 
     assert room.turn_deadline == clock.now() + 20
     service.pick("p2", 4)
-    service.pick("p1", 7)
+    service.pick("p1", 6)
     assert room.turn_deadline is None
     service.request_rematch("p1")
     service.request_rematch("p2")
@@ -286,6 +306,10 @@ def test_practice_bot_policy_uses_only_supplied_public_options() -> None:
         "mustard",
     )
     assert policy.choose_gesture(("calm", "laugh")) == "laugh"
+    assert module.available_burger_positions(
+        (1, 6, 0),
+        ("burger", "fry", "donut", "cookie", "mochi", "fry", "burger"),
+    ) == (6, 0)
 
 
 def test_practice_bot_deploys_in_visible_stages() -> None:
@@ -306,14 +330,17 @@ def test_practice_bot_deploys_in_visible_stages() -> None:
 
     clock.advance(1)
     service.tick()
-    assert room.game.players[bot_id].recipe is not None
+    recipe = room.game.players[bot_id].recipe
+    assert recipe is not None
+    assert recipe.position in {0, 6}
+    assert parse_composition(recipe.composition.to_payload()) == recipe.composition
 
 
 def test_practice_bot_turn_aims_then_changes_then_confirms() -> None:
     clock = FakeClock()
     service = GameService(clock=clock, bot_policy=FixedBotPolicy())
     room = service.start_practice("p1")
-    service.lock_recipe("p1", 0, ("chili", "mustard"))
+    service.lock_recipe("p1", 0, composition("chili", "mustard"))
     for _ in range(3):
         clock.advance(1)
         service.tick()
@@ -338,9 +365,9 @@ def test_practice_rematch_restarts_after_human_vote() -> None:
     room = service.start_practice("p1")
     bot_id = room.bot_player_id
     assert bot_id is not None
-    service.lock_recipe("p1", 0, ("chili", "mustard"))
-    service.lock_recipe(bot_id, 1, ("sour", "sticky"))
-    service.pick("p1", 1)
+    service.lock_recipe("p1", 0, composition("chili", "mustard"))
+    service.lock_recipe(bot_id, 6, composition("sour", "sticky"))
+    service.pick("p1", 6)
 
     assert service.request_rematch("p1") is True
     assert room.game.phase is Phase.MIXING
@@ -349,7 +376,7 @@ def test_practice_rematch_restarts_after_human_vote() -> None:
 
 def test_human_room_still_requires_two_rematch_votes() -> None:
     service, room = started_room()
-    service.pick("p1", 7)
+    service.pick("p1", 6)
 
     assert service.request_rematch("p1") is False
     assert room.game.phase is Phase.FINISHED
@@ -380,8 +407,8 @@ def test_practice_disconnect_after_grace_removes_active_room() -> None:
     bot_id = room.bot_player_id
     assert bot_id is not None
     service.connect("p1")
-    service.lock_recipe("p1", 0, ("chili", "mustard"))
-    service.lock_recipe(bot_id, 1, ("sour", "sticky"))
+    service.lock_recipe("p1", 0, composition("chili", "mustard"))
+    service.lock_recipe(bot_id, 6, composition("sour", "sticky"))
     service.disconnect("p1")
     clock.advance(31)
 

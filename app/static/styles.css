@@ -299,6 +299,8 @@ h1 { margin: 0; font-size: clamp(2.2rem, 10vw, 3.25rem); line-height: 1; letter-
 .snack-space--aimed .snack-piece { transform: scale(1.14); filter: drop-shadow(0 0 11px var(--tomato)); }
 .snack-space--aimed::before { content: ""; position: absolute; inset: -0.05rem; border: 3px dashed var(--tomato); border-radius: 50%; animation: aimSpin 2.4s linear infinite; }
 .snack-space--biting { z-index: 5; animation: biteLift 0.52s cubic-bezier(.2,.8,.2,1) both; }
+.snack-space--future { opacity: .46; filter: grayscale(.35); }
+.snack-space--future small { position: absolute; left: 50%; bottom: -.35rem; width: 4.6rem; transform: translateX(-50%); color: #604c54; font-size: .54rem; font-weight: 800; line-height: 1.05; }
 .aim-pin { position: absolute; left: -0.2rem; top: -0.45rem; z-index: 3; font-size: 1.15rem; animation: pulse 0.7s ease-in-out infinite alternate; }
 .secret-pin { position: absolute; right: 0.15rem; top: -0.1rem; display: grid; width: 1.4rem; height: 1.4rem; place-items: center; border-radius: 50%; color: var(--ink); background: var(--purple); font-size: 0.7rem; box-shadow: 0 4px 12px rgba(59,30,104,0.35); animation: secretGlow 1.8s ease-in-out infinite; }
 
@@ -536,6 +538,20 @@ h1 { margin: 0; font-size: clamp(2.2rem, 10vw, 3.25rem); line-height: 1; letter-
 .snack-piece--art > i { display: none; }
 .snack-piece__image { display: block; width: 100%; height: 100%; object-fit: cover; transform: scale(1.04); }
 .snack-space--aimed .snack-piece__image { filter: saturate(1.12) brightness(1.05); }
+
+.snack--burger { width: 3rem; height: 2.75rem; filter: drop-shadow(0 6px 5px rgba(67,32,18,.28)); }
+.snack--burger.snack-piece--large { width: 7.4rem; height: 6.8rem; }
+.snack--burger .burger-layer { position: absolute; left: 8%; display: block; width: 84%; border: 0; box-shadow: inset 0 -2px 2px rgba(81,39,18,.18); transition: transform 220ms ease; }
+.snack--burger .burger-layer--top-bun { top: 4%; height: 25%; border-radius: 55% 55% 18% 18% / 80% 80% 22% 22%; background: radial-gradient(circle at 32% 33%, #fff1a6 0 2%, transparent 3%), radial-gradient(circle at 67% 26%, #fff1a6 0 2%, transparent 3%), #e9a547; }
+.snack--burger .burger-layer--pickle { top: 28%; left: 19%; width: 64%; height: 7%; border-radius: 50%; background: #80a943; }
+.snack--burger .burger-layer--lettuce { top: 35%; left: 5%; width: 90%; height: 9%; border-radius: 45% 55% 42% 58%; background: #72ad45; }
+.snack--burger .burger-layer--tomato { top: 44%; left: 12%; width: 76%; height: 8%; border-radius: 40%; background: #dc5542; }
+.snack--burger .burger-layer--cheese { top: 52%; left: 9%; width: 82%; height: 8%; background: #f3c94d; clip-path: polygon(0 0, 100% 0, 82% 100%, 52% 62%, 22% 100%); }
+.snack--burger .burger-layer--patty { top: 60%; left: 7%; width: 86%; height: 15%; border-radius: 38%; background: #74422e; }
+.snack--burger .burger-layer--bottom-bun { top: 74%; height: 21%; border-radius: 18% 18% 48% 48% / 20% 20% 70% 70%; background: #db9340; }
+.food-operation--open .snack--burger .burger-layer--top-bun { transform: translateY(-1.2rem) rotate(-4deg); }
+.food-operation--open .snack--burger .burger-layer--pickle { transform: translateY(-.65rem); }
+.food-operation--open .snack--burger .burger-layer--lettuce { transform: translateY(-.35rem); }
 
 .snack--fry { --food-image: url('/static/art/foods/fry.png'); }
 .snack--nugget { --food-image: url('/static/art/foods/nugget.png'); }

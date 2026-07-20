@@ -4,19 +4,20 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Iterable
 
+from app.recipe_data import BurgerComposition
+
 
 FRY_COUNT = 12
-SAUCES = frozenset({"chili", "mustard", "sour", "sticky"})
 GESTURES = frozenset({"sneak", "mix", "sealed", "calm", "laugh", "point", "hurry"})
 SNACK_LAYOUTS = (
     (
-        "fry",
+        "burger",
         "nugget",
         "donut",
         "cookie",
         "onion-ring",
         "mochi",
-        "donut",
+        "burger",
         "fry",
         "mochi",
         "nugget",
@@ -24,13 +25,13 @@ SNACK_LAYOUTS = (
         "onion-ring",
     ),
     (
-        "cookie",
+        "burger",
         "onion-ring",
         "fry",
         "mochi",
         "nugget",
         "donut",
-        "nugget",
+        "burger",
         "cookie",
         "donut",
         "onion-ring",
@@ -53,7 +54,11 @@ class RuleError(ValueError):
 @dataclass(frozen=True, slots=True)
 class Recipe:
     position: int
-    sauces: tuple[str, ...]
+    composition: BurgerComposition
+
+    @property
+    def sauces(self) -> tuple[str, ...]:
+        return tuple(stroke.sauce for stroke in self.composition.strokes)
 
 
 @dataclass(slots=True)
@@ -130,23 +135,23 @@ class GameState:
         )
 
     def lock_recipe(
-        self, player_id: str, position: int, sauces: Iterable[str]
+        self, player_id: str, position: int, composition: BurgerComposition
     ) -> None:
         if self.phase is not Phase.MIXING:
-            raise RuleError("当前不能调制薯条")
+            raise RuleError("当前不能调制食物")
         player = self._player(player_id)
         if player.recipe is not None:
             raise RuleError("你的配方已经封装")
-        if position not in range(FRY_COUNT):
-            raise RuleError("薯条位置无效")
+        if (
+            isinstance(position, bool)
+            or not isinstance(position, int)
+            or position not in range(FRY_COUNT)
+        ):
+            raise RuleError("食物位置无效")
+        if self.snacks[position] != "burger":
+            raise RuleError("首个 3D 版本请选择汉堡")
 
-        sauce_tuple = tuple(sauces)
-        if not 1 <= len(sauce_tuple) <= 4:
-            raise RuleError("必须选择 1 到 4 份调味料")
-        if any(sauce not in SAUCES for sauce in sauce_tuple):
-            raise RuleError("包含未知调味料")
-
-        player.recipe = Recipe(position=position, sauces=sauce_tuple)
+        player.recipe = Recipe(position=position, composition=composition)
         player.poison_active = True
 
         if all(candidate.recipe is not None for candidate in self.players.values()):

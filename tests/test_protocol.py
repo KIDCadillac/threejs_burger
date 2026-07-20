@@ -2,13 +2,18 @@ import json
 
 from app.domain import GameState
 from app.protocol import serialize_game, serialize_room
+from app.recipe_data import BurgerComposition, composition_for_sauces
 from app.service import GameService, Room
+
+
+def composition(*sauces: str) -> BurgerComposition:
+    return composition_for_sauces(sauces)
 
 
 def locked_game() -> GameState:
     game = GameState.create("ROOM01", ["p1", "p2"], first_player="p1")
-    game.lock_recipe("p1", 1, ("chili", "mustard"))
-    game.lock_recipe("p2", 7, ("sour", "sticky"))
+    game.lock_recipe("p1", 0, composition("chili", "mustard"))
+    game.lock_recipe("p2", 6, composition("sour", "sticky"))
     return game
 
 
@@ -20,8 +25,11 @@ def test_player_view_never_contains_opponent_recipe() -> None:
 
     assert "sour" not in encoded
     assert "sticky" not in encoded
-    assert p1_view["private"]["poisonPosition"] == 1
+    assert p1_view["private"]["poisonPosition"] == 0
     assert p1_view["private"]["sauces"] == ["chili", "mustard"]
+    assert p1_view["private"]["composition"] == composition(
+        "chili", "mustard"
+    ).to_payload()
 
 
 def test_safe_outcome_does_not_reveal_recipe() -> None:
@@ -57,22 +65,27 @@ def test_shared_snacks_and_public_interaction_never_reveal_opponent_recipe() -> 
 
 def test_hit_result_reveals_only_triggered_recipe() -> None:
     game = locked_game()
-    game.pick("p1", 7)
+    game.pick("p1", 6)
 
-    view = serialize_game(game, viewer_id="p1")
+    p1_view = serialize_game(game, viewer_id="p1")
+    p2_view = serialize_game(game, viewer_id="p2")
+    revealed = composition("sour", "sticky").to_payload()
 
-    assert view["result"] == {
+    expected = {
         "reason": "poison",
         "winner": "p2",
         "loser": "p1",
-        "recipe": {"sauces": ["sour", "sticky"]},
+        "recipe": {"sauces": ["sour", "sticky"], "composition": revealed},
         "replay": {
-            "position": 7,
-            "snackKind": game.snacks[7],
+            "position": 6,
+            "snackKind": game.snacks[6],
             "sauces": ["sour", "sticky"],
+            "composition": revealed,
             "creator": "p2",
         },
     }
+    assert p1_view["result"] == expected
+    assert p2_view["result"] == expected
 
 
 def test_view_for_non_player_is_rejected() -> None:
@@ -91,7 +104,7 @@ def test_practice_room_marks_computer_online_without_revealing_recipe() -> None:
     room = service.start_practice("p1")
     bot_id = room.bot_player_id
     assert bot_id is not None
-    room.game.lock_recipe(bot_id, 7, ("sour", "sticky"))
+    room.game.lock_recipe(bot_id, 6, composition("sour", "sticky"))
 
     view = serialize_room(room, viewer_id="p1")
 

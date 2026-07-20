@@ -1,14 +1,19 @@
 import pytest
 
-from app.domain import GameState, Phase, RuleError
+from app.domain import GameState, Phase, RuleError, SNACK_LAYOUTS
+from app.recipe_data import BurgerComposition, composition_for_sauces
+
+
+def composition(*sauces: str) -> BurgerComposition:
+    return composition_for_sauces(sauces)
 
 
 def locked_game(
-    *, first: str = "p1", p1_pos: int = 1, p2_pos: int = 7
+    *, first: str = "p1", p1_pos: int = 0, p2_pos: int = 6
 ) -> GameState:
     game = GameState.create("ROOM01", ["p1", "p2"], first_player=first)
-    game.lock_recipe("p1", p1_pos, ("chili", "mustard"))
-    game.lock_recipe("p2", p2_pos, ("sour", "sticky"))
+    game.lock_recipe("p1", p1_pos, composition("chili", "mustard"))
+    game.lock_recipe("p2", p2_pos, composition("sour", "sticky"))
     return game
 
 
@@ -17,27 +22,28 @@ def test_create_requires_exactly_two_distinct_players() -> None:
         GameState.create("ROOM01", ["p1", "p1"], first_player="p1")
 
 
-def test_recipe_requires_valid_position_and_known_sauces() -> None:
+def test_recipe_requires_valid_position_and_burger_slot() -> None:
     game = GameState.create("ROOM01", ["p1", "p2"], first_player="p1")
 
-    with pytest.raises(RuleError, match="薯条位置无效"):
-        game.lock_recipe("p1", 12, ("chili", "mustard"))
-    with pytest.raises(RuleError, match="必须选择 1 到 4 份调味料"):
-        game.lock_recipe("p1", 1, ())
-    with pytest.raises(RuleError, match="必须选择 1 到 4 份调味料"):
-        game.lock_recipe("p1", 1, ("chili", "mustard", "sour", "sticky", "chili"))
-    with pytest.raises(RuleError, match="未知调味料"):
-        game.lock_recipe("p1", 1, ("chili", "pepper"))
+    for invalid_position in (-1, 12, 1.0, True, "0"):
+        with pytest.raises(RuleError, match="食物位置无效"):
+            game.lock_recipe(
+                "p1", invalid_position, composition("chili", "mustard")
+            )
+    with pytest.raises(RuleError, match="汉堡"):
+        game.lock_recipe("p1", 1, composition("chili", "mustard"))
 
 
-def test_recipe_accepts_one_to_four_ordered_sauces() -> None:
+def test_recipe_derives_ordered_sauces_from_composition_strokes() -> None:
     one = GameState.create("ONE", ["p1", "p2"], first_player="p1")
-    one.lock_recipe("p1", 0, ("chili",))
+    one.lock_recipe("p1", 0, composition("chili"))
     assert one.players["p1"].recipe is not None
     assert one.players["p1"].recipe.sauces == ("chili",)
 
     four = GameState.create("FOUR", ["p1", "p2"], first_player="p1")
-    four.lock_recipe("p1", 0, ("chili", "mustard", "sour", "sticky"))
+    four.lock_recipe(
+        "p1", 0, composition("chili", "mustard", "sour", "sticky")
+    )
     assert four.players["p1"].recipe is not None
     assert four.players["p1"].recipe.sauces == (
         "chili",
@@ -57,10 +63,10 @@ def test_both_recipes_move_game_into_turn_phase() -> None:
 
 def test_player_cannot_lock_recipe_twice() -> None:
     game = GameState.create("ROOM01", ["p1", "p2"], first_player="p1")
-    game.lock_recipe("p1", 2, ("chili", "chili"))
+    game.lock_recipe("p1", 0, composition("chili", "chili"))
 
     with pytest.raises(RuleError, match="已经封装"):
-        game.lock_recipe("p1", 3, ("sour", "sticky"))
+        game.lock_recipe("p1", 6, composition("sour", "sticky"))
 
 
 def test_safe_pick_changes_turn() -> None:
@@ -88,7 +94,7 @@ def test_only_current_player_can_pick_and_removed_fry_cannot_repeat() -> None:
 def test_hitting_opponents_poison_loses_and_reveals_recipe() -> None:
     game = locked_game()
 
-    outcome = game.pick("p1", 7)
+    outcome = game.pick("p1", 6)
 
     assert outcome.kind == "hit"
     assert outcome.loser == "p1"
@@ -102,7 +108,7 @@ def test_hitting_opponents_poison_loses_and_reveals_recipe() -> None:
 def test_eating_own_poison_is_safe_and_disables_it() -> None:
     game = locked_game()
 
-    outcome = game.pick("p1", 1)
+    outcome = game.pick("p1", 0)
 
     assert outcome.kind == "safe-own"
     assert game.players["p1"].poison_active is False
@@ -110,19 +116,19 @@ def test_eating_own_poison_is_safe_and_disables_it() -> None:
 
 
 def test_shared_poison_position_still_defeats_picker() -> None:
-    game = locked_game(p1_pos=5, p2_pos=5)
+    game = locked_game(p1_pos=6, p2_pos=6)
 
-    outcome = game.pick("p1", 5)
+    outcome = game.pick("p1", 6)
 
     assert outcome.kind == "hit"
     assert outcome.winner == "p2"
 
 
 def test_both_owners_remove_poison_causes_draw() -> None:
-    game = locked_game(p1_pos=1, p2_pos=7)
-    game.pick("p1", 1)
+    game = locked_game(p1_pos=0, p2_pos=6)
+    game.pick("p1", 0)
 
-    outcome = game.pick("p2", 7)
+    outcome = game.pick("p2", 6)
 
     assert outcome.kind == "draw"
     assert game.phase is Phase.FINISHED
@@ -131,7 +137,7 @@ def test_both_owners_remove_poison_causes_draw() -> None:
 
 def test_both_players_must_accept_rematch_and_first_player_alternates() -> None:
     game = locked_game()
-    game.pick("p1", 7)
+    game.pick("p1", 6)
 
     assert game.request_rematch("p1") is False
     assert game.request_rematch("p2") is True
@@ -162,8 +168,20 @@ def test_round_exposes_one_shared_mixed_snack_layout() -> None:
         "cookie",
         "onion-ring",
         "mochi",
+        "burger",
     }
     assert game.snacks is game.snacks
+    for layout in SNACK_LAYOUTS:
+        assert layout[0] == "burger"
+        assert layout[6] == "burger"
+        assert {
+            "fry",
+            "nugget",
+            "donut",
+            "cookie",
+            "onion-ring",
+            "mochi",
+        }.issubset(layout)
 
 
 def test_aim_is_public_intent_but_does_not_consume_snack() -> None:

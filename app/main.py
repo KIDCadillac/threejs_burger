@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.domain import RuleError
 from app.protocol import ProtocolError, command_type, serialize_room
+from app.recipe_data import parse_composition
 from app.service import GameService, Room, RoomError
 
 
@@ -173,14 +174,13 @@ async def _dispatch(
 
     if kind == "recipe.lock":
         position = payload.get("position")
-        if not isinstance(position, int):
-            raise ProtocolError("请选择一根薯条")
-        sauces = payload.get("sauces", [])
-        if not isinstance(sauces, list):
-            raise ProtocolError("调味料格式无效")
-        room = service.lock_recipe(
-            player_id, position, sauces
-        )
+        if isinstance(position, bool) or not isinstance(position, int):
+            raise ProtocolError("请选择一件食物")
+        try:
+            composition = parse_composition(payload.get("composition"))
+        except ValueError as error:
+            raise ProtocolError(str(error)) from error
+        room = service.lock_recipe(player_id, position, composition)
         await hub.broadcast_room(room)
         return
 

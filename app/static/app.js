@@ -1,5 +1,10 @@
 import { REACTIONS, reactionFor, recipeTitle, snackFor } from "/static/effects.js";
 import {
+  addSauceStroke,
+  createCookingState,
+  serializeComposition,
+} from "/static/cooking-state.mjs";
+import {
   characterReactionMarkup,
   playCharacterReaction,
 } from "/static/character-reaction.mjs";
@@ -221,7 +226,7 @@ function renderMixing(state) {
   viewNavigation.enter("mixing-editor");
   const selectedSnack = selectedFry === null ? null : state.snacks?.[selectedFry];
   const snackKind = selectedSnack?.kind ?? "fry";
-  const canLock = selectedFry !== null && deploymentOpened && selectedSauces.length >= 1 && selectedSauces.length <= MAX_SAUCES;
+  const canLock = selectedSnack?.kind === "burger" && deploymentOpened && selectedSauces.length >= 1 && selectedSauces.length <= MAX_SAUCES;
   replaceApp(`
     <section class="screen game-screen mixing-screen immersive-game-screen">
       ${gameHeader(state, "秘密调制")}
@@ -242,7 +247,7 @@ function renderMixing(state) {
           ${deploymentStep("3", "放调料", selectedSauces.length >= 1, deploymentOpened && selectedSauces.length < MAX_SAUCES)}
           ${deploymentStep("4", "合回去", false, canLock)}
         </div>
-        ${snackBoard(state, { action: "select-snack", secretPosition: selectedFry, interactive: true })}
+        ${snackBoard(state, { action: "select-snack", secretPosition: selectedFry, interactive: true, burgerOnly: true })}
         ${selectedFry === null ? "" : `<section class="food-operation ${deploymentOpened ? "food-operation--open" : ""}" aria-label="食物操作区">
           <div class="food-operation__board">
             <span class="food-operation__knife" aria-hidden="true"></span>
@@ -438,24 +443,31 @@ function deploymentStep(number, label, complete, active) {
 }
 
 function openInstruction(kind) {
+  if (kind === "burger") return "掀开汉堡夹层";
   if (["fry"].includes(kind)) return "撕开包装";
   if (["donut", "cookie", "nugget"].includes(kind)) return "沿中间切开";
   if (kind === "mochi") return "轻轻掰开";
   return "切开食物";
 }
 
-function snackBoard(state, { action, secretPosition = null, aimedPosition = null, interactive = false }) {
+function snackBoard(state, { action, secretPosition = null, aimedPosition = null, interactive = false, burgerOnly = false }) {
   const snacks = state.snacks ?? Array.from({ length: 12 }, (_, position) => ({ position, kind: "fry", available: state.remainingFries.includes(position) }));
   return `<div class="plate-wrap"><div class="plate" role="group" aria-label="公共零食餐盘">${snacks.map((snack) => {
     if (!snack.available) return `<span class="snack-space snack-space--gone" aria-label="这个位置已经被吃掉"></span>`;
     const selected = snack.position === secretPosition;
     const aimed = snack.position === aimedPosition;
     const label = snackFor(snack.kind).label;
-    return `<button class="snack-space ${selected ? "snack-space--secret" : ""} ${aimed ? "snack-space--aimed" : ""}" type="button" data-action="${action}" data-position="${snack.position}" ${interactive ? "" : "disabled"} aria-label="${label}${selected ? "，你的秘密陷阱" : ""}${aimed ? "，正在瞄准" : ""}">${snackPiece(snack.kind)}${selected ? '<span class="secret-pin">✦</span>' : ""}${aimed ? '<span class="aim-pin">👀</span>' : ""}</button>`;
+    const isBurger = snack.kind === "burger";
+    const futurePack = burgerOnly && !isBurger;
+    const enabled = interactive && !futurePack;
+    return `<button class="snack-space ${futurePack ? "snack-space--future" : ""} ${selected ? "snack-space--secret" : ""} ${aimed ? "snack-space--aimed" : ""}" type="button" data-action="${action}" data-position="${snack.position}" ${enabled ? "" : "disabled"} aria-label="${label}${futurePack ? "，后续 3D 食物包" : ""}${selected ? "，你的秘密陷阱" : ""}${aimed ? "，正在瞄准" : ""}">${snackPiece(snack.kind)}${futurePack ? '<small>后续 3D 食物包</small>' : ""}${selected ? '<span class="secret-pin">✦</span>' : ""}${aimed ? '<span class="aim-pin">👀</span>' : ""}</button>`;
   }).join("")}</div></div>`;
 }
 
 function snackPiece(kind, large = false) {
+  if (kind === "burger") {
+    return `<span class="snack-piece snack--burger ${large ? "snack-piece--large" : ""}" aria-hidden="true"><i class="burger-layer burger-layer--top-bun"></i><i class="burger-layer burger-layer--pickle"></i><i class="burger-layer burger-layer--lettuce"></i><i class="burger-layer burger-layer--tomato"></i><i class="burger-layer burger-layer--cheese"></i><i class="burger-layer burger-layer--patty"></i><i class="burger-layer burger-layer--bottom-bun"></i></span>`;
+  }
   return `<span class="snack-piece snack-piece--art snack--${kind} ${large ? "snack-piece--large" : ""}" aria-hidden="true"><img class="snack-piece__image" src="/static/art/foods/${kind}.png" alt=""><i></i><i></i><i></i></span>`;
 }
 
@@ -485,18 +497,33 @@ function renderPrivateDeployment(state, position, sauces) {
     </section>`);
 }
 
+function canonicalBurgerComposition(sauces) {
+  let cookingState = createCookingState();
+  sauces.forEach((sauce, index) => {
+    const y = index * 0.08;
+    cookingState = addSauceStroke(cookingState, {
+      sauce,
+      layerId: "patty",
+      amount: 0.35,
+      points: [[-0.45, y], [0.45, y]],
+    });
+  });
+  return serializeComposition(cookingState);
+}
+
 function startPrivateDeployment(state) {
   if (selectedFry === null || !deploymentOpened || selectedSauces.length < 1 || selectedSauces.length > MAX_SAUCES || deploymentPlaying) return;
   deploymentPlaying = true;
   const position = selectedFry;
   const sauces = [...selectedSauces];
+  const composition = canonicalBurgerComposition(sauces);
   clearReactionTimers();
   renderPrivateDeployment(state, position, sauces);
   send({ type: "gesture.send", key: "mix" });
   reactionHandles.push(window.setTimeout(() => send({ type: "gesture.send", key: "sealed" }), 750));
   reactionHandles.push(window.setTimeout(() => {
     deploymentPlaying = false;
-    send({ type: "recipe.lock", position, sauces });
+    send({ type: "recipe.lock", position, composition });
   }, 1650));
 }
 

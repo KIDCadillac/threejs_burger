@@ -6,8 +6,9 @@ from dataclasses import dataclass, field
 from collections.abc import Callable, Sequence
 from typing import Protocol
 
-from app.bot import PracticeBotPolicy
-from app.domain import GameState, Phase, PickOutcome, SAUCES
+from app.bot import PracticeBotPolicy, available_burger_positions
+from app.domain import GameState, Phase, PickOutcome
+from app.recipe_data import BurgerComposition, SAUCES, composition_for_sauces
 
 
 INVITE_TTL_SECONDS = 600
@@ -186,10 +187,13 @@ class GameService:
         return room
 
     def lock_recipe(
-        self, player_id: str, position: int, sauces: Sequence[str]
+        self,
+        player_id: str,
+        position: int,
+        composition: BurgerComposition,
     ) -> Room:
         room = self._started_room(player_id)
-        room.game.lock_recipe(player_id, position, sauces)
+        room.game.lock_recipe(player_id, position, composition)
         self._after_game_change(room)
         return room
 
@@ -414,11 +418,12 @@ class GameService:
             game.send_gesture(bot_id, "sealed")
             self._schedule_bot(room, "deploy-lock")
         elif step == "deploy-lock" and game.phase is Phase.MIXING:
-            position = self.bot_policy.choose_position(
-                tuple(sorted(game.remaining_fries))
+            burger_positions = available_burger_positions(
+                tuple(sorted(game.remaining_fries)), game.snacks
             )
+            position = self.bot_policy.choose_position(burger_positions)
             sauces = self.bot_policy.choose_sauces(tuple(sorted(SAUCES)))
-            game.lock_recipe(bot_id, position, sauces)
+            game.lock_recipe(bot_id, position, composition_for_sauces(sauces))
             self._after_game_change(room)
         elif (
             step == "human-bluff"

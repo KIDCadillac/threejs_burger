@@ -8,6 +8,7 @@ from starlette.websockets import WebSocketDisconnect
 
 import app.main as main_module
 from app.main import ConnectionHub, app, create_app
+from app.recipe_data import composition_for_sauces
 from app.service import GameService
 
 
@@ -34,6 +35,14 @@ def assert_vendored_sha256(content: bytes, filename: str) -> None:
 def ws_path(player_id: str, credential: str | None = None) -> str:
     secret = credential or PLAYER_CREDENTIALS[player_id]
     return f"/ws?player={player_id}&credential={secret}"
+
+
+def recipe_command(position: int, *sauces: str) -> dict:
+    return {
+        "type": "recipe.lock",
+        "position": position,
+        "composition": composition_for_sauces(sauces).to_payload(),
+    }
 
 
 def test_stale_socket_cannot_unregister_replacement() -> None:
@@ -128,22 +137,10 @@ def test_websocket_create_and_join_room() -> None:
             assert p2_state["phase"] == "mixing"
             assert p1_state["room"]["code"] == p2_state["room"]["code"]
 
-            ws1.send_json(
-                {
-                    "type": "recipe.lock",
-                    "position": 1,
-                    "sauces": ["chili", "mustard"],
-                }
-            )
+            ws1.send_json(recipe_command(0, "chili", "mustard"))
             ws1.receive_json()
             ws2.receive_json()
-            ws2.send_json(
-                {
-                    "type": "recipe.lock",
-                    "position": 7,
-                    "sauces": ["sour", "sticky"],
-                }
-            )
+            ws2.send_json(recipe_command(6, "sour", "sticky"))
             turn_for_p1 = ws1.receive_json()
             turn_for_p2 = ws2.receive_json()
             assert turn_for_p1["phase"] == "turn"
@@ -189,6 +186,31 @@ def test_websocket_rejects_unknown_command_without_closing() -> None:
 
         socket.send_json({"type": "room.create"})
         assert socket.receive_json()["phase"] == "waiting"
+
+
+def test_websocket_rejects_malformed_composition_then_accepts_valid_lock() -> None:
+    isolated_client = TestClient(create_app(GameService()))
+
+    with isolated_client.websocket_connect(ws_path("p1")) as socket:
+        socket.receive_json()
+        socket.send_json({"type": "practice.start"})
+        socket.receive_json()
+        malformed = recipe_command(0, "chili")
+        malformed["composition"]["layerPoses"]["patty"]["x"] = 10**400
+        socket.send_json(malformed)
+
+        error = socket.receive_json()
+        assert error["type"] == "error"
+
+        valid = recipe_command(0, "chili", "mustard")
+        valid["sauces"] = ["sticky"]
+        socket.send_json(valid)
+        accepted = socket.receive_json()
+        assert accepted["type"] == "state"
+        assert accepted["private"]["sauces"] == ["chili", "mustard"]
+        assert accepted["private"]["composition"] == recipe_command(
+            0, "chili", "mustard"
+        )["composition"]
 
 
 def test_leaving_room_returns_both_players_home() -> None:
@@ -246,6 +268,28 @@ def test_client_contains_mixed_snacks_gestures_and_hit_replay() -> None:
         assert marker in app_script or marker in styles
 
 
+def test_current_client_posts_composition_and_only_deploys_on_burgers() -> None:
+    script = client.get("/static/app.js").text
+    effects = client.get("/static/effects.js").text
+    styles = client.get("/static/styles.css").text
+
+    assert 'from "/static/cooking-state.mjs"' in script
+    for marker in (
+        "createCookingState",
+        "addSauceStroke",
+        "serializeComposition",
+        'layerId: "patty"',
+        'send({ type: "recipe.lock", position, composition });',
+        'snack.kind === "burger"',
+        "后续 3D 食物包",
+    ):
+        assert marker in script
+    assert 'send({ type: "recipe.lock", position, sauces });' not in script
+    assert '"burger"' in effects
+    assert ".snack--burger" in styles
+    assert 'src="/static/art/foods/burger.png"' not in script
+
+
 def test_invite_auto_join_is_not_sent_blindly_on_socket_open() -> None:
     script = client.get("/static/app.js").text
     open_handler = script.split('socket.addEventListener("open"', 1)[1].split(
@@ -287,14 +331,10 @@ def test_reconnect_broadcasts_resumed_state_to_opponent() -> None:
             ws2.send_json({"type": "room.join", "code": code})
             ws2.receive_json()
             ws1.receive_json()
-            ws1.send_json(
-                {"type": "recipe.lock", "position": 1, "sauces": ["chili", "mustard"]}
-            )
+            ws1.send_json(recipe_command(0, "chili", "mustard"))
             ws1.receive_json()
             ws2.receive_json()
-            ws2.send_json(
-                {"type": "recipe.lock", "position": 7, "sauces": ["sour", "sticky"]}
-            )
+            ws2.send_json(recipe_command(6, "sour", "sticky"))
             ws2.receive_json()
             ws1.receive_json()
 

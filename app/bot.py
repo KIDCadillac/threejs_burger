@@ -8,6 +8,14 @@ from typing import TypeVar
 T = TypeVar("T")
 
 
+def available_burger_positions(
+    positions: Sequence[int], snacks: Sequence[str]
+) -> tuple[int, ...]:
+    return tuple(
+        position for position in positions if snacks[position] == "burger"
+    )
+
+
 class PracticeBotPolicy:
     def __init__(
         self, randbelow: Callable[[int], int] = secrets.randbelow

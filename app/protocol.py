@@ -29,6 +29,7 @@ def serialize_game(game: GameState, *, viewer_id: str) -> dict[str, Any]:
         private = {
             "poisonPosition": viewer.recipe.position,
             "sauces": list(viewer.recipe.sauces),
+            "composition": viewer.recipe.composition.to_payload(),
             "active": viewer.poison_active,
         }
 
@@ -42,12 +43,18 @@ def serialize_game(game: GameState, *, viewer_id: str) -> dict[str, Any]:
         if game.result_reason == "poison" and game.last_outcome is not None:
             if game.last_outcome.recipe is not None:
                 result["recipe"] = {
-                    "sauces": list(game.last_outcome.recipe.sauces)
+                    "sauces": list(game.last_outcome.recipe.sauces),
+                    "composition": (
+                        game.last_outcome.recipe.composition.to_payload()
+                    ),
                 }
                 result["replay"] = {
                     "position": game.last_outcome.position,
                     "snackKind": game.snacks[game.last_outcome.position],
                     "sauces": list(game.last_outcome.recipe.sauces),
+                    "composition": (
+                        game.last_outcome.recipe.composition.to_payload()
+                    ),
                     "creator": game.last_outcome.winner,
                 }
 

@@ -30,6 +30,7 @@ export const REACTIONS = Object.freeze({
 });
 
 export const SNACKS = Object.freeze({
+  "burger": { label: "汉堡", emoji: "🍔" },
   "fry": { label: "薯条", emoji: "🍟" },
   "nugget": { label: "汉堡", emoji: "🍔" },
   "donut": { label: "甜甜圈", emoji: "🍩" },
