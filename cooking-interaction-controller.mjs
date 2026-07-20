@@ -63,6 +63,7 @@ function copyOrbitLimits(value = {}) {
     maxPitch: finiteNumber(value.maxPitch, 1.25, "orbitLimits.maxPitch"),
     minDistance: finiteNumber(value.minDistance, 5, "orbitLimits.minDistance"),
     maxDistance: finiteNumber(value.maxDistance, 45, "orbitLimits.maxDistance"),
+    wrapYaw: value.wrapYaw === true,
   };
   if (limits.minYaw > limits.maxYaw || limits.minPitch > limits.maxPitch
     || limits.minDistance <= 0 || limits.minDistance > limits.maxDistance) {
@@ -712,7 +713,9 @@ export function createCookingInteractionController({
   };
 
   const applyCameraState = ({ yaw, pitch, distance }, reason) => {
-    const nextYaw = clamp(yaw, normalizedOrbitLimits.minYaw, normalizedOrbitLimits.maxYaw);
+    const nextYaw = normalizedOrbitLimits.wrapYaw
+      ? normalizedAngle(yaw)
+      : clamp(yaw, normalizedOrbitLimits.minYaw, normalizedOrbitLimits.maxYaw);
     const nextPitch = clamp(
       pitch, normalizedOrbitLimits.minPitch, normalizedOrbitLimits.maxPitch,
     );

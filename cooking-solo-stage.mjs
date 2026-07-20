@@ -6,6 +6,10 @@ import { createCondimentTools3D } from "./condiment-tools-3d.mjs";
 import { createCookingInteractionController } from "./cooking-interaction-controller.mjs";
 import { resolveSoloLayerDrop } from "./cooking-drop-intent.mjs";
 import {
+  createCookingMotion,
+  sampleCookingMotion,
+} from "./cooking-insertion-animation.mjs";
+import {
   createSoloCookingState,
   placeSoloLayer,
   removeSoloLayer,
@@ -26,7 +30,7 @@ import {
 } from "./cooking-tutorial-state.mjs";
 
 const LAYER_PRESENTATION_SCALE = 0.72;
-const STACK_GAP = 0.065;
+const STACK_OVERLAP = 0.025;
 const EXPLODED_GAP = 0.42;
 const SNAP_DURATION = 190;
 
@@ -186,6 +190,9 @@ export function createSoloCookingStage({
   let disposed = false;
   let lastFrameTime = 0;
   const transitions = new Map();
+  let activeMotion = null;
+  let pickMotion = null;
+  let highlightedLayerId = null;
   const cancelLayerTransition = (layerId) => transitions.delete(layerId);
 
   const emit = (reason, extra = {}) => {
@@ -208,15 +215,15 @@ export function createSoloCookingStage({
     if (tutorial !== previous) emit("tutorial");
   };
 
-  const targetTransforms = () => {
+  const targetTransforms = (assembledOrder = state.assembledOrder) => {
     workbench.root.updateMatrixWorld?.(true);
     burger.root.updateMatrixWorld?.(true);
     const result = new Map();
     let cursorY = workbench.prep.dropAnchor.position.y;
-    state.assembledOrder.forEach((layerId, index) => {
+    assembledOrder.forEach((layerId, index) => {
       const layer = burger.getLayer(layerId);
-      const halfHeight = layer.userData.halfHeight;
-      const y = cursorY + halfHeight + (expanded ? index * EXPLODED_GAP : 0);
+      const scaledHalfHeight = layer.userData.halfHeight * LAYER_PRESENTATION_SCALE;
+      const y = cursorY + scaledHalfHeight + (expanded ? index * EXPLODED_GAP : 0);
       result.set(layerId, {
         position: new THREE.Vector3(0, y, 0),
         scale: new THREE.Vector3(
@@ -226,7 +233,7 @@ export function createSoloCookingStage({
         ),
         yaw: state.rotations[layerId],
       });
-      cursorY += halfHeight * 2 + STACK_GAP;
+      cursorY += scaledHalfHeight * 2 - STACK_OVERLAP;
     });
     for (const layerId of BURGER_LAYER_IDS) {
       if (result.has(layerId)) continue;
@@ -244,6 +251,42 @@ export function createSoloCookingStage({
       });
     }
     return result;
+  };
+
+  const captureLayerTransforms = () => new Map(BURGER_LAYER_IDS.map((layerId) => {
+    const layer = burger.getLayer(layerId);
+    return [layerId, {
+      position: layer.position.clone(),
+      scale: layer.scale.clone(),
+      yaw: layer.rotation.y,
+    }];
+  }));
+
+  const restoreAuthoritativeTransforms = () => {
+    const targets = targetTransforms();
+    for (const [layerId, target] of targets) {
+      const layer = burger.getLayer(layerId);
+      layer.position.copy(target.position);
+      layer.rotation.set(0, target.yaw, 0);
+      layer.scale.copy(target.scale);
+    }
+    workbench.root.updateMatrixWorld?.(true);
+    return targets;
+  };
+
+  const clearGrabVisuals = () => {
+    if (highlightedLayerId) burger.setLayerHighlighted(highlightedLayerId, false);
+    highlightedLayerId = null;
+    workbench.clearDropCue();
+    workbench.clearHighlights();
+  };
+
+  const clearTransientVisuals = ({ resync = true } = {}) => {
+    activeMotion = null;
+    pickMotion = null;
+    transitions.clear();
+    clearGrabVisuals();
+    if (resync) restoreAuthoritativeTransforms();
   };
 
   const syncTransforms = ({ animate = false } = {}) => {
@@ -273,15 +316,82 @@ export function createSoloCookingStage({
     state.strokes.forEach((stroke) => burger.addSauceStroke(stroke));
   };
 
-  const applyVisualState = ({ animate = false, sauces = false } = {}) => {
+  const reorderLayers = () => {
     const fullOrder = [
       ...state.assembledOrder,
       ...BURGER_LAYER_IDS.filter((id) => !state.assembledOrder.includes(id)),
     ];
     fullOrder.forEach((layerId, index) => burger.reorderLayer(layerId, index));
+  };
+
+  const applyVisualState = ({ animate = false, sauces = false } = {}) => {
+    reorderLayers();
     if (sauces) rebuildSauces();
     syncTransforms({ animate });
     celebration.visible = state.finished;
+  };
+
+  const applyDropPreview = (intent) => {
+    if (!intent?.id || intent.kind !== "prep") {
+      workbench.clearDropCue();
+      return false;
+    }
+    const selected = burger.getLayer(intent.id);
+    const draggedPose = {
+      position: selected.position.clone(),
+      scale: selected.scale.clone(),
+      yaw: selected.rotation.y,
+    };
+    const previewOrder = state.assembledOrder.filter((id) => id !== intent.id);
+    const targets = targetTransforms(previewOrder);
+    const thickness = selected.userData.halfHeight * LAYER_PRESENTATION_SCALE * 2;
+    const shiftY = intent.intent === "bottom" ? thickness + 0.08 : -0.045;
+
+    for (const layerId of previewOrder) {
+      const layer = burger.getLayer(layerId);
+      const target = targets.get(layerId);
+      layer.position.copy(target.position);
+      layer.position.y += shiftY;
+      layer.rotation.set(0, target.yaw, 0);
+      layer.scale.copy(target.scale);
+    }
+    selected.position.copy(draggedPose.position);
+    selected.rotation.set(0, draggedPose.yaw, 0);
+    selected.scale.copy(draggedPose.scale);
+
+    const baseY = workbench.prep.dropAnchor.position.y;
+    const topY = previewOrder.reduce((highest, layerId) => {
+      const layer = burger.getLayer(layerId);
+      return Math.max(
+        highest,
+        layer.position.y + layer.userData.halfHeight * LAYER_PRESENTATION_SCALE - baseY,
+      );
+    }, 0);
+    workbench.setDropCue(intent.intent, {
+      y: intent.intent === "bottom" ? 0.015 : topY + 0.015,
+    });
+    return true;
+  };
+
+  const restoreDraggedLayout = (layerId) => {
+    const selected = burger.getLayer(layerId);
+    const draggedPose = {
+      position: selected.position.clone(),
+      scale: selected.scale.clone(),
+      yaw: selected.rotation.y,
+    };
+    const previewOrder = state.assembledOrder.filter((id) => id !== layerId);
+    const targets = targetTransforms(previewOrder);
+    for (const id of previewOrder) {
+      const layer = burger.getLayer(id);
+      const target = targets.get(id);
+      layer.position.copy(target.position);
+      layer.rotation.set(0, target.yaw, 0);
+      layer.scale.copy(target.scale);
+    }
+    selected.position.copy(draggedPose.position);
+    selected.rotation.set(0, draggedPose.yaw, 0);
+    selected.scale.copy(draggedPose.scale);
   };
 
   const resolveDropIntent = (id, point) => {
@@ -318,12 +428,46 @@ export function createSoloCookingStage({
     return { valid: false, reason: "请放到中央餐盘或原料盒" };
   };
 
+  const startLayerMotion = ({ layerId, kind, previousOrder, from }) => {
+    const layer = burger.getLayer(layerId);
+    activeMotion = {
+      motion: createCookingMotion({
+        kind,
+        startedAt: lastFrameTime,
+        thickness: layer.userData.halfHeight * LAYER_PRESENTATION_SCALE * 2,
+        reducedMotion,
+      }),
+      selectedId: layerId,
+      previousOrder,
+      from,
+      targets: targetTransforms(),
+      impacted: false,
+    };
+    if (reducedMotion) applyActiveMotion(lastFrameTime);
+  };
+
   const dropLayer = (layerId, destination = {}) => {
     if (disposed) return false;
+    if (activeMotion) {
+      activeMotion = null;
+      restoreAuthoritativeTransforms();
+    }
+    pickMotion = null;
+    transitions.clear();
+    const previousOrder = [...state.assembledOrder];
+    const from = captureLayerTransforms();
+    clearGrabVisuals();
+
     if (destination.kind === "prep") {
-      const targetIndex = destination.targetIndex ?? state.assembledOrder.length;
+      const targetIndex = destination.targetIndex ?? previousOrder.length;
       state = placeSoloLayer(state, layerId, targetIndex);
-      applyVisualState({ animate: true });
+      reorderLayers();
+      startLayerMotion({
+        layerId,
+        kind: targetIndex === 0 && previousOrder.length ? "bottom" : "top",
+        previousOrder,
+        from,
+      });
       advanceTutorial("dropped-on-prep");
       if (state.complete) advanceTutorial("assembled-all");
       emit("drop-layer");
@@ -331,7 +475,13 @@ export function createSoloCookingStage({
     }
     if (destination.kind === "bin") {
       state = removeSoloLayer(state, layerId);
-      applyVisualState({ animate: true });
+      reorderLayers();
+      startLayerMotion({
+        layerId,
+        kind: "home",
+        previousOrder,
+        from,
+      });
       emit("remove-layer");
       return true;
     }
@@ -351,8 +501,29 @@ export function createSoloCookingStage({
   const selectLayer = (layerId) => {
     if (disposed) return false;
     if (!BURGER_LAYER_IDS.includes(layerId)) throw new TypeError(`Unknown burger layer: ${layerId}`);
-    cancelLayerTransition(layerId);
+    const layer = burger.getLayer(layerId);
+    const draggedPose = {
+      position: layer.position.clone(),
+      scale: layer.scale.clone(),
+      yaw: layer.rotation.y,
+    };
+    clearTransientVisuals();
+    layer.position.copy(draggedPose.position);
+    layer.rotation.set(0, draggedPose.yaw, 0);
+    layer.scale.copy(draggedPose.scale);
     selectedLayerId = layerId;
+    highlightedLayerId = layerId;
+    burger.setLayerHighlighted(layerId, true);
+    pickMotion = {
+      selectedId: layerId,
+      baseScale: draggedPose.scale,
+      motion: createCookingMotion({
+        kind: "pick",
+        startedAt: lastFrameTime,
+        thickness: layer.userData.halfHeight * LAYER_PRESENTATION_SCALE * 2,
+        reducedMotion,
+      }),
+    };
     advanceTutorial("picked-layer");
     emit("selection");
     return true;
@@ -375,12 +546,13 @@ export function createSoloCookingStage({
     prepPlaneY: 0.42,
     cameraTarget: cameraView.target,
     orbitLimits: {
-      minYaw: -0.78,
-      maxYaw: 0.78,
-      minPitch: 0.5,
-      maxPitch: 0.95,
-      minDistance: 6,
-      maxDistance: 32,
+      minYaw: -Math.PI,
+      maxYaw: Math.PI,
+      minPitch: 0.12,
+      maxPitch: 1.45,
+      minDistance: 5,
+      maxDistance: 45,
+      wrapYaw: true,
     },
     resolveDrop,
     onPick: ({ id }) => {
@@ -395,6 +567,7 @@ export function createSoloCookingStage({
     onMove: ({ id, reason, pose, point }) => {
       cancelLayerTransition(id);
       if ((reason === "rotate" || reason === "twist") && !state.finished) {
+        workbench.clearDropCue();
         state = rotateSoloLayer(state, id, pose.rotation.y);
         advanceTutorial("rotated-layer");
         emit("rotate-layer");
@@ -408,6 +581,16 @@ export function createSoloCookingStage({
           && dropIntent?.targetIndex === nextIntent.targetIndex;
         if (!unchanged) {
           dropIntent = nextIntent;
+          workbench.clearHighlights();
+          if (nextIntent.kind === "prep") {
+            applyDropPreview(nextIntent);
+          } else {
+            restoreDraggedLayout(id);
+            workbench.clearDropCue();
+            if (nextIntent.kind === "bin") {
+              workbench.setHighlighted("ingredient", id, true);
+            }
+          }
           emit("drop-intent");
         }
       }
@@ -419,6 +602,7 @@ export function createSoloCookingStage({
     },
     onInvalid: ({ reason } = {}) => {
       dropIntent = null;
+      clearTransientVisuals({ resync: false });
       syncTransforms({ animate: true });
       const message = typeof reason === "string" && /[\u3400-\u9fff]/u.test(reason)
         ? reason
@@ -441,9 +625,104 @@ export function createSoloCookingStage({
   });
   cleanupTasks.push(() => controller?.dispose?.());
 
+  const applyPose = (layer, from, target, amount) => {
+    layer.position.lerpVectors(from.position, target.position, amount);
+    layer.rotation.y = from.yaw + (target.yaw - from.yaw) * amount;
+    layer.scale.lerpVectors(from.scale, target.scale, amount);
+  };
+
+  const fireImpactHaptic = (record, frame) => {
+    if (!frame.impact || record.impacted) return;
+    record.impacted = true;
+    try {
+      let haptic = vibrate;
+      if (haptic === undefined) {
+        const navigatorTarget = globalThis.navigator;
+        haptic = typeof navigatorTarget?.vibrate === "function"
+          ? navigatorTarget.vibrate.bind(navigatorTarget)
+          : null;
+      }
+      haptic?.(12);
+    } catch {
+      // Haptics are optional and never own the animation result.
+    }
+  };
+
+  const applyActiveMotion = (now) => {
+    if (!activeMotion) return;
+    const record = activeMotion;
+    const frame = sampleCookingMotion(record.motion, now);
+    const numericKeys = [
+      "progress",
+      "arrival",
+      "selectedOffsetY",
+      "stackOffsetY",
+      "stackCompression",
+      "selectedScaleXz",
+      "selectedScaleY",
+    ];
+    if (numericKeys.some((key) => !Number.isFinite(frame[key]))) {
+      activeMotion = null;
+      restoreAuthoritativeTransforms();
+      return;
+    }
+
+    const selected = burger.getLayer(record.selectedId);
+    const selectedFrom = record.from.get(record.selectedId);
+    const selectedTarget = record.targets.get(record.selectedId);
+    for (const layerId of record.previousOrder.filter((id) => id !== record.selectedId)) {
+      const layer = burger.getLayer(layerId);
+      applyPose(layer, record.from.get(layerId), record.targets.get(layerId), frame.arrival);
+      if (record.motion.kind === "top") {
+        layer.position.y -= frame.stackCompression * 0.045;
+      } else if (record.motion.kind === "bottom") {
+        layer.position.y += frame.stackOffsetY;
+      }
+    }
+
+    applyPose(selected, selectedFrom, selectedTarget, frame.arrival);
+    if (record.motion.kind === "bottom") {
+      const belowY = selectedTarget.position.y - record.motion.thickness * 0.45;
+      if (frame.phase === "open" || frame.phase === "insert") {
+        const entry = Math.min(1, frame.arrival / 0.83);
+        selected.position.y = selectedFrom.position.y
+          + (belowY - selectedFrom.position.y) * entry;
+      } else {
+        const exit = Math.min(1, Math.max(0, (frame.arrival - 0.83) / 0.17));
+        selected.position.y = belowY
+          + (selectedTarget.position.y - belowY) * exit
+          + frame.selectedOffsetY;
+      }
+    } else {
+      selected.position.y += frame.selectedOffsetY;
+    }
+    selected.scale.x *= frame.selectedScaleXz;
+    selected.scale.z *= frame.selectedScaleXz;
+    selected.scale.y *= frame.selectedScaleY;
+    fireImpactHaptic(record, frame);
+    if (frame.done) {
+      activeMotion = null;
+      restoreAuthoritativeTransforms();
+    }
+  };
+
   const tick = (time = 0) => {
     if (disposed) return;
     lastFrameTime = Number.isFinite(time) ? time : lastFrameTime;
+    if (pickMotion) {
+      const frame = sampleCookingMotion(pickMotion.motion, lastFrameTime);
+      const layer = burger.getLayer(pickMotion.selectedId);
+      layer.scale.set(
+        pickMotion.baseScale.x * frame.selectedScaleXz,
+        pickMotion.baseScale.y * frame.selectedScaleY,
+        pickMotion.baseScale.z * frame.selectedScaleXz,
+      );
+      if (frame.done) {
+        layer.scale.copy(pickMotion.baseScale);
+        pickMotion = null;
+      }
+    }
+    applyActiveMotion(lastFrameTime);
     for (const [layerId, transition] of transitions) {
       const progress = Math.min(1, Math.max(0, (lastFrameTime - transition.start) / SNAP_DURATION));
       const eased = 1 - (1 - progress) ** 3;
@@ -457,8 +736,21 @@ export function createSoloCookingStage({
   };
   const removeFrame = host.onFrame?.(tick) ?? (() => {});
   cleanupTasks.push(removeFrame);
-  const removeContextError = host.onContextError?.(onError) ?? (() => {});
+  const handleContextError = (error) => {
+    clearTransientVisuals();
+    onError(error);
+  };
+  const removeContextError = host.onContextError?.(handleContextError) ?? (() => {});
   cleanupTasks.push(removeContextError);
+  if (documentTarget?.addEventListener && documentTarget?.removeEventListener) {
+    const handleVisibilityChange = () => {
+      if (documentTarget.visibilityState === "hidden") clearTransientVisuals();
+    };
+    documentTarget.addEventListener("visibilitychange", handleVisibilityChange);
+    cleanupTasks.push(() => (
+      documentTarget.removeEventListener("visibilitychange", handleVisibilityChange)
+    ));
+  }
   syncTransforms();
   host.start();
   emit("ready");
@@ -483,7 +775,7 @@ export function createSoloCookingStage({
     applySauceStroke,
     rotateSelected(deltaYaw) {
       if (disposed || !selectedLayerId) return false;
-      cancelLayerTransition(selectedLayerId);
+      clearTransientVisuals();
       state = rotateSoloLayer(state, selectedLayerId, state.rotations[selectedLayerId] + deltaYaw);
       burger.getLayer(selectedLayerId).rotation.y = state.rotations[selectedLayerId];
       advanceTutorial("rotated-layer");
@@ -492,6 +784,7 @@ export function createSoloCookingStage({
     },
     toggleExpanded() {
       if (disposed || state.finished) return expanded;
+      clearTransientVisuals();
       expanded = !expanded;
       syncTransforms({ animate: true });
       emit("inspect");
@@ -500,6 +793,7 @@ export function createSoloCookingStage({
     resetCamera() { return controller.resetCamera(); },
     undo() {
       if (disposed || !state.history.length) return false;
+      clearTransientVisuals();
       dropIntent = null;
       state = undoSoloCooking(state);
       tutorial = reconcileCookingTutorial(tutorial, state, { selectedLayerId });
@@ -511,6 +805,7 @@ export function createSoloCookingStage({
     },
     reset() {
       if (disposed) return false;
+      clearTransientVisuals();
       dropIntent = null;
       state = resetSoloCookingState();
       selectedLayerId = null;
@@ -524,6 +819,7 @@ export function createSoloCookingStage({
     },
     finish() {
       if (disposed || !state.complete || state.finished) return false;
+      clearTransientVisuals();
       state = finishSoloCooking(state);
       expanded = false;
       controller.pause();
@@ -534,6 +830,7 @@ export function createSoloCookingStage({
     },
     continueEditing() {
       if (disposed || !state.finished) return false;
+      clearTransientVisuals();
       state = continueSoloCooking(state);
       controller.resume();
       celebration.visible = false;
@@ -552,8 +849,8 @@ export function createSoloCookingStage({
     },
     dispose() {
       if (disposed) return;
+      clearTransientVisuals();
       disposed = true;
-      transitions.clear();
       cleanup();
     },
   };
