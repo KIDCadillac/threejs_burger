@@ -32,13 +32,6 @@ const TUTORIAL_COPY = Object.freeze({
   finish: ["完成料理", "七层已经装好，点最下方的完成料理。"],
 });
 
-const DROP_INTENT_COPY = Object.freeze({
-  top: "放在最上层",
-  bottom: "塞到最下层",
-  home: "放回原料格",
-  invalid: "松手会回到原位",
-});
-
 function sauceSummary(strokes) {
   const counts = new Map();
   for (const { sauce, layerId } of strokes) {
@@ -69,7 +62,6 @@ export function bootSoloCookingPage(
     progress: documentTarget.querySelector("#cooking-progress"),
     summary: documentTarget.querySelector("#cooking-summary"),
     status: documentTarget.querySelector("#cooking-status"),
-    dropIntent: documentTarget.querySelector("#cooking-drop-intent"),
     tutorial: documentTarget.querySelector("#tutorial-coach"),
     tutorialTitle: documentTarget.querySelector("#tutorial-title"),
     tutorialCopy: documentTarget.querySelector("#tutorial-copy"),
@@ -121,25 +113,15 @@ export function bootSoloCookingPage(
       elements.tutorialTitle.textContent = tutorialText[0];
       elements.tutorialCopy.textContent = tutorialText[1];
     }
-    stage.workbench.clearHighlights();
-    if (tutorial.step === "pick" || tutorial.step === "assemble") {
-      const next = Object.entries(state.locations).find(([, location]) => location.kind === "bin")?.[0];
-      if (next) stage.workbench.setHighlighted("ingredient", next, true);
-    } else if (tutorial.step === "sauce") {
-      stage.workbench.setHighlighted("tool", "chili", true);
-    }
-    const dropIntentText = DROP_INTENT_COPY[dropIntent?.intent];
-    if (dropIntentText) {
-      elements.dropIntent.hidden = false;
-      elements.dropIntent.textContent = dropIntentText;
-      elements.dropIntent.dataset.intent = dropIntent.intent;
-      if (dropIntent.kind === "bin" && dropIntent.id) {
-        stage.workbench.setHighlighted("ingredient", dropIntent.id, true);
+    if (!dropIntent) {
+      stage.workbench.clearHighlights();
+      if (tutorial.step === "pick" || tutorial.step === "assemble") {
+        const next = Object.entries(state.locations)
+          .find(([, location]) => location.kind === "bin")?.[0];
+        if (next) stage.workbench.setHighlighted("ingredient", next, true);
+      } else if (tutorial.step === "sauce") {
+        stage.workbench.setHighlighted("tool", "chili", true);
       }
-    } else {
-      elements.dropIntent.hidden = true;
-      elements.dropIntent.textContent = "";
-      delete elements.dropIntent.dataset.intent;
     }
 
     const statusByReason = {

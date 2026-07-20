@@ -160,32 +160,6 @@ canvas:focus-visible {
 .cooking-error { color: #ffd2c9; }
 .cooking-error[hidden], .cooking-loading[hidden] { display: none; }
 
-.cooking-drop-intent {
-  position: absolute;
-  z-index: 5;
-  left: 50%;
-  top: 52%;
-  min-width: 9.5em;
-  padding: 10px 16px;
-  border: 1px solid rgba(255, 255, 255, .42);
-  border-radius: 999px;
-  color: #20110e;
-  text-align: center;
-  font-size: .92rem;
-  font-weight: 900;
-  letter-spacing: .03em;
-  background: rgba(255, 218, 109, .96);
-  box-shadow: 0 10px 26px rgba(12, 5, 4, .34);
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
-
-.cooking-drop-intent[hidden] { display: none; }
-.cooking-drop-intent[data-intent="top"] { background: rgba(255, 218, 109, .96); }
-.cooking-drop-intent[data-intent="bottom"] { color: #fff5e5; background: rgba(196, 77, 49, .96); }
-.cooking-drop-intent[data-intent="home"] { background: rgba(126, 220, 157, .96); }
-.cooking-drop-intent[data-intent="invalid"] { color: #fff5e5; background: rgba(104, 76, 78, .95); }
-
 .tutorial-coach {
   position: absolute;
   z-index: 3;

@@ -39,7 +39,6 @@ test("standalone cooking page is accessible, Chinese, and contains the full play
     'id="cooking-loading-elapsed"',
     'id="cooking-loading-note"',
     'id="cooking-loading-bar"',
-    'id="cooking-drop-intent"',
     'cooking-error',
   ]) assert.ok(html.includes(marker), marker);
   assert.match(html, /自由料理台/);
@@ -79,10 +78,6 @@ test("mobile CSS protects touch targets, safe areas, WebGL states, and reduced m
     ".cooking-loading__spinner",
     ".cooking-loading__progress",
     ".cooking-loading__meta",
-    ".cooking-drop-intent",
-    '[data-intent="top"]',
-    '[data-intent="bottom"]',
-    '[data-intent="home"]',
     ".cooking-error",
     ".tutorial-coach",
     ".tutorial-pointer",
@@ -90,6 +85,17 @@ test("mobile CSS protects touch targets, safe areas, WebGL states, and reduced m
     "height: clamp(38rem, 72dvh, 48rem)",
   ]) assert.ok(css.includes(marker), marker);
   assert.doesNotMatch(css, /background-image\s*:\s*url\(/i);
+});
+
+test("uses only in-world feedback and contains no text drop-intent control", async () => {
+  const [html, css, app] = await Promise.all([
+    readFile(htmlPath, "utf8"),
+    readFile(cssPath, "utf8"),
+    readFile(appPath, "utf8"),
+  ]);
+  assert.doesNotMatch(html, /cooking-drop-intent|放在最上层|塞到最下层|放回原料格/);
+  assert.doesNotMatch(css, /cooking-drop-intent|data-intent=/);
+  assert.doesNotMatch(app, /DROP_INTENT_COPY|cooking-drop-intent|放在最上层|塞到最下层|放回原料格/);
 });
 
 test("app exposes concise ingredient/sauce summaries and action-matched tutorial coaching", async () => {
