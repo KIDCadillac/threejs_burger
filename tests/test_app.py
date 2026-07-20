@@ -86,6 +86,22 @@ def test_vendored_three_module_and_license_are_served_locally() -> None:
     assert "MIT License" in license_text.text
 
 
+def test_standalone_solo_cooking_page_and_modules_are_served() -> None:
+    page = client.get("/static/cooking.html")
+    stage = client.get("/static/cooking-solo-stage.mjs")
+    state = client.get("/static/cooking-solo-state.mjs")
+    tutorial = client.get("/static/cooking-tutorial-state.mjs")
+
+    assert page.status_code == 200
+    assert "自由料理台" in page.text
+    assert 'src="./cooking-solo-app.mjs"' in page.text
+    for response in (stage, state, tutorial):
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith(
+            ("text/javascript", "application/javascript")
+        )
+
+
 def test_vendored_three_integrity_check_rejects_a_mutated_byte() -> None:
     original = client.get("/static/vendor/three.LICENSE.txt").content
     mutated = bytearray(original)
