@@ -19,6 +19,7 @@ export function mountSoloCookingLifecycle({
   windowTarget,
   stage,
   onClick,
+  onKeyDown = () => {},
   onDispose = () => {},
 } = {}) {
   requireEvents(documentTarget, "documentTarget");
@@ -27,11 +28,14 @@ export function mountSoloCookingLifecycle({
     throw new TypeError("stage must expose host and dispose");
   }
   if (typeof onClick !== "function") throw new TypeError("onClick must be a function");
+  if (typeof onKeyDown !== "function") throw new TypeError("onKeyDown must be a function");
   if (typeof onDispose !== "function") throw new TypeError("onDispose must be a function");
   disposeActiveSoloCookingPage(documentTarget);
 
   let disposed = false;
-  const resize = () => stage.host.resize?.();
+  const resize = () => (
+    typeof stage.resize === "function" ? stage.resize() : stage.host.resize?.()
+  );
   const pagehide = (event) => {
     if (event?.persisted) {
       stage.host.setVisible?.(false);
@@ -42,7 +46,7 @@ export function mountSoloCookingLifecycle({
   const pageshow = (event) => {
     if (!event?.persisted || disposed) return;
     stage.host.setVisible?.(true);
-    stage.host.resize?.();
+    resize();
   };
 
   const lifecycle = Object.freeze({
@@ -52,6 +56,7 @@ export function mountSoloCookingLifecycle({
       let firstError = null;
       for (const task of [
         () => documentTarget.removeEventListener("click", onClick),
+        () => documentTarget.removeEventListener("keydown", onKeyDown),
         () => windowTarget.removeEventListener("resize", resize),
         () => windowTarget.removeEventListener("pagehide", pagehide),
         () => windowTarget.removeEventListener("pageshow", pageshow),
@@ -80,6 +85,8 @@ export function mountSoloCookingLifecycle({
   try {
     documentTarget.addEventListener("click", onClick);
     rollback.push(() => documentTarget.removeEventListener("click", onClick));
+    documentTarget.addEventListener("keydown", onKeyDown);
+    rollback.push(() => documentTarget.removeEventListener("keydown", onKeyDown));
     windowTarget.addEventListener("resize", resize, { passive: true });
     rollback.push(() => windowTarget.removeEventListener("resize", resize));
     windowTarget.addEventListener("pagehide", pagehide);

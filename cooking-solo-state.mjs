@@ -3,12 +3,25 @@ import {
   SOLO_BURGER_INGREDIENT_IDS,
   SOLO_COOKING_SAUCE_IDS,
 } from "./burger-recipes.mjs";
+import {
+  WORKBENCH_REGION_OPTIONS,
+  WORKBENCH_SLOTS,
+  getWorkbenchSlot,
+  normalizeWorkbenchLoadout,
+} from "./workbench-loadout.mjs";
 
 const MAX_HISTORY = 32;
 const MAX_STROKES = 64;
 const MAX_POINTS = 24;
-export const MAX_SOLO_STACK_LAYERS = 20;
+export const MAX_SOLO_STACK_LAYERS = 60;
 export const SOLO_INGREDIENT_STOCK = 999;
+
+const INGREDIENT_STATION_SLOTS = Object.freeze(
+  WORKBENCH_SLOTS.filter(({ region }) => region !== "sauce"),
+);
+const INGREDIENT_STATION_SLOT_IDS = new Set(
+  INGREDIENT_STATION_SLOTS.map(({ slotId }) => slotId),
+);
 
 function requireLayer(layerId) {
   if (!SOLO_BURGER_INGREDIENT_IDS.includes(layerId)) {
@@ -101,50 +114,291 @@ function freezeIngredientRecord(record) {
   ));
 }
 
-function bareSnapshot(state) {
+function freezeStationSources(record) {
+  return Object.freeze(Object.fromEntries(
+    INGREDIENT_STATION_SLOTS.map(({ slotId }) => [slotId, record[slotId]]),
+  ));
+}
+
+function freezeInstanceHomes(record, instances) {
+  return Object.freeze(Object.fromEntries(
+    Object.entries(record)
+      .filter(([id, slotId]) => (
+        Object.hasOwn(instances, id) && INGREDIENT_STATION_SLOT_IDS.has(slotId)
+      )),
+  ));
+}
+
+function referencedInstanceIds(snapshot, stationSources = null) {
+  const referenced = new Set([
+    ...snapshot.assembledOrder,
+    ...snapshot.strokes.map(({ layerId }) => layerId),
+  ]);
+  if (stationSources) {
+    Object.values(stationSources).forEach((id) => referenced.add(id));
+  } else if (!snapshot.instanceHomes) {
+    Object.values(snapshot.binSources).forEach((id) => {
+      if (typeof id === "string") referenced.add(id);
+    });
+  }
+  return referenced;
+}
+
+function selectInstanceRecords(snapshot, referenced) {
+  const instances = {};
+  const locations = {};
+  const rotations = {};
+  Object.keys(snapshot.instances).forEach((id) => {
+    if (!referenced.has(id)) return;
+    instances[id] = snapshot.instances[id];
+    locations[id] = snapshot.locations[id];
+    rotations[id] = snapshot.rotations[id];
+  });
+  return { instances, locations, rotations };
+}
+
+function stationSession(state, overrides = {}) {
+  if (!state?.stationContents) return null;
+  return {
+    stationContents: overrides.stationContents ?? state.stationContents,
+    stationSources: overrides.stationSources ?? state.stationSources,
+    instanceHomes: overrides.instanceHomes ?? state.instanceHomes,
+  };
+}
+
+function allocateInstanceId(instances, ingredientId, nextInstanceSequence) {
+  if (!Object.hasOwn(instances, ingredientId)) {
+    return { instanceId: ingredientId, nextInstanceSequence };
+  }
+  let instanceId;
+  do {
+    instanceId = `${ingredientId}#${nextInstanceSequence}`;
+    nextInstanceSequence += 1;
+  } while (Object.hasOwn(instances, instanceId));
+  return { instanceId, nextInstanceSequence };
+}
+
+function deriveStationBinSources(stationContents, stationSources) {
+  const binSources = Object.fromEntries(
+    SOLO_BURGER_INGREDIENT_IDS.map((ingredientId) => [ingredientId, undefined]),
+  );
+  INGREDIENT_STATION_SLOTS.forEach(({ slotId }) => {
+    const ingredientId = stationContents[slotId];
+    if (binSources[ingredientId] === undefined) {
+      binSources[ingredientId] = stationSources[slotId];
+    }
+  });
+  return binSources;
+}
+
+function reconcileStationSnapshot(snapshot, session) {
+  const stationContents = normalizeWorkbenchLoadout(session.stationContents);
+  const assembled = new Set(snapshot.assembledOrder);
+  const instances = { ...snapshot.instances };
+  const locations = Object.fromEntries(
+    Object.keys(instances).map((id) => [id, { ...snapshot.locations[id] }]),
+  );
+  const rotations = { ...snapshot.rotations };
+  // A sauce stroke owns its target just like the assembled stack and the active station do.
+  const strokedLayers = new Set(snapshot.strokes.map(({ layerId }) => layerId));
+  const stationSources = {};
+  const instanceHomes = {
+    ...session.instanceHomes,
+    ...(snapshot.instanceHomes ?? {}),
+  };
+  const selectedSources = new Set();
+  let nextInstanceSequence = snapshot.nextInstanceSequence;
+
+  INGREDIENT_STATION_SLOTS.forEach(({ slotId }) => {
+    const ingredientId = stationContents[slotId];
+    let sourceId = session.stationSources?.[slotId];
+    const historicalLocation = snapshot.locations[sourceId];
+    const historicalSlotId = snapshot.instanceHomes?.[sourceId]
+      ?? (historicalLocation?.kind === "bin" ? historicalLocation.slotId : undefined);
+    const strokedSourceMovedSlots = strokedLayers.has(sourceId)
+      && typeof historicalSlotId === "string"
+      && historicalSlotId !== slotId;
+    const sourceConflicts = typeof sourceId !== "string"
+      || selectedSources.has(sourceId)
+      || (Object.hasOwn(instances, sourceId) && instances[sourceId] !== ingredientId)
+      || assembled.has(sourceId)
+      || strokedSourceMovedSlots;
+    if (sourceConflicts) {
+      const allocated = allocateInstanceId(instances, ingredientId, nextInstanceSequence);
+      sourceId = allocated.instanceId;
+      nextInstanceSequence = allocated.nextInstanceSequence;
+    }
+    instances[sourceId] = ingredientId;
+    locations[sourceId] = { kind: "bin", slotId };
+    if (!Number.isFinite(rotations[sourceId])) rotations[sourceId] = 0;
+    stationSources[slotId] = sourceId;
+    instanceHomes[sourceId] = slotId;
+    selectedSources.add(sourceId);
+  });
+
+  Object.keys(instances).forEach((id) => {
+    if (assembled.has(id) || selectedSources.has(id) || strokedLayers.has(id)) return;
+    const location = locations[id];
+    if (
+      location?.kind === "bin"
+      && typeof location.slotId === "string"
+      && INGREDIENT_STATION_SLOT_IDS.has(location.slotId)
+    ) {
+      delete instances[id];
+      delete locations[id];
+      delete rotations[id];
+    }
+  });
+
+  return {
+    snapshot: {
+      ...snapshot,
+      instances,
+      locations,
+      rotations,
+      binSources: deriveStationBinSources(stationContents, stationSources),
+      nextInstanceSequence,
+    },
+    session: { stationContents, stationSources, instanceHomes },
+  };
+}
+
+function bareSnapshot(state, { includeStationSession = false } = {}) {
+  const referenced = referencedInstanceIds(state, state.stationSources);
+  const { instances, locations, rotations } = selectInstanceRecords(state, referenced);
   return Object.freeze({
     assembledOrder: Object.freeze([...state.assembledOrder]),
-    instances: freezeInstances(state.instances),
-    locations: freezeLocations(state.locations, state.instances),
-    rotations: freezeRotations(state.rotations, state.instances),
+    instances: freezeInstances(instances),
+    locations: freezeLocations(locations, instances),
+    rotations: freezeRotations(rotations, instances),
     binSources: freezeIngredientRecord(state.binSources),
     inventory: freezeIngredientRecord(state.inventory),
     nextInstanceSequence: state.nextInstanceSequence,
     strokes: Object.freeze(state.strokes.map((stroke) => freezeStroke(stroke, state.instances))),
     finished: Boolean(state.finished),
+    ...(state.instanceHomes ? {
+      instanceHomes: freezeInstanceHomes(state.instanceHomes, instances),
+    } : {}),
+    ...(includeStationSession && state.stationContents ? {
+      stationContents: normalizeWorkbenchLoadout(state.stationContents),
+      stationSources: freezeStationSources(state.stationSources),
+    } : {}),
   });
 }
 
-function buildState(snapshot, history = [], referenceRecipeId = null) {
-  const assembledOrder = Object.freeze([...snapshot.assembledOrder]);
-  const instances = freezeInstances(snapshot.instances);
-  return Object.freeze({
+function buildState(
+  snapshot,
+  history = [],
+  referenceRecipeId = null,
+  session = null,
+  { reconcileStations = false } = {},
+) {
+  let resolvedSnapshot = snapshot;
+  let resolvedSession = session;
+  if (resolvedSession && reconcileStations) {
+    const reconciled = reconcileStationSnapshot(snapshot, resolvedSession);
+    resolvedSnapshot = reconciled.snapshot;
+    resolvedSession = reconciled.session;
+  }
+  if (resolvedSession) {
+    const referenced = referencedInstanceIds(resolvedSnapshot, resolvedSession.stationSources);
+    const pruned = selectInstanceRecords(resolvedSnapshot, referenced);
+    resolvedSnapshot = {
+      ...resolvedSnapshot,
+      ...pruned,
+    };
+  }
+  const assembledOrder = Object.freeze([...resolvedSnapshot.assembledOrder]);
+  const instances = freezeInstances(resolvedSnapshot.instances);
+  const state = {
     assembledOrder,
     instances,
-    locations: freezeLocations(snapshot.locations, instances),
-    rotations: freezeRotations(snapshot.rotations, instances),
-    binSources: freezeIngredientRecord(snapshot.binSources),
-    inventory: freezeIngredientRecord(snapshot.inventory),
-    nextInstanceSequence: snapshot.nextInstanceSequence,
-    strokes: Object.freeze(snapshot.strokes.map((stroke) => freezeStroke(stroke, instances))),
+    locations: freezeLocations(resolvedSnapshot.locations, instances),
+    rotations: freezeRotations(resolvedSnapshot.rotations, instances),
+    binSources: freezeIngredientRecord(resolvedSnapshot.binSources),
+    inventory: freezeIngredientRecord(resolvedSnapshot.inventory),
+    nextInstanceSequence: resolvedSnapshot.nextInstanceSequence,
+    strokes: Object.freeze(
+      resolvedSnapshot.strokes.map((stroke) => freezeStroke(stroke, instances)),
+    ),
     complete: assembledOrder.length >= 2,
-    finished: Boolean(snapshot.finished),
-    history: Object.freeze([...history]),
+    finished: Boolean(resolvedSnapshot.finished),
+    history: Object.isFrozen(history) ? history : Object.freeze([...history]),
     referenceRecipeId: requireReferenceRecipe(referenceRecipeId),
-  });
+  };
+  if (resolvedSession) {
+    state.stationContents = normalizeWorkbenchLoadout(resolvedSession.stationContents);
+    state.stationSources = freezeStationSources(resolvedSession.stationSources);
+    state.instanceHomes = freezeInstanceHomes(resolvedSession.instanceHomes, instances);
+  }
+  return Object.freeze(state);
 }
 
-function edited(state, changes) {
-  const history = [...state.history, bareSnapshot(state)].slice(-MAX_HISTORY);
+function edited(state, changes, { preservePreviousStation = false } = {}) {
+  const history = [
+    ...state.history,
+    bareSnapshot(state, { includeStationSession: preservePreviousStation }),
+  ].slice(-MAX_HISTORY);
   return buildState(
     { ...bareSnapshot(state), ...changes },
     history,
     state.referenceRecipeId,
+    stationSession(state, changes),
   );
 }
 
-export function createSoloCookingState({ referenceRecipeId = null } = {}) {
+function discardHistoricalStationSessions(history) {
+  let changed = false;
+  const cookingHistory = history.map((snapshot) => {
+    if (!snapshot.stationContents) return snapshot;
+    changed = true;
+    const {
+      stationContents: _stationContents,
+      stationSources: _stationSources,
+      ...cookingSnapshot
+    } = snapshot;
+    return Object.freeze(cookingSnapshot);
+  });
+  return changed ? Object.freeze(cookingHistory) : history;
+}
+
+export function createSoloCookingState({ referenceRecipeId = null, loadout } = {}) {
   requireReferenceRecipe(referenceRecipeId);
+  if (loadout !== undefined) {
+    const stationContents = normalizeWorkbenchLoadout(loadout);
+    const instances = {};
+    const locations = {};
+    const rotations = {};
+    const stationSources = {};
+    const instanceHomes = {};
+    let nextInstanceSequence = 2;
+
+    INGREDIENT_STATION_SLOTS.forEach(({ slotId }) => {
+      const ingredientId = stationContents[slotId];
+      const allocated = allocateInstanceId(instances, ingredientId, nextInstanceSequence);
+      const instanceId = allocated.instanceId;
+      nextInstanceSequence = allocated.nextInstanceSequence;
+      instances[instanceId] = ingredientId;
+      locations[instanceId] = { kind: "bin", slotId };
+      rotations[instanceId] = 0;
+      stationSources[slotId] = instanceId;
+      instanceHomes[instanceId] = slotId;
+    });
+
+    return buildState({
+      assembledOrder: [],
+      instances,
+      locations,
+      rotations,
+      binSources: deriveStationBinSources(stationContents, stationSources),
+      inventory: Object.fromEntries(
+        SOLO_BURGER_INGREDIENT_IDS.map((id) => [id, SOLO_INGREDIENT_STOCK]),
+      ),
+      nextInstanceSequence,
+      strokes: [],
+      finished: false,
+    }, [], referenceRecipeId, { stationContents, stationSources, instanceHomes });
+  }
   const instances = Object.fromEntries(SOLO_BURGER_INGREDIENT_IDS.map((id) => [id, id]));
   return buildState({
     assembledOrder: [],
@@ -169,6 +423,72 @@ export function selectSoloReferenceRecipe(state, referenceRecipeId) {
   return Object.freeze({ ...state, referenceRecipeId: selected });
 }
 
+export function setSoloStationContent(state, slotId, contentId) {
+  const slot = getWorkbenchSlot(slotId);
+  if (!WORKBENCH_REGION_OPTIONS[slot.region].includes(contentId)) {
+    throw new TypeError(
+      `Content ${String(contentId)} is not valid for ${slot.region} slot ${slotId}`,
+    );
+  }
+  const session = stationSession(state);
+  if (!session) {
+    throw new TypeError("Station content can only be changed in explicit loadout mode");
+  }
+  if (session.stationContents[slotId] === contentId) return state;
+
+  const stationContents = normalizeWorkbenchLoadout({
+    ...session.stationContents,
+    [slotId]: contentId,
+  });
+  const history = discardHistoricalStationSessions(state.history);
+  if (slot.region === "sauce") {
+    return Object.freeze({ ...state, stationContents, history });
+  }
+
+  const instances = { ...state.instances };
+  const locations = Object.fromEntries(
+    Object.keys(instances).map((id) => [id, state.locations[id]]),
+  );
+  const rotations = { ...state.rotations };
+  const stationSources = { ...session.stationSources };
+  const instanceHomes = { ...session.instanceHomes };
+  const previousSourceId = stationSources[slotId];
+  const previousSourceHasStrokes = state.strokes.some(
+    ({ layerId }) => layerId === previousSourceId,
+  );
+  if (
+    !previousSourceHasStrokes
+    && instances[previousSourceId]
+    && locations[previousSourceId]?.kind === "bin"
+    && locations[previousSourceId]?.slotId === slotId
+  ) {
+    delete instances[previousSourceId];
+    delete locations[previousSourceId];
+    delete rotations[previousSourceId];
+  }
+
+  const allocated = allocateInstanceId(instances, contentId, state.nextInstanceSequence);
+  const sourceId = allocated.instanceId;
+  instances[sourceId] = contentId;
+  locations[sourceId] = { kind: "bin", slotId };
+  rotations[sourceId] = 0;
+  stationSources[slotId] = sourceId;
+  instanceHomes[sourceId] = slotId;
+
+  return buildState({
+    ...bareSnapshot(state),
+    instances,
+    locations,
+    rotations,
+    binSources: deriveStationBinSources(stationContents, stationSources),
+    nextInstanceSequence: allocated.nextInstanceSequence,
+  }, history, state.referenceRecipeId, {
+    stationContents,
+    stationSources,
+    instanceHomes,
+  });
+}
+
 export function placeSoloLayer(
   state,
   layerId,
@@ -190,15 +510,39 @@ export function placeSoloLayer(
   const instances = { ...state.instances };
   const locations = Object.fromEntries(Object.keys(instances).map((id) => [id, state.locations[id]]));
   const rotations = { ...state.rotations };
-  const binSources = { ...state.binSources };
+  let binSources = { ...state.binSources };
   const inventory = { ...state.inventory };
+  const session = stationSession(state);
+  const stationSources = session ? { ...session.stationSources } : null;
+  const instanceHomes = session ? { ...session.instanceHomes } : null;
   let nextInstanceSequence = state.nextInstanceSequence;
-  if (replenish && !alreadyAssembled && binSources[ingredientId] === layerId) {
-    let replacementId;
-    do {
-      replacementId = `${ingredientId}#${nextInstanceSequence}`;
-      nextInstanceSequence += 1;
-    } while (instances[replacementId]);
+  const sourceSlotId = state.locations[layerId]?.kind === "bin"
+    ? state.locations[layerId].slotId
+    : undefined;
+  const isExplicitStationSource = session
+    && typeof sourceSlotId === "string"
+    && stationSources[sourceSlotId] === layerId;
+  if (replenish && !alreadyAssembled && isExplicitStationSource) {
+    const allocated = allocateInstanceId(instances, ingredientId, nextInstanceSequence);
+    const replacementId = allocated.instanceId;
+    nextInstanceSequence = allocated.nextInstanceSequence;
+    instances[replacementId] = ingredientId;
+    locations[replacementId] = { kind: "bin", slotId: sourceSlotId };
+    rotations[replacementId] = 0;
+    stationSources[sourceSlotId] = replacementId;
+    instanceHomes[layerId] = sourceSlotId;
+    instanceHomes[replacementId] = sourceSlotId;
+    inventory[ingredientId] = Math.max(0, inventory[ingredientId] - 1);
+    binSources = deriveStationBinSources(session.stationContents, stationSources);
+  } else if (
+    !session
+    && replenish
+    && !alreadyAssembled
+    && binSources[ingredientId] === layerId
+  ) {
+    const allocated = allocateInstanceId(instances, ingredientId, nextInstanceSequence);
+    const replacementId = allocated.instanceId;
+    nextInstanceSequence = allocated.nextInstanceSequence;
     instances[replacementId] = ingredientId;
     locations[replacementId] = {
       kind: "bin",
@@ -218,10 +562,19 @@ export function placeSoloLayer(
     inventory,
     nextInstanceSequence,
     finished: false,
+    ...(session ? {
+      stationContents: session.stationContents,
+      stationSources,
+      instanceHomes,
+    } : {}),
   });
 }
 
-export function removeSoloLayer(state, layerId, { consolidate = false } = {}) {
+export function removeSoloLayer(
+  state,
+  layerId,
+  { consolidate = false, targetSlotId } = {},
+) {
   requireEditable(state);
   const ingredientId = requireInstance(state, layerId);
   if (state.locations[layerId].kind === "bin") return state;
@@ -229,11 +582,58 @@ export function removeSoloLayer(state, layerId, { consolidate = false } = {}) {
   const instances = { ...state.instances };
   const locations = Object.fromEntries(Object.keys(instances).map((id) => [id, state.locations[id]]));
   const rotations = { ...state.rotations };
-  const binSources = { ...state.binSources };
+  let binSources = { ...state.binSources };
   const inventory = { ...state.inventory };
+  const session = stationSession(state);
+  const stationContents = session ? { ...session.stationContents } : null;
+  const stationSources = session ? { ...session.stationSources } : null;
+  const instanceHomes = session ? { ...session.instanceHomes } : null;
   let strokes = state.strokes;
+  let stationSessionChanged = false;
   const returnedId = layerId;
-  if (consolidate && binSources[ingredientId] !== layerId) {
+  const homeSlotId = session ? instanceHomes[returnedId] : undefined;
+  let returnSlotId = homeSlotId;
+  if (targetSlotId !== undefined) {
+    if (!session || typeof homeSlotId !== "string") {
+      throw new TypeError("A target station slot requires explicit loadout mode");
+    }
+    const homeSlot = getWorkbenchSlot(homeSlotId);
+    const targetSlot = getWorkbenchSlot(targetSlotId);
+    if (
+      targetSlot.region === "sauce"
+      || targetSlot.region !== homeSlot.region
+      || !WORKBENCH_REGION_OPTIONS[targetSlot.region].includes(ingredientId)
+    ) {
+      throw new TypeError("Returned ingredients must stay within their station region");
+    }
+    returnSlotId = targetSlotId;
+  }
+  if (
+    consolidate
+    && session
+    && typeof returnSlotId === "string"
+    && INGREDIENT_STATION_SLOT_IDS.has(returnSlotId)
+  ) {
+    const previousSourceId = stationSources[returnSlotId];
+    if (
+      previousSourceId !== returnedId
+      && instances[previousSourceId]
+      && locations[previousSourceId]?.kind === "bin"
+      && locations[previousSourceId]?.slotId === returnSlotId
+    ) {
+      delete instances[previousSourceId];
+      delete locations[previousSourceId];
+      delete rotations[previousSourceId];
+      strokes = strokes.filter((stroke) => stroke.layerId !== previousSourceId);
+    }
+    stationContents[returnSlotId] = ingredientId;
+    stationSources[returnSlotId] = returnedId;
+    instanceHomes[returnedId] = returnSlotId;
+    stationSessionChanged = true;
+    locations[returnedId] = { kind: "bin", slotId: returnSlotId };
+    binSources = deriveStationBinSources(stationContents, stationSources);
+    inventory[ingredientId] = Math.min(SOLO_INGREDIENT_STOCK, inventory[ingredientId] + 1);
+  } else if (consolidate && binSources[ingredientId] !== layerId) {
     const previousSourceId = binSources[ingredientId];
     delete instances[previousSourceId];
     delete locations[previousSourceId];
@@ -243,10 +643,12 @@ export function removeSoloLayer(state, layerId, { consolidate = false } = {}) {
     inventory[ingredientId] = Math.min(SOLO_INGREDIENT_STOCK, inventory[ingredientId] + 1);
   }
   if (instances[returnedId]) {
-    locations[returnedId] = {
-      kind: "bin",
-      index: SOLO_BURGER_INGREDIENT_IDS.indexOf(ingredientId),
-    };
+    locations[returnedId] = session && typeof returnSlotId === "string"
+      ? { kind: "bin", slotId: returnSlotId }
+      : {
+        kind: "bin",
+        index: SOLO_BURGER_INGREDIENT_IDS.indexOf(ingredientId),
+      };
   }
   order.forEach((id, index) => { locations[id] = { kind: "prep", index }; });
   return edited(state, {
@@ -258,7 +660,12 @@ export function removeSoloLayer(state, layerId, { consolidate = false } = {}) {
     inventory,
     strokes,
     finished: false,
-  });
+    ...(session ? {
+      stationContents,
+      stationSources,
+      instanceHomes,
+    } : {}),
+  }, { preservePreviousStation: stationSessionChanged });
 }
 
 export function rotateSoloLayer(state, layerId, yaw) {
@@ -296,16 +703,20 @@ export function continueSoloCooking(state) {
 export function undoSoloCooking(state) {
   if (!state.history.length) return state;
   const previous = state.history[state.history.length - 1];
+  const previousSession = stationSession(previous) ?? stationSession(state);
   return buildState(
     previous,
     state.history.slice(0, -1),
     state.referenceRecipeId,
+    previousSession,
+    { reconcileStations: Boolean(previousSession) },
   );
 }
 
 export function resetSoloCookingState(state) {
   return createSoloCookingState({
     referenceRecipeId: state?.referenceRecipeId ?? null,
+    ...(state?.stationContents ? { loadout: state.stationContents } : {}),
   });
 }
 

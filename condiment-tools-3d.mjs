@@ -42,7 +42,7 @@ function normalizeSauceIds(sauceIds) {
 }
 
 function validateDocks(toolDocks, sauceIds) {
-  if (!Array.isArray(toolDocks) || toolDocks.length !== sauceIds.length) {
+  if (!Array.isArray(toolDocks) || toolDocks.length === 0) {
     throw new TypeError("toolDocks must exactly match sauce keys");
   }
   const ids = toolDocks.map((dock) => {
@@ -60,10 +60,23 @@ function validateDocks(toolDocks, sauceIds) {
     }
     return dock.id;
   });
-  if (new Set(ids).size !== ids.length) {
-    throw new TypeError("Condiment docks contain duplicate ids");
+  const slotFlags = toolDocks.map(({ slotId }) => typeof slotId === "string" && Boolean(slotId));
+  const descriptorMode = slotFlags.every(Boolean);
+  if (!descriptorMode && slotFlags.some(Boolean)) {
+    throw new TypeError("Condiment docks must either all use slot ids or none use slot ids");
   }
-  if (ids.some((id) => !sauceIds.includes(id))
+  if (descriptorMode) {
+    const slotIds = toolDocks.map(({ slotId }) => slotId);
+    if (new Set(slotIds).size !== slotIds.length) {
+      throw new TypeError("Condiment docks contain duplicate slot ids");
+    }
+    if (ids.some((id) => !sauceIds.includes(id))) {
+      throw new TypeError("toolDocks must use supported sauce keys");
+    }
+  } else if (new Set(ids).size !== ids.length) {
+    throw new TypeError("Condiment docks contain duplicate ids");
+  } else if (toolDocks.length !== sauceIds.length
+    || ids.some((id) => !sauceIds.includes(id))
     || sauceIds.some((id) => !ids.includes(id))) {
     throw new TypeError("toolDocks must exactly match sauce keys");
   }
@@ -71,7 +84,7 @@ function validateDocks(toolDocks, sauceIds) {
   if (parents.size !== 1 || !toolDocks[0].dock.parent?.isObject3D) {
     throw new TypeError("Condiment docks must share one Three parent");
   }
-  return toolDocks;
+  return Object.freeze({ docks: toolDocks, descriptorMode });
 }
 
 function finite(value, label) {
@@ -119,8 +132,7 @@ export function createCondimentTools3D(THREE, {
 } = {}) {
   requireThree(THREE);
   const activeSauceIds = normalizeSauceIds(sauceIds);
-  const docks = validateDocks(toolDocks, activeSauceIds);
-  const dockById = new Map(docks.map((dock) => [dock.id, dock]));
+  const { docks, descriptorMode } = validateDocks(toolDocks, activeSauceIds);
   const commonParent = docks[0].dock.parent;
   const root = new THREE.Group();
   root.name = "condiment-tools";
@@ -179,6 +191,7 @@ export function createCondimentTools3D(THREE, {
   const bottles = new Map();
   const selectableSurfaces = [];
   const homePoses = new Map();
+  const updateBottleContent = new Map();
   const directionScratch = new THREE.Vector3();
   const homeDirectionScratch = new THREE.Vector3();
   const axisScratch = new THREE.Vector3();
@@ -187,12 +200,11 @@ export function createCondimentTools3D(THREE, {
   const homeQuaternionScratch = new THREE.Quaternion();
   const deltaQuaternionScratch = new THREE.Quaternion();
 
-  for (const sauce of activeSauceIds) {
-    const dock = dockById.get(sauce);
+  for (const dock of docks) {
+    const bottleId = descriptorMode ? dock.slotId : dock.id;
+    let sauce = dock.id;
     const bottleRoot = new THREE.Group();
-    bottleRoot.name = `condiment:${sauce}`;
-    const metadata = Object.freeze({ kind: "condiment-bottle", sauce, id: sauce });
-    bottleRoot.userData.condimentBottle = metadata;
+    let metadata = null;
     bottleRoot.userData.active = false;
 
     const body = new THREE.Mesh(shared.bodyGeometry, bodyMaterials.get(sauce));
@@ -204,10 +216,8 @@ export function createCondimentTools3D(THREE, {
     const nozzle = new THREE.Mesh(shared.nozzleGeometry, shared.nozzleMaterial);
     nozzle.name = `condiment:${sauce}:nozzle`;
     nozzle.position.y = -0.04;
-    for (const surface of [body, cap, nozzle]) {
-      surface.userData.cookingSelectable = metadata;
-      selectableSurfaces.push(surface);
-    }
+    const bottleSurfaces = [body, cap, nozzle];
+    bottleSurfaces.forEach((surface) => selectableSurfaces.push(surface));
     const label = new THREE.Mesh(shared.labelGeometry, shared.labelMaterial);
     label.name = `condiment:${sauce}:label`;
     label.raycast = NO_RAYCAST;
@@ -216,43 +226,69 @@ export function createCondimentTools3D(THREE, {
     const nozzleAnchor = new THREE.Object3D();
     nozzleAnchor.name = `condiment:${sauce}:nozzle-anchor`;
     nozzleAnchor.position.y = -0.18;
-    nozzleAnchor.userData.condimentNozzle = metadata;
     bottleRoot.add(body, cap, nozzle, label, nozzleAnchor);
     root.add(bottleRoot);
+
+    const applyContent = (nextSauce) => {
+      sauce = nextSauce;
+      metadata = Object.freeze({
+        kind: "condiment-bottle",
+        sauce,
+        id: bottleId,
+        ...(descriptorMode ? { slotId: bottleId } : {}),
+      });
+      bottleRoot.name = `condiment:${bottleId}:${sauce}`;
+      bottleRoot.userData.condimentBottle = metadata;
+      body.name = `condiment:${bottleId}:${sauce}:body`;
+      cap.name = `condiment:${bottleId}:${sauce}:cap`;
+      nozzle.name = `condiment:${bottleId}:${sauce}:nozzle`;
+      label.name = `condiment:${bottleId}:${sauce}:label`;
+      nozzleAnchor.name = `condiment:${bottleId}:${sauce}:nozzle-anchor`;
+      bottleSurfaces.forEach((surface) => {
+        surface.userData.cookingSelectable = metadata;
+      });
+      nozzleAnchor.userData.condimentNozzle = metadata;
+      body.material = bodyMaterials.get(sauce);
+    };
+    applyContent(sauce);
 
     root.updateWorldMatrix?.(true, true);
     const homeWorld = dock.pickupAnchor.getWorldPosition(new THREE.Vector3());
     bottleRoot.position.copy(root.worldToLocal(homeWorld.clone()));
     bottleRoot.updateMatrixWorld?.(true);
     const homePose = frozenPose(bottleRoot);
-    homePoses.set(sauce, homePose);
-    bottles.set(sauce, Object.freeze({
-      id: sauce,
-      sauce,
+    homePoses.set(bottleId, homePose);
+    const bottle = Object.freeze({
+      id: bottleId,
+      get sauce() { return sauce; },
       root: bottleRoot,
       body,
       cap,
       nozzle,
       nozzleAnchor,
       decoration: Object.freeze([label]),
-      selectableSurfaces: Object.freeze([body, cap, nozzle]),
-      metadata,
+      selectableSurfaces: Object.freeze(bottleSurfaces),
+      get metadata() { return metadata; },
       homePose,
       dock,
-    }));
+    });
+    bottles.set(bottleId, bottle);
+    updateBottleContent.set(bottleId, applyContent);
   }
 
   let disposed = false;
-  const requireBottle = (sauce) => {
-    if (!activeSauceIds.includes(sauce) || !bottles.has(sauce)) {
-      throw new TypeError(`Unknown condiment: ${String(sauce)}`);
-    }
-    return bottles.get(sauce);
+  const resolveBottle = (id) => (
+    bottles.get(id) ?? [...bottles.values()].find(({ sauce }) => sauce === id) ?? null
+  );
+  const requireBottle = (id) => {
+    const bottle = resolveBottle(id);
+    if (!bottle) throw new TypeError(`Unknown condiment: ${String(id)}`);
+    return bottle;
   };
-  const dockBottle = (sauce) => {
+  const dockBottle = (id) => {
     if (disposed) return false;
-    const bottle = requireBottle(sauce);
-    restorePose(bottle.root, homePoses.get(sauce));
+    const bottle = requireBottle(id);
+    restorePose(bottle.root, homePoses.get(bottle.id));
     bottle.root.userData.active = false;
     return true;
   };
@@ -263,17 +299,20 @@ export function createCondimentTools3D(THREE, {
     bottles,
     selectableSurfaces: Object.freeze(selectableSurfaces),
     noRaycast: NO_RAYCAST,
-    get(sauce) {
-      return bottles.get(sauce) ?? null;
+    get(id) {
+      return resolveBottle(id);
+    },
+    getBySlot(slotId) {
+      return descriptorMode ? bottles.get(slotId) ?? null : null;
     },
     dock: dockBottle,
-    setTilt(sauce, tilt = {}) {
+    setTilt(id, tilt = {}) {
       if (disposed) return false;
-      const bottle = requireBottle(sauce);
+      const bottle = requireBottle(id);
       if (!tilt || typeof tilt !== "object" || Array.isArray(tilt)) {
         throw new TypeError("tilt must be an object");
       }
-      const pose = homePoses.get(sauce);
+      const pose = homePoses.get(bottle.id);
       if (tilt.worldDirection !== undefined) {
         const worldDirection = tilt.worldDirection;
         if (!worldDirection || typeof worldDirection !== "object"
@@ -347,13 +386,28 @@ export function createCondimentTools3D(THREE, {
       bottle.root.rotateZ(z);
       return true;
     },
-    setActive(sauce, active = true) {
+    setActive(id, active = true) {
       if (disposed) return false;
-      const bottle = requireBottle(sauce);
+      const bottle = requireBottle(id);
       const enabled = Boolean(active);
       bottle.root.userData.active = enabled;
       const scale = enabled ? ACTIVE_SCALE : 1;
       bottle.root.scale.setScalar(scale);
+      return true;
+    },
+    setSlotContent(slotId, sauce) {
+      if (disposed) return false;
+      if (!descriptorMode) {
+        throw new TypeError("Physical sauce slot switching requires slot-addressed docks");
+      }
+      if (!activeSauceIds.includes(sauce)) {
+        throw new TypeError(`Unsupported sauce id: ${String(sauce)}`);
+      }
+      const bottle = bottles.get(slotId);
+      if (!bottle) throw new TypeError(`Unknown condiment slot: ${String(slotId)}`);
+      if (bottle.sauce === sauce) return false;
+      dockBottle(slotId);
+      updateBottleContent.get(slotId)(sauce);
       return true;
     },
     dispose() {

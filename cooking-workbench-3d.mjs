@@ -1,4 +1,5 @@
 import { BURGER_LAYER_IDS, SAUCE_KEYS } from "./cooking-state.mjs";
+import { WORKBENCH_REGION_OPTIONS } from "./workbench-loadout.mjs";
 
 const MAX_INGREDIENT_SLOTS = 12;
 const MAX_TOOL_DOCKS = 8;
@@ -17,6 +18,67 @@ function normalizeIds(value, label, { minimum, maximum }) {
     throw new TypeError(`${label} must not contain duplicate identifiers`);
   }
   return normalized;
+}
+
+const SLOT_KIND_BY_REGION = Object.freeze({
+  bread: "ingredient",
+  filling: "ingredient",
+  sauce: "tool",
+});
+const SLOT_REGION_ORDER = Object.freeze(["bread", "filling", "sauce"]);
+const SLOT_INDICES_BY_REGION = Object.freeze({
+  bread: Object.freeze([0, 1, 2]),
+  filling: Object.freeze([0, 1, 2, 3]),
+  sauce: Object.freeze([0, 1, 2]),
+});
+
+function normalizeSlotDescriptors(value) {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new TypeError("slotDescriptors must contain at least one descriptor");
+  }
+  const descriptors = value.map((descriptor) => {
+    if (descriptor === null || typeof descriptor !== "object" || Array.isArray(descriptor)) {
+      throw new TypeError("slotDescriptors must contain descriptor objects");
+    }
+    const slotId = typeof descriptor.slotId === "string" ? descriptor.slotId.trim() : "";
+    if (!slotId || slotId.length > 64) {
+      throw new TypeError("slotDescriptors must contain non-empty slotId strings");
+    }
+    const { contentId, kind, region, index } = descriptor;
+    const expectedKind = SLOT_KIND_BY_REGION[region];
+    if (!expectedKind || kind !== expectedKind) {
+      throw new TypeError(`slot ${slotId} has an invalid kind/region pairing`);
+    }
+    if (!WORKBENCH_REGION_OPTIONS[region].includes(contentId)) {
+      throw new TypeError(`content ${String(contentId)} is not valid for ${region} slot ${slotId}`);
+    }
+    if (!Number.isSafeInteger(index) || index < 0) {
+      throw new TypeError(`slot ${slotId} index must be a non-negative integer`);
+    }
+    return Object.freeze({ slotId, contentId, kind, region, index });
+  });
+  const slotIds = descriptors.map(({ slotId }) => slotId);
+  if (new Set(slotIds).size !== slotIds.length) {
+    throw new TypeError("slotDescriptors must contain unique slotId values");
+  }
+  const hasFixedTopology = Object.entries(SLOT_INDICES_BY_REGION).every(([
+    region,
+    expectedIndices,
+  ]) => {
+    const actualIndices = descriptors
+      .filter((descriptor) => descriptor.region === region)
+      .map(({ index }) => index)
+      .sort((left, right) => left - right);
+    return actualIndices.length === expectedIndices.length
+      && actualIndices.every((index, position) => index === expectedIndices[position]);
+  });
+  if (!hasFixedTopology) {
+    throw new TypeError("slotDescriptors must use the fixed 3/4/3 topology and regional indices");
+  }
+  return Object.freeze([...descriptors].sort((left, right) => (
+    SLOT_REGION_ORDER.indexOf(left.region) - SLOT_REGION_ORDER.indexOf(right.region)
+      || left.index - right.index
+  )));
 }
 
 const NO_RAYCAST = () => {};
@@ -47,6 +109,30 @@ function freezeBounds(position, halfWidth, halfDepth) {
   });
 }
 
+function freezeStationLayout(station, object, halfExtent, descriptorMode) {
+  const physicalLayout = {
+    position: freezePosition(object.position),
+    bounds: freezeBounds(object.position, halfExtent.x, halfExtent.z),
+    halfExtent,
+  };
+  if (!descriptorMode) {
+    return Object.freeze({
+      kind: object.userData.cookingStation.kind,
+      id: station.id,
+      ...physicalLayout,
+    });
+  }
+  return Object.freeze({
+    kind: station.kind,
+    get id() { return station.id; },
+    get contentId() { return station.contentId; },
+    slotId: station.slotId,
+    region: station.region,
+    index: station.index,
+    ...physicalLayout,
+  });
+}
+
 function ingredientPositions(count) {
   const topCount = Math.min(5, count);
   const positions = Array.from({ length: topCount }, (_, index) => ({
@@ -74,6 +160,51 @@ function toolPositions(count) {
   }));
 }
 
+function centeredLinePositions(count, { x, z, spacing, axis }) {
+  return Array.from({ length: count }, (_, positionIndex) => {
+    const offset = (positionIndex - (count - 1) / 2) * spacing;
+    return {
+      x: axis === "x" ? offset : x,
+      y: 0,
+      z: axis === "z" ? offset : z,
+    };
+  });
+}
+
+function switchableStationPositions(descriptors) {
+  const byRegion = new Map();
+  for (const region of SLOT_REGION_ORDER) {
+    const regionDescriptors = descriptors.filter((descriptor) => descriptor.region === region);
+    let positions;
+    if (region === "bread") {
+      positions = centeredLinePositions(regionDescriptors.length, {
+        x: -3.85,
+        z: 0,
+        spacing: 1.65,
+        axis: "z",
+      });
+    } else if (region === "filling") {
+      positions = centeredLinePositions(regionDescriptors.length, {
+        x: 0,
+        z: -3.35,
+        spacing: 1.7,
+        axis: "x",
+      });
+    } else {
+      positions = centeredLinePositions(regionDescriptors.length, {
+        x: 3.85,
+        z: 0,
+        spacing: 1.65,
+        axis: "z",
+      });
+    }
+    regionDescriptors.forEach((descriptor) => {
+      byRegion.set(descriptor.slotId, positions[descriptor.index]);
+    });
+  }
+  return byRegion;
+}
+
 function addStationAnchors(THREE, group, id, kind, dropHeight, pickupHeight) {
   const dropAnchor = new THREE.Object3D();
   dropAnchor.name = `${kind}:${id}:drop`;
@@ -87,11 +218,78 @@ function addStationAnchors(THREE, group, id, kind, dropHeight, pickupHeight) {
   return { dropAnchor, pickupAnchor };
 }
 
-function createIngredientStation(THREE, resources, id, index, position) {
+function createStationSelector(THREE, resources, { slotId, region }) {
+  const selector = new THREE.Mesh(resources.selectorGeometry, resources.selectorMaterial);
+  selector.name = `station:${slotId}:selector`;
+  selector.rotation.x = -Math.PI / 3;
+  selector.position.y = 0.42;
+  if (region === "bread") selector.position.x = -1.08;
+  if (region === "filling") selector.position.z = -0.98;
+  if (region === "sauce") selector.position.x = 1.08;
+  selector.userData.cookingSelectable = Object.freeze({
+    kind: "station-selector",
+    slotId,
+    region,
+  });
+  return selector;
+}
+
+function updateSwitchableStationMetadata({
+  descriptor,
+  contentId,
+  group,
+  surface,
+  highlight,
+  pickupAnchor,
+  dropAnchor,
+}) {
+  const { slotId, kind, region, index } = descriptor;
+  group.name = `${kind}:${contentId}`;
+  surface.name = `${kind}:${contentId}:surface`;
+  highlight.name = `${kind}:${contentId}:highlight`;
+  dropAnchor.name = `${kind}:${contentId}:drop`;
+  pickupAnchor.name = `${kind}:${contentId}:pickup`;
+  group.userData.cookingStation = Object.freeze({
+    kind,
+    id: contentId,
+    index,
+    slotId,
+    contentId,
+    region,
+  });
+  surface.userData.cookingSelectable = Object.freeze({
+    kind,
+    id: contentId,
+    index,
+    slotId,
+    contentId,
+    region,
+  });
+  dropAnchor.userData.cookingAnchor = Object.freeze({
+    kind,
+    id: contentId,
+    role: "drop",
+    slotId,
+    contentId,
+    region,
+  });
+  pickupAnchor.userData.cookingAnchor = Object.freeze({
+    kind,
+    id: contentId,
+    role: "pickup",
+    slotId,
+    contentId,
+    region,
+  });
+}
+
+function createIngredientStation(THREE, resources, id, index, position, descriptor = null) {
+  let contentId = descriptor?.contentId ?? id;
+  const stationIndex = descriptor?.index ?? index;
   const group = new THREE.Group();
-  group.name = `ingredient:${id}`;
+  group.name = `ingredient:${contentId}`;
   group.position.set(position.x, position.y, position.z);
-  group.userData.cookingStation = Object.freeze({ kind: "ingredient", id, index });
+  group.userData.cookingStation = Object.freeze({ kind: "ingredient", id: contentId, index });
 
   const shadow = new THREE.Mesh(resources.shadowGeometry, resources.shadowMaterial);
   shadow.raycast = NO_RAYCAST;
@@ -100,15 +298,15 @@ function createIngredientStation(THREE, resources, id, index, position) {
   const surface = new THREE.Mesh(
     resources.binBaseGeometry,
     new THREE.MeshStandardMaterial({
-      color: resources.binColors[index % resources.binColors.length],
+      color: resources.binColors[stationIndex % resources.binColors.length],
       roughness: 0.72,
       metalness: 0.02,
       flatShading: true,
     }),
   );
-  surface.name = `ingredient:${id}:surface`;
+  surface.name = `ingredient:${contentId}:surface`;
   surface.position.y = 0.16;
-  surface.userData.cookingSelectable = Object.freeze({ kind: "ingredient", id, index });
+  surface.userData.cookingSelectable = Object.freeze({ kind: "ingredient", id: contentId, index });
   const rimOffsets = [
     [resources.binRimHorizontalGeometry, 0, 0.3, -0.71],
     [resources.binRimHorizontalGeometry, 0, 0.3, 0.71],
@@ -122,7 +320,7 @@ function createIngredientStation(THREE, resources, id, index, position) {
     return rim;
   });
   const highlight = new THREE.Mesh(resources.binHighlightGeometry, resources.highlightMaterial);
-  highlight.name = `ingredient:${id}:highlight`;
+  highlight.name = `ingredient:${contentId}:highlight`;
   highlight.raycast = NO_RAYCAST;
   highlight.rotation.x = -Math.PI / 2;
   highlight.position.y = 0.43;
@@ -131,41 +329,71 @@ function createIngredientStation(THREE, resources, id, index, position) {
   const { dropAnchor, pickupAnchor } = addStationAnchors(
     THREE,
     group,
-    id,
+    contentId,
     "ingredient",
     0.42,
     0.74,
   );
-  return Object.freeze({
-    id,
+  const selector = descriptor ? createStationSelector(THREE, resources, descriptor) : null;
+  if (selector) group.add(selector);
+  const station = descriptor ? Object.freeze({
+    get id() { return contentId; },
+    get contentId() { return contentId; },
+    slotId: descriptor.slotId,
+    kind: descriptor.kind,
+    region: descriptor.region,
+    index: descriptor.index,
+    bin: group,
+    surface,
+    highlight,
+    pickupAnchor,
+    dropAnchor,
+    selector,
+  }) : Object.freeze({
+    id: contentId,
     bin: group,
     surface,
     highlight,
     pickupAnchor,
     dropAnchor,
   });
+  const updateContent = descriptor ? (nextContentId) => {
+    contentId = nextContentId;
+    updateSwitchableStationMetadata({
+      descriptor,
+      contentId,
+      group,
+      surface,
+      highlight,
+      pickupAnchor,
+      dropAnchor,
+    });
+  } : null;
+  updateContent?.(contentId);
+  return { station, updateContent };
 }
 
-function createToolStation(THREE, resources, id, index, position) {
+function createToolStation(THREE, resources, id, index, position, descriptor = null) {
+  let contentId = descriptor?.contentId ?? id;
   const group = new THREE.Group();
-  group.name = `tool:${id}`;
+  group.name = `tool:${contentId}`;
   group.position.set(position.x, position.y, position.z);
-  group.userData.cookingStation = Object.freeze({ kind: "tool", id, index });
+  group.userData.cookingStation = Object.freeze({ kind: "tool", id: contentId, index });
 
   const shadow = new THREE.Mesh(resources.toolShadowGeometry, resources.shadowMaterial);
   shadow.raycast = NO_RAYCAST;
   shadow.rotation.x = -Math.PI / 2;
   shadow.position.y = 0.008;
   const surface = new THREE.Mesh(resources.toolBaseGeometry, resources.toolBaseMaterial);
-  surface.name = `tool:${id}:surface`;
+  surface.name = `tool:${contentId}:surface`;
   surface.position.y = 0.1;
-  surface.userData.cookingSelectable = Object.freeze({ kind: "tool", id, index });
+  surface.userData.cookingSelectable = Object.freeze({ kind: "tool", id: contentId, index });
   const rim = new THREE.Mesh(resources.toolRimGeometry, resources.toolRimMaterial);
   rim.raycast = NO_RAYCAST;
   rim.rotation.x = Math.PI / 2;
   rim.position.y = 0.22;
   const highlight = new THREE.Mesh(resources.toolHighlightGeometry, resources.highlightMaterial);
-  highlight.name = `tool:${id}:highlight`;
+  highlight.name = `tool:${contentId}:highlight`;
   highlight.raycast = NO_RAYCAST;
   highlight.rotation.x = -Math.PI / 2;
   highlight.position.y = 0.32;
@@ -174,29 +402,68 @@ function createToolStation(THREE, resources, id, index, position) {
   const { dropAnchor, pickupAnchor } = addStationAnchors(
     THREE,
     group,
-    id,
+    contentId,
     "tool",
     0.31,
     0.76,
   );
-  return Object.freeze({ id, dock: group, surface, highlight, pickupAnchor, dropAnchor });
+  const selector = descriptor ? createStationSelector(THREE, resources, descriptor) : null;
+  if (selector) group.add(selector);
+  const station = descriptor ? Object.freeze({
+    get id() { return contentId; },
+    get contentId() { return contentId; },
+    slotId: descriptor.slotId,
+    kind: descriptor.kind,
+    region: descriptor.region,
+    index: descriptor.index,
+    dock: group,
+    surface,
+    highlight,
+    pickupAnchor,
+    dropAnchor,
+    selector,
+  }) : Object.freeze({ id: contentId, dock: group, surface, highlight, pickupAnchor, dropAnchor });
+  const updateContent = descriptor ? (nextContentId) => {
+    contentId = nextContentId;
+    updateSwitchableStationMetadata({
+      descriptor,
+      contentId,
+      group,
+      surface,
+      highlight,
+      pickupAnchor,
+      dropAnchor,
+    });
+  } : null;
+  updateContent?.(contentId);
+  return { station, updateContent };
 }
 
-export function createCookingWorkbench3D(THREE, {
-  ingredientIds = BURGER_LAYER_IDS,
-  toolIds = SAUCE_KEYS,
-} = {}) {
-  const normalizedIngredientIds = normalizeIds(ingredientIds, "ingredientIds", {
-    minimum: 1,
-    maximum: MAX_INGREDIENT_SLOTS,
-  });
-  const normalizedToolIds = normalizeIds(toolIds, "toolIds", {
-    minimum: 0,
-    maximum: MAX_TOOL_DOCKS,
-  });
-  const allIds = [...normalizedIngredientIds, ...normalizedToolIds];
-  if (new Set(allIds).size !== allIds.length) {
-    throw new TypeError("ingredientIds and toolIds must not share identifiers");
+export function createCookingWorkbench3D(THREE, options = {}) {
+  const {
+    ingredientIds = BURGER_LAYER_IDS,
+    toolIds = SAUCE_KEYS,
+    slotDescriptors,
+  } = options;
+  const descriptorMode = slotDescriptors !== undefined;
+  let normalizedIngredientIds = [];
+  let normalizedToolIds = [];
+  let normalizedSlotDescriptors = null;
+  if (descriptorMode) {
+    normalizedSlotDescriptors = normalizeSlotDescriptors(slotDescriptors);
+  } else {
+    normalizedIngredientIds = normalizeIds(ingredientIds, "ingredientIds", {
+      minimum: 1,
+      maximum: MAX_INGREDIENT_SLOTS,
+    });
+    normalizedToolIds = normalizeIds(toolIds, "toolIds", {
+      minimum: 0,
+      maximum: MAX_TOOL_DOCKS,
+    });
+    const allIds = [...normalizedIngredientIds, ...normalizedToolIds];
+    if (new Set(allIds).size !== allIds.length) {
+      throw new TypeError("ingredientIds and toolIds must not share identifiers");
+    }
   }
 
   const root = new THREE.Group();
@@ -310,6 +577,7 @@ export function createCookingWorkbench3D(THREE, {
     toolBaseGeometry: new THREE.CylinderGeometry(0.46, 0.52, 0.2, 16),
     toolRimGeometry: new THREE.TorusGeometry(0.45, 0.045, 6, 20),
     toolHighlightGeometry: new THREE.RingGeometry(0.53, 0.61, 24),
+    selectorGeometry: new THREE.BoxGeometry(0.66, 0.07, 0.44),
     toolBaseMaterial: new THREE.MeshStandardMaterial({
       color: 0x654235,
       roughness: 0.7,
@@ -322,6 +590,12 @@ export function createCookingWorkbench3D(THREE, {
       metalness: 0.14,
       flatShading: true,
     }),
+    selectorMaterial: new THREE.MeshStandardMaterial({
+      color: 0xf0c878,
+      roughness: 0.58,
+      metalness: 0.02,
+      flatShading: true,
+    }),
     highlightMaterial: new THREE.MeshBasicMaterial({
       color: 0xffd45c,
       transparent: true,
@@ -330,39 +604,68 @@ export function createCookingWorkbench3D(THREE, {
       side: THREE.DoubleSide,
     }),
   };
-  const ingredientSlotPositions = ingredientPositions(normalizedIngredientIds.length);
-  const ingredientSlots = Object.freeze(normalizedIngredientIds.map((id, index) => {
-    const slot = createIngredientStation(
-      THREE,
-      resources,
-      id,
-      index,
-      ingredientSlotPositions[index],
-    );
-    root.add(slot.bin);
-    return slot;
+  let ingredientRecords;
+  let toolRecords;
+  if (descriptorMode) {
+    const positionsBySlot = switchableStationPositions(normalizedSlotDescriptors);
+    ingredientRecords = normalizedSlotDescriptors
+      .filter(({ kind }) => kind === "ingredient")
+      .map((descriptor) => ({
+        ...createIngredientStation(
+          THREE,
+          resources,
+          descriptor.contentId,
+          descriptor.index,
+          positionsBySlot.get(descriptor.slotId),
+          descriptor,
+        ),
+        descriptor,
+        slotId: descriptor.slotId,
+      }));
+    toolRecords = normalizedSlotDescriptors
+      .filter(({ kind }) => kind === "tool")
+      .map((descriptor) => ({
+        ...createToolStation(
+          THREE,
+          resources,
+          descriptor.contentId,
+          descriptor.index,
+          positionsBySlot.get(descriptor.slotId),
+          descriptor,
+        ),
+        descriptor,
+        slotId: descriptor.slotId,
+      }));
+  } else {
+    const ingredientSlotPositions = ingredientPositions(normalizedIngredientIds.length);
+    ingredientRecords = normalizedIngredientIds.map((id, index) => ({
+      ...createIngredientStation(THREE, resources, id, index, ingredientSlotPositions[index]),
+      descriptor: null,
+      slotId: id,
+    }));
+    const toolDockPositions = toolPositions(normalizedToolIds.length);
+    toolRecords = normalizedToolIds.map((id, index) => ({
+      ...createToolStation(THREE, resources, id, index, toolDockPositions[index]),
+      descriptor: null,
+      slotId: id,
+    }));
+  }
+  const ingredientSlots = Object.freeze(ingredientRecords.map(({ station }) => {
+    root.add(station.bin);
+    return station;
   }));
-
-  const toolDockPositions = toolPositions(normalizedToolIds.length);
-  const toolDocks = Object.freeze(normalizedToolIds.map((id, index) => {
-    const slot = createToolStation(
-      THREE,
-      resources,
-      id,
-      index,
-      toolDockPositions[index],
-    );
-    root.add(slot.dock);
-    return slot;
+  const toolDocks = Object.freeze(toolRecords.map(({ station }) => {
+    root.add(station.dock);
+    return station;
   }));
-
-  const stations = new Map();
-  for (const slot of ingredientSlots) stations.set(`ingredient\0${slot.id}`, slot);
-  for (const slot of toolDocks) stations.set(`tool\0${slot.id}`, slot);
+  const stationRecords = [...ingredientRecords, ...toolRecords];
+  const stationsBySlot = new Map(stationRecords.map((record) => [record.slotId, record]));
+  const allStations = Object.freeze(stationRecords.map(({ station }) => station));
   const selectableSurfaces = Object.freeze([
     board,
     ...ingredientSlots.map(({ surface }) => surface),
     ...toolDocks.map(({ surface }) => surface),
+    ...allStations.map(({ selector }) => selector).filter(Boolean),
   ]);
   const layout = Object.freeze({
     bounds: WORKSPACE_BOUNDS,
@@ -373,24 +676,18 @@ export function createCookingWorkbench3D(THREE, {
       halfExtent: PREP_HALF_EXTENT,
       supportY: prepSupportY,
     }),
-    ingredients: Object.freeze(ingredientSlots.map((slot) => Object.freeze({
-      kind: "ingredient",
-      id: slot.id,
-      position: freezePosition(slot.bin.position),
-      bounds: freezeBounds(
-        slot.bin.position,
-        INGREDIENT_HALF_EXTENT.x,
-        INGREDIENT_HALF_EXTENT.z,
-      ),
-      halfExtent: INGREDIENT_HALF_EXTENT,
-    }))),
-    tools: Object.freeze(toolDocks.map((slot) => Object.freeze({
-      kind: "tool",
-      id: slot.id,
-      position: freezePosition(slot.dock.position),
-      bounds: freezeBounds(slot.dock.position, TOOL_HALF_EXTENT.x, TOOL_HALF_EXTENT.z),
-      halfExtent: TOOL_HALF_EXTENT,
-    }))),
+    ingredients: Object.freeze(ingredientSlots.map((slot) => freezeStationLayout(
+      slot,
+      slot.bin,
+      INGREDIENT_HALF_EXTENT,
+      descriptorMode,
+    ))),
+    tools: Object.freeze(toolDocks.map((slot) => freezeStationLayout(
+      slot,
+      slot.dock,
+      TOOL_HALF_EXTENT,
+      descriptorMode,
+    ))),
   });
 
   const ownedGeometries = new Set();
@@ -408,6 +705,10 @@ export function createCookingWorkbench3D(THREE, {
     if (resource?.isMaterial && resource.dispose) ownedMaterials.add(resource);
   }
 
+  const stationKind = (station) => station.kind ?? (station.bin ? "ingredient" : "tool");
+  const findStationsByContent = (kind, contentId) => allStations.filter((station) => (
+    stationKind(station) === kind && station.id === contentId
+  ));
   let disposed = false;
   return {
     root,
@@ -426,21 +727,47 @@ export function createCookingWorkbench3D(THREE, {
     toolDocks,
     selectableSurfaces,
     getStation(kind, id) {
-      return stations.get(`${kind}\0${id}`) ?? null;
+      return findStationsByContent(kind, id)[0] ?? null;
+    },
+    getStationBySlot(slotId) {
+      return stationsBySlot.get(slotId)?.station ?? null;
+    },
+    getStationsByContent(kind, contentId) {
+      return Object.freeze(findStationsByContent(kind, contentId));
     },
     getLayout() {
       return layout;
     },
     setHighlighted(kind, id, highlighted = true) {
       if (disposed) return false;
-      const station = stations.get(`${kind}\0${id}`);
+      const station = findStationsByContent(kind, id)[0];
       if (!station) return false;
       station.highlight.visible = Boolean(highlighted);
       return true;
     },
+    setSlotHighlighted(slotId, highlighted = true) {
+      if (disposed) return false;
+      const station = stationsBySlot.get(slotId)?.station;
+      if (!station) return false;
+      station.highlight.visible = Boolean(highlighted);
+      return true;
+    },
+    setStationContent(slotId, contentId) {
+      if (disposed) return false;
+      const record = stationsBySlot.get(slotId);
+      if (!record?.descriptor || !record.updateContent) {
+        throw new TypeError(`Unknown switchable workbench slot: ${String(slotId)}`);
+      }
+      const { region } = record.descriptor;
+      if (!WORKBENCH_REGION_OPTIONS[region].includes(contentId)) {
+        throw new TypeError(`Content ${String(contentId)} is not valid for ${region} slot ${slotId}`);
+      }
+      record.updateContent(contentId);
+      return true;
+    },
     clearHighlights() {
       if (disposed) return;
-      for (const station of stations.values()) station.highlight.visible = false;
+      for (const station of allStations) station.highlight.visible = false;
     },
     setDropCue({ targetIndex, y, radius } = {}) {
       if (disposed) return false;

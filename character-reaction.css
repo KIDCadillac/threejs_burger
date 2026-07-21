@@ -1,0 +1,959 @@
+/* Full-body, articulated reaction stage. Animations are phase-bound and finite. */
+.character-reaction {
+  --reaction-ink: #281f35;
+  --reaction-cream: #fff4d8;
+  --reaction-fire-scale: 0.82;
+  --reaction-fire-duration: 520ms;
+  --food-mouth-x: 118px;
+  --food-mouth-y: -142px;
+  position: relative;
+  box-sizing: border-box;
+  isolation: isolate;
+  display: grid;
+  min-height: 31rem;
+  place-items: center;
+  align-content: center;
+  gap: 0.25rem;
+  padding-inline: 1.375rem;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  background:
+    radial-gradient(circle at 50% 34%, rgba(255, 226, 166, 0.16), transparent 32%),
+    radial-gradient(ellipse at 50% 92%, rgba(156, 114, 255, 0.18), transparent 43%);
+  perspective: 800px;
+}
+
+.character-reaction::before {
+  content: "";
+  position: absolute;
+  inset: 13% 7% 8%;
+  z-index: -1;
+  border: 1px solid rgba(255, 244, 216, 0.1);
+  border-radius: 50% 50% 42% 42%;
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.06), rgba(20, 13, 29, 0.03));
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.08), 0 24px 60px rgba(8, 4, 15, 0.22);
+}
+
+.character-reaction .reaction-caption,
+.character-reaction .victim-label {
+  position: relative;
+  z-index: 4;
+}
+
+.reaction-rig {
+  display: block;
+  width: min(100%, 24rem);
+  height: auto;
+  max-height: 33rem;
+  overflow: visible;
+  filter: drop-shadow(0 1rem 1.6rem rgba(10, 5, 18, 0.22));
+}
+
+.reaction-rig .rig-face,
+.reaction-rig .rig-neck,
+.reaction-rig .rig-hand,
+.reaction-rig .rig-hoodie,
+.reaction-rig .rig-sleeve,
+.reaction-rig .rig-pocket,
+.reaction-rig .rig-hair,
+.reaction-rig .rig-pants,
+.reaction-rig .rig-shoe {
+  stroke: var(--reaction-ink);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.reaction-rig .rig-face,
+.reaction-rig .rig-neck,
+.reaction-rig .rig-hand {
+  stroke-width: 3.5;
+}
+
+.reaction-rig .rig-hoodie,
+.reaction-rig .rig-sleeve,
+.reaction-rig .rig-pocket,
+.reaction-rig .rig-hair,
+.reaction-rig .rig-pants,
+.reaction-rig .rig-shoe {
+  stroke-width: 4;
+}
+
+.reaction-rig .rig-face {
+  filter: drop-shadow(0 7px 7px rgba(67, 31, 41, 0.2));
+  transition: filter 180ms ease;
+}
+
+.reaction-rig .rig-neck,
+.reaction-rig .rig-hand {
+  filter: drop-shadow(0 3px 3px rgba(71, 35, 43, 0.2));
+}
+
+.reaction-rig .rig-hoodie,
+.reaction-rig .rig-sleeve {
+  filter: drop-shadow(0 7px 6px rgba(8, 18, 15, 0.3));
+}
+
+.reaction-rig .rig-pocket {
+  fill: #263a30;
+  stroke: #1d2924;
+}
+
+.reaction-rig .rig-hoodie-string {
+  fill: none;
+  stroke: #f1dfc9;
+  stroke-width: 4;
+  stroke-linecap: round;
+  filter: drop-shadow(0 2px 1px rgba(0, 0, 0, 0.3));
+}
+
+.reaction-rig .rig-hair {
+  fill: #30223c;
+  stroke: #1e1728;
+  filter: drop-shadow(0 6px 5px rgba(17, 9, 24, 0.34));
+}
+
+.reaction-rig .rig-eyes ellipse {
+  fill: #211829;
+  stroke: #fff9ed;
+  stroke-width: 2.5;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 130ms ease;
+}
+
+.reaction-rig .rig-brow,
+.reaction-rig .rig-mouth--closed {
+  fill: none;
+  stroke: var(--reaction-ink);
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+.reaction-rig .rig-mouth--open {
+  fill: #4c1d2d;
+  stroke: var(--reaction-ink);
+  stroke-width: 4;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.reaction-rig .rig-pants {
+  fill: #262939;
+  stroke: #1c1b2a;
+}
+
+.reaction-rig .rig-shoe {
+  fill: #d8d4cf;
+  stroke: #292431;
+  filter: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.28));
+}
+
+.reaction-rig .rig-legs {
+  transform-box: fill-box;
+  transform-origin: center top;
+  filter: drop-shadow(0 4px 3px rgba(7, 6, 12, 0.2));
+}
+
+.reaction-rig .rig-shadow {
+  fill: rgba(10, 6, 16, 0.4);
+  filter: blur(4px);
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 220ms ease, opacity 220ms ease;
+}
+
+.reaction-rig [data-bone],
+.reaction-rig [data-prop="food"] {
+  transform-box: fill-box;
+}
+
+.reaction-rig [data-bone="torso"] {
+  transform-origin: 50% 88%;
+}
+
+.reaction-rig [data-bone="head"] {
+  transform-box: view-box;
+  transform-origin: 195px 241px;
+}
+
+.reaction-rig [data-bone="hair"] {
+  transform-origin: 52% 78%;
+}
+
+.reaction-rig [data-bone="left-arm"] {
+  transform-origin: 88% 10%;
+}
+
+.reaction-rig [data-bone="right-arm"] {
+  transform-origin: 12% 10%;
+}
+
+.reaction-rig [data-bone="left-hand"],
+.reaction-rig [data-bone="right-hand"] {
+  transform-origin: center top;
+}
+
+.reaction-rig [data-prop="food"] {
+  transform-origin: center;
+  filter: drop-shadow(0 6px 5px rgba(22, 10, 15, 0.36));
+}
+
+.reaction-rig [data-food-state="whole"] {
+  opacity: 1;
+  visibility: visible;
+}
+
+.reaction-rig [data-food-state="bitten"],
+.reaction-rig .food-crumbs,
+.reaction-rig [data-effect="fire"],
+.reaction-rig [data-effect="heat"],
+.reaction-rig [data-effect="sweat"],
+.reaction-rig [data-effect="sneeze"],
+.reaction-rig [data-effect="sour-wave"],
+.reaction-rig [data-effect="sticky-strands"],
+.reaction-rig [data-effect="secondary"] {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.reaction-rig .food-crumbs {
+  fill: #f3ba57;
+  stroke: #5f3828;
+  stroke-width: 1.5;
+  filter: drop-shadow(0 2px 1px rgba(0, 0, 0, 0.24));
+}
+
+.reaction-rig [data-effect="fire"],
+.reaction-rig [data-effect="heat"],
+.reaction-rig [data-effect="sweat"],
+.reaction-rig [data-effect="sneeze"],
+.reaction-rig [data-effect="sour-wave"],
+.reaction-rig [data-effect="sticky-strands"],
+.reaction-rig [data-effect="secondary"] {
+  pointer-events: none;
+  transform-box: fill-box;
+}
+
+.reaction-rig [data-food-assembly] {
+  overflow: visible;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.reaction-rig [data-food-assembly] path,
+.reaction-rig [data-food-assembly] ellipse {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.reaction-rig [data-hand-layer] .rig-hand,
+.reaction-rig [data-hand-layer] .rig-finger {
+  stroke: var(--reaction-ink);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.reaction-rig [data-hand-layer="front"] {
+  filter: drop-shadow(0 2px 2px rgba(44, 20, 30, 0.3));
+}
+
+/* One left hand at a time: the arm hand rests/reacts, grip fingers only hold food. */
+.character-reaction:is([data-phase="reach"], [data-phase="lift"], [data-phase="bite"], [data-phase="chew"], [data-phase="brace"]) [data-hand-layer="base"] {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.character-reaction:is([data-phase="reach"], [data-phase="lift"], [data-phase="bite"], [data-phase="chew"], [data-phase="brace"]) [data-prop="food"] [data-hand-layer="back"],
+.character-reaction:is([data-phase="reach"], [data-phase="lift"], [data-phase="bite"], [data-phase="chew"], [data-phase="brace"]) [data-prop="food"] [data-hand-layer="front"] {
+  opacity: 1;
+  visibility: visible;
+}
+
+.character-reaction:is([data-phase="notice"], [data-phase="burst"], [data-phase="recover"], [data-phase="settle"]) [data-hand-layer="base"] {
+  opacity: 1;
+  visibility: visible;
+}
+
+.character-reaction:is([data-phase="notice"], [data-phase="burst"], [data-phase="recover"], [data-phase="settle"]) [data-prop="food"] [data-hand-layer="back"],
+.character-reaction:is([data-phase="notice"], [data-phase="burst"], [data-phase="recover"], [data-phase="settle"]) [data-prop="food"] [data-hand-layer="front"] {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.reaction-rig [data-effect="sneeze"] {
+  fill: #ffe36b;
+  stroke: #d69d21;
+  stroke-width: 5;
+  stroke-linecap: round;
+  transform-origin: left center;
+  filter: drop-shadow(0 0 6px rgba(255, 218, 63, 0.72));
+}
+
+.reaction-rig [data-effect="sour-wave"] {
+  fill: none;
+  stroke: #a8e55c;
+  stroke-width: 7;
+  stroke-linecap: round;
+  transform-origin: center;
+  filter: drop-shadow(0 0 6px rgba(121, 213, 78, 0.65));
+}
+
+.reaction-rig [data-effect="sticky-strands"] {
+  fill: none;
+  stroke: #c987e8;
+  stroke-width: 6;
+  stroke-linecap: round;
+  transform-origin: center;
+  filter: drop-shadow(0 0 5px rgba(172, 91, 213, 0.66));
+}
+
+.reaction-rig [data-effect="secondary"] {
+  transform-origin: center;
+}
+
+.reaction-rig [data-secondary-effect] {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.reaction-rig [data-secondary-effect="chili"] { fill: #ff6c3d; stroke: #8b2f2b; stroke-width: 3; }
+.reaction-rig [data-secondary-effect="mustard"] { fill: #ffe36b; stroke: #bb8521; stroke-width: 3; }
+.reaction-rig [data-secondary-effect="sour"] { fill: none; stroke: #a8e55c; stroke-width: 6; stroke-linecap: round; }
+.reaction-rig [data-secondary-effect="sticky"] { fill: none; stroke: #c987e8; stroke-width: 6; stroke-linecap: round; }
+
+.reaction-rig [data-effect="fire"] {
+  transform-origin: left center;
+  filter: drop-shadow(0 0 10px rgba(255, 92, 40, 0.78));
+}
+
+.reaction-rig .fire-outer {
+  stroke: #7d2630;
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.reaction-rig .fire-core {
+  fill: #fff2a3;
+  stroke: #ff9f31;
+  stroke-width: 2;
+}
+
+.reaction-rig [data-effect="heat"] {
+  fill: none;
+  stroke: #ff8a51;
+  stroke-width: 6;
+  stroke-linecap: round;
+  transform-origin: center bottom;
+  filter: drop-shadow(0 0 4px rgba(255, 95, 58, 0.62));
+}
+
+.reaction-rig [data-effect="sweat"] {
+  fill: #77ddff;
+  stroke: #e7fbff;
+  stroke-width: 2;
+  transform-origin: center top;
+  filter: drop-shadow(0 3px 3px rgba(36, 122, 170, 0.35));
+}
+
+.character-reaction[data-food-bitten="true"] [data-food-state="whole"] {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.character-reaction[data-food-bitten="true"] [data-food-state="bitten"] {
+  opacity: 1;
+  visibility: visible;
+}
+
+.reaction-rig .rig-mouth--open {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.character-reaction:is([data-phase="bite"], [data-phase="chew"], [data-phase="burst"], [data-phase="recover"]) .rig-mouth--closed {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.character-reaction:is([data-phase="bite"], [data-phase="chew"], [data-phase="burst"], [data-phase="recover"]) .rig-mouth--open {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Reach and lift use the same keyed motion with different endpoints. */
+.character-reaction[data-phase="reach"] [data-bone="left-arm"] {
+  --reaction-arm-from: 0deg;
+  --reaction-arm-to: -12deg;
+  animation: reaction-reach 320ms cubic-bezier(0.2, 0.78, 0.25, 1) both;
+}
+
+.character-reaction[data-phase="reach"] [data-prop="food"] {
+  --reaction-food-from-x: 0px;
+  --reaction-food-from-y: 0px;
+  --reaction-food-to-x: 4px;
+  --reaction-food-to-y: -8px;
+  --reaction-food-from-scale: 1;
+  --reaction-food-to-scale: 0.94;
+  --reaction-food-from-rotation: 0deg;
+  --reaction-food-to-rotation: -7deg;
+  animation: reaction-food-grab 320ms cubic-bezier(0.2, 0.78, 0.25, 1) both;
+}
+
+.character-reaction[data-phase="lift"] [data-bone="left-arm"] {
+  --reaction-arm-from: -12deg;
+  --reaction-arm-to: -179deg;
+  animation: reaction-reach 390ms cubic-bezier(0.22, 0.72, 0.18, 1) both;
+}
+
+.character-reaction[data-phase="lift"] [data-prop="food"] {
+  --reaction-food-from-x: 4px;
+  --reaction-food-from-y: -8px;
+  --reaction-food-to-x: var(--food-mouth-x);
+  --reaction-food-to-y: var(--food-mouth-y);
+  --reaction-food-from-scale: 0.94;
+  --reaction-food-to-scale: 0.68;
+  --reaction-food-from-rotation: -7deg;
+  --reaction-food-to-rotation: -7deg;
+  animation: reaction-food-grab 390ms cubic-bezier(0.22, 0.72, 0.18, 1) both;
+}
+
+.character-reaction:is([data-phase="bite"], [data-phase="chew"], [data-phase="brace"]) [data-bone="left-arm"] {
+  transform: rotate(-179deg);
+}
+
+.character-reaction:is([data-phase="bite"], [data-phase="chew"], [data-phase="brace"]) [data-prop="food"] {
+  transform: translate(var(--food-mouth-x), var(--food-mouth-y)) rotate(-7deg) scale(0.68);
+}
+
+.character-reaction[data-phase="bite"] [data-bone="head"] {
+  animation: reaction-head-bite 220ms cubic-bezier(0.25, 0.72, 0.28, 1) both;
+}
+
+.character-reaction[data-phase="bite"] .food-crumbs {
+  visibility: visible;
+  animation: reaction-crumb-pop 230ms ease-out both;
+}
+
+.character-reaction[data-phase="chew"] [data-bone="head"] {
+  animation: reaction-head-chew 210ms ease-in-out 2 both;
+}
+
+.character-reaction[data-phase="chew"] .rig-mouth--open {
+  animation: reaction-chew 210ms ease-in-out 2 both;
+}
+
+.character-reaction[data-phase="brace"] [data-bone="torso"] {
+  animation: reaction-brace 220ms cubic-bezier(0.4, 0, 0.35, 1) both;
+}
+
+.character-reaction[data-phase="brace"] [data-bone="head"] {
+  animation: reaction-head-brace 220ms cubic-bezier(0.4, 0, 0.35, 1) both;
+}
+
+.character-reaction[data-primary-reaction="chili"][data-phase="brace"] .rig-face {
+  filter: saturate(1.72) sepia(0.26) hue-rotate(-18deg) drop-shadow(0 0 12px rgba(255, 68, 52, 0.38));
+}
+
+.character-reaction[data-phase="brace"] .rig-eyes ellipse {
+  transform: scale(0.42);
+}
+
+.character-reaction[data-primary-intensity="2"] {
+  --reaction-fire-scale: 0.96;
+  --reaction-fire-duration: 560ms;
+}
+
+.character-reaction[data-primary-intensity="3"] {
+  --reaction-fire-scale: 1.08;
+  --reaction-fire-duration: 620ms;
+}
+
+.character-reaction[data-primary-intensity="4"] {
+  --reaction-fire-scale: 1.18;
+  --reaction-fire-duration: 680ms;
+}
+
+.character-reaction[data-primary-reaction="chili"][data-phase="burst"] [data-bone="torso"] {
+  animation: reaction-recoil 620ms cubic-bezier(0.18, 0.82, 0.2, 1) both;
+}
+
+.character-reaction[data-primary-reaction="chili"][data-phase="burst"] [data-bone="head"] {
+  animation: reaction-head-recoil 620ms cubic-bezier(0.18, 0.82, 0.2, 1) both;
+}
+
+.character-reaction[data-primary-reaction="chili"][data-phase="burst"] [data-bone="hair"] {
+  animation: reaction-hair-whip 540ms 70ms cubic-bezier(0.18, 0.78, 0.28, 1) both;
+}
+
+.character-reaction[data-phase="burst"] [data-bone="left-arm"] {
+  animation: reaction-arm-release 520ms cubic-bezier(0.22, 0.7, 0.28, 1) both;
+}
+
+.character-reaction[data-primary-reaction="chili"][data-phase="burst"] [data-effect="fire"] {
+  visibility: visible;
+  animation: reaction-fire-burst var(--reaction-fire-duration) cubic-bezier(0.12, 0.7, 0.22, 1) both;
+}
+
+.character-reaction[data-phase="burst"] [data-food-assembly] {
+  visibility: visible;
+  animation: reaction-food-drop 590ms cubic-bezier(0.3, 0.05, 0.72, 0.88) both;
+}
+
+.character-reaction:is([data-phase="recover"], [data-phase="settle"]) [data-food-assembly] {
+  opacity: 0;
+  transform: translate(154px, 292px) rotate(52deg) scale(0.48);
+}
+
+.character-reaction[data-primary-reaction="chili"][data-phase="recover"] [data-bone="left-arm"] {
+  animation: reaction-mouth-fan-left 180ms ease-in-out 4 alternate both;
+}
+
+.character-reaction[data-primary-reaction="chili"][data-phase="recover"] [data-bone="right-arm"] {
+  animation: reaction-mouth-fan-right 180ms 40ms ease-in-out 4 alternate both;
+}
+
+.character-reaction[data-primary-reaction="chili"][data-phase="recover"] [data-effect="heat"] {
+  visibility: visible;
+  animation: reaction-heat-rise 200ms ease-out 4 both;
+}
+
+.character-reaction[data-primary-reaction="chili"][data-phase="recover"] [data-effect="sweat"] {
+  visibility: visible;
+  animation: reaction-sweat-drop 300ms 80ms ease-in 2 both;
+}
+
+.character-reaction[data-primary-reaction="mustard"][data-phase="burst"] [data-bone="torso"] {
+  animation: reaction-sneeze-body 580ms cubic-bezier(0.28, 0.75, 0.24, 1) both;
+}
+.character-reaction[data-primary-reaction="mustard"][data-phase="burst"] [data-bone="head"] {
+  animation: reaction-sneeze-head 580ms cubic-bezier(0.28, 0.75, 0.24, 1) both;
+}
+.character-reaction[data-primary-reaction="mustard"][data-phase="burst"] [data-bone="left-arm"] {
+  animation: reaction-cover-nose-left 560ms ease-out both;
+}
+.character-reaction[data-primary-reaction="mustard"][data-phase="burst"] [data-bone="right-arm"] {
+  animation: reaction-cover-nose-right 560ms ease-out both;
+}
+.character-reaction[data-primary-reaction="mustard"][data-phase="burst"] [data-effect="sneeze"] {
+  visibility: visible;
+  animation: reaction-sneeze-puff 500ms 70ms ease-out both;
+}
+.character-reaction[data-primary-reaction="mustard"][data-phase="recover"] [data-bone="head"] {
+  animation: reaction-nose-shake 180ms ease-in-out 3 both;
+}
+.character-reaction[data-primary-reaction="mustard"][data-phase="recover"] [data-bone="left-arm"] {
+  animation: reaction-mustard-recover-left 620ms ease-in-out both;
+}
+.character-reaction[data-primary-reaction="mustard"][data-phase="recover"] [data-bone="right-arm"] {
+  animation: reaction-mustard-recover-right 620ms ease-in-out both;
+}
+
+.character-reaction[data-primary-reaction="sour"][data-phase="burst"] [data-bone="torso"] {
+  animation: reaction-sour-shiver 570ms linear both;
+}
+.character-reaction[data-primary-reaction="sour"][data-phase="burst"] [data-bone="head"] {
+  animation: reaction-sour-face 560ms ease-in-out both;
+}
+.character-reaction[data-primary-reaction="sour"][data-phase="burst"] [data-effect="sour-wave"] {
+  visibility: visible;
+  animation: reaction-sour-wave 560ms ease-out both;
+}
+.character-reaction[data-primary-reaction="sour"][data-phase="recover"] [data-bone="torso"] {
+  animation: reaction-sour-recover 560ms ease-in-out both;
+}
+.character-reaction[data-primary-reaction="sour"][data-phase="recover"] [data-bone="head"] {
+  animation: reaction-sour-head-recover 620ms ease-out both;
+}
+
+.character-reaction[data-primary-reaction="sticky"][data-phase="burst"] [data-bone="torso"] {
+  animation: reaction-sticky-struggle 600ms ease-in-out both;
+}
+.character-reaction[data-primary-reaction="sticky"][data-phase="burst"] [data-bone="head"] {
+  animation: reaction-sticky-face 600ms ease-in-out both;
+}
+.character-reaction[data-primary-reaction="sticky"][data-phase="burst"] [data-bone="left-arm"] {
+  animation: reaction-sticky-pull-left 600ms ease-in-out both;
+}
+.character-reaction[data-primary-reaction="sticky"][data-phase="burst"] [data-bone="right-arm"] {
+  animation: reaction-sticky-pull-right 600ms ease-in-out both;
+}
+.character-reaction[data-primary-reaction="sticky"][data-phase="burst"] [data-effect="sticky-strands"] {
+  visibility: visible;
+  animation: reaction-sticky-stretch 620ms ease-in-out both;
+}
+.character-reaction[data-primary-reaction="sticky"][data-phase="recover"] [data-bone="left-arm"] {
+  animation: reaction-sticky-break-left 180ms ease-in-out 4 both;
+}
+.character-reaction[data-primary-reaction="sticky"][data-phase="recover"] [data-bone="right-arm"] {
+  animation: reaction-sticky-break-right 180ms ease-in-out 4 both;
+}
+.character-reaction[data-primary-reaction="sticky"][data-phase="recover"] [data-bone="head"] {
+  animation: reaction-sticky-head-recover 700ms ease-out both;
+}
+.character-reaction[data-primary-reaction="sticky"]:is([data-phase="burst"], [data-phase="recover"]) .rig-mouth--open {
+  opacity: 0;
+  visibility: hidden;
+}
+.character-reaction[data-primary-reaction="sticky"]:is([data-phase="burst"], [data-phase="recover"]) .rig-mouth--closed {
+  opacity: 1;
+  visibility: visible;
+}
+
+.character-reaction[data-secondary-consumed="true"][data-secondary-reaction="chili"][data-phase="recover"] [data-effect="secondary"],
+.character-reaction[data-secondary-consumed="true"][data-secondary-reaction="mustard"][data-phase="recover"] [data-effect="secondary"],
+.character-reaction[data-secondary-consumed="true"][data-secondary-reaction="sour"][data-phase="recover"] [data-effect="secondary"],
+.character-reaction[data-secondary-consumed="true"][data-secondary-reaction="sticky"][data-phase="recover"] [data-effect="secondary"] {
+  visibility: visible;
+  animation: reaction-secondary-pop 520ms ease-out both;
+}
+.character-reaction[data-secondary-consumed="true"][data-secondary-reaction="chili"][data-phase="recover"] [data-secondary-effect="chili"],
+.character-reaction[data-secondary-consumed="true"][data-secondary-reaction="mustard"][data-phase="recover"] [data-secondary-effect="mustard"],
+.character-reaction[data-secondary-consumed="true"][data-secondary-reaction="sour"][data-phase="recover"] [data-secondary-effect="sour"],
+.character-reaction[data-secondary-consumed="true"][data-secondary-reaction="sticky"][data-phase="recover"] [data-secondary-effect="sticky"] {
+  opacity: 1;
+}
+
+.character-reaction[data-phase="settle"] .rig-person {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: reaction-settle 360ms cubic-bezier(0.24, 0.74, 0.2, 1) both;
+}
+
+.character-reaction[data-phase="settle"] .rig-shadow {
+  transform: scaleX(1.08);
+  opacity: 0.52;
+}
+
+@keyframes reaction-reach {
+  from { transform: rotate(var(--reaction-arm-from, 0deg)); }
+  to { transform: rotate(var(--reaction-arm-to, -12deg)); }
+}
+
+@keyframes reaction-food-grab {
+  from {
+    transform: translate(var(--reaction-food-from-x, 0), var(--reaction-food-from-y, 0)) rotate(var(--reaction-food-from-rotation, 0deg)) scale(var(--reaction-food-from-scale, 1));
+  }
+  to {
+    transform: translate(var(--reaction-food-to-x, 4px), var(--reaction-food-to-y, -8px)) rotate(var(--reaction-food-to-rotation, -7deg)) scale(var(--reaction-food-to-scale, 0.94));
+  }
+}
+
+@keyframes reaction-head-bite {
+  0% { transform: translate(0) rotate(0); }
+  52% { transform: translate(-8px, 6px) rotate(-3deg) scale(1.025); }
+  100% { transform: translate(-4px, 3px) rotate(-1deg); }
+}
+
+@keyframes reaction-head-chew {
+  0%, 100% { transform: translate(-4px, 3px) rotate(-1deg); }
+  50% { transform: translateY(4px) rotate(-1.5deg); }
+}
+
+@keyframes reaction-head-brace {
+  0% { transform: translate(-4px, 3px) rotate(-1deg); }
+  100% { transform: translateY(6px) scale(0.97); }
+}
+
+@keyframes reaction-chew {
+  0%, 100% { transform: scaleX(1) scaleY(0.72); }
+  50% { transform: translateY(4px) scaleX(0.88) scaleY(1.08); }
+}
+
+@keyframes reaction-brace {
+  0% { transform: translateY(0) scaleX(1); }
+  42% { transform: translateY(8px) scaleX(0.93) scaleY(1.025); }
+  72%, 100% { transform: translateY(9px) scaleX(0.95) scaleY(1.015); }
+}
+
+@keyframes reaction-crumb-pop {
+  0% { opacity: 0; transform: translate(0) scale(0.4); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translate(18px, 16px) rotate(24deg) scale(1.25); }
+}
+
+@keyframes reaction-recoil {
+  0% { transform: translateY(9px) scaleX(0.95) scaleY(1.015); }
+  36% { transform: translate(6px, 9px) rotate(7deg) scaleY(0.96); }
+  72% { transform: translate(3px, 5px) rotate(4deg); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-head-recoil {
+  0% { transform: translateY(6px) scale(0.97); }
+  38% { transform: translate(12px, -13px) rotate(14deg) scale(1.035); }
+  72% { transform: translate(7px, -8px) rotate(9deg); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-hair-whip {
+  0% { transform: rotate(0) skewX(0); }
+  46% { transform: translate(-5px, -4px) rotate(-13deg) skewX(-8deg); }
+  76% { transform: translate(3px, 1px) rotate(7deg) skewX(4deg); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-arm-release {
+  0%, 15% { transform: rotate(-179deg); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-food-drop {
+  0% {
+    opacity: 1;
+    transform: translate(var(--food-mouth-x), var(--food-mouth-y)) rotate(-7deg) scale(0.68);
+  }
+  18% { opacity: 1; transform: translate(135px, -124px) rotate(10deg) scale(0.7); }
+  100% { opacity: 0; transform: translate(154px, 292px) rotate(52deg) scale(0.48); }
+}
+
+@keyframes reaction-fire-burst {
+  0% { opacity: 0; transform: translateX(-8px) scale(0.06, 0.38); }
+  18% { opacity: 1; transform: translateX(0) scale(var(--reaction-fire-scale), 0.8); }
+  54% { opacity: 1; transform: translateX(7px) scale(var(--reaction-fire-scale), 1); }
+  100% { opacity: 0; transform: translateX(22px) scale(var(--reaction-fire-scale), 0.74); }
+}
+
+@keyframes reaction-mouth-fan-left {
+  0% { transform: none; }
+  50% { transform: translate(15px, 5px) rotate(184deg) scale(1.03); }
+  100% { transform: translate(-2px, -7px) rotate(160deg); }
+}
+
+@keyframes reaction-mouth-fan-right {
+  0% { transform: none; }
+  50% { transform: translate(-18px, 5px) rotate(-184deg) scale(1.03); }
+  100% { transform: translate(1px, -8px) rotate(-160deg); }
+}
+
+@keyframes reaction-heat-rise {
+  0% { opacity: 0; transform: translateY(12px) scale(0.7); }
+  28% { opacity: 0.9; }
+  100% { opacity: 0; transform: translateY(-22px) scale(1.08); }
+}
+
+@keyframes reaction-sweat-drop {
+  0% { opacity: 0; transform: translate(-4px, -8px) scale(0.65); }
+  30%, 68% { opacity: 1; }
+  100% { opacity: 0; transform: translate(8px, 22px) scale(1); }
+}
+
+@keyframes reaction-sneeze-body {
+  0% { transform: translateY(9px) scaleX(0.95) scaleY(1.015); }
+  28% { transform: translate(3px, -7px) rotate(4deg) scaleY(1.03); }
+  48% { transform: translate(-8px, 14px) rotate(-7deg) scaleY(0.92); }
+  72% { transform: translate(4px, -3px) rotate(3deg); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-sneeze-head {
+  0% { transform: translateY(6px) scale(0.97); }
+  28% { transform: translate(7px, -11px) rotate(9deg); }
+  48% { transform: translate(-14px, 11px) rotate(-12deg) scale(0.96); }
+  72% { transform: translate(5px, -4px) rotate(5deg); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-cover-nose-left {
+  0% { transform: rotate(-179deg); }
+  42% { transform: translate(21px, -16px) rotate(-198deg); }
+  68% { transform: translate(15px, -11px) rotate(-190deg); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-cover-nose-right {
+  0% { transform: none; }
+  42% { transform: translate(-31px, -20px) rotate(-154deg); }
+  68% { transform: translate(-24px, -14px) rotate(-148deg); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-sneeze-puff {
+  0% { opacity: 0; transform: translateX(-12px) scale(0.35); }
+  32% { opacity: 1; transform: translateX(0) scale(1); }
+  100% { opacity: 0; transform: translate(32px, -8px) scale(1.28); }
+}
+
+@keyframes reaction-nose-shake {
+  0%, 100% { transform: none; }
+  50% { transform: translateX(7px) rotate(3deg); }
+}
+
+@keyframes reaction-mustard-recover-left {
+  0%, 100% { transform: none; }
+  42%, 62% { transform: translate(20px, -14px) rotate(-190deg); }
+}
+
+@keyframes reaction-mustard-recover-right {
+  0%, 100% { transform: none; }
+  42%, 62% { transform: translate(-23px, -12px) rotate(-148deg); }
+}
+
+@keyframes reaction-sour-shiver {
+  0% { transform: translateY(9px) scaleX(0.95) scaleY(1.015); }
+  12% { transform: translate(-5px, 9px) scale(0.94, 1.02); }
+  24% { transform: translate(6px, 8px) scale(0.91, 1.04); }
+  36% { transform: translate(-7px, 10px) scale(0.89, 1.05); }
+  48% { transform: translate(7px, 8px) scale(0.9, 1.04); }
+  62% { transform: translate(-5px, 6px) scale(0.93, 1.03); }
+  78% { transform: translate(3px, 3px) scale(0.97, 1.01); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-sour-face {
+  0% { transform: translateY(6px) scale(0.97); }
+  35% { transform: translateY(10px) scale(0.86, 0.91); }
+  55% { transform: translate(-4px, 8px) rotate(-3deg) scale(0.84, 0.9); }
+  76% { transform: translate(3px, 5px) rotate(2deg) scale(0.9, 0.94); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-sour-wave {
+  0% { opacity: 0; transform: scale(0.72); }
+  25%, 62% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.2); }
+}
+
+@keyframes reaction-sour-recover {
+  0%, 100% { transform: none; }
+  15% { transform: translateX(-3px) scaleX(0.98); }
+  30% { transform: translateX(4px) scaleX(0.97); }
+  45% { transform: translateX(-3px); }
+  60% { transform: translateX(2px); }
+}
+
+@keyframes reaction-sour-head-recover {
+  0% { transform: none; }
+  38% { transform: translateY(5px) scale(0.93); }
+  68% { transform: translateY(2px) scale(0.97); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-sticky-struggle {
+  0% { transform: translateY(9px) scaleX(0.95) scaleY(1.015); }
+  35% { transform: translateY(6px) scaleX(1.04) scaleY(0.98); }
+  65% { transform: translateY(3px) scaleX(0.98) scaleY(1.02); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-sticky-face {
+  0% { transform: translateY(6px) scale(0.97); }
+  38% { transform: translateY(4px) scaleX(1.08) scaleY(0.94); }
+  68% { transform: translateY(2px) scaleX(0.96) scaleY(1.02); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-sticky-pull-left {
+  0% { transform: rotate(-179deg); }
+  38% { transform: translate(18px, -8px) rotate(-190deg); }
+  68% { transform: translate(30px, -4px) rotate(-204deg); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-sticky-pull-right {
+  0% { transform: none; }
+  38% { transform: translate(-20px, -10px) rotate(-154deg); }
+  68% { transform: translate(-33px, -5px) rotate(-140deg); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-sticky-stretch {
+  0% { opacity: 0; transform: scaleX(0.5); }
+  32%, 72% { opacity: 1; transform: scaleX(1.2); }
+  100% { opacity: 0; transform: scaleX(1.45); }
+}
+
+@keyframes reaction-sticky-break-left {
+  0%, 100% { transform: none; }
+  50% { transform: translate(24px, -6px) rotate(-198deg); }
+}
+
+@keyframes reaction-sticky-break-right {
+  0%, 100% { transform: none; }
+  50% { transform: translate(-26px, -7px) rotate(-145deg); }
+}
+
+@keyframes reaction-sticky-head-recover {
+  0% { transform: none; }
+  38% { transform: translateY(4px) scaleX(1.06) scaleY(0.96); }
+  72% { transform: translateY(1px) scaleX(0.98) scaleY(1.01); }
+  100% { transform: none; }
+}
+
+@keyframes reaction-secondary-pop {
+  0% { opacity: 0; transform: translateY(8px) scale(0.4); }
+  28%, 68% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-12px) scale(1.12); }
+}
+
+@keyframes reaction-settle {
+  0% { transform: translateY(-4px) scaleY(1.02); }
+  38% { transform: translateY(15px) scaleY(0.95); }
+  68% { transform: translateY(-5px) scaleY(1.018); }
+  100% { transform: translateY(0) scaleY(1); }
+}
+
+@media (max-height: 720px) {
+  .character-reaction {
+    min-height: 24rem;
+    gap: 0;
+  }
+
+  .reaction-rig {
+    width: min(100%, 19.5rem);
+    max-height: 24rem;
+  }
+
+  .character-reaction .reaction-caption,
+  .character-reaction .victim-label {
+    font-size: 0.8rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .character-reaction *,
+  .character-reaction *::before,
+  .character-reaction *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .character-reaction[data-food-bitten="true"] [data-food-state="bitten"] {
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+
+  .character-reaction[data-primary-reaction="chili"][data-phase="burst"] [data-effect="fire"] {
+    opacity: 0.92 !important;
+    visibility: visible !important;
+    transform: scale(var(--reaction-fire-scale), 0.9) !important;
+  }
+
+  .character-reaction[data-primary-reaction="chili"][data-phase="recover"] [data-effect="heat"],
+  .character-reaction[data-primary-reaction="chili"][data-phase="recover"] [data-effect="sweat"] {
+    opacity: 0.82 !important;
+    visibility: visible !important;
+    transform: none !important;
+  }
+
+  .character-reaction[data-primary-reaction="mustard"][data-phase="burst"] [data-effect="sneeze"],
+  .character-reaction[data-primary-reaction="sour"][data-phase="burst"] [data-effect="sour-wave"],
+  .character-reaction[data-primary-reaction="sticky"][data-phase="burst"] [data-effect="sticky-strands"],
+  .character-reaction[data-secondary-consumed="true"][data-phase="recover"] [data-effect="secondary"] {
+    opacity: 0.88 !important;
+    visibility: visible !important;
+    transform: none !important;
+  }
+
+  .character-reaction:is([data-phase="burst"], [data-phase="recover"], [data-phase="settle"])[data-food-bitten="true"] [data-food-assembly] {
+    opacity: 0.7 !important;
+    visibility: visible !important;
+    transform: translate(92px, 91px) rotate(18deg) scale(0.54) !important;
+  }
+}

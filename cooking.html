@@ -22,6 +22,7 @@
         </div>
         <div class="header-actions">
           <button class="tuning-button" type="button" data-action="tuning-open" aria-haspopup="dialog" aria-controls="tuning-sheet">参数</button>
+          <button class="highlight-button" type="button" data-action="highlight-open" aria-haspopup="dialog" aria-controls="highlight-sheet">高光 0</button>
           <button class="feedback-button" type="button" data-action="feedback-open">反馈</button>
           <button class="icon-button" type="button" data-action="tutorial-replay" aria-label="重新播放新手教程">?</button>
         </div>
@@ -36,7 +37,7 @@
             <button class="recipe-card recipe-card--free" type="button" data-action="recipe-select" data-recipe-id="">
               <span class="recipe-card__icon" aria-hidden="true">✦</span>
               <strong>自由料理</strong>
-              <small>不看配方，随手叠出自己的汉堡</small>
+              <small>不看配方，最多 60 层，随手叠出自己的汉堡</small>
             </button>
             <button class="recipe-card" type="button" data-action="recipe-select" data-recipe-id="classic-beef">
               <span class="recipe-card__icon" aria-hidden="true">🍔</span>
@@ -65,9 +66,9 @@
       <section class="objective-card" aria-labelledby="cooking-objective">
         <div>
           <span class="objective-label">当前目标</span>
-          <p id="cooking-objective">自由叠放食材，最多 20 层</p>
+          <p id="cooking-objective">自由叠放食材，最多 60 层</p>
         </div>
-        <strong id="cooking-progress">0/20</strong>
+        <strong id="cooking-progress">0/60</strong>
       </section>
 
       <section class="recipe-reference" id="recipe-reference" aria-labelledby="recipe-reference-name" hidden>
@@ -134,9 +135,56 @@
           <img class="feedback-preview" id="feedback-preview" alt="刚才游戏画面的自动截图" hidden>
           <label for="feedback-message">问题说明</label>
           <textarea id="feedback-message" maxlength="1000" rows="4" placeholder="例如：第 12 层芝士放下后浮在空中"></textarea>
-          <p class="feedback-note">系统会自动附上截图、最近 6 秒 GIF 操作回放、层数、库存和设备信息，并上传到测试反馈云盘。</p>
+          <p class="feedback-note">系统会自动附上截图、最近 8 秒高清短视频、层数、库存和设备信息；不支持视频时才会降级为 GIF。</p>
           <p class="feedback-status" id="feedback-status" role="status" aria-live="polite"></p>
           <button class="feedback-submit" type="button" data-action="feedback-submit">自动上传反馈</button>
+        </section>
+      </div>
+
+      <div class="highlight-sheet" id="highlight-sheet" role="dialog" aria-modal="true" aria-labelledby="highlight-title" tabindex="-1" hidden>
+        <section class="highlight-card">
+          <div class="highlight-heading">
+            <div>
+              <p>自动记录精彩操作</p>
+              <h2 id="highlight-title">高光回放</h2>
+            </div>
+            <button type="button" data-action="highlight-close" aria-label="关闭高光回放">×</button>
+          </div>
+          <video id="highlight-video" controls playsinline preload="metadata" hidden></video>
+          <p class="highlight-meta" id="highlight-meta" role="status" aria-live="polite">堆到 10、20、40、60 层或完成料理时会自动生成。</p>
+          <div class="highlight-actions">
+            <button type="button" data-action="highlight-previous" aria-label="上一段高光">上一段</button>
+            <a id="highlight-download" href="#" download hidden>保存视频</a>
+            <button type="button" data-action="highlight-next" aria-label="下一段高光">下一段</button>
+          </div>
+        </section>
+      </div>
+
+      <div class="workbench-picker" id="workbench-picker" role="dialog" aria-modal="true" aria-labelledby="workbench-picker-title" aria-hidden="true" tabindex="-1" hidden>
+        <section class="workbench-picker__card">
+          <div class="workbench-picker__heading">
+            <div>
+              <p>更换这个物理槽位</p>
+              <h2 id="workbench-picker-title" data-workbench-title>选择材料</h2>
+            </div>
+            <button type="button" data-workbench-close aria-label="关闭材料选择">×</button>
+          </div>
+          <p class="workbench-picker__hint">只替换料台上的预备材料，已经装进汉堡的内容不会消失。</p>
+          <div class="workbench-picker__options" aria-label="可选材料">
+            <button type="button" data-workbench-region="bread" data-workbench-content="bottom-bun"><span>🍞</span><strong>下层面包</strong><small>当前</small></button>
+            <button type="button" data-workbench-region="bread" data-workbench-content="middle-bun"><span>🥯</span><strong>中层面包</strong><small>当前</small></button>
+            <button type="button" data-workbench-region="bread" data-workbench-content="top-bun"><span>🍔</span><strong>上层面包</strong><small>当前</small></button>
+            <button type="button" data-workbench-region="filling" data-workbench-content="patty"><span>🥩</span><strong>牛肉饼</strong><small>当前</small></button>
+            <button type="button" data-workbench-region="filling" data-workbench-content="cheese"><span>🧀</span><strong>芝士</strong><small>当前</small></button>
+            <button type="button" data-workbench-region="filling" data-workbench-content="tomato"><span>🍅</span><strong>番茄</strong><small>当前</small></button>
+            <button type="button" data-workbench-region="filling" data-workbench-content="lettuce"><span>🥬</span><strong>生菜</strong><small>当前</small></button>
+            <button type="button" data-workbench-region="filling" data-workbench-content="pickle"><span>🥒</span><strong>酸黄瓜</strong><small>当前</small></button>
+            <button type="button" data-workbench-region="filling" data-workbench-content="onion"><span>🧅</span><strong>洋葱碎</strong><small>当前</small></button>
+            <button type="button" data-workbench-region="sauce" data-workbench-content="ketchup"><span>🔴</span><strong>番茄酱</strong><small>当前</small></button>
+            <button type="button" data-workbench-region="sauce" data-workbench-content="mustard"><span>🟡</span><strong>芥末酱</strong><small>当前</small></button>
+            <button type="button" data-workbench-region="sauce" data-workbench-content="house-sauce"><span>🟠</span><strong>小馆特调酱</strong><small>当前</small></button>
+          </div>
+          <button class="workbench-picker__reset" type="button" data-workbench-reset>恢复这个槽位的默认材料</button>
         </section>
       </div>
 
