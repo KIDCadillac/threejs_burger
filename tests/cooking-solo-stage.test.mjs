@@ -40,10 +40,11 @@ function createHostHarness() {
     camera,
     renderer: { shadowMap: {} },
     starts: 0,
+    resizes: 0,
     resets: 0,
     disposed: 0,
     start() { this.starts += 1; },
-    resize() {},
+    resize() { this.resizes += 1; },
     setVisible() {},
     onFrame(callback) { callbacks.add(callback); return () => callbacks.delete(callback); },
     onContextError() { return () => {}; },
@@ -103,7 +104,12 @@ function expectedLayerScale(stage, instanceId) {
     .map((value) => value * presentationScale);
 }
 
-function assertStackFitsCamera(stage, label) {
+const STACK_SAFE_NDC_MARGIN = 0.86;
+
+function assertStackFitsCamera(stage, label, {
+  margin = STACK_SAFE_NDC_MARGIN,
+  requireTight = true,
+} = {}) {
   stage.host.scene.updateMatrixWorld(true);
   stage.host.camera.updateProjectionMatrix();
   stage.host.camera.updateMatrixWorld(true);
@@ -118,15 +124,28 @@ function assertStackFitsCamera(stage, label) {
       for (const z of [bounds.min.z, bounds.max.z]) corners.push(new THREE.Vector3(x, y, z));
     }
   }
+  let maximumScreenMagnitude = 0;
   for (const corner of corners) {
     const ndc = corner.project(stage.host.camera);
-    assert.ok(Number.isFinite(ndc.x) && Math.abs(ndc.x) <= 1 + 1e-9,
+    maximumScreenMagnitude = Math.max(
+      maximumScreenMagnitude,
+      Math.abs(ndc.x),
+      Math.abs(ndc.y),
+    );
+    assert.ok(Number.isFinite(ndc.x) && Math.abs(ndc.x) <= margin + 1e-8,
       `${label} stack exceeds camera width at NDC x=${ndc.x}`);
-    assert.ok(Number.isFinite(ndc.y) && Math.abs(ndc.y) <= 1 + 1e-9,
+    assert.ok(Number.isFinite(ndc.y) && Math.abs(ndc.y) <= margin + 1e-8,
       `${label} stack exceeds camera height at NDC y=${ndc.y}`);
     assert.ok(Number.isFinite(ndc.z) && Math.abs(ndc.z) <= 1 + 1e-9,
       `${label} stack exceeds camera depth at NDC z=${ndc.z}`);
   }
+  if (requireTight) {
+    assert.ok(
+      maximumScreenMagnitude >= margin - 0.08,
+      `${label} camera leaves heuristic-sized empty space at NDC ${maximumScreenMagnitude}`,
+    );
+  }
+  return maximumScreenMagnitude;
 }
 
 function pointerAtWorld(stage, canvas, pointerId, worldPoint) {
@@ -238,7 +257,7 @@ test("keeps full cooking orbit while allowing low, high, and close food inspecti
     minPitch: -1.18,
     maxPitch: 1.56,
     minDistance: 5,
-    maxDistance: 220,
+    maxDistance: 320,
     wrapYaw: true,
   });
   stage.dispose();
@@ -258,7 +277,10 @@ test("food focus shows only assembled burger layers and restores the full workbe
   assert.equal(stage.burger.getLayer("patty").visible, true);
   assert.equal(stage.burger.getLayer("cheese").visible, false);
   assert.equal(changes.at(-1).focused, true);
-  assert.notDeepEqual(stage.controller.getCameraView().target, before.target);
+  const focused = stage.controller.getCameraView();
+  assert.ok(Math.abs(focused.yaw - before.yaw) < 1e-12);
+  assert.ok(Math.abs(focused.pitch - before.pitch) < 1e-12);
+  assert.ok(focused.distance < before.distance);
 
   assert.equal(stage.toggleBurgerFocus(), false);
   assert.equal(stage.workbench.root.visible, true);
@@ -1440,8 +1462,9 @@ test("replenishes bins, stacks sixty repeated portions in contact, and expands t
   stage.dispose();
 });
 
-test("sixty maximum-tuned layers fit the real normal and focus camera frusta", () => {
+test("sixty maximum-tuned layers fit portrait and landscape at both pitch extremes", () => {
   const { stage } = harness();
+  const initialView = stage.controller.getCameraView();
   const maximumTuning = {
     version: 1,
     global: { presentationScale: 0.9 },
@@ -1457,20 +1480,119 @@ test("sixty maximum-tuned layers fit the real normal and focus camera frusta", (
 
   stage.setTuning(maximumTuning);
 
-  assertStackFitsCamera(stage, "normal");
-  assert.equal(stage.setBurgerFocus(true), true);
-  assertStackFitsCamera(stage, "focus");
-  assert.equal(stage.setBurgerFocus(false), false);
-  assertStackFitsCamera(stage, "restored normal");
-  assert.equal(stage.resetCamera(), true);
-  assertStackFitsCamera(stage, "reset normal");
-  stage.setTuning({ version: 1, global: { presentationScale: 0.72 } });
-  stage.resetCamera();
-  assert.equal(stage.setBurgerFocus(true), true);
+  const distances = new Map();
+  for (const [viewport, aspect] of [
+    ["portrait 390x844", 390 / 844],
+    ["landscape 844x390", 844 / 390],
+  ]) {
+    stage.host.camera.aspect = aspect;
+    stage.host.camera.updateProjectionMatrix();
+
+    for (const [pitchName, pitch] of [
+      ["minPitch", -1.18],
+      ["maxPitch", 1.56],
+    ]) {
+      const current = stage.controller.getCameraView();
+      stage.controller.setCameraView({
+        target: current.target,
+        yaw: 0.73,
+        pitch,
+        distance: 5,
+      }, "test-extreme-view");
+      stage.setTuning(maximumTuning);
+
+      const normal = stage.controller.getCameraView();
+      assert.ok(Math.abs(normal.yaw - 0.73) < 1e-9, `${viewport} ${pitchName} normal yaw`);
+      assert.ok(Math.abs(normal.pitch - pitch) < 1e-9, `${viewport} ${pitchName} normal pitch`);
+      assertStackFitsCamera(stage, `${viewport} ${pitchName} normal`);
+      distances.set(`${viewport}:${pitchName}`, normal.distance);
+
+      assert.equal(stage.setBurgerFocus(true), true);
+      const focused = stage.controller.getCameraView();
+      assert.ok(Math.abs(focused.yaw - normal.yaw) < 1e-9, `${viewport} ${pitchName} focus yaw`);
+      assert.ok(Math.abs(focused.pitch - normal.pitch) < 1e-9, `${viewport} ${pitchName} focus pitch`);
+      assertStackFitsCamera(stage, `${viewport} ${pitchName} focus`);
+
+      stage.host.camera.far = 10;
+      assert.equal(stage.resetCamera(), true);
+      assert.equal(stage.isBurgerFocused(), true);
+      assertStackFitsCamera(stage, `${viewport} ${pitchName} focused reset`);
+      assert.ok(stage.host.camera.far > 10, `${viewport} ${pitchName} extends the far plane`);
+
+      assert.equal(stage.setBurgerFocus(false), false);
+      const restored = stage.controller.getCameraView();
+      assert.ok(Math.abs(restored.yaw - normal.yaw) < 1e-9, `${viewport} ${pitchName} restored yaw`);
+      assert.ok(Math.abs(restored.pitch - normal.pitch) < 1e-9, `${viewport} ${pitchName} restored pitch`);
+      assertStackFitsCamera(stage, `${viewport} ${pitchName} restored normal`);
+
+      assert.equal(stage.resetCamera(), true);
+      const reset = stage.controller.getCameraView();
+      assert.ok(reset.distance > initialView.distance + 1, `${viewport} ${pitchName} reset re-fits stack`);
+      assertStackFitsCamera(stage, `${viewport} ${pitchName} reset normal`);
+    }
+  }
+
+  assert.notEqual(
+    distances.get("portrait 390x844:maxPitch"),
+    distances.get("landscape 844x390:maxPitch"),
+    "camera fit responds to aspect instead of using a height-only multiplier",
+  );
+
+  stage.host.camera.aspect = 844 / 390;
+  stage.host.camera.updateProjectionMatrix();
+  const beforeResize = stage.controller.getCameraView();
+  stage.controller.setCameraView({
+    target: beforeResize.target,
+    yaw: 0.73,
+    pitch: 1.56,
+    distance: 5,
+  }, "test-before-resize");
   stage.setTuning(maximumTuning);
-  assertStackFitsCamera(stage, "focused tuning");
-  assert.equal(stage.setBurgerFocus(false), false);
-  assertStackFitsCamera(stage, "focused tuning restored normal");
+  const landscapeDistance = stage.controller.getCameraView().distance;
+  const resizeCalls = stage.host.resizes;
+  stage.host.camera.aspect = 390 / 844;
+  stage.host.camera.updateProjectionMatrix();
+  assert.equal(stage.resize(), true);
+  assert.equal(stage.host.resizes, resizeCalls + 1);
+  assert.ok(stage.controller.getCameraView().distance > landscapeDistance);
+  assertStackFitsCamera(stage, "live resize to portrait");
+
+  stage.host.camera.aspect = 390 / 844;
+  stage.host.camera.updateProjectionMatrix();
+  const collapsed = stage.controller.getCameraView();
+  stage.controller.setCameraView({
+    target: collapsed.target,
+    yaw: 0.73,
+    pitch: 0.28,
+    distance: 5,
+  }, "test-expanded-stack");
+  stage.setTuning(maximumTuning);
+  assertStackFitsCamera(stage, "collapsed before expansion");
+  assert.equal(stage.toggleExpanded(), true);
+  stage.tick(40_000);
+  assert.ok(
+    stage.controller.getCameraView().distance > 220,
+    "expanded geometry fit must not be clipped by the old orbit-distance ceiling",
+  );
+  assertStackFitsCamera(stage, "expanded stack");
+  assert.equal(stage.toggleExpanded(), false);
+  stage.tick(41_000);
+  assertStackFitsCamera(stage, "collapsed after expansion");
+
+  stage.host.camera.aspect = 390 / 844;
+  stage.host.camera.updateProjectionMatrix();
+  const zoomedOut = stage.controller.getCameraView();
+  stage.controller.setCameraView({
+    target: zoomedOut.target,
+    yaw: 0.73,
+    pitch: -1.18,
+    distance: 320,
+  }, "test-maximum-distance");
+  stage.host.camera.far = 10;
+  stage.setTuning(maximumTuning);
+  assert.equal(stage.controller.getCameraView().distance, 320);
+  assertStackFitsCamera(stage, "maximum-distance far plane", { requireTight: false });
+  assert.ok(stage.host.camera.far > 320);
   stage.dispose();
 });
 

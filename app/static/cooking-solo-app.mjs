@@ -9,6 +9,7 @@ import { createCookingFeedbackReporter } from "./cooking-feedback.mjs";
 import { createCookingTuningPanel } from "./cooking-tuning-panel.mjs";
 import { loadBurgerTuning, saveBurgerTuning } from "./burger-tuning.mjs";
 import { BURGER_RECIPES } from "./burger-recipes.mjs";
+import { MAX_SOLO_STACK_LAYERS } from "./cooking-solo-state.mjs";
 
 const LAYER_NAMES = Object.freeze({
   "bottom-bun": "下层面包",
@@ -48,7 +49,9 @@ function recipeIdFromLocation(location) {
 }
 
 function recipeStepItems(recipe) {
-  if (!recipe) return ["自由搭配，不限制顺序，最少 2 层即可完成"];
+  if (!recipe) {
+    return [`自由搭配，不限制顺序，最少 2 层即可完成，最多 ${MAX_SOLO_STACK_LAYERS} 层`];
+  }
   return recipe.steps.map((step) => (
     step.kind === "layer"
       ? LAYER_NAMES[step.ingredientId] ?? step.ingredientId
@@ -130,13 +133,13 @@ export function bootSoloCookingPage(
       : "每种原料库存 ×999";
     elements.objective.textContent = state.finished
       ? "料理完成，可以继续调整或重新做"
-      : state.assembledOrder.length >= 20
-        ? "已经叠满 20 层，现在可以完成料理"
+      : state.assembledOrder.length >= MAX_SOLO_STACK_LAYERS
+        ? `已经叠满 ${MAX_SOLO_STACK_LAYERS} 层，现在可以完成料理`
         : state.complete
-          ? `已经可以完成料理，还能继续叠 ${20 - state.assembledOrder.length} 层`
+          ? `已经可以完成料理，还能继续叠 ${MAX_SOLO_STACK_LAYERS - state.assembledOrder.length} 层`
         : state.assembledOrder.length
-          ? `继续自由叠放，当前 ${state.assembledOrder.length} 层，最多 20 层`
-          : "自由叠放食材，最多 20 层";
+          ? `继续自由叠放，当前 ${state.assembledOrder.length} 层，最多 ${MAX_SOLO_STACK_LAYERS} 层`
+          : `自由叠放食材，最多 ${MAX_SOLO_STACK_LAYERS} 层`;
     elements.finishButton.disabled = !state.complete || state.finished;
     elements.finishButton.textContent = state.complete
       ? "完成料理"
@@ -231,7 +234,7 @@ export function bootSoloCookingPage(
       state: stage.getState(),
       tutorial: stage.getTutorial(),
       expanded: false,
-      progress: "0/20",
+      progress: `0/${MAX_SOLO_STACK_LAYERS}`,
     });
     feedback = feedbackFactory({
       canvas,

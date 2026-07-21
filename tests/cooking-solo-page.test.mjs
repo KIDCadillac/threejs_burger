@@ -8,6 +8,7 @@ const homePath = new URL("../app/static/index.html", import.meta.url);
 const homeCssPath = new URL("../app/static/home.css", import.meta.url);
 const appPath = new URL("../app/static/cooking-solo-app.mjs", import.meta.url);
 const loaderPath = new URL("../app/static/cooking-loader.mjs", import.meta.url);
+const feedbackPath = new URL("../app/static/cooking-feedback.mjs", import.meta.url);
 
 function attribute(tag, name) {
   return tag.match(new RegExp(`(?:^|\\s)${name}="([^"]*)"`))?.[1] ?? null;
@@ -65,9 +66,10 @@ test("standalone cooking page is accessible, Chinese, and contains the full play
     'id="cooking-loading-bar"',
     'cooking-error',
   ]) assert.ok(html.includes(marker), marker);
-  assert.match(html, />0\/20</);
+  assert.match(html, />0\/60</);
   assert.match(html, /自由料理台/);
-  assert.match(html, /自由叠放食材，最多 20 层/);
+  assert.match(html, /自由叠放食材，最多 60 层/);
+  assert.match(html, /不看配方，最多 60 层/);
   assert.match(html, /至少放 2 层食材后完成料理/);
   assert.doesNotMatch(html, /装完\s*7\s*层|再装\s*7\s*层/);
   assert.match(html, /rel="icon" href="data:,"/);
@@ -118,6 +120,19 @@ test("recipe selector publishes four original references plus free cooking witho
   assert.match(css, /\.recipe-grid\s*\{[^}]*grid-template-columns:/s);
   assert.match(css, /\.recipe-card\s*\{[^}]*min-height:\s*(?:1[2-9]\d|[2-9]\d\d)px/s);
   assert.match(css, /@media\s*\(max-width:\s*520px\)[\s\S]*?\.recipe-grid\s*\{[^}]*grid-template-columns:\s*1fr/s);
+});
+
+test("page modules import the authoritative stack limit instead of defining another one", async () => {
+  const [app, feedback] = await Promise.all([
+    readFile(appPath, "utf8"),
+    readFile(feedbackPath, "utf8"),
+  ]);
+
+  for (const source of [app, feedback]) {
+    assert.match(source, /import\s*\{[^}]*MAX_SOLO_STACK_LAYERS[^}]*\}\s*from\s*"\.\/cooking-solo-state\.mjs"/s);
+  }
+  assert.doesNotMatch(app, /(?:length\s*[>=]+|continue叠[^\n]*|最多\s*)20/);
+  assert.doesNotMatch(feedback, /MAX_REPORT_LAYERS\s*=\s*20|slice\(\s*-?20\s*\)/);
 });
 
 test("the public cooking page is connected to the automatic feedback receiver", async () => {

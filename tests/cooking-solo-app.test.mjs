@@ -6,6 +6,7 @@ import {
   BURGER_TUNING_STORAGE_KEY,
   DEFAULT_BURGER_TUNING,
 } from "../app/static/burger-tuning.mjs";
+import { MAX_SOLO_STACK_LAYERS } from "../app/static/cooking-solo-state.mjs";
 
 class Events {
   constructor() { this.listeners = new Map(); }
@@ -218,7 +219,7 @@ function stageFactoryHarness() {
           tutorial,
           expanded: false,
           focused: Boolean(changes.focused),
-          progress: `${state.assembledOrder.length}/20`,
+          progress: `${state.assembledOrder.length}/${MAX_SOLO_STACK_LAYERS}`,
           dropIntent,
         });
       },
@@ -646,7 +647,36 @@ test("renders replenishing stock counts and repeated ingredient instance names",
 
   assert.match(page.elements.stock.textContent, /997/);
   assert.doesNotMatch(page.elements.summary.innerHTML, /undefined/);
-  assert.equal(page.elements.progress.textContent, "2/20");
+  assert.equal(page.elements.progress.textContent, `2/${MAX_SOLO_STACK_LAYERS}`);
+});
+
+test("HUD and free-recipe guidance expose the single sixty-layer limit", () => {
+  const page = pageHarness();
+  const stages = stageFactoryHarness();
+  const stage = bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: stages.factory,
+  });
+
+  assert.equal(page.elements.progress.textContent, `0/${MAX_SOLO_STACK_LAYERS}`);
+  assert.match(page.elements.objective.textContent, /最多 60 层/);
+
+  stage.emit({
+    assembledOrder: ["bottom-bun", "patty"],
+    complete: true,
+  });
+  assert.match(page.elements.objective.textContent, /还能继续叠 58 层/);
+
+  const maximumStack = Array.from(
+    { length: MAX_SOLO_STACK_LAYERS },
+    (_, index) => `patty#${index + 1}`,
+  );
+  stage.emit({ assembledOrder: maximumStack, complete: true });
+  assert.equal(page.elements.progress.textContent, `${MAX_SOLO_STACK_LAYERS}/${MAX_SOLO_STACK_LAYERS}`);
+  assert.match(page.elements.objective.textContent, /已经叠满 60 层/);
+
+  page.documentTarget.emit("click", { target: page.elements.recipeCards[0] });
+  assert.match(page.elements.recipeReferenceSteps.innerHTML, /最多 60 层/);
 });
 
 test("focus control follows stage view state and toggles the isolated burger view", () => {

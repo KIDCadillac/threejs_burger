@@ -31,7 +31,9 @@ export function mountSoloCookingLifecycle({
   disposeActiveSoloCookingPage(documentTarget);
 
   let disposed = false;
-  const resize = () => stage.host.resize?.();
+  const resize = () => (
+    typeof stage.resize === "function" ? stage.resize() : stage.host.resize?.()
+  );
   const pagehide = (event) => {
     if (event?.persisted) {
       stage.host.setVisible?.(false);
@@ -42,7 +44,7 @@ export function mountSoloCookingLifecycle({
   const pageshow = (event) => {
     if (!event?.persisted || disposed) return;
     stage.host.setVisible?.(true);
-    stage.host.resize?.();
+    resize();
   };
 
   const lifecycle = Object.freeze({

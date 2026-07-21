@@ -42,8 +42,10 @@ import {
 const STACK_OVERLAP = 0.025;
 const EXPLODED_GAP = 0.42;
 const SNAP_DURATION = 190;
-const MAX_STACK_CAMERA_DISTANCE = 220;
+const MAX_STACK_CAMERA_DISTANCE = 320;
 const STACK_CAMERA_DEPTH_PADDING = 25;
+const STACK_CAMERA_SAFE_NDC_MARGIN = 0.86;
+const STACK_CAMERA_NEAR_PADDING = 0.25;
 const MAX_BOTTOM_LAYER_SINK = 0.03;
 
 const layerStackMinY = (layer) => (
@@ -525,37 +527,113 @@ export function createSoloCookingStage({
     applyActiveMotion(lastFrameTime);
   };
 
-  const adaptCameraToStack = () => {
+  const authoritativeStackBounds = () => {
+    if (!state.assembledOrder.length) return null;
+    const targets = targetTransforms();
+    const snapshots = state.assembledOrder.map((layerId) => {
+      const layer = burger.getLayer(layerId);
+      return {
+        layerId,
+        layer,
+        position: layer.position.clone(),
+        rotation: layer.rotation.clone(),
+        scale: layer.scale.clone(),
+      };
+    });
+    const bounds = new THREE.Box3();
+    try {
+      for (const { layerId, layer } of snapshots) {
+        const target = targets.get(layerId);
+        layer.position.copy(target.position);
+        layer.rotation.set(0, target.yaw, 0);
+        layer.scale.copy(target.scale);
+      }
+      host.scene.updateMatrixWorld?.(true);
+      for (const { layer } of snapshots) bounds.expandByObject(layer);
+    } finally {
+      for (const { layer, position, rotation, scale } of snapshots) {
+        layer.position.copy(position);
+        layer.rotation.copy(rotation);
+        layer.scale.copy(scale);
+      }
+      host.scene.updateMatrixWorld?.(true);
+    }
+    return bounds.isEmpty() ? null : bounds;
+  };
+
+  const fittedStackCameraView = (bounds, view) => {
+    const target = bounds.getCenter(new THREE.Vector3());
+    const cosPitch = Math.cos(view.pitch);
+    const forward = new THREE.Vector3(
+      -Math.sin(view.yaw) * cosPitch,
+      -Math.sin(view.pitch),
+      -Math.cos(view.yaw) * cosPitch,
+    ).normalize();
+    const right = new THREE.Vector3().crossVectors(
+      forward,
+      new THREE.Vector3(0, 1, 0),
+    ).normalize();
+    const up = new THREE.Vector3().crossVectors(right, forward).normalize();
+    const effectiveFov = typeof host.camera.getEffectiveFOV === "function"
+      ? host.camera.getEffectiveFOV()
+      : host.camera.fov;
+    const verticalSlope = Math.tan(effectiveFov * Math.PI / 360);
+    const horizontalSlope = verticalSlope * Math.max(host.camera.aspect, 1e-6);
+    const corners = [];
+    for (const x of [bounds.min.x, bounds.max.x]) {
+      for (const y of [bounds.min.y, bounds.max.y]) {
+        for (const z of [bounds.min.z, bounds.max.z]) {
+          corners.push(new THREE.Vector3(x, y, z));
+        }
+      }
+    }
+
+    let distance = 0;
+    for (const corner of corners) {
+      const relative = corner.clone().sub(target);
+      const forwardOffset = relative.dot(forward);
+      const requiredDepth = Math.max(
+        Math.abs(relative.dot(right)) / (horizontalSlope * STACK_CAMERA_SAFE_NDC_MARGIN),
+        Math.abs(relative.dot(up)) / (verticalSlope * STACK_CAMERA_SAFE_NDC_MARGIN),
+        host.camera.near + STACK_CAMERA_NEAR_PADDING,
+      );
+      distance = Math.max(distance, requiredDepth - forwardOffset);
+    }
+    distance += Math.max(0.05, bounds.getSize(new THREE.Vector3()).length() * 0.005);
+
+    let farthestForwardOffset = -Infinity;
+    for (const corner of corners) {
+      farthestForwardOffset = Math.max(
+        farthestForwardOffset,
+        corner.clone().sub(target).dot(forward),
+      );
+    }
+    return {
+      target,
+      distance,
+      farthestForwardOffset,
+    };
+  };
+
+  const adaptCameraToStack = ({ preserveDistance = true, reason = "stack-growth" } = {}) => {
     if (!state.assembledOrder.length) return false;
     const view = controller?.getCameraView?.();
     if (!view) return false;
-    const targets = targetTransforms();
-    let minY = Infinity;
-    let maxY = -Infinity;
-    for (const layerId of state.assembledOrder) {
-      const layer = burger.getLayer(layerId);
-      const target = targets.get(layerId);
-      minY = Math.min(minY, target.position.y + layer.userData.boundsMinY * target.scale.y);
-      maxY = Math.max(maxY, target.position.y + layer.userData.boundsMaxY * target.scale.y);
-    }
-    const centerLocal = new THREE.Vector3(0, (minY + maxY) / 2, 0);
-    burger.root.updateWorldMatrix?.(true, false);
-    const centerWorld = burger.root.localToWorld(centerLocal);
-    const height = Math.max(0, maxY - minY);
-    const targetY = Math.max(view.target.y, centerWorld.y);
-    const distance = Math.max(view.distance, 8 + height * 2.7);
-    const requiredFar = MAX_STACK_CAMERA_DISTANCE + height + STACK_CAMERA_DEPTH_PADDING;
+    const bounds = authoritativeStackBounds();
+    if (!bounds) return false;
+    const fit = fittedStackCameraView(bounds, view);
+    const distance = preserveDistance ? Math.max(view.distance, fit.distance) : fit.distance;
+    const requiredFar = distance + fit.farthestForwardOffset + STACK_CAMERA_DEPTH_PADDING;
     if (host.camera.far < requiredFar) {
       host.camera.far = requiredFar;
       host.camera.updateProjectionMatrix?.();
     }
-    if (targetY <= view.target.y + 0.01 && distance <= view.distance + 0.01) return false;
     controller.setCameraView?.({
-      target: { x: view.target.x, y: targetY, z: view.target.z },
+      target: { x: fit.target.x, y: fit.target.y, z: fit.target.z },
       yaw: view.yaw,
       pitch: view.pitch,
       distance,
-    }, "stack-growth");
+    }, reason);
     return true;
   };
 
@@ -847,19 +925,7 @@ export function createSoloCookingStage({
         burger.getLayer(layerId).visible = state.assembledOrder.includes(layerId);
       }
       workbench.root.visible = false;
-      const bounds = new THREE.Box3();
-      for (const layerId of state.assembledOrder) {
-        bounds.expandByObject(burger.getLayer(layerId));
-      }
-      const center = bounds.getCenter(new THREE.Vector3());
-      const size = bounds.getSize(new THREE.Vector3());
-      const distance = Math.max(5, Math.max(size.x, size.y, size.z) * 2.15);
-      controller.setCameraView?.({
-        target: { x: center.x, y: center.y, z: center.z },
-        yaw: focusCameraView?.yaw ?? 0,
-        pitch: 0.28,
-        distance,
-      }, "burger-focus");
+      adaptCameraToStack({ preserveDistance: false, reason: "burger-focus" });
       focused = true;
     } else {
       workbench.root.visible = focusWorkbenchVisible;
@@ -869,7 +935,7 @@ export function createSoloCookingStage({
       if (focusCameraView) controller.setCameraView?.(focusCameraView, "burger-focus-return");
       focusCameraView = null;
       focused = false;
-      adaptCameraToStack();
+      adaptCameraToStack({ preserveDistance: true, reason: "burger-focus-return-fit" });
     }
     if (notify) emit("focus");
     return focused;
@@ -1080,6 +1146,11 @@ export function createSoloCookingStage({
       emit("reference-recipe");
       return true;
     },
+    resize() {
+      if (disposed) return false;
+      host.resize?.();
+      return adaptCameraToStack({ preserveDistance: false, reason: "viewport-resize-fit" });
+    },
     tick,
     selectLayer,
     dropLayer,
@@ -1098,6 +1169,7 @@ export function createSoloCookingStage({
       clearTransientVisuals();
       expanded = !expanded;
       syncTransforms({ animate: true });
+      adaptCameraToStack({ preserveDistance: false, reason: "stack-expansion" });
       emit("inspect");
       return expanded;
     },
@@ -1105,7 +1177,7 @@ export function createSoloCookingStage({
     toggleBurgerFocus() { return setFocusMode(!focused); },
     resetCamera() {
       const reset = controller.resetCamera();
-      if (reset) adaptCameraToStack();
+      if (reset) adaptCameraToStack({ preserveDistance: false, reason: "camera-reset-fit" });
       return reset;
     },
     undo() {

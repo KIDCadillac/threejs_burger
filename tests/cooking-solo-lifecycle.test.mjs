@@ -25,14 +25,34 @@ function stageSpy() {
     disposed: 0,
     visible: [],
     resized: 0,
+    resizeCalls: 0,
     host: {
       setVisible(value) { this.owner.visible.push(value); },
       resize() { this.owner.resized += 1; },
       owner: null,
     },
+    resize() {
+      this.resizeCalls += 1;
+      this.host.resize();
+    },
     dispose() { this.disposed += 1; },
   };
 }
+
+test("window resize routes through the stage so the fitted camera can be recomputed", () => {
+  const documentTarget = new Events();
+  const windowTarget = new Events();
+  const stage = stageSpy();
+  stage.host.owner = stage;
+  const lifecycle = mountSoloCookingLifecycle({
+    documentTarget, windowTarget, stage, onClick() {},
+  });
+
+  windowTarget.emit("resize");
+  assert.equal(stage.resizeCalls, 1);
+  assert.equal(stage.resized, 1);
+  lifecycle.dispose();
+});
 
 test("removes document/window listeners and disposes an ordinary unload exactly once", () => {
   const documentTarget = new Events();
@@ -70,6 +90,7 @@ test("BFCache pagehide pauses without disposing and pageshow restores and resize
   assert.deepEqual(stage.visible, [false]);
   windowTarget.emit("pageshow", { persisted: true });
   assert.deepEqual(stage.visible, [false, true]);
+  assert.equal(stage.resizeCalls, 1);
   assert.equal(stage.resized, 1);
   lifecycle.dispose();
 });

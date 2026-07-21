@@ -8,6 +8,7 @@ import {
   createGoogleDriveFeedbackUploader,
   encodeReplayGif,
 } from "../app/static/cooking-feedback.mjs";
+import { MAX_SOLO_STACK_LAYERS } from "../app/static/cooking-solo-state.mjs";
 
 function element(overrides = {}) {
   return {
@@ -90,6 +91,33 @@ test("report metadata contains the player's message and bounded cooking diagnost
   assert.equal(metadata.sauceStrokes, 1);
   assert.deepEqual(metadata.assembledIngredients, ["bottom-bun", "cheese"]);
   assert.ok(JSON.stringify(metadata).length < 5000);
+});
+
+test("report metadata preserves all sixty maximum-stack ingredients", () => {
+  const assembledOrder = Array.from(
+    { length: MAX_SOLO_STACK_LAYERS },
+    (_, index) => `layer-${index + 1}`,
+  );
+  const instances = Object.fromEntries(
+    assembledOrder.map((id, index) => [id, `ingredient-${index + 1}`]),
+  );
+
+  const metadata = buildCookingReportMetadata({
+    message: "最高汉堡的最后几层不见了",
+    context: { state: { assembledOrder, instances } },
+  });
+
+  assert.equal(MAX_SOLO_STACK_LAYERS, 60);
+  assert.equal(metadata.stackLayers, MAX_SOLO_STACK_LAYERS);
+  assert.equal(metadata.assembledIngredients.length, MAX_SOLO_STACK_LAYERS);
+  assert.deepEqual(metadata.assembledIngredients.slice(0, 2), [
+    "ingredient-1",
+    "ingredient-2",
+  ]);
+  assert.deepEqual(metadata.assembledIngredients.slice(-2), [
+    "ingredient-59",
+    "ingredient-60",
+  ]);
 });
 
 test("GIF encoder returns an animated GIF byte stream", async () => {

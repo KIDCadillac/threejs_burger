@@ -1,7 +1,7 @@
 import { GIFEncoder, applyPalette, quantize } from "./vendor/gifenc.esm.js";
+import { MAX_SOLO_STACK_LAYERS } from "./cooking-solo-state.mjs";
 
 const DEFAULT_ENDPOINT = "/api/feedback";
-const MAX_REPORT_LAYERS = 20;
 const MAX_MESSAGE_LENGTH = 1000;
 
 function boundedText(value, limit) {
@@ -25,7 +25,7 @@ export function buildCookingReportMetadata({
 } = {}) {
   const state = context.state ?? {};
   const assembledOrder = Array.isArray(state.assembledOrder)
-    ? state.assembledOrder.slice(-MAX_REPORT_LAYERS)
+    ? state.assembledOrder.slice(0, MAX_SOLO_STACK_LAYERS)
     : [];
   const instances = state.instances ?? {};
   return Object.freeze({
