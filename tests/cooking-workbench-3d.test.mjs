@@ -4,6 +4,21 @@ import * as THREE from "../app/static/vendor/three.module.min.js";
 import { BURGER_LAYER_IDS, SAUCE_KEYS } from "../app/static/cooking-state.mjs";
 import { createCookingWorkbench3D } from "../app/static/cooking-workbench-3d.mjs";
 
+function createSwitchableSlotDescriptors() {
+  return [
+    { slotId: "bread-left-1", contentId: "bottom-bun", kind: "ingredient", region: "bread", index: 0 },
+    { slotId: "bread-left-2", contentId: "middle-bun", kind: "ingredient", region: "bread", index: 1 },
+    { slotId: "bread-left-3", contentId: "top-bun", kind: "ingredient", region: "bread", index: 2 },
+    { slotId: "filling-back-1", contentId: "patty", kind: "ingredient", region: "filling", index: 0 },
+    { slotId: "filling-back-2", contentId: "patty", kind: "ingredient", region: "filling", index: 1 },
+    { slotId: "filling-back-3", contentId: "tomato", kind: "ingredient", region: "filling", index: 2 },
+    { slotId: "filling-back-4", contentId: "lettuce", kind: "ingredient", region: "filling", index: 3 },
+    { slotId: "sauce-right-1", contentId: "ketchup", kind: "tool", region: "sauce", index: 0 },
+    { slotId: "sauce-right-2", contentId: "ketchup", kind: "tool", region: "sauce", index: 1 },
+    { slotId: "sauce-right-3", contentId: "house-sauce", kind: "tool", region: "sauce", index: 2 },
+  ];
+}
+
 test("builds a real Three workbench with default prep, ingredient, and tool stations", () => {
   const workbench = createCookingWorkbench3D(THREE);
 
@@ -141,6 +156,191 @@ test("keeps maximum custom station counts physically separated", () => {
   }
 
   workbench.dispose();
+});
+
+test("arranges switchable slots into left bread, back filling, and right sauce regions", () => {
+  const workbench = createCookingWorkbench3D(THREE, {
+    slotDescriptors: createSwitchableSlotDescriptors(),
+  });
+  const bread = workbench.ingredientSlots.filter(({ region }) => region === "bread");
+  const filling = workbench.ingredientSlots.filter(({ region }) => region === "filling");
+  const sauce = workbench.toolDocks.filter(({ region }) => region === "sauce");
+
+  assert.equal(bread.length, 3);
+  assert.ok(bread.every(({ bin }) => bin.position.x < 0));
+  assert.equal(new Set(bread.map(({ bin }) => bin.position.z)).size, 3);
+  assert.equal(filling.length, 4);
+  assert.ok(filling.every(({ bin }) => bin.position.z < 0));
+  assert.equal(new Set(filling.map(({ bin }) => bin.position.x)).size, 4);
+  assert.equal(sauce.length, 3);
+  assert.ok(sauce.every(({ dock }) => dock.position.x > 0));
+  assert.equal(new Set(sauce.map(({ dock }) => dock.position.z)).size, 3);
+
+  const firstPatty = workbench.getStationBySlot("filling-back-1");
+  const secondPatty = workbench.getStationBySlot("filling-back-2");
+  const patties = workbench.getStationsByContent("ingredient", "patty");
+  const ketchupDocks = workbench.getStationsByContent("tool", "ketchup");
+  assert.equal(workbench.getStation("ingredient", "patty"), firstPatty);
+  assert.deepEqual(patties, [firstPatty, secondPatty]);
+  assert.equal(Object.isFrozen(patties), true);
+  assert.deepEqual(ketchupDocks.map(({ slotId }) => slotId), ["sauce-right-1", "sauce-right-2"]);
+  assert.equal(Object.isFrozen(ketchupDocks), true);
+
+  assert.equal(workbench.setSlotHighlighted("filling-back-2", true), true);
+  assert.equal(firstPatty.highlight.visible, false);
+  assert.equal(secondPatty.highlight.visible, true);
+  assert.equal(workbench.setHighlighted("ingredient", "patty", true), true);
+  assert.equal(firstPatty.highlight.visible, true, "content lookup highlights the first matching slot");
+  assert.equal(workbench.setSlotHighlighted("missing-slot", true), false);
+
+  workbench.dispose();
+});
+
+test("keeps switchable station identity stable while changing its region-valid content", () => {
+  const workbench = createCookingWorkbench3D(THREE, {
+    slotDescriptors: createSwitchableSlotDescriptors(),
+  });
+  const station = workbench.getStationBySlot("filling-back-2");
+  const originalPosition = station.bin.position.clone();
+  const originalSelectorMetadata = station.selector.userData.cookingSelectable;
+  const identities = {
+    station,
+    bin: station.bin,
+    surface: station.surface,
+    pickupAnchor: station.pickupAnchor,
+    dropAnchor: station.dropAnchor,
+    selector: station.selector,
+  };
+
+  assert.equal(Object.isFrozen(station), true);
+  assert.equal(station.slotId, "filling-back-2");
+  assert.equal(station.contentId, "patty");
+  assert.equal(station.id, "patty");
+  assert.equal(station.kind, "ingredient");
+  assert.equal(station.region, "filling");
+  assert.equal(station.index, 1);
+  assert.throws(() => { station.slotId = "replacement"; }, TypeError);
+
+  assert.equal(workbench.setStationContent("filling-back-2", "cheese"), true);
+  assert.equal(workbench.getStationBySlot("filling-back-2"), identities.station);
+  assert.equal(station.contentId, "cheese");
+  assert.equal(station.id, "cheese");
+  assert.equal(workbench.getStationsByContent("ingredient", "patty").length, 1);
+  assert.deepEqual(workbench.getStationsByContent("ingredient", "cheese"), [station]);
+  assert.deepEqual(station.bin.position, originalPosition);
+  assert.equal(station.bin, identities.bin);
+  assert.equal(station.surface, identities.surface);
+  assert.equal(station.pickupAnchor, identities.pickupAnchor);
+  assert.equal(station.dropAnchor, identities.dropAnchor);
+  assert.equal(station.selector, identities.selector);
+  assert.equal(station.selector.userData.cookingSelectable, originalSelectorMetadata);
+
+  for (const metadata of [
+    station.bin.userData.cookingStation,
+    station.surface.userData.cookingSelectable,
+    station.pickupAnchor.userData.cookingAnchor,
+    station.dropAnchor.userData.cookingAnchor,
+  ]) {
+    assert.equal(metadata.slotId, "filling-back-2");
+    assert.equal(metadata.contentId, "cheese");
+    assert.equal(metadata.id, "cheese");
+    assert.equal(metadata.region, "filling");
+    assert.equal(Object.isFrozen(metadata), true);
+  }
+  assert.throws(
+    () => workbench.setStationContent("filling-back-2", "ketchup"),
+    TypeError,
+  );
+  assert.throws(
+    () => workbench.setStationContent("missing-slot", "cheese"),
+    TypeError,
+  );
+  assert.equal(station.contentId, "cheese");
+
+  workbench.dispose();
+});
+
+test("validates switchable slot descriptors and permits repeated region content", () => {
+  const valid = createSwitchableSlotDescriptors();
+  const invalidOptions = [
+    { slotDescriptors: "not-an-array" },
+    { slotDescriptors: [] },
+    { slotDescriptors: [null] },
+    { slotDescriptors: [{ ...valid[0], slotId: "" }] },
+    { slotDescriptors: [{ ...valid[0], contentId: "" }] },
+    { slotDescriptors: [{ ...valid[0], kind: "tool" }] },
+    { slotDescriptors: [{ ...valid[7], kind: "ingredient" }] },
+    { slotDescriptors: [{ ...valid[0], region: "pantry" }] },
+    { slotDescriptors: [{ ...valid[0], contentId: "patty" }] },
+    { slotDescriptors: [{ ...valid[3], contentId: "bottom-bun" }] },
+    { slotDescriptors: [{ ...valid[7], contentId: "cheese" }] },
+    { slotDescriptors: [{ ...valid[0], index: -1 }] },
+    { slotDescriptors: [{ ...valid[0], index: 0.5 }] },
+    { slotDescriptors: [valid[0], { ...valid[1], slotId: valid[0].slotId }] },
+    { slotDescriptors: [valid[0], { ...valid[1], slotId: ` ${valid[0].slotId} ` }] },
+  ];
+
+  for (const options of invalidOptions) {
+    assert.throws(() => createCookingWorkbench3D(THREE, options), TypeError);
+  }
+
+  const workbench = createCookingWorkbench3D(THREE, { slotDescriptors: valid });
+  assert.equal(workbench.getStationsByContent("ingredient", "patty").length, 2);
+  assert.equal(workbench.getStationsByContent("tool", "ketchup").length, 2);
+  workbench.dispose();
+});
+
+test("adds one independent frozen selector target per switchable slot", () => {
+  const workbench = createCookingWorkbench3D(THREE, {
+    slotDescriptors: createSwitchableSlotDescriptors(),
+  });
+  workbench.root.updateMatrixWorld(true);
+  const stations = [...workbench.ingredientSlots, ...workbench.toolDocks];
+  const selectors = stations.map(({ selector }) => selector);
+  const { bounds } = workbench.getLayout();
+
+  assert.equal(new Set(selectors).size, stations.length);
+  assert.equal(workbench.selectableSurfaces.length, 1 + stations.length * 2);
+  for (const station of stations) {
+    assert.ok(station.selector instanceof THREE.Mesh);
+    assert.equal(station.selector.parent, station.bin ?? station.dock);
+    assert.ok(workbench.selectableSurfaces.includes(station.selector));
+    assert.deepEqual(station.selector.userData.cookingSelectable, {
+      kind: "station-selector",
+      slotId: station.slotId,
+      region: station.region,
+    });
+    assert.equal(Object.isFrozen(station.selector.userData.cookingSelectable), true);
+    assert.equal(Object.hasOwn(station.selector.userData.cookingSelectable, "contentId"), false);
+    assert.ok(
+      Math.hypot(station.selector.position.x, station.selector.position.z) > 0.5,
+      "selector is offset from the material surface",
+    );
+    assert.ok(
+      Math.hypot(station.selector.position.x, station.selector.position.z) < 1.5,
+      "selector remains close to its slot",
+    );
+    const selectorBounds = new THREE.Box3().setFromObject(station.selector);
+    assert.ok(selectorBounds.min.x >= bounds.minX && selectorBounds.max.x <= bounds.maxX);
+    assert.ok(selectorBounds.min.z >= bounds.minZ && selectorBounds.max.z <= bounds.maxZ);
+  }
+
+  const selectorGeometry = selectors[0].geometry;
+  const selectorMaterial = selectors[0].material;
+  let geometryDisposeCount = 0;
+  let materialDisposeCount = 0;
+  const disposeGeometry = selectorGeometry.dispose.bind(selectorGeometry);
+  const disposeMaterial = selectorMaterial.dispose.bind(selectorMaterial);
+  selectorGeometry.dispose = () => { geometryDisposeCount += 1; disposeGeometry(); };
+  selectorMaterial.dispose = () => { materialDisposeCount += 1; disposeMaterial(); };
+
+  workbench.dispose();
+  workbench.dispose();
+
+  assert.equal(geometryDisposeCount, 1);
+  assert.equal(materialDisposeCount, 1);
+  assert.equal(workbench.setSlotHighlighted("bread-left-1", true), false);
+  assert.equal(workbench.setStationContent("bread-left-1", "top-bun"), false);
 });
 
 test("raycasting adjacent bins returns selectable solids and never decorative meshes", () => {
