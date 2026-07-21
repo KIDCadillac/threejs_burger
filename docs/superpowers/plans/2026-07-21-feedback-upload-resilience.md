@@ -60,7 +60,7 @@ export async function encodeReplayGif(frames, {
 }
 ```
 
-- [ ] Set recorder defaults to `fps=3`, `seconds=6`, `width=180`; make `exportGif({onProgress})` forward progress and return a coded `NO_REPLAY_FRAMES` error when nothing was captured.
+- [ ] Set recorder defaults to `fps=3`, `seconds=6`, `width=180`; make `exportGif({onProgress})` forward progress and return a coded `NO_REPLAY_FRAMES` error when nothing was captured. Add `stop()` that removes the timer/frame subscription without clearing captured frames; `start()` resumes capture.
 - [ ] Re-run the focused tests until GREEN.
 - [ ] Commit.
 
@@ -116,7 +116,7 @@ git commit -m "feat: add cancellable feedback upload timeout"
 
 - [ ] RED/GREEN cycle A: extend the fake button with `disabled`; test exact phase order, button locking, and concurrent-submit rejection; implement `setStage` and the guarded `finally` unlock.
 - [ ] RED/GREEN cycle B: test cached Blob identity on retry and implement cache reuse.
-- [ ] RED/GREEN cycle C: test cache reset when a new feedback session opens and when recorder revision changes after new captures; implement a revision-keyed cache.
+- [ ] RED/GREEN cycle C: test that opening the feedback dialog freezes recording, failed retry reuses the cached GIF, closing resumes recording, and reopening clears the cache and generates a new GIF.
 - [ ] RED/GREEN cycle D: test no-frame/encoding failures and implement their distinct copy without calling the uploader.
 - [ ] RED/GREEN cycle E: test preparation/network/timeout copy and implement the fixed error map.
 - [ ] RED/GREEN cycle F: test closing during upload and dispose cancellation; implement lifecycle semantics.
@@ -132,7 +132,7 @@ Expected visible phases:
 
 - [ ] Run RED and verify current combined status and re-encoding behavior fail these expectations.
 - [ ] Accept `submitButton`, retain its idle label, and centralize `setStage(text)` so both status and the locked button visibly update.
-- [ ] Add `revision()` to the recorder. Increment its integer revision after every accepted capture and reset it only on dispose. Cache `{ replay, revision }`; reuse it only while `cached.revision === recorder.revision()`. A retry after upload failure with no new frame starts at preparation; any accepted new capture forces re-encoding. Opening a new feedback session also clears the cache.
+- [ ] Freeze the replay window for one feedback session: `open()` first captures the screenshot/current frame, then calls `recorder.stop()` and clears the previous cached Blob. A network retry while the same dialog remains open always reuses that Blob. `close()` calls `recorder.start()`; reopening creates a fresh session and therefore clears/re-encodes the cache. If close happens during an in-flight request, the request continues, but the next open still clears its old cache.
 
 ```js
 let submitting = false;
@@ -233,6 +233,6 @@ git diff --check
 
 - [ ] Start `python -m http.server 4173 --directory app/static` and use a `390x844` Playwright page at `http://127.0.0.1:4173/cooking.html`.
 - [ ] Intercept the Apps Script POST with a never-resolving route; assert visible compression progress changes at least twice, the upload phase appears, timeout copy appears by 21 seconds, and the submit button is enabled again.
-- [ ] Retry without interacting and assert compression progress is skipped; render one new frame, retry again, and assert compression runs because recorder revision changed.
+- [ ] Retry while the same dialog remains open and assert compression progress is skipped. Close the dialog, interact/render a new frame, reopen, and assert compression runs again for the new feedback session.
 - [ ] Fulfil the intercepted request and assert the final copy contains “反馈已提交” and does not contain “上传成功”. Save `output/feedback-timeout-mobile.png`; keep `output/` untracked.
 - [ ] Do not deploy until automated and browser checks pass.
