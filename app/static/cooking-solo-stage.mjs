@@ -23,6 +23,7 @@ import {
   continueSoloCooking,
   undoSoloCooking,
   resetSoloCookingState,
+  selectSoloReferenceRecipe,
   serializeSoloComposition,
   MAX_SOLO_STACK_LAYERS,
 } from "./cooking-solo-state.mjs";
@@ -1066,6 +1067,14 @@ export function createSoloCookingStage({
     isBurgerFocused: () => focused,
     isExpanded: () => expanded,
     getComposition: () => serializeSoloComposition(state),
+    selectReferenceRecipe(referenceRecipeId) {
+      if (disposed) return false;
+      const nextState = selectSoloReferenceRecipe(state, referenceRecipeId);
+      if (nextState === state) return false;
+      state = nextState;
+      emit("reference-recipe");
+      return true;
+    },
     tick,
     selectLayer,
     dropLayer,
@@ -1113,7 +1122,7 @@ export function createSoloCookingStage({
       if (focused) setFocusMode(false, { notify: false });
       clearTransientVisuals();
       dropIntent = null;
-      state = resetSoloCookingState();
+      state = resetSoloCookingState(state);
       reconcileModelInstances();
       selectedLayerId = null;
       expanded = false;

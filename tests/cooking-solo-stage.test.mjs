@@ -2020,6 +2020,24 @@ test("stage state and tutorial remain DOM-free and notify concise progress", () 
   stage.dispose();
 });
 
+test("selects and preserves a non-destructive burger reference across reset", () => {
+  const changes = [];
+  const { stage } = harness({ onChange: (detail) => changes.push(detail) });
+  stage.dropLayer("bottom-bun", { kind: "prep" });
+  assert.equal(stage.selectReferenceRecipe("classic-beef"), true);
+  assert.equal(stage.getState().referenceRecipeId, "classic-beef");
+  assert.deepEqual(stage.getState().assembledOrder, ["bottom-bun"]);
+  assert.equal(changes.at(-1).reason, "reference-recipe");
+
+  assert.equal(stage.selectReferenceRecipe("classic-beef"), false);
+  assert.equal(stage.selectReferenceRecipe("tower-double-beef"), true);
+  stage.reset();
+  assert.equal(stage.getState().referenceRecipeId, "tower-double-beef");
+  assert.deepEqual(stage.getState().assembledOrder, []);
+  assert.throws(() => stage.selectReferenceRecipe("not-a-recipe"), /reference recipe/i);
+  stage.dispose();
+});
+
 test("tutorial reconciles an already complete burger immediately after the first sauce", () => {
   const { stage } = harness();
   stage.selectLayer("bottom-bun");
