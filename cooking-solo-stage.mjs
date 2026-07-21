@@ -36,6 +36,20 @@ const STACK_OVERLAP = 0.025;
 const EXPLODED_GAP = 0.42;
 const SNAP_DURATION = 190;
 
+const layerStackMinY = (layer) => (
+  Number.isFinite(layer?.userData?.stackMinY)
+    ? layer.userData.stackMinY
+    : layer.userData.boundsMinY
+);
+
+const layerStackMaxY = (layer) => (
+  Number.isFinite(layer?.userData?.stackMaxY)
+    ? layer.userData.stackMaxY
+    : layer.userData.boundsMaxY
+);
+
+const layerStackThickness = (layer) => layerStackMaxY(layer) - layerStackMinY(layer);
+
 function createCelebration(THREE) {
   const root = new THREE.Group();
   root.name = "solo-cooking-celebration";
@@ -228,8 +242,8 @@ export function createSoloCookingStage({
     let cursorY = workbench.prep.dropAnchor.position.y;
     assembledOrder.forEach((layerId, index) => {
       const layer = burger.getLayer(layerId);
-      const scaledMinY = layer.userData.boundsMinY * LAYER_PRESENTATION_SCALE;
-      const scaledMaxY = layer.userData.boundsMaxY * LAYER_PRESENTATION_SCALE;
+      const scaledMinY = layerStackMinY(layer) * LAYER_PRESENTATION_SCALE;
+      const scaledMaxY = layerStackMaxY(layer) * LAYER_PRESENTATION_SCALE;
       const y = cursorY - scaledMinY + (expanded ? index * EXPLODED_GAP : 0);
       result.set(layerId, {
         position: new THREE.Vector3(0, y, 0),
@@ -353,9 +367,7 @@ export function createSoloCookingStage({
     };
     const previewOrder = state.assembledOrder.filter((id) => id !== intent.id);
     const targets = targetTransforms(previewOrder);
-    const thickness = (
-      selected.userData.boundsMaxY - selected.userData.boundsMinY
-    ) * LAYER_PRESENTATION_SCALE;
+    const thickness = layerStackThickness(selected) * LAYER_PRESENTATION_SCALE;
     const targetIndex = Math.max(0, Math.min(intent.targetIndex, previewOrder.length));
     const upperIds = new Set(previewOrder.slice(targetIndex));
     const finalOrder = [...previewOrder];
@@ -378,7 +390,7 @@ export function createSoloCookingStage({
     const lowerId = previewOrder[targetIndex - 1];
     const gapY = lowerId
       ? targets.get(lowerId).position.y
-        + burger.getLayer(lowerId).userData.boundsMaxY * LAYER_PRESENTATION_SCALE
+        + layerStackMaxY(burger.getLayer(lowerId)) * LAYER_PRESENTATION_SCALE
         - baseY + 0.015
       : 0.015;
     workbench.setDropCue({
@@ -461,9 +473,7 @@ export function createSoloCookingStage({
       motion: createCookingMotion({
         kind,
         startedAt: lastFrameTime,
-        thickness: (
-          layer.userData.boundsMaxY - layer.userData.boundsMinY
-        ) * LAYER_PRESENTATION_SCALE,
+        thickness: layerStackThickness(layer) * LAYER_PRESENTATION_SCALE,
         reducedMotion,
       }),
       selectedId: layerId,
@@ -616,9 +626,7 @@ export function createSoloCookingStage({
       motion: createCookingMotion({
         kind: "pick",
         startedAt: lastFrameTime,
-        thickness: (
-          layer.userData.boundsMaxY - layer.userData.boundsMinY
-        ) * LAYER_PRESENTATION_SCALE,
+        thickness: layerStackThickness(layer) * LAYER_PRESENTATION_SCALE,
         reducedMotion,
       }),
     };
@@ -887,7 +895,16 @@ export function createSoloCookingStage({
     } else {
       applyPose(selected, selectedFrom, selectedTarget, frame.arrival);
     }
-    selected.position.y += frame.selectedOffsetY;
+    // The insert pop grows out of the food-contact plane, rather than scaling
+    // around the centre and briefly lifting a bun into the air.
+    if (record.motion.kind === "insert") {
+      selected.position.y += selected.userData.boundsMinY
+        * selectedTarget.scale.y
+        * (1 - frame.selectedScaleY);
+    }
+    // Insertions use a scale-only pop. Keeping the contact plane planted avoids
+    // a one-frame air gap, especially on the much taller bun meshes.
+    if (record.motion.kind !== "insert") selected.position.y += frame.selectedOffsetY;
     selected.scale.x *= frame.selectedScaleXz;
     selected.scale.z *= frame.selectedScaleXz;
     selected.scale.y *= frame.selectedScaleY;
