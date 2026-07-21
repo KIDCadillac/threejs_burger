@@ -347,6 +347,21 @@ function edited(state, changes, { preservePreviousStation = false } = {}) {
   );
 }
 
+function discardHistoricalStationSessions(history) {
+  let changed = false;
+  const cookingHistory = history.map((snapshot) => {
+    if (!snapshot.stationContents) return snapshot;
+    changed = true;
+    const {
+      stationContents: _stationContents,
+      stationSources: _stationSources,
+      ...cookingSnapshot
+    } = snapshot;
+    return Object.freeze(cookingSnapshot);
+  });
+  return changed ? Object.freeze(cookingHistory) : history;
+}
+
 export function createSoloCookingState({ referenceRecipeId = null, loadout } = {}) {
   requireReferenceRecipe(referenceRecipeId);
   if (loadout !== undefined) {
@@ -425,8 +440,9 @@ export function setSoloStationContent(state, slotId, contentId) {
     ...session.stationContents,
     [slotId]: contentId,
   });
+  const history = discardHistoricalStationSessions(state.history);
   if (slot.region === "sauce") {
-    return Object.freeze({ ...state, stationContents });
+    return Object.freeze({ ...state, stationContents, history });
   }
 
   const instances = { ...state.instances };
@@ -466,7 +482,7 @@ export function setSoloStationContent(state, slotId, contentId) {
     rotations,
     binSources: deriveStationBinSources(stationContents, stationSources),
     nextInstanceSequence: allocated.nextInstanceSequence,
-  }, state.history, state.referenceRecipeId, {
+  }, history, state.referenceRecipeId, {
     stationContents,
     stationSources,
     instanceHomes,
@@ -554,7 +570,11 @@ export function placeSoloLayer(
   });
 }
 
-export function removeSoloLayer(state, layerId, { consolidate = false } = {}) {
+export function removeSoloLayer(
+  state,
+  layerId,
+  { consolidate = false, targetSlotId } = {},
+) {
   requireEditable(state);
   const ingredientId = requireInstance(state, layerId);
   if (state.locations[layerId].kind === "bin") return state;
@@ -572,29 +592,45 @@ export function removeSoloLayer(state, layerId, { consolidate = false } = {}) {
   let stationSessionChanged = false;
   const returnedId = layerId;
   const homeSlotId = session ? instanceHomes[returnedId] : undefined;
+  let returnSlotId = homeSlotId;
+  if (targetSlotId !== undefined) {
+    if (!session || typeof homeSlotId !== "string") {
+      throw new TypeError("A target station slot requires explicit loadout mode");
+    }
+    const homeSlot = getWorkbenchSlot(homeSlotId);
+    const targetSlot = getWorkbenchSlot(targetSlotId);
+    if (
+      targetSlot.region === "sauce"
+      || targetSlot.region !== homeSlot.region
+      || !WORKBENCH_REGION_OPTIONS[targetSlot.region].includes(ingredientId)
+    ) {
+      throw new TypeError("Returned ingredients must stay within their station region");
+    }
+    returnSlotId = targetSlotId;
+  }
   if (
     consolidate
     && session
-    && typeof homeSlotId === "string"
-    && INGREDIENT_STATION_SLOT_IDS.has(homeSlotId)
+    && typeof returnSlotId === "string"
+    && INGREDIENT_STATION_SLOT_IDS.has(returnSlotId)
   ) {
-    const previousSourceId = stationSources[homeSlotId];
+    const previousSourceId = stationSources[returnSlotId];
     if (
       previousSourceId !== returnedId
       && instances[previousSourceId]
       && locations[previousSourceId]?.kind === "bin"
-      && locations[previousSourceId]?.slotId === homeSlotId
+      && locations[previousSourceId]?.slotId === returnSlotId
     ) {
       delete instances[previousSourceId];
       delete locations[previousSourceId];
       delete rotations[previousSourceId];
       strokes = strokes.filter((stroke) => stroke.layerId !== previousSourceId);
     }
-    stationContents[homeSlotId] = ingredientId;
-    stationSources[homeSlotId] = returnedId;
-    instanceHomes[returnedId] = homeSlotId;
+    stationContents[returnSlotId] = ingredientId;
+    stationSources[returnSlotId] = returnedId;
+    instanceHomes[returnedId] = returnSlotId;
     stationSessionChanged = true;
-    locations[returnedId] = { kind: "bin", slotId: homeSlotId };
+    locations[returnedId] = { kind: "bin", slotId: returnSlotId };
     binSources = deriveStationBinSources(stationContents, stationSources);
     inventory[ingredientId] = Math.min(SOLO_INGREDIENT_STOCK, inventory[ingredientId] + 1);
   } else if (consolidate && binSources[ingredientId] !== layerId) {
@@ -607,8 +643,8 @@ export function removeSoloLayer(state, layerId, { consolidate = false } = {}) {
     inventory[ingredientId] = Math.min(SOLO_INGREDIENT_STOCK, inventory[ingredientId] + 1);
   }
   if (instances[returnedId]) {
-    locations[returnedId] = session && typeof homeSlotId === "string"
-      ? { kind: "bin", slotId: homeSlotId }
+    locations[returnedId] = session && typeof returnSlotId === "string"
+      ? { kind: "bin", slotId: returnSlotId }
       : {
         kind: "bin",
         index: SOLO_BURGER_INGREDIENT_IDS.indexOf(ingredientId),

@@ -13,6 +13,7 @@ import {
   SOLO_INGREDIENT_STOCK,
   addSoloSauceStroke,
   createSoloCookingState,
+  finishSoloCooking,
   placeSoloLayer,
   rotateSoloLayer,
 } from "../app/static/cooking-solo-state.mjs";
@@ -172,6 +173,41 @@ function assertStackFitsCamera(stage, label, {
     );
   }
   return maximumScreenMagnitude;
+}
+
+function assertSelectorVerticesFitCamera(stage, label) {
+  stage.host.scene.updateMatrixWorld(true);
+  stage.host.camera.updateProjectionMatrix();
+  stage.host.camera.updateMatrixWorld(true);
+  let vertexCount = 0;
+  for (const station of [
+    ...stage.workbench.ingredientSlots,
+    ...stage.workbench.toolDocks,
+  ]) {
+    const selector = station.selector;
+    assert.ok(selector?.geometry?.attributes?.position, `${station.slotId} has selector vertices`);
+    const positions = selector.geometry.attributes.position;
+    for (let index = 0; index < positions.count; index += 1) {
+      const ndc = new THREE.Vector3()
+        .fromBufferAttribute(positions, index)
+        .applyMatrix4(selector.matrixWorld)
+        .project(stage.host.camera);
+      vertexCount += 1;
+      assert.ok(
+        Number.isFinite(ndc.x) && Math.abs(ndc.x) <= 1 + 1e-9,
+        `${label} ${station.slotId} selector vertex ${index} exceeds width at NDC x=${ndc.x}`,
+      );
+      assert.ok(
+        Number.isFinite(ndc.y) && Math.abs(ndc.y) <= 1 + 1e-9,
+        `${label} ${station.slotId} selector vertex ${index} exceeds height at NDC y=${ndc.y}`,
+      );
+      assert.ok(
+        Number.isFinite(ndc.z) && Math.abs(ndc.z) <= 1 + 1e-9,
+        `${label} ${station.slotId} selector vertex ${index} exceeds depth at NDC z=${ndc.z}`,
+      );
+    }
+  }
+  assert.ok(vertexCount > 0, `${label} projected selector vertices`);
 }
 
 function pointerAtWorld(stage, canvas, pointerId, worldPoint) {
@@ -365,12 +401,8 @@ test("starts from a verified saved state and lets its station contents override 
   assert.deepEqual(stage.burger.getSnapshot().strokes, initialState.strokes);
   assert.strictEqual(stage.getState().history, initialState.history);
   assert.strictEqual(ready.at(-1).state, initialState);
-  const cameraView = stage.workbench.getLayout().camera;
-  assert.deepEqual(stage.host.camera.position.toArray(), [
-    cameraView.position.x * 0.59,
-    cameraView.position.y * 0.59,
-    cameraView.position.z * 0.59,
-  ]);
+  assertStackFitsCamera(stage, "saved initial stack", { requireTight: false });
+  assertSelectorVerticesFitCamera(stage, "saved initial workbench");
   stage.dispose();
 
   const fallback = harness({
@@ -382,6 +414,90 @@ test("starts from a verified saved state and lets its station contents override 
   }).stage;
   assert.equal(fallback.getState().stationContents["filling-back-2"], "onion");
   fallback.dispose();
+});
+
+test("restores a valid legacy v1 state without station fields instead of replacing it", () => {
+  let saved = createSoloCookingState();
+  saved = placeSoloLayer(saved, "bottom-bun", 0, { replenish: true });
+  saved = placeSoloLayer(saved, "patty", 1, { replenish: true });
+  const initialState = hydrateSoloCookingState(saved);
+  assert.ok(initialState);
+  assert.equal(Object.hasOwn(initialState, "stationContents"), false);
+  const ready = [];
+
+  const { stage } = harness({
+    initialState,
+    reducedMotion: true,
+    onChange: (detail) => ready.push(detail),
+  });
+
+  assert.strictEqual(stage.getState(), initialState);
+  assert.deepEqual(stage.getState().assembledOrder, ["bottom-bun", "patty"]);
+  assert.equal(stage.burger.getLayer("bottom-bun").visible, true);
+  assert.equal(stage.burger.getLayer("patty").visible, true);
+  assert.strictEqual(ready.at(-1).state, initialState);
+  stage.dispose();
+});
+
+test("fits a restored sixty-layer stack before the first frame without waiting for resize", () => {
+  let saved = createSoloCookingState({ loadout: createDefaultWorkbenchLoadout() });
+  for (let index = 0; index < MAX_SOLO_STACK_LAYERS; index += 1) {
+    const sourceId = saved.stationSources["filling-back-1"];
+    saved = placeSoloLayer(saved, sourceId, saved.assembledOrder.length, { replenish: true });
+  }
+  const initialState = hydrateSoloCookingState(saved);
+  assert.equal(initialState.assembledOrder.length, MAX_SOLO_STACK_LAYERS);
+  const canvas = new FakeCanvas();
+  const host = createHostHarness();
+  host.camera.aspect = 390 / 844;
+  host.camera.updateProjectionMatrix();
+  const cameraReasons = [];
+
+  const stage = createSoloCookingStage({
+    THREE,
+    canvas,
+    storage: null,
+    initialState,
+    reducedMotion: true,
+    hostFactory: () => host,
+    controllerFactory: (options) => {
+      const controller = createCookingInteractionController(options);
+      const setCameraView = controller.setCameraView.bind(controller);
+      controller.setCameraView = (view, reason) => {
+        cameraReasons.push(reason);
+        return setCameraView(view, reason);
+      };
+      return controller;
+    },
+  });
+
+  assert.equal(host.resizes, 0);
+  assert.equal(host.starts, 1);
+  assert.deepEqual(cameraReasons, ["initial-state-fit"]);
+  assertStackFitsCamera(stage, "restored first frame", { requireTight: false });
+  stage.dispose();
+});
+
+test("pauses a restored finished state before pointer input can start dragging", () => {
+  let saved = createSoloCookingState({ loadout: createDefaultWorkbenchLoadout() });
+  const bottomSource = saved.stationSources["bread-left-1"];
+  const pattySource = saved.stationSources["filling-back-1"];
+  saved = placeSoloLayer(saved, bottomSource, 0, { replenish: true });
+  saved = placeSoloLayer(saved, pattySource, 1, { replenish: true });
+  saved = finishSoloCooking(saved);
+  const initialState = hydrateSoloCookingState(saved);
+  const { stage, canvas } = harness({ initialState, reducedMotion: true });
+  const pattySurface = stage.burger.getLayer(pattySource).userData.selectableSurface;
+  const pattyWorld = pattySurface.getWorldPosition(new THREE.Vector3());
+
+  assert.equal(stage.getState().finished, true);
+  assert.equal(stage.controller.getState(), "idle");
+  stage.controller.pointerDown(pointerAtWorld(stage, canvas, 71, pattyWorld));
+
+  assert.equal(stage.controller.getState(), "idle");
+  assert.equal(stage.getSelectedLayerId(), null);
+  assert.equal(canvas.hasPointerCapture(71), false);
+  stage.dispose();
 });
 
 test("forwards stable station-selector details without changing cooking or camera state", () => {
@@ -454,6 +570,36 @@ test("switches one ingredient slot without clearing the plated burger, history, 
     contentId: "onion",
   });
   assert.equal(stage.setSlotContent("filling-back-2", "onion"), false);
+  stage.dispose();
+});
+
+test("keeps a stroked displaced source in state while hiding it from rendering and picking", () => {
+  const { stage, canvas } = harness({
+    loadout: createDefaultWorkbenchLoadout(),
+    reducedMotion: true,
+  });
+  const slotId = "filling-back-1";
+  const strokedId = stage.getState().stationSources[slotId];
+  stage.applySauceStroke(sampleStroke("ketchup", strokedId));
+
+  stage.setSlotContent(slotId, "onion");
+  const onionId = stage.getState().stationSources[slotId];
+  const strokedLayer = stage.burger.getLayer(strokedId);
+  const onionLayer = stage.burger.getLayer(onionId);
+
+  assert.equal(stage.getState().instances[strokedId], "patty");
+  assert.deepEqual(stage.getState().strokes.map(({ layerId }) => layerId), [strokedId]);
+  assert.equal(strokedLayer.visible, false);
+  assert.equal(onionLayer.visible, true);
+  assert.equal(stage.controller.unregisterDraggable(strokedId), false);
+
+  const onionWorld = onionLayer.userData.selectableSurface
+    .getWorldPosition(new THREE.Vector3());
+  stage.controller.pointerDown(pointerAtWorld(stage, canvas, 72, onionWorld));
+  assert.equal(stage.controller.getState(), "dragging-layer");
+  assert.equal(stage.getSelectedLayerId(), onionId);
+  assert.equal(canvas.hasPointerCapture(72), true);
+  stage.controller.pointerCancel({ pointerId: 72 });
   stage.dispose();
 });
 
@@ -625,6 +771,117 @@ test("resolves visible indexed gaps and a forgiving home drop intention", () => 
   stage.dispose();
 });
 
+test("returns an assembled ingredient to a different slot in the same region", () => {
+  const changes = [];
+  const { stage, configuration } = stageHarnessWithConfiguration({
+    loadout: createDefaultWorkbenchLoadout(),
+    reducedMotion: true,
+    onChange: (detail) => changes.push(detail),
+  });
+  const returnedId = stage.getState().stationSources["filling-back-1"];
+  stage.dropLayer(returnedId, { kind: "prep" });
+  const homeSlotId = "filling-back-1";
+  const targetSlotId = "filling-back-2";
+  const homeLayout = stage.workbench.getLayout().ingredients.find(
+    ({ slotId }) => slotId === homeSlotId,
+  );
+  const targetLayout = stage.workbench.getLayout().ingredients.find(
+    ({ slotId }) => slotId === targetSlotId,
+  );
+
+  configuration.onMove({
+    id: returnedId,
+    reason: "drag",
+    point: new THREE.Vector3(homeLayout.position.x, 0, homeLayout.position.z),
+    pose: { rotation: { y: 0 } },
+  });
+  assert.equal(changes.at(-1).dropIntent.slotId, homeSlotId);
+  configuration.onMove({
+    id: returnedId,
+    reason: "drag",
+    point: new THREE.Vector3(targetLayout.position.x, 0, targetLayout.position.z),
+    pose: { rotation: { y: 0 } },
+  });
+  assert.equal(changes.at(-1).dropIntent.slotId, targetSlotId);
+
+  const resolution = configuration.resolveDrop({
+    id: returnedId,
+    point: new THREE.Vector3(targetLayout.position.x, 0, targetLayout.position.z),
+  });
+
+  assert.equal(resolution.valid, true);
+  assert.strictEqual(
+    resolution.anchor,
+    stage.workbench.getStationBySlot(targetSlotId).dropAnchor,
+  );
+  configuration.onDrop({
+    id: returnedId,
+    anchor: resolution.anchor,
+    targetIndex: null,
+  });
+  assert.deepEqual(stage.getState().locations[returnedId], {
+    kind: "bin",
+    slotId: targetSlotId,
+  });
+  assert.equal(stage.getState().stationSources[targetSlotId], returnedId);
+  assert.equal(stage.getState().stationContents[targetSlotId], "patty");
+  assert.equal(stage.workbench.getStationBySlot(targetSlotId).id, "patty");
+  stage.dispose();
+});
+
+test("synchronizes the physical workbench when a returned ingredient changes slot content", () => {
+  const { stage } = harness({
+    loadout: createDefaultWorkbenchLoadout(),
+    reducedMotion: true,
+  });
+  const slotId = "filling-back-1";
+  const returnedId = stage.getState().stationSources[slotId];
+  stage.dropLayer(returnedId, { kind: "prep" });
+  stage.setSlotContent(slotId, "cheese");
+  assert.equal(stage.workbench.getStationBySlot(slotId).id, "cheese");
+
+  stage.dropLayer(returnedId, { kind: "bin" });
+
+  assert.equal(stage.getState().stationContents[slotId], "patty");
+  assert.equal(stage.getState().stationSources[slotId], returnedId);
+  assert.equal(stage.workbench.getStationBySlot(slotId).id, "patty");
+  const returnedWorld = stage.burger.getLayer(returnedId).getWorldPosition(new THREE.Vector3());
+  const slotWorld = stage.workbench.getStationBySlot(slotId)
+    .pickupAnchor.getWorldPosition(new THREE.Vector3());
+  assert.ok(returnedWorld.distanceTo(slotWorld) < 1e-9);
+  stage.dispose();
+});
+
+test("undo after a returned ingredient and manual slot switch preserves the latest loadout everywhere", () => {
+  const { stage } = harness({
+    loadout: createDefaultWorkbenchLoadout(),
+    reducedMotion: true,
+  });
+  const slotId = "filling-back-1";
+  const pattyId = stage.getState().stationSources[slotId];
+  stage.dropLayer(pattyId, { kind: "prep" });
+  stage.setSlotContent(slotId, "cheese");
+  stage.dropLayer(pattyId, { kind: "bin" });
+  stage.setSlotContent(slotId, "onion");
+  const onionId = stage.getState().stationSources[slotId];
+
+  assert.equal(stage.undo(), true);
+
+  const restored = stage.getState();
+  assert.deepEqual(restored.assembledOrder, [pattyId]);
+  assert.equal(restored.stationContents[slotId], "onion");
+  assert.equal(restored.stationSources[slotId], onionId);
+  assert.equal(restored.instances[onionId], "onion");
+  assert.deepEqual(restored.locations[onionId], { kind: "bin", slotId });
+  assert.deepEqual(restored.locations[pattyId], { kind: "prep", index: 0 });
+  assert.equal(stage.workbench.getStationBySlot(slotId).id, "onion");
+  const onionWorld = stage.burger.getLayer(onionId).getWorldPosition(new THREE.Vector3());
+  const slotWorld = stage.workbench.getStationBySlot(slotId)
+    .pickupAnchor.getWorldPosition(new THREE.Vector3());
+  assert.ok(onionWorld.distanceTo(slotWorld) < 1e-9);
+  stage.dispose();
+});
+
 test("places all recipe ingredients into matching U-shaped bins", () => {
   const { stage } = harness();
 
@@ -688,6 +945,29 @@ test("fits the fixed switchable workbench into a tall phone with a usable prep b
     }
   }
   stage.dispose();
+});
+
+test("keeps every real station-selector vertex on screen for both tall phone viewports", () => {
+  for (const [label, width, height] of [
+    ["390x608", 390, 608],
+    ["390x844", 390, 844],
+  ]) {
+    const canvas = new FakeCanvas();
+    const host = createHostHarness();
+    host.camera.aspect = width / height;
+    host.camera.updateProjectionMatrix();
+    const stage = createSoloCookingStage({
+      THREE,
+      canvas,
+      storage: null,
+      hostFactory: () => host,
+      controllerFactory: (options) => createCookingInteractionController(options),
+    });
+
+    assert.equal(host.resizes, 0, `${label} does not depend on a resize event`);
+    assertSelectorVerticesFitCamera(stage, label);
+    stage.dispose();
+  }
 });
 
 test("keeps one base food scale while plate snapping starts a temporary local pop", () => {
