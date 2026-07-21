@@ -238,6 +238,7 @@ export function createCookingInteractionController({
   const nozzleDirectionScratch = new THREE.Vector3();
   const bottleAimScratch = new THREE.Vector3();
   const bottleOriginScratch = new THREE.Vector3();
+  const foodBoundsScratch = new THREE.Box3();
   let surfaces = [];
   let edibleSurfaces = [];
   const edibleSurfaceSet = new Set();
@@ -305,7 +306,10 @@ export function createCookingInteractionController({
     }
     for (const surface of validated) {
       const metadata = surface.userData?.cookingSelectable;
-      if (metadata?.kind !== "food-layer" || !BURGER_LAYER_IDS.includes(metadata.layerId)) {
+      if (metadata?.kind !== "food-layer"
+        || metadata.food !== "burger"
+        || typeof metadata.layerId !== "string"
+        || !metadata.layerId) {
         throw new TypeError("foodSurfaces must be explicit burger food-layer surfaces");
       }
     }
@@ -596,7 +600,10 @@ export function createCookingInteractionController({
     if (!hit || !edibleSurfaceSet.has(hit.object) || !hit.point) return null;
     const surface = hit.object;
     const metadata = surface.userData?.cookingSelectable;
-    if (metadata?.kind !== "food-layer" || !BURGER_LAYER_IDS.includes(metadata.layerId)) return null;
+    if (metadata?.kind !== "food-layer"
+      || metadata.food !== "burger"
+      || typeof metadata.layerId !== "string"
+      || !metadata.layerId) return null;
     if (![hit.point.x, hit.point.y, hit.point.z].every(Number.isFinite)) return null;
     surface.geometry?.computeBoundingBox?.();
     const bounds = surface.geometry?.boundingBox;
@@ -661,10 +668,17 @@ export function createCookingInteractionController({
 
   const emitBottlePreview = (session) => {
     const segment = session.currentSegment;
-    if (!segment || segment.points.length < 2) return;
+    if (!segment || segment.points.length < 1) return;
     const amount = session.pressureSamples
       ? session.pressureTotal / session.pressureSamples
       : 0.45;
+    const previewPoints = segment.points.length === 1
+      ? (() => {
+        const [x, z] = segment.points[0];
+        const offset = x < 0.98 ? 0.018 : -0.018;
+        return [[x, z], [clamp(x + offset, -1, 1), z]];
+      })()
+      : segment.points;
     onSaucePreview(Object.freeze({
       gestureId: session.gestureId,
       segmentIndex: segment.segmentIndex,
@@ -672,7 +686,7 @@ export function createCookingInteractionController({
         session.bottle.sauce,
         segment.layerId,
         amount,
-        segment.points,
+        previewPoints,
       ),
     }));
   };
@@ -680,7 +694,15 @@ export function createCookingInteractionController({
   const moveBottle = (session, event) => {
     const point = projectedPoint(event, projectedScratch);
     if (point) {
-      desiredScratch.set(point.x, point.y + normalizedBottleLift, point.z);
+      foodBoundsScratch.makeEmpty();
+      for (const surface of edibleSurfaces) {
+        surface.updateWorldMatrix?.(true, false);
+        foodBoundsScratch.expandByObject(surface, true);
+      }
+      const surfaceAwareY = foodBoundsScratch.isEmpty()
+        ? point.y + normalizedBottleLift
+        : Math.max(point.y, foodBoundsScratch.max.y) + normalizedBottleLift;
+      desiredScratch.set(point.x, surfaceAwareY, point.z);
       setWorldPosition(session.bottle.root, desiredScratch);
     }
     // Hit-test from a stable home pose, then aim the physical nozzle in world space.

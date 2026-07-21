@@ -19,6 +19,7 @@ export function mountSoloCookingLifecycle({
   windowTarget,
   stage,
   onClick,
+  onDispose = () => {},
 } = {}) {
   requireEvents(documentTarget, "documentTarget");
   requireEvents(windowTarget, "windowTarget");
@@ -26,6 +27,7 @@ export function mountSoloCookingLifecycle({
     throw new TypeError("stage must expose host and dispose");
   }
   if (typeof onClick !== "function") throw new TypeError("onClick must be a function");
+  if (typeof onDispose !== "function") throw new TypeError("onDispose must be a function");
   disposeActiveSoloCookingPage(documentTarget);
 
   let disposed = false;
@@ -61,6 +63,11 @@ export function mountSoloCookingLifecycle({
         }
       }
       if (activePages.get(documentTarget) === lifecycle) activePages.delete(documentTarget);
+      try {
+        onDispose();
+      } catch (error) {
+        if (!firstError) firstError = error;
+      }
       try {
         stage.dispose();
       } catch (error) {

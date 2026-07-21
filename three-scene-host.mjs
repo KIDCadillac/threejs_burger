@@ -75,6 +75,7 @@ export function createThreeSceneHost({
   }
 
   const frameCallbacks = new Set();
+  const afterFrameCallbacks = new Set();
   const contextErrorCallbacks = new Set();
   const visibilityTarget = globalThis.document;
   let started = false;
@@ -83,12 +84,16 @@ export function createThreeSceneHost({
   let documentVisible = !visibilityTarget?.hidden;
   let contextLost = false;
   let loopActive = false;
+  let framePixelBuffer = null;
+  let frameRenderTarget = null;
 
   const renderFrame = (time) => {
     if (disposed || !loopActive) return;
     for (const callback of frameCallbacks) callback(time);
     if (disposed || !loopActive) return;
     renderer.render(scene, camera);
+    if (disposed || !loopActive) return;
+    for (const callback of afterFrameCallbacks) callback(time);
   };
 
   const syncAnimationLoop = () => {
@@ -156,6 +161,50 @@ export function createThreeSceneHost({
       frameCallbacks.add(callback);
       return () => frameCallbacks.delete(callback);
     },
+    onAfterFrame(callback) {
+      if (typeof callback !== "function") throw new TypeError("after-frame callback must be a function");
+      if (disposed) return () => {};
+      afterFrameCallbacks.add(callback);
+      return () => afterFrameCallbacks.delete(callback);
+    },
+    readFramePixels({ width = 240, height = 240 } = {}) {
+      if (disposed || contextLost) return null;
+      if (typeof renderer.setRenderTarget !== "function"
+        || typeof renderer.readRenderTargetPixels !== "function") return null;
+      width = Math.min(480, Math.max(1, Math.round(Number(width) || 1)));
+      height = Math.min(720, Math.max(1, Math.round(Number(height) || 1)));
+      const requiredLength = width * height * 4;
+      if (!framePixelBuffer || framePixelBuffer.length !== requiredLength) {
+        framePixelBuffer = new Uint8Array(requiredLength);
+      }
+      if (!frameRenderTarget
+        || frameRenderTarget.width !== width
+        || frameRenderTarget.height !== height) {
+        frameRenderTarget?.dispose();
+        frameRenderTarget = new THREE.WebGLRenderTarget(width, height, {
+          depthBuffer: true,
+          stencilBuffer: false,
+        });
+      }
+      const previousTarget = renderer.getRenderTarget?.() ?? null;
+      try {
+        renderer.setRenderTarget(frameRenderTarget);
+        renderer.render(scene, camera);
+        renderer.readRenderTargetPixels(
+          frameRenderTarget,
+          0,
+          0,
+          width,
+          height,
+          framePixelBuffer,
+        );
+        return { rgba: framePixelBuffer, width, height, flippedY: true };
+      } catch {
+        return null;
+      } finally {
+        renderer.setRenderTarget(previousTarget);
+      }
+    },
     onContextError(callback) {
       if (typeof callback !== "function") throw new TypeError("context error callback must be a function");
       if (disposed) return () => {};
@@ -173,6 +222,10 @@ export function createThreeSceneHost({
       canvas.removeEventListener("webglcontextrestored", handleContextRestored);
       visibilityTarget?.removeEventListener?.("visibilitychange", handleVisibilityChange);
       frameCallbacks.clear();
+      afterFrameCallbacks.clear();
+      framePixelBuffer = null;
+      frameRenderTarget?.dispose();
+      frameRenderTarget = null;
       contextErrorCallbacks.clear();
       disposeSceneResources(scene);
       renderer.dispose();

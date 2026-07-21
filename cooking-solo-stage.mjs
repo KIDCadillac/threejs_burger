@@ -21,6 +21,7 @@ import {
   undoSoloCooking,
   resetSoloCookingState,
   serializeSoloComposition,
+  MAX_SOLO_STACK_LAYERS,
 } from "./cooking-solo-state.mjs";
 import {
   createCookingTutorial,
@@ -208,7 +209,7 @@ export function createSoloCookingStage({
       dropIntent,
       expanded,
       focused,
-      progress: `${state.assembledOrder.length}/${BURGER_LAYER_IDS.length}`,
+      progress: `${state.assembledOrder.length}/${MAX_SOLO_STACK_LAYERS}`,
       composition: serializeSoloComposition(state),
       ...extra,
     }));
@@ -227,8 +228,9 @@ export function createSoloCookingStage({
     let cursorY = workbench.prep.dropAnchor.position.y;
     assembledOrder.forEach((layerId, index) => {
       const layer = burger.getLayer(layerId);
-      const scaledHalfHeight = layer.userData.halfHeight * LAYER_PRESENTATION_SCALE;
-      const y = cursorY + scaledHalfHeight + (expanded ? index * EXPLODED_GAP : 0);
+      const scaledMinY = layer.userData.boundsMinY * LAYER_PRESENTATION_SCALE;
+      const scaledMaxY = layer.userData.boundsMaxY * LAYER_PRESENTATION_SCALE;
+      const y = cursorY - scaledMinY + (expanded ? index * EXPLODED_GAP : 0);
       result.set(layerId, {
         position: new THREE.Vector3(0, y, 0),
         scale: new THREE.Vector3(
@@ -238,11 +240,11 @@ export function createSoloCookingStage({
         ),
         yaw: state.rotations[layerId],
       });
-      cursorY += scaledHalfHeight * 2 - STACK_OVERLAP;
+      cursorY += scaledMaxY - scaledMinY - STACK_OVERLAP;
     });
-    for (const layerId of BURGER_LAYER_IDS) {
+    for (const layerId of Object.keys(state.instances)) {
       if (result.has(layerId)) continue;
-      const station = workbench.getStation("ingredient", layerId);
+      const station = workbench.getStation("ingredient", state.instances[layerId]);
       const world = station.pickupAnchor.getWorldPosition(new THREE.Vector3());
       const local = burger.root.worldToLocal(world.clone());
       result.set(layerId, {
@@ -258,7 +260,7 @@ export function createSoloCookingStage({
     return result;
   };
 
-  const captureLayerTransforms = () => new Map(BURGER_LAYER_IDS.map((layerId) => {
+  const captureLayerTransforms = () => new Map(Object.keys(state.instances).map((layerId) => {
     const layer = burger.getLayer(layerId);
     return [layerId, {
       position: layer.position.clone(),
@@ -282,6 +284,7 @@ export function createSoloCookingStage({
   const clearGrabVisuals = () => {
     if (highlightedLayerId) burger.setLayerHighlighted(highlightedLayerId, false);
     highlightedLayerId = null;
+    burger.clearLayerDropPreview();
     workbench.clearDropCue();
     workbench.clearHighlights();
   };
@@ -324,7 +327,7 @@ export function createSoloCookingStage({
   const reorderLayers = () => {
     const fullOrder = [
       ...state.assembledOrder,
-      ...BURGER_LAYER_IDS.filter((id) => !state.assembledOrder.includes(id)),
+      ...Object.keys(state.instances).filter((id) => !state.assembledOrder.includes(id)),
     ];
     fullOrder.forEach((layerId, index) => burger.reorderLayer(layerId, index));
   };
@@ -338,6 +341,7 @@ export function createSoloCookingStage({
 
   const applyDropPreview = (intent) => {
     if (!intent?.id || intent.kind !== "prep") {
+      burger.clearLayerDropPreview();
       workbench.clearDropCue();
       return false;
     }
@@ -349,9 +353,14 @@ export function createSoloCookingStage({
     };
     const previewOrder = state.assembledOrder.filter((id) => id !== intent.id);
     const targets = targetTransforms(previewOrder);
-    const thickness = selected.userData.halfHeight * LAYER_PRESENTATION_SCALE * 2;
+    const thickness = (
+      selected.userData.boundsMaxY - selected.userData.boundsMinY
+    ) * LAYER_PRESENTATION_SCALE;
     const targetIndex = Math.max(0, Math.min(intent.targetIndex, previewOrder.length));
     const upperIds = new Set(previewOrder.slice(targetIndex));
+    const finalOrder = [...previewOrder];
+    finalOrder.splice(targetIndex, 0, intent.id);
+    const selectedTarget = targetTransforms(finalOrder).get(intent.id);
 
     for (const [layerId, target] of targets) {
       if (layerId === intent.id) continue;
@@ -369,13 +378,19 @@ export function createSoloCookingStage({
     const lowerId = previewOrder[targetIndex - 1];
     const gapY = lowerId
       ? targets.get(lowerId).position.y
-        + burger.getLayer(lowerId).userData.halfHeight * LAYER_PRESENTATION_SCALE
+        + burger.getLayer(lowerId).userData.boundsMaxY * LAYER_PRESENTATION_SCALE
         - baseY + 0.015
       : 0.015;
     workbench.setDropCue({
       targetIndex,
       y: gapY,
       radius: selected.userData.surfaceRadius * LAYER_PRESENTATION_SCALE,
+    });
+    burger.setLayerDropPreview(intent.id, {
+      position: selectedTarget.position,
+      scale: selectedTarget.scale,
+      yaw: selectedTarget.yaw,
+      targetIndex,
     });
     return true;
   };
@@ -403,7 +418,8 @@ export function createSoloCookingStage({
 
   const resolveDropIntent = (id, point) => {
     const layout = workbench.getLayout();
-    const station = layout.ingredients.find((entry) => entry.id === id);
+    const ingredientId = state.instances[id];
+    const station = layout.ingredients.find((entry) => entry.id === ingredientId);
     if (!station) return Object.freeze({
       kind: "invalid", intent: "invalid", id, targetIndex: null,
     });
@@ -429,7 +445,7 @@ export function createSoloCookingStage({
     if (intent.kind === "bin") {
       return {
         valid: true,
-        anchor: workbench.getStation("ingredient", id).dropAnchor,
+        anchor: workbench.getStation("ingredient", state.instances[id]).dropAnchor,
       };
     }
     return { valid: false, reason: "请放到中央餐盘或原料盒" };
@@ -445,7 +461,9 @@ export function createSoloCookingStage({
       motion: createCookingMotion({
         kind,
         startedAt: lastFrameTime,
-        thickness: layer.userData.halfHeight * LAYER_PRESENTATION_SCALE * 2,
+        thickness: (
+          layer.userData.boundsMaxY - layer.userData.boundsMinY
+        ) * LAYER_PRESENTATION_SCALE,
         reducedMotion,
       }),
       selectedId: layerId,
@@ -459,6 +477,35 @@ export function createSoloCookingStage({
       impacted: false,
     };
     if (reducedMotion) applyActiveMotion(lastFrameTime);
+  };
+
+  const adaptCameraToStack = () => {
+    if (!state.assembledOrder.length) return false;
+    const view = controller?.getCameraView?.();
+    if (!view) return false;
+    const targets = targetTransforms();
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (const layerId of state.assembledOrder) {
+      const layer = burger.getLayer(layerId);
+      const target = targets.get(layerId);
+      minY = Math.min(minY, target.position.y + layer.userData.boundsMinY * target.scale.y);
+      maxY = Math.max(maxY, target.position.y + layer.userData.boundsMaxY * target.scale.y);
+    }
+    const centerLocal = new THREE.Vector3(0, (minY + maxY) / 2, 0);
+    burger.root.updateWorldMatrix?.(true, false);
+    const centerWorld = burger.root.localToWorld(centerLocal);
+    const height = Math.max(0, maxY - minY);
+    const targetY = Math.max(view.target.y, centerWorld.y);
+    const distance = Math.max(view.distance, 8 + height * 2.7);
+    if (targetY <= view.target.y + 0.01 && distance <= view.distance + 0.01) return false;
+    controller.setCameraView?.({
+      target: { x: view.target.x, y: targetY, z: view.target.z },
+      yaw: view.yaw,
+      pitch: view.pitch,
+      distance,
+    }, "stack-growth");
+    return true;
   };
 
   const dropLayer = (layerId, destination = {}) => {
@@ -475,7 +522,10 @@ export function createSoloCookingStage({
 
     if (destination.kind === "prep") {
       const targetIndex = destination.targetIndex ?? previousOrder.length;
-      state = placeSoloLayer(state, layerId, targetIndex);
+      if (!state.assembledOrder.includes(layerId)
+        && state.assembledOrder.length >= MAX_SOLO_STACK_LAYERS) return false;
+      state = placeSoloLayer(state, layerId, targetIndex, { replenish: true });
+      reconcileModelInstances();
       reorderLayers();
       startLayerMotion({
         layerId,
@@ -486,11 +536,13 @@ export function createSoloCookingStage({
       });
       advanceTutorial("dropped-on-prep");
       if (state.complete) advanceTutorial("assembled-all");
+      adaptCameraToStack();
       emit("drop-layer");
       return true;
     }
     if (destination.kind === "bin") {
-      state = removeSoloLayer(state, layerId);
+      state = removeSoloLayer(state, layerId, { consolidate: true });
+      reconcileModelInstances();
       reorderLayers();
       startLayerMotion({
         layerId,
@@ -544,7 +596,7 @@ export function createSoloCookingStage({
 
   const selectLayer = (layerId) => {
     if (disposed) return false;
-    if (!BURGER_LAYER_IDS.includes(layerId)) throw new TypeError(`Unknown burger layer: ${layerId}`);
+    if (!state.instances[layerId]) throw new TypeError(`Unknown burger layer: ${layerId}`);
     const layer = burger.getLayer(layerId);
     const draggedPose = {
       position: layer.position.clone(),
@@ -564,7 +616,9 @@ export function createSoloCookingStage({
       motion: createCookingMotion({
         kind: "pick",
         startedAt: lastFrameTime,
-        thickness: layer.userData.halfHeight * LAYER_PRESENTATION_SCALE * 2,
+        thickness: (
+          layer.userData.boundsMaxY - layer.userData.boundsMinY
+        ) * LAYER_PRESENTATION_SCALE,
         reducedMotion,
       }),
     };
@@ -573,7 +627,43 @@ export function createSoloCookingStage({
     return true;
   };
 
-  const controller = controllerFactory({
+  let controller = null;
+  const registeredLayerIds = new Set(BURGER_LAYER_IDS);
+  const reconcileModelInstances = () => {
+    const desiredIds = new Set(Object.keys(state.instances));
+    for (const layerId of [...burger.layers.keys()]) {
+      if (desiredIds.has(layerId)) {
+        burger.getLayer(layerId).visible = true;
+        continue;
+      }
+      controller?.unregisterDraggable?.(layerId);
+      registeredLayerIds.delete(layerId);
+      if (BURGER_LAYER_IDS.includes(layerId)) {
+        burger.getLayer(layerId).visible = false;
+        continue;
+      }
+      burger.removeLayerInstance(layerId);
+    }
+    for (const layerId of desiredIds) {
+      const layer = burger.layers.has(layerId)
+        ? burger.getLayer(layerId)
+        : burger.createLayerInstance(state.instances[layerId], layerId);
+      layer.visible = true;
+      if (!registeredLayerIds.has(layerId)) {
+        controller?.registerDraggable?.({
+          id: layerId,
+          object: layer,
+          surfaces: [layer.userData.selectableSurface],
+        });
+        registeredLayerIds.add(layerId);
+      }
+    }
+    controller?.setFoodSurfaces?.([...desiredIds].map(
+      (layerId) => burger.getLayer(layerId).userData.selectableSurface,
+    ));
+  };
+
+  controller = controllerFactory({
     THREE,
     canvas,
     camera: host.camera,
@@ -585,14 +675,14 @@ export function createSoloCookingStage({
       surfaces: [burger.getLayer(id).userData.selectableSurface],
     })),
     condimentTools: tools,
-    foodSurfaces: burger.selectableSurfaces,
+    foodSurfaces: burger.getSelectableSurfaces(),
     prepBounds: workbench.getLayout().bounds,
     prepPlaneY: 0.42,
     cameraTarget: cameraView.target,
     orbitLimits: {
       minYaw: -Math.PI,
       maxYaw: Math.PI,
-      minPitch: 0.02,
+      minPitch: -1.18,
       maxPitch: 1.56,
       minDistance: 5,
       maxDistance: 45,
@@ -643,6 +733,7 @@ export function createSoloCookingStage({
             applyDropPreview(nextIntent);
           } else {
             restoreDraggedLayout(id);
+            burger.clearLayerDropPreview();
             workbench.clearDropCue();
             if (nextIntent.kind === "bin") {
               workbench.setHighlighted("ingredient", id, true);
@@ -699,7 +790,7 @@ export function createSoloCookingStage({
       controller.setInspectionOnly?.(true);
       workbench.root.updateMatrixWorld?.(true);
       host.scene.attach(burger.root);
-      for (const layerId of BURGER_LAYER_IDS) {
+      for (const layerId of Object.keys(state.instances)) {
         burger.getLayer(layerId).visible = state.assembledOrder.includes(layerId);
       }
       workbench.root.visible = false;
@@ -720,7 +811,7 @@ export function createSoloCookingStage({
     } else {
       workbench.root.visible = focusWorkbenchVisible;
       workbench.root.attach(burger.root);
-      for (const layerId of BURGER_LAYER_IDS) burger.getLayer(layerId).visible = true;
+      for (const layerId of Object.keys(state.instances)) burger.getLayer(layerId).visible = true;
       controller.setInspectionOnly?.(false);
       if (focusCameraView) controller.setCameraView?.(focusCameraView, "burger-focus-return");
       focusCameraView = null;
@@ -775,7 +866,7 @@ export function createSoloCookingStage({
     const selectedFrom = record.from.get(record.selectedId);
     const selectedTarget = record.targets.get(record.selectedId);
     const upperIds = new Set(record.upperIds);
-    for (const layerId of BURGER_LAYER_IDS) {
+    for (const layerId of Object.keys(state.instances)) {
       if (layerId === record.selectedId) continue;
       const layer = burger.getLayer(layerId);
       const target = record.targets.get(layerId);
@@ -789,7 +880,13 @@ export function createSoloCookingStage({
       }
     }
 
-    applyPose(selected, selectedFrom, selectedTarget, frame.arrival);
+    if (record.motion.kind === "insert") {
+      selected.position.copy(selectedTarget.position);
+      selected.rotation.set(0, selectedTarget.yaw, 0);
+      selected.scale.copy(selectedTarget.scale);
+    } else {
+      applyPose(selected, selectedFrom, selectedTarget, frame.arrival);
+    }
     selected.position.y += frame.selectedOffsetY;
     selected.scale.x *= frame.selectedScaleXz;
     selected.scale.z *= frame.selectedScaleXz;
@@ -864,6 +961,7 @@ export function createSoloCookingStage({
     getTutorial: () => tutorial,
     getSelectedLayerId: () => selectedLayerId,
     isBurgerFocused: () => focused,
+    isExpanded: () => expanded,
     getComposition: () => serializeSoloComposition(state),
     tick,
     selectLayer,
@@ -895,6 +993,7 @@ export function createSoloCookingStage({
       clearTransientVisuals();
       dropIntent = null;
       state = undoSoloCooking(state);
+      reconcileModelInstances();
       tutorial = reconcileCookingTutorial(tutorial, state, { selectedLayerId });
       if (state.finished) controller.pause();
       else controller.resume();
@@ -908,6 +1007,7 @@ export function createSoloCookingStage({
       clearTransientVisuals();
       dropIntent = null;
       state = resetSoloCookingState();
+      reconcileModelInstances();
       selectedLayerId = null;
       expanded = false;
       tutorial = reconcileCookingTutorial(tutorial, state, { reset: true });

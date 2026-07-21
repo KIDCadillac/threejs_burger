@@ -5,6 +5,7 @@ import {
   mountSoloCookingLifecycle,
 } from "./cooking-solo-lifecycle.mjs";
 import { createFinishFocusManager } from "./cooking-solo-focus.mjs";
+import { createCookingFeedbackReporter } from "./cooking-feedback.mjs";
 
 const LAYER_NAMES = Object.freeze({
   "bottom-bun": "下层面包",
@@ -32,7 +33,7 @@ const TUTORIAL_COPY = Object.freeze({
   finish: ["完成料理", "七层已经装好，点最下方的完成料理。"],
 });
 
-function sauceSummary(strokes) {
+function sauceSummary(strokes, instances = {}) {
   const counts = new Map();
   for (const { sauce, layerId } of strokes) {
     const key = `${layerId}\0${sauce}`;
@@ -40,7 +41,7 @@ function sauceSummary(strokes) {
   }
   return [...counts].map(([key, count]) => {
     const [layerId, sauce] = key.split("\0");
-    return `${LAYER_NAMES[layerId]}：${SAUCE_NAMES[sauce]}×${count}`;
+    return `${LAYER_NAMES[instances[layerId] ?? layerId]}：${SAUCE_NAMES[sauce]}×${count}`;
   });
 }
 
@@ -49,6 +50,7 @@ export function bootSoloCookingPage(
   {
     windowTarget = globalThis,
     stageFactory = createSoloCookingStage,
+    feedbackFactory = createCookingFeedbackReporter,
     manageLoading = true,
   } = {},
 ) {
@@ -60,6 +62,7 @@ export function bootSoloCookingPage(
     error: documentTarget.querySelector("#cooking-error"),
     objective: documentTarget.querySelector("#cooking-objective"),
     progress: documentTarget.querySelector("#cooking-progress"),
+    stock: documentTarget.querySelector("#cooking-stock"),
     summary: documentTarget.querySelector("#cooking-summary"),
     status: documentTarget.querySelector("#cooking-status"),
     tutorial: documentTarget.querySelector("#tutorial-coach"),
@@ -71,6 +74,10 @@ export function bootSoloCookingPage(
     undoButton: documentTarget.querySelector('[data-action="undo"]'),
     inspectButton: documentTarget.querySelector('[data-action="toggle-expanded"]'),
     focusButton: documentTarget.querySelector('[data-action="toggle-focus"]'),
+    feedbackSheet: documentTarget.querySelector("#feedback-sheet"),
+    feedbackPreview: documentTarget.querySelector("#feedback-preview"),
+    feedbackMessage: documentTarget.querySelector("#feedback-message"),
+    feedbackStatus: documentTarget.querySelector("#feedback-status"),
   };
   const focusManager = createFinishFocusManager({
     dialog: elements.finishSheet,
@@ -78,38 +85,47 @@ export function bootSoloCookingPage(
   });
 
   let stage = null;
+  let feedback = null;
   let latest = null;
   const render = (detail) => {
     latest = detail;
     if (!stage) return;
     const { state, tutorial, expanded, focused = false, progress, dropIntent = null } = detail;
     elements.progress.textContent = progress;
+    const inventoryEntries = Object.entries(state.inventory ?? {});
+    elements.stock.textContent = inventoryEntries.length
+      ? inventoryEntries.map(([id, count]) => `${LAYER_NAMES[id] ?? id} ×${count}`).join(" · ")
+      : "每种原料库存 ×999";
     elements.objective.textContent = state.finished
       ? "料理完成，可以继续调整或重新做"
-      : state.complete
-        ? "七层已装好，现在可以完成料理"
+      : state.assembledOrder.length >= 20
+        ? "已经叠满 20 层，现在可以完成料理"
+        : state.complete
+          ? `基础汉堡已装好，还能继续叠 ${20 - state.assembledOrder.length} 层`
         : state.assembledOrder.length
-          ? `继续装盘，还差 ${7 - state.assembledOrder.length} 层`
-          : "先把七层食材装到中央餐盘";
+          ? `继续自由叠放，当前 ${state.assembledOrder.length} 层，最多 20 层`
+          : "自由叠放食材，最多 20 层";
     elements.finishButton.disabled = !state.complete || state.finished;
     elements.finishButton.textContent = state.complete ? "完成料理" : `再装 ${7 - state.assembledOrder.length} 层`;
     elements.undoButton.disabled = !state.history.length || state.finished;
     elements.inspectButton.disabled = state.finished || !state.assembledOrder.length;
     elements.inspectButton.textContent = expanded ? "合拢汉堡" : "展开查看";
     elements.focusButton.disabled = state.finished || !state.assembledOrder.length;
-    elements.focusButton.textContent = focused ? "返回料理台" : "聚焦汉堡";
+    elements.focusButton.textContent = focused ? "返回料理台" : "聚焦食物";
     elements.focusButton.dataset.focused = String(focused);
     elements.focusButton.setAttribute?.("aria-pressed", String(focused));
     elements.finishSheet.hidden = !state.finished;
 
-    const order = state.assembledOrder.map((id, index) => `<span>${index + 1}. ${LAYER_NAMES[id]}</span>`).join("");
-    const sauces = sauceSummary(state.strokes);
+    const order = state.assembledOrder.map((id, index) => (
+      `<span>${index + 1}. ${LAYER_NAMES[state.instances?.[id] ?? id] ?? id}</span>`
+    )).join("");
+    const sauces = sauceSummary(state.strokes, state.instances);
     elements.summary.innerHTML = state.assembledOrder.length
       ? `<div class="summary-list">${order}</div><p>${sauces.length ? sauces.join(" · ") : "还没加酱，可以反复混合四种调料。"}</p>`
       : "<p>还没有装盘，先从原料盒拿一层食材。</p>";
     elements.finishSummary.textContent = sauces.length
-      ? `七层食材，${state.strokes.length} 条酱料轨迹。${sauces.join("；")}`
-      : "七层食材已经组合完成，还可以继续调整或加酱。";
+      ? `${state.assembledOrder.length} 层食材，${state.strokes.length} 条酱料轨迹。${sauces.join("；")}`
+      : `${state.assembledOrder.length} 层食材已经组合完成，还可以继续调整或加酱。`;
 
     const tutorialText = TUTORIAL_COPY[tutorial.step];
     elements.tutorial.hidden = !tutorialText || state.finished;
@@ -123,7 +139,7 @@ export function bootSoloCookingPage(
       if (tutorial.step === "pick" || tutorial.step === "assemble") {
         const next = Object.entries(state.locations)
           .find(([, location]) => location.kind === "bin")?.[0];
-        if (next) stage.workbench.setHighlighted("ingredient", next, true);
+        if (next) stage.workbench.setHighlighted("ingredient", state.instances?.[next] ?? next, true);
       } else if (tutorial.step === "sauce") {
         stage.workbench.setHighlighted("tool", "chili", true);
       }
@@ -161,7 +177,23 @@ export function bootSoloCookingPage(
       state: stage.getState(),
       tutorial: stage.getTutorial(),
       expanded: false,
-      progress: "0/7",
+      progress: "0/20",
+    });
+    feedback = feedbackFactory({
+      canvas,
+      dialog: elements.feedbackSheet,
+      preview: elements.feedbackPreview,
+      message: elements.feedbackMessage,
+      status: elements.feedbackStatus,
+      documentTarget,
+      windowTarget,
+      subscribeFrame: stage.host?.onAfterFrame?.bind(stage.host),
+      readFramePixels: stage.host?.readFramePixels?.bind(stage.host),
+      getContext: () => ({
+        state: stage.getState(),
+        focused: stage.isBurgerFocused?.() ?? false,
+        expanded: stage.isExpanded?.() ?? false,
+      }),
     });
     const actionHandlers = {
       "rotate-left": () => stage.rotateSelected(-Math.PI / 8),
@@ -176,6 +208,9 @@ export function bootSoloCookingPage(
       restart: () => stage.reset(),
       "tutorial-skip": () => stage.skipTutorial(),
       "tutorial-replay": () => stage.replayTutorial(),
+      "feedback-open": () => feedback.open(),
+      "feedback-close": () => feedback.close(),
+      "feedback-submit": () => feedback.submit(),
     };
     const handleClick = (event) => {
       const action = event.target.closest?.("[data-action]")?.dataset.action;
@@ -186,9 +221,15 @@ export function bootSoloCookingPage(
       windowTarget,
       stage,
       onClick: handleClick,
+      onDispose: () => feedback?.dispose?.(),
     });
     return stage;
   } catch (error) {
+    try {
+      feedback?.dispose?.();
+    } catch {
+      // Preserve the boot error after best-effort feedback recorder cleanup.
+    }
     try {
       stage?.dispose?.();
     } catch {

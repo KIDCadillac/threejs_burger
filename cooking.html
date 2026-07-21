@@ -4,6 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#2b1713">
+    <meta name="feedback-endpoint" content="">
+    <meta name="feedback-upload-key" content="">
     <title>自由料理台 · 3D 汉堡</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="./cooking.css">
@@ -18,21 +20,27 @@
           <h1>自由料理台</h1>
           </div>
         </div>
-        <button class="icon-button" type="button" data-action="tutorial-replay" aria-label="重新播放新手教程">?</button>
+        <div class="header-actions">
+          <button class="feedback-button" type="button" data-action="feedback-open">反馈</button>
+          <button class="icon-button" type="button" data-action="tutorial-replay" aria-label="重新播放新手教程">?</button>
+        </div>
       </header>
 
       <section class="objective-card" aria-labelledby="cooking-objective">
         <div>
           <span class="objective-label">当前目标</span>
-          <p id="cooking-objective">先把七层食材装到中央餐盘</p>
+          <p id="cooking-objective">自由叠放食材，最多 20 层</p>
         </div>
-        <strong id="cooking-progress">0/7</strong>
+        <strong id="cooking-progress">0/20</strong>
       </section>
+
+      <p class="inventory-stock" id="cooking-stock" aria-live="polite">每种原料库存 ×999</p>
 
       <section class="cooking-stage" aria-label="三维料理操作区">
         <canvas id="cooking-canvas" tabindex="0" aria-label="三维汉堡料理台，可拖动食材和调料瓶" aria-describedby="cooking-objective">
           你的浏览器需要支持 WebGL 才能使用三维料理台。
         </canvas>
+        <button class="focus-button" type="button" data-action="toggle-focus" aria-pressed="false" disabled>聚焦食物</button>
         <div class="cooking-loading" id="cooking-loading" role="status" aria-live="polite">
           <span class="cooking-loading__spinner" aria-hidden="true"></span>
           <strong id="cooking-loading-phase">正在连接料理台</strong>
@@ -59,7 +67,7 @@
         <div class="finish-sheet" id="finish-sheet" role="dialog" aria-modal="true" aria-labelledby="finish-title" tabindex="-1" hidden>
           <p class="finish-sheet__eyebrow">料理完成</p>
           <h2 id="finish-title">你的三维汉堡做好了！</h2>
-          <p id="finish-summary">七层食材已经组合完成。</p>
+          <p id="finish-summary">食材已经组合完成。</p>
           <div class="finish-sheet__actions">
             <button type="button" data-action="continue">继续调整</button>
             <button type="button" data-action="restart">重新做</button>
@@ -67,13 +75,30 @@
         </div>
       </section>
 
+      <div class="feedback-sheet" id="feedback-sheet" role="dialog" aria-modal="true" aria-labelledby="feedback-title" hidden>
+        <section class="feedback-card">
+          <div class="feedback-heading">
+            <div>
+              <p>自动问题回放</p>
+              <h2 id="feedback-title">告诉我刚才哪里不对</h2>
+            </div>
+            <button type="button" data-action="feedback-close" aria-label="关闭问题反馈">×</button>
+          </div>
+          <img class="feedback-preview" id="feedback-preview" alt="刚才游戏画面的自动截图" hidden>
+          <label for="feedback-message">问题说明</label>
+          <textarea id="feedback-message" maxlength="1000" rows="4" placeholder="例如：第 12 层芝士放下后浮在空中"></textarea>
+          <p class="feedback-note">系统会自动附上截图、最近 6 秒 GIF 操作回放、层数、库存和设备信息，并上传到测试反馈云盘。</p>
+          <p class="feedback-status" id="feedback-status" role="status" aria-live="polite"></p>
+          <button class="feedback-submit" type="button" data-action="feedback-submit">自动上传反馈</button>
+        </section>
+      </div>
+
       <nav class="cooking-controls" aria-label="料理工具">
         <div class="rotate-controls" role="group" aria-label="旋转选中的食材">
           <button type="button" data-action="rotate-left" aria-label="向左旋转选中食材">↶</button>
           <span>旋转食材</span>
           <button type="button" data-action="rotate-right" aria-label="向右旋转选中食材">↷</button>
         </div>
-        <button class="focus-button" type="button" data-action="toggle-focus" aria-pressed="false" disabled>聚焦汉堡</button>
         <button type="button" data-action="camera-reset">镜头复位</button>
         <button type="button" data-action="toggle-expanded">展开查看</button>
         <button type="button" data-action="undo" disabled>撤销上一步</button>

@@ -76,6 +76,21 @@ canvas:focus-visible {
   gap: 10px;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.feedback-button {
+  min-width: 58px;
+  padding: 0 12px;
+  color: #2d1a14;
+  font-size: .82rem;
+  font-weight: 900;
+  background: linear-gradient(180deg, #ffd969, #efa933);
+}
+
 .home-link {
   display: grid;
   min-width: 44px;
@@ -114,6 +129,22 @@ canvas:focus-visible {
   background: linear-gradient(#452a22, #291916);
   box-shadow: 0 22px 54px rgba(9, 4, 3, 0.34), inset 0 1px rgba(255,255,255,.1);
 }
+
+.inventory-stock {
+  margin: 10px 2px 2px;
+  padding: 9px 12px;
+  overflow-x: auto;
+  border: 1px solid rgba(255, 206, 122, 0.2);
+  border-radius: 14px;
+  color: #ffe3a2;
+  background: rgba(55, 30, 25, 0.72);
+  font-size: .78rem;
+  font-weight: 800;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+.inventory-stock::-webkit-scrollbar { display: none; }
 
 #cooking-canvas {
   display: block;
@@ -236,6 +267,71 @@ canvas:focus-visible {
 .finish-sheet h2 { margin: 4px 0; }
 .finish-sheet__actions button { flex: 1; color: var(--ink); border-color: rgba(42,23,19,.18); background: #ffd167; }
 
+.feedback-sheet {
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: max(18px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom));
+  background: rgba(22, 11, 13, .78);
+  backdrop-filter: blur(12px);
+}
+
+.feedback-sheet[hidden] { display: none; }
+
+.feedback-card {
+  width: min(100%, 540px);
+  max-height: min(92dvh, 760px);
+  padding: 18px;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 210, 126, .38);
+  border-radius: 24px;
+  background: linear-gradient(165deg, #4c2c24, #2a1918);
+  box-shadow: 0 26px 80px rgba(8, 3, 4, .52);
+}
+
+.feedback-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.feedback-heading p { margin: 0 0 3px; color: #f1b981; font-size: .75rem; letter-spacing: .1em; }
+.feedback-heading h2 { margin: 0; font-size: 1.2rem; }
+.feedback-heading button { font-size: 1.4rem; }
+
+.feedback-preview {
+  display: block;
+  width: 100%;
+  max-height: 260px;
+  margin: 14px 0;
+  object-fit: contain;
+  border: 1px solid rgba(255, 241, 211, .18);
+  border-radius: 16px;
+  background: #21100e;
+}
+
+.feedback-preview[hidden] { display: none; }
+.feedback-card label { display: block; margin: 14px 0 7px; font-weight: 800; }
+
+.feedback-card textarea {
+  width: 100%;
+  min-height: 112px;
+  padding: 12px;
+  resize: vertical;
+  border: 1px solid rgba(255, 241, 211, .22);
+  border-radius: 14px;
+  color: var(--cream);
+  background: rgba(15, 8, 8, .38);
+  font: inherit;
+}
+
+.feedback-note { margin: 10px 0 0; color: #dcb994; font-size: .78rem; line-height: 1.5; }
+.feedback-status { min-height: 1.4em; margin: 8px 0; color: #a7e6b8; font-size: .8rem; }
+.feedback-submit { width: 100%; color: #2d1a14; font-weight: 900; background: linear-gradient(180deg, #ffd969, #efa933); }
+
 .cooking-controls {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -256,13 +352,20 @@ canvas:focus-visible {
 .rotate-controls button { font-size: 1.65rem; color: var(--gold); }
 .cooking-controls > button { padding: 8px; font-size: .82rem; }
 
-.cooking-controls > .focus-button {
-  grid-column: 1 / -1;
+.cooking-stage > .focus-button {
+  position: absolute;
+  z-index: 5;
+  top: 12px;
+  right: 12px;
+  min-width: 108px;
   min-height: 50px;
+  padding: 10px 14px;
   border-color: rgba(255, 196, 77, 0.48);
+  border-radius: 16px;
   color: #2d1a14;
   font-weight: 900;
   background: linear-gradient(180deg, #ffd969, #efa933);
+  box-shadow: 0 8px 24px rgba(23, 10, 7, 0.28);
 }
 
 .focus-button[data-focused="true"] {
