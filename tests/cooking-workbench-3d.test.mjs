@@ -196,6 +196,29 @@ test("arranges switchable slots into left bread, back filling, and right sauce r
   workbench.dispose();
 });
 
+test("assigns switchable positions by regional index regardless of descriptor order", () => {
+  const descriptors = createSwitchableSlotDescriptors();
+  const ordered = createCookingWorkbench3D(THREE, { slotDescriptors: descriptors });
+  const shuffled = createCookingWorkbench3D(THREE, {
+    slotDescriptors: [...descriptors].reverse(),
+  });
+
+  for (const { slotId } of descriptors) {
+    const orderedStation = ordered.getStationBySlot(slotId);
+    const shuffledStation = shuffled.getStationBySlot(slotId);
+    const orderedGroup = orderedStation.bin ?? orderedStation.dock;
+    const shuffledGroup = shuffledStation.bin ?? shuffledStation.dock;
+    assert.deepEqual(
+      shuffledGroup.position.toArray(),
+      orderedGroup.position.toArray(),
+      `${slotId} moved when descriptors were reordered`,
+    );
+  }
+
+  ordered.dispose();
+  shuffled.dispose();
+});
+
 test("keeps switchable station identity stable while changing its region-valid content", () => {
   const workbench = createCookingWorkbench3D(THREE, {
     slotDescriptors: createSwitchableSlotDescriptors(),
@@ -262,22 +285,25 @@ test("keeps switchable station identity stable while changing its region-valid c
 
 test("validates switchable slot descriptors and permits repeated region content", () => {
   const valid = createSwitchableSlotDescriptors();
+  const replace = (targetIndex, replacement) => valid.map((descriptor, index) => (
+    index === targetIndex ? { ...descriptor, ...replacement } : descriptor
+  ));
   const invalidOptions = [
     { slotDescriptors: "not-an-array" },
     { slotDescriptors: [] },
     { slotDescriptors: [null] },
-    { slotDescriptors: [{ ...valid[0], slotId: "" }] },
-    { slotDescriptors: [{ ...valid[0], contentId: "" }] },
-    { slotDescriptors: [{ ...valid[0], kind: "tool" }] },
-    { slotDescriptors: [{ ...valid[7], kind: "ingredient" }] },
-    { slotDescriptors: [{ ...valid[0], region: "pantry" }] },
-    { slotDescriptors: [{ ...valid[0], contentId: "patty" }] },
-    { slotDescriptors: [{ ...valid[3], contentId: "bottom-bun" }] },
-    { slotDescriptors: [{ ...valid[7], contentId: "cheese" }] },
-    { slotDescriptors: [{ ...valid[0], index: -1 }] },
-    { slotDescriptors: [{ ...valid[0], index: 0.5 }] },
-    { slotDescriptors: [valid[0], { ...valid[1], slotId: valid[0].slotId }] },
-    { slotDescriptors: [valid[0], { ...valid[1], slotId: ` ${valid[0].slotId} ` }] },
+    { slotDescriptors: replace(0, { slotId: "" }) },
+    { slotDescriptors: replace(0, { contentId: "" }) },
+    { slotDescriptors: replace(0, { kind: "tool" }) },
+    { slotDescriptors: replace(7, { kind: "ingredient" }) },
+    { slotDescriptors: replace(0, { region: "pantry" }) },
+    { slotDescriptors: replace(0, { contentId: "patty" }) },
+    { slotDescriptors: replace(3, { contentId: "bottom-bun" }) },
+    { slotDescriptors: replace(7, { contentId: "cheese" }) },
+    { slotDescriptors: replace(0, { index: -1 }) },
+    { slotDescriptors: replace(0, { index: 0.5 }) },
+    { slotDescriptors: replace(1, { slotId: valid[0].slotId }) },
+    { slotDescriptors: replace(1, { slotId: ` ${valid[0].slotId} ` }) },
   ];
 
   for (const options of invalidOptions) {
@@ -288,6 +314,50 @@ test("validates switchable slot descriptors and permits repeated region content"
   assert.equal(workbench.getStationsByContent("ingredient", "patty").length, 2);
   assert.equal(workbench.getStationsByContent("tool", "ketchup").length, 2);
   workbench.dispose();
+});
+
+test("requires exactly three bread, four filling, and three sauce descriptors", () => {
+  const valid = createSwitchableSlotDescriptors();
+  const invalidTopologies = [
+    valid.filter(({ region }) => region !== "bread"),
+    valid.filter(({ region }) => region !== "filling"),
+    valid.filter(({ region }) => region !== "sauce"),
+    valid.filter(({ slotId }) => slotId !== "bread-left-3"),
+    valid.filter(({ slotId }) => slotId !== "filling-back-4"),
+    valid.filter(({ slotId }) => slotId !== "sauce-right-3"),
+    [...valid, { ...valid[0], slotId: "bread-left-4", index: 3 }],
+    [...valid, { ...valid[3], slotId: "filling-back-5", index: 4 }],
+    [...valid, { ...valid[7], slotId: "sauce-right-4", index: 3 }],
+  ];
+
+  for (const slotDescriptors of invalidTopologies) {
+    assert.throws(
+      () => createCookingWorkbench3D(THREE, { slotDescriptors }),
+      { name: "TypeError", message: /fixed 3\/4\/3 topology/ },
+    );
+  }
+});
+
+test("requires each switchable region index exactly once without gaps", () => {
+  const valid = createSwitchableSlotDescriptors();
+  const replaceIndex = (slotId, index) => valid.map((descriptor) => (
+    descriptor.slotId === slotId ? { ...descriptor, index } : descriptor
+  ));
+  const invalidIndexes = [
+    replaceIndex("bread-left-3", 1),
+    replaceIndex("bread-left-3", 3),
+    replaceIndex("filling-back-4", 2),
+    replaceIndex("filling-back-4", 4),
+    replaceIndex("sauce-right-3", 1),
+    replaceIndex("sauce-right-3", 3),
+  ];
+
+  for (const slotDescriptors of invalidIndexes) {
+    assert.throws(
+      () => createCookingWorkbench3D(THREE, { slotDescriptors }),
+      { name: "TypeError", message: /fixed 3\/4\/3 topology/ },
+    );
+  }
 });
 
 test("adds one independent frozen selector target per switchable slot", () => {

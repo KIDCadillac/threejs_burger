@@ -25,6 +25,11 @@ const SLOT_KIND_BY_REGION = Object.freeze({
   filling: "ingredient",
   sauce: "tool",
 });
+const SLOT_INDICES_BY_REGION = Object.freeze({
+  bread: Object.freeze([0, 1, 2]),
+  filling: Object.freeze([0, 1, 2, 3]),
+  sauce: Object.freeze([0, 1, 2]),
+});
 
 function normalizeSlotDescriptors(value) {
   if (!Array.isArray(value) || value.length === 0) {
@@ -54,6 +59,20 @@ function normalizeSlotDescriptors(value) {
   const slotIds = descriptors.map(({ slotId }) => slotId);
   if (new Set(slotIds).size !== slotIds.length) {
     throw new TypeError("slotDescriptors must contain unique slotId values");
+  }
+  const hasFixedTopology = Object.entries(SLOT_INDICES_BY_REGION).every(([
+    region,
+    expectedIndices,
+  ]) => {
+    const actualIndices = descriptors
+      .filter((descriptor) => descriptor.region === region)
+      .map(({ index }) => index)
+      .sort((left, right) => left - right);
+    return actualIndices.length === expectedIndices.length
+      && actualIndices.every((index, position) => index === expectedIndices[position]);
+  });
+  if (!hasFixedTopology) {
+    throw new TypeError("slotDescriptors must use the fixed 3/4/3 topology and regional indices");
   }
   return Object.freeze(descriptors);
 }
@@ -175,7 +194,9 @@ function switchableStationPositions(descriptors) {
         axis: "z",
       });
     }
-    regionDescriptors.forEach((descriptor, index) => byRegion.set(descriptor.slotId, positions[index]));
+    regionDescriptors.forEach((descriptor) => {
+      byRegion.set(descriptor.slotId, positions[descriptor.index]);
+    });
   }
   return byRegion;
 }
