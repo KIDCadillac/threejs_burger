@@ -13,12 +13,17 @@ import {
   undoSoloCooking,
   resetSoloCookingState,
   serializeSoloComposition,
+  selectSoloReferenceRecipe,
   MAX_SOLO_STACK_LAYERS,
   SOLO_INGREDIENT_STOCK,
 } from "../app/static/cooking-solo-state.mjs";
-import { BURGER_LAYER_IDS } from "../app/static/cooking-state.mjs";
+import {
+  BURGER_RECIPES,
+  SOLO_BURGER_INGREDIENT_IDS,
+  SOLO_COOKING_SAUCE_IDS,
+} from "../app/static/burger-recipes.mjs";
 
-const stroke = (sauce = "chili", layerId = "patty") => ({
+const stroke = (sauce = "ketchup", layerId = "patty") => ({
   sauce,
   layerId,
   amount: 0.5,
@@ -31,11 +36,13 @@ test("starts every independent layer in its own bin with no completed stack", ()
   assert.deepEqual(state.assembledOrder, []);
   assert.equal(state.complete, false);
   assert.equal(state.finished, false);
-  assert.deepEqual(Object.keys(state.locations), BURGER_LAYER_IDS);
-  BURGER_LAYER_IDS.forEach((id, index) => {
+  assert.deepEqual(Object.keys(state.locations), SOLO_BURGER_INGREDIENT_IDS);
+  SOLO_BURGER_INGREDIENT_IDS.forEach((id, index) => {
     assert.deepEqual(state.locations[id], { kind: "bin", index });
     assert.equal(state.rotations[id], 0);
+    assert.equal(state.inventory[id], SOLO_INGREDIENT_STOCK);
   });
+  assert.equal(state.referenceRecipeId, null);
   assert.ok(Object.isFrozen(state));
   assert.ok(Object.isFrozen(state.locations));
 });
@@ -60,18 +67,18 @@ test("drop order defines stack order and an assembled layer can be reinserted or
 test("rotation and repeated mixed sauce strokes are immutable and serializable", () => {
   const initial = createSoloCookingState();
   const rotated = rotateSoloLayer(initial, "patty", Math.PI / 3);
-  const first = addSoloSauceStroke(rotated, stroke("chili"));
+  const first = addSoloSauceStroke(rotated, stroke("ketchup"));
   const second = addSoloSauceStroke(first, stroke("mustard"));
-  const third = addSoloSauceStroke(second, stroke("chili"));
+  const third = addSoloSauceStroke(second, stroke("ketchup"));
   const composition = serializeSoloComposition(third);
 
   assert.equal(initial.rotations.patty, 0);
   assert.equal(rotated.rotations.patty, Math.PI / 3);
   assert.deepEqual(composition.strokes.map(({ sauce }) => sauce), [
-    "chili", "mustard", "chili",
+    "ketchup", "mustard", "ketchup",
   ]);
   assert.equal(composition.layerPoses.patty.yaw, Math.PI / 3);
-  assert.deepEqual(composition.layerOrder, BURGER_LAYER_IDS);
+  assert.deepEqual(composition.layerOrder, SOLO_BURGER_INGREDIENT_IDS);
   composition.strokes[0].points[0][0] = 1;
   assert.equal(third.strokes[0].points[0][0], -0.4);
 });
@@ -88,11 +95,13 @@ test("one sauce gesture adds all layer segments as one undoable edit", () => {
   assert.throws(() => addSoloSauceStrokes(initial, []), TypeError);
 });
 
-test("finish is gated by all seven layers and continue returns to editable state", () => {
+test("finish is gated by two solid layers and continue returns to editable state", () => {
   let state = createSoloCookingState();
-  assert.throws(() => finishSoloCooking(state), /seven|7|layers/i);
+  assert.throws(() => finishSoloCooking(state), /2|two|layers|层/i);
 
-  for (const layerId of BURGER_LAYER_IDS) state = placeSoloLayer(state, layerId);
+  state = placeSoloLayer(state, "bottom-bun");
+  assert.equal(state.complete, false);
+  state = placeSoloLayer(state, "patty");
   assert.equal(state.complete, true);
   state = finishSoloCooking(state);
   assert.equal(state.finished, true);
@@ -120,7 +129,64 @@ test("rejects unknown layers, invalid indices, and malformed strokes without mut
   assert.throws(() => placeSoloLayer(state, "patty", -1), TypeError);
   assert.throws(() => rotateSoloLayer(state, "patty", Infinity), TypeError);
   assert.throws(() => addSoloSauceStroke(state, { ...stroke(), points: [[0, 0]] }), TypeError);
+  assert.throws(() => addSoloSauceStroke(state, stroke("chili")), TypeError);
   assert.deepEqual(state, createSoloCookingState());
+});
+
+test("solo ingredient and sauce profiles include the recipe-only options", () => {
+  const state = createSoloCookingState();
+
+  assert.ok(state.instances.onion);
+  assert.ok(state.instances["middle-bun"]);
+  assert.deepEqual(SOLO_COOKING_SAUCE_IDS, ["ketchup", "mustard", "house-sauce"]);
+
+  const withSauce = addSoloSauceStroke(state, stroke("house-sauce", "middle-bun"));
+  assert.equal(withSauce.strokes[0].sauce, "house-sauce");
+});
+
+test("reference selection is validated and never clears composition or enters undo history", () => {
+  const initialReference = BURGER_RECIPES[0].id;
+  const nextReference = BURGER_RECIPES[1].id;
+  let state = createSoloCookingState({ referenceRecipeId: initialReference });
+  state = placeSoloLayer(state, "bottom-bun");
+  const historyBeforeSelection = state.history;
+
+  state = selectSoloReferenceRecipe(state, nextReference);
+
+  assert.equal(state.referenceRecipeId, nextReference);
+  assert.deepEqual(state.assembledOrder, ["bottom-bun"]);
+  assert.strictEqual(state.history, historyBeforeSelection);
+  assert.equal(undoSoloCooking(state).referenceRecipeId, nextReference);
+  assert.throws(() => selectSoloReferenceRecipe(state, "missing-recipe"), TypeError);
+  assert.throws(
+    () => createSoloCookingState({ referenceRecipeId: "missing-recipe" }),
+    TypeError,
+  );
+});
+
+test("reference survives reset and undo but is excluded from serialized composition", () => {
+  const referenceRecipeId = BURGER_RECIPES[2].id;
+  let state = createSoloCookingState({ referenceRecipeId });
+  state = placeSoloLayer(state, "bottom-bun");
+  state = rotateSoloLayer(state, "bottom-bun", 0.25);
+
+  const undone = undoSoloCooking(state);
+  const reset = resetSoloCookingState(undone);
+  const composition = serializeSoloComposition(undone);
+
+  assert.equal(undone.referenceRecipeId, referenceRecipeId);
+  assert.equal(reset.referenceRecipeId, referenceRecipeId);
+  assert.equal(Object.hasOwn(composition, "referenceRecipeId"), false);
+});
+
+test("free cooking can explicitly clear a selected reference without changing the stack", () => {
+  let state = createSoloCookingState({ referenceRecipeId: BURGER_RECIPES[0].id });
+  state = placeSoloLayer(state, "onion");
+
+  state = selectSoloReferenceRecipe(state, null);
+
+  assert.equal(state.referenceRecipeId, null);
+  assert.deepEqual(state.assembledOrder, ["onion"]);
 });
 
 test("replenishes a used ingredient source and allows twenty independent repeated layers", () => {
