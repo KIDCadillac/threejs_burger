@@ -87,6 +87,7 @@ function pageHarness() {
   };
   const tuningTabs = [
     "bottom-bun", "patty", "cheese", "tomato", "lettuce", "pickle", "top-bun",
+    "onion", "middle-bun",
   ].map((ingredientId) => new Element(null, { dataset: { ingredientId } }));
   const tuningInputs = [
     "presentationScale", "scaleX", "scaleY", "scaleZ", "sinkY",

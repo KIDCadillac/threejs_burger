@@ -103,9 +103,11 @@ test("the page exposes the complete accessible live tuning dialog contract", asy
   )];
   assert.deepEqual(tabMatches.map((match) => match[1]), [
     "bottom-bun", "patty", "cheese", "tomato", "lettuce", "pickle", "top-bun",
+    "onion", "middle-bun",
   ]);
   assert.deepEqual(tabMatches.map((match) => match[2].trim()), [
     "下层面包", "牛肉饼", "芝士", "番茄", "生菜", "酸黄瓜", "上层面包",
+    "洋葱碎", "中层面包",
   ]);
 
   const expectedLimits = {

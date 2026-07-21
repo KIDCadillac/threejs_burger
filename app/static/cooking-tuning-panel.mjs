@@ -14,6 +14,9 @@ const TUNING_KEYS = Object.freeze([
   "scaleZ",
   "sinkY",
 ]);
+const LEGACY_INGREDIENT_IDS = Object.freeze(BURGER_TUNING_INGREDIENT_IDS.filter((id) => (
+  id !== "onion" && id !== "middle-bun"
+)));
 
 export function createCookingTuningPanel({
   root,
@@ -52,13 +55,17 @@ export function createCookingTuningPanel({
     }
   }
 
-  requireNode(tabs.length === BURGER_TUNING_INGREDIENT_IDS.length, "ingredient tabs");
-  for (const id of BURGER_TUNING_INGREDIENT_IDS) {
-    requireNode(
-      tabs.filter((tab) => tab?.dataset?.ingredientId === id).length === 1,
-      `[data-ingredient-id="${id}"]`,
-    );
-  }
+  const tabIds = tabs.map((tab) => tab?.dataset?.ingredientId);
+  const matchesIngredientSet = (expectedIds) => (
+    tabIds.length === expectedIds.length
+    && new Set(tabIds).size === expectedIds.length
+    && expectedIds.every((id) => tabIds.includes(id))
+  );
+  requireNode(
+    matchesIngredientSet(BURGER_TUNING_INGREDIENT_IDS)
+      || matchesIngredientSet(LEGACY_INGREDIENT_IDS),
+    "ingredient tabs",
+  );
   requireNode(inputs.length === TUNING_KEYS.length * 2, "tuning inputs");
   for (const key of TUNING_KEYS) {
     for (const type of ["range", "number"]) {

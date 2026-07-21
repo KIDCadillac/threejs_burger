@@ -10,6 +10,9 @@ import {
 } from "../app/static/burger-tuning.mjs";
 
 const INGREDIENT_IDS = [...BURGER_TUNING_INGREDIENT_IDS];
+const LEGACY_INGREDIENT_IDS = INGREDIENT_IDS.filter((id) => (
+  id !== "onion" && id !== "middle-bun"
+));
 
 const TUNING_KEYS = [
   "presentationScale",
@@ -84,13 +87,13 @@ class FakeElement {
   }
 }
 
-function makeDomHarness({ omit = [] } = {}) {
+function makeDomHarness({ omit = [], ingredientIds = INGREDIENT_IDS } = {}) {
   const documentTarget = { activeElement: null };
   const root = new FakeElement({ documentTarget });
   root.id = "tuning-sheet";
   root.hidden = true;
 
-  const tabs = INGREDIENT_IDS.map((ingredientId) => new FakeElement({
+  const tabs = ingredientIds.map((ingredientId) => new FakeElement({
     documentTarget,
     dataset: { ingredientId },
   }));
@@ -165,8 +168,9 @@ function makeHarness({
   onChange,
   onRequestClose,
   omit,
+  ingredientIds,
 } = {}) {
-  const dom = makeDomHarness({ omit });
+  const dom = makeDomHarness({ omit, ingredientIds });
   const changes = [];
   const panel = createCookingTuningPanel({
     root: dom.root,
@@ -195,6 +199,21 @@ test("panel gives all nine ingredient tabs stable Chinese labels", () => {
   assert.ok(harness.tabs.every((tab) => (
     tab.getAttribute("aria-label") === BURGER_TUNING_INGREDIENT_LABELS[tab.dataset.ingredientId]
   )));
+});
+
+test("panel remains compatible with the current seven-tab page while nine-tab rollout is pending", () => {
+  const harness = makeHarness({ ingredientIds: LEGACY_INGREDIENT_IDS });
+
+  assert.deepEqual(
+    harness.tabs.map((tab) => tab.dataset.ingredientId),
+    LEGACY_INGREDIENT_IDS,
+  );
+  assert.deepEqual(
+    harness.tabs.map((tab) => tab.textContent),
+    LEGACY_INGREDIENT_IDS.map((id) => BURGER_TUNING_INGREDIENT_LABELS[id]),
+  );
+  assert.equal(harness.panel.open(), true);
+  assert.equal(harness.root.hidden, false);
 });
 
 function assertFrozenTree(value) {
