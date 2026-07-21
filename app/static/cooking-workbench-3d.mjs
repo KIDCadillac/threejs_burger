@@ -261,9 +261,12 @@ export function createCookingWorkbench3D(THREE, {
   plate.name = "prep-plate";
   plate.raycast = NO_RAYCAST;
   plate.position.y = 0.24;
+  plate.geometry.computeBoundingBox();
+  const prepSupportY = plate.position.y
+    + plate.geometry.boundingBox.max.y * plate.scale.y;
   const prepDropAnchor = new THREE.Object3D();
   prepDropAnchor.name = "prep-drop-anchor";
-  prepDropAnchor.position.y = 0.38;
+  prepDropAnchor.position.y = prepSupportY;
   prepDropAnchor.userData.cookingAnchor = Object.freeze({ kind: "prep", role: "drop" });
   const dropCueGeometry = new THREE.RingGeometry(0.74, 0.92, 32);
   const dropCueMaterial = new THREE.MeshBasicMaterial({
@@ -368,6 +371,7 @@ export function createCookingWorkbench3D(THREE, {
       position: freezePosition(prepAnchor.position),
       bounds: PREP_BOUNDS,
       halfExtent: PREP_HALF_EXTENT,
+      supportY: prepSupportY,
     }),
     ingredients: Object.freeze(ingredientSlots.map((slot) => Object.freeze({
       kind: "ingredient",
@@ -409,12 +413,14 @@ export function createCookingWorkbench3D(THREE, {
     root,
     counter,
     dropCue,
+    layout,
     prep: {
       anchor: prepAnchor,
       surface: board,
       board,
       plate,
       dropAnchor: prepDropAnchor,
+      supportY: prepSupportY,
     },
     ingredientSlots,
     toolDocks,

@@ -18,6 +18,20 @@ test("builds a real Three workbench with default prep, ingredient, and tool stat
   workbench.dispose();
 });
 
+test("derives prep supportY and drop anchor from the plate geometry", () => {
+  const workbench = createCookingWorkbench3D(THREE);
+  const { plate } = workbench.prep;
+  plate.geometry.computeBoundingBox();
+  const expectedSupportY = plate.position.y
+    + plate.geometry.boundingBox.max.y * plate.scale.y;
+
+  assert.strictEqual(workbench.prep.supportY, expectedSupportY);
+  assert.strictEqual(workbench.prep.dropAnchor.position.y, expectedSupportY);
+  assert.strictEqual(workbench.layout.prep.supportY, expectedSupportY);
+
+  workbench.dispose();
+});
+
 test("supports recipe-specific station identifiers without adding food semantics", () => {
   const workbench = createCookingWorkbench3D(THREE, {
     ingredientIds: ["rice", "nori", "salmon"],
