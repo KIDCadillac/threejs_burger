@@ -108,12 +108,14 @@ function createReadonlyMapView(source) {
   return Object.freeze(view);
 }
 
-function validateStroke(stroke) {
+function validateStroke(stroke, isKnownLayer = (layerId) => BURGER_LAYER_IDS.includes(layerId)) {
   assertExactKeys(stroke, STROKE_KEYS, "Sauce stroke");
   if (!SAUCE_KEYS.includes(stroke.sauce)) {
     throw new TypeError(`Unknown sauce: ${String(stroke.sauce)}`);
   }
-  assertLayerId(stroke.layerId);
+  if (!isKnownLayer(stroke.layerId)) {
+    throw new TypeError(`Unknown burger layer: ${String(stroke.layerId)}`);
+  }
   const amount = assertFinite(stroke.amount, "stroke.amount");
   if (amount < 0.01 || amount > 1) {
     throw new TypeError("stroke.amount must be between 0.01 and 1");
@@ -632,6 +634,7 @@ export function createBurgerModel3D(THREE, options = {}) {
 
   const { definitions, sesameMaterial } = buildLayerDefinitions(THREE);
   const layers = new Map();
+  const ingredientByLayerId = new Map();
   const surfacesById = new Map();
   const footprintsById = new Map();
   const projectionMeshesById = new Map();
@@ -673,6 +676,7 @@ export function createBurgerModel3D(THREE, options = {}) {
     group.add(surface);
     root.add(group);
     layers.set(definition.id, group);
+    ingredientByLayerId.set(definition.id, definition.id);
     surfacesById.set(definition.id, surface);
     footprintsById.set(definition.id, definition.footprint);
     const projectionGeometry = definition.geometry.clone();
@@ -868,8 +872,16 @@ export function createBurgerModel3D(THREE, options = {}) {
 
   const getLayer = (layerId) => {
     assertActive(disposed);
-    assertLayerId(layerId);
+    if (!layers.has(layerId)) {
+      throw new TypeError(`Unknown burger layer: ${String(layerId)}`);
+    }
     return layers.get(layerId);
+  };
+
+  const ingredientFor = (layerId) => {
+    const ingredientId = ingredientByLayerId.get(layerId);
+    if (!ingredientId) throw new TypeError(`Unknown burger layer: ${String(layerId)}`);
+    return ingredientId;
   };
 
   const disposeSauceEntry = (entry) => {
@@ -885,14 +897,15 @@ export function createBurgerModel3D(THREE, options = {}) {
   };
 
   const applyBiteToPoint = (layerId, source, amount, target = new THREE.Vector3()) => target.set(
-    biteX(source.x, amount, biteThresholdsById.get(layerId)),
+    biteX(source.x, amount, biteThresholdsById.get(ingredientFor(layerId))),
     source.y,
     source.z,
   );
 
   const projectBaseSurface = (layerId, x, z) => {
-    const profile = footprintsById.get(layerId);
-    const maxY = surfaceBoundsById.get(layerId).max.y;
+    const ingredientId = ingredientFor(layerId);
+    const profile = footprintsById.get(ingredientId);
+    const maxY = surfaceBoundsById.get(ingredientId).max.y;
     for (let attempt = 0; attempt <= 20; attempt += 1) {
       const scale = 1 - attempt * 0.0425;
       const [clampedX, clampedZ] = clampLocalFootprint(profile, x * scale, z * scale);
@@ -901,7 +914,7 @@ export function createBurgerModel3D(THREE, options = {}) {
         projectionDirection,
       );
       const [hit] = projectionRaycaster.intersectObject(
-        projectionMeshesById.get(layerId), false,
+        projectionMeshesById.get(ingredientId), false,
       );
       if (hit) {
         const normal = hit.face?.normal?.clone?.() ?? new THREE.Vector3(0, 1, 0);
@@ -926,7 +939,7 @@ export function createBurgerModel3D(THREE, options = {}) {
 
   const projectSurfacePoint = (layerId, point) => {
     assertActive(disposed);
-    assertLayerId(layerId);
+    const ingredientId = ingredientFor(layerId);
     if (!Array.isArray(point) || point.length !== 2) {
       throw new TypeError("Surface point must be an [x, z] pair");
     }
@@ -936,7 +949,7 @@ export function createBurgerModel3D(THREE, options = {}) {
       throw new TypeError("Surface point coordinates must be between -1 and 1");
     }
     const [x, z] = projectNormalizedFootprint(
-      footprintsById.get(layerId),
+      footprintsById.get(ingredientId),
       normalizedX,
       normalizedZ,
     );
@@ -961,7 +974,7 @@ export function createBurgerModel3D(THREE, options = {}) {
       normal.array.set(baseNormals);
       normal.needsUpdate = true;
     } else {
-      const threshold = biteThresholdsById.get(entry.stroke.layerId);
+      const threshold = biteThresholdsById.get(ingredientFor(entry.stroke.layerId));
       for (let index = 0; index < position.count; index += 1) {
         const offset = index * 3;
         const sourceX = basePositions[offset];
@@ -982,7 +995,7 @@ export function createBurgerModel3D(THREE, options = {}) {
   };
 
   const createSauceEntry = (normalized, nameIndex, previewKey = null) => {
-    const profile = footprintsById.get(normalized.layerId);
+    const profile = footprintsById.get(ingredientFor(normalized.layerId));
     let pathPoints = normalized.points.map(([x, z]) => {
       const [localX, localZ] = projectNormalizedFootprint(
         profile, x, z,
@@ -1087,7 +1100,7 @@ export function createBurgerModel3D(THREE, options = {}) {
 
   const addSauceStroke = (stroke) => {
     assertActive(disposed);
-    const normalized = validateStroke(stroke);
+    const normalized = validateStroke(stroke, (layerId) => layers.has(layerId));
     const entry = createSauceEntry(normalized, sauceEntries.length);
     layers.get(normalized.layerId).add(entry.mesh);
     sauceEntries.push(entry);
@@ -1105,7 +1118,7 @@ export function createBurgerModel3D(THREE, options = {}) {
   const previewSauceStroke = (previewKey, stroke) => {
     assertActive(disposed);
     const key = assertPreviewIdentifier(previewKey, "previewKey");
-    const normalized = validateStroke(stroke);
+    const normalized = validateStroke(stroke, (layerId) => layers.has(layerId));
     const next = createSauceEntry(normalized, `preview:${key}`, key);
     layers.get(normalized.layerId).add(next.mesh);
     const previous = previewEntriesByKey.get(key);
@@ -1166,7 +1179,7 @@ export function createBurgerModel3D(THREE, options = {}) {
 
   const reorderLayer = (layerId, targetIndex) => {
     assertActive(disposed);
-    assertLayerId(layerId);
+    getLayer(layerId);
     if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= order.length) {
       throw new TypeError(`targetIndex must be an integer from 0 to ${order.length - 1}`);
     }
@@ -1192,7 +1205,8 @@ export function createBurgerModel3D(THREE, options = {}) {
       food: FOOD_ID,
       expanded,
       layerOrder: [...order],
-      layerPoses: Object.fromEntries(BURGER_LAYER_IDS.map((id) => {
+      layerTypes: Object.fromEntries(order.map((id) => [id, ingredientFor(id)])),
+      layerPoses: Object.fromEntries(order.map((id) => {
         const layer = layers.get(id);
         return [id, {
           x: layer.position.x,
@@ -1200,7 +1214,7 @@ export function createBurgerModel3D(THREE, options = {}) {
           yaw: layer.rotation.y,
         }];
       })),
-      layerTransforms: Object.fromEntries(BURGER_LAYER_IDS.map((id) => {
+      layerTransforms: Object.fromEntries(order.map((id) => {
         const layer = layers.get(id);
         return [id, {
           position: { x: layer.position.x, y: layer.position.y, z: layer.position.z },
@@ -1247,7 +1261,9 @@ export function createBurgerModel3D(THREE, options = {}) {
         yaw,
       }];
     }));
-    const validatedStrokes = composition.strokes.map(validateStroke);
+    const validatedStrokes = composition.strokes.map((stroke) => (
+      validateStroke(stroke, (layerId) => layers.has(layerId))
+    ));
     const stagedSauces = stageSauceEntries(validatedStrokes);
 
     order = [...composition.layerOrder];
@@ -1264,7 +1280,8 @@ export function createBurgerModel3D(THREE, options = {}) {
   };
 
   const applyBiteGeometry = (normalizedAmount) => {
-    for (const [layerId, surface] of surfacesById) {
+    for (const layerId of BURGER_LAYER_IDS) {
+      const surface = surfacesById.get(layerId);
       const geometry = surface.geometry;
       const source = biteSources.get(geometry);
       const position = geometry.attributes.position;
@@ -1322,6 +1339,73 @@ export function createBurgerModel3D(THREE, options = {}) {
     root.userData.biteAmount = normalizedAmount;
   };
 
+  const createLayerInstance = (ingredientId, instanceId) => {
+    assertActive(disposed);
+    assertLayerId(ingredientId);
+    if (typeof instanceId !== "string" || !instanceId.trim()) {
+      throw new TypeError("instanceId must be a non-empty string");
+    }
+    if (layers.has(instanceId)) throw new TypeError(`Duplicate burger layer: ${instanceId}`);
+    const template = layers.get(ingredientId);
+    const templateSurface = template.userData.selectableSurface;
+    const layer = template.clone(true);
+    layer.name = `food-layer:${instanceId}`;
+    layer.userData = {
+      ...template.userData,
+      foodLayer: Object.freeze({ food: FOOD_ID, layerId: instanceId, ingredientId }),
+    };
+    const surface = layer.getObjectByName(templateSurface.name);
+    if (!surface?.isMesh) throw new Error(`Ingredient ${ingredientId} has no cloneable surface`);
+    surface.name = `food-layer:${instanceId}:surface`;
+    surface.userData = {
+      ...surface.userData,
+      cookingSelectable: Object.freeze({
+        kind: "food-layer",
+        food: FOOD_ID,
+        layerId: instanceId,
+        ingredientId,
+      }),
+    };
+    const transientClones = [];
+    layer.traverse((object) => {
+      if (object !== surface && object.userData?.sauceStroke) transientClones.push(object);
+    });
+    transientClones.forEach((object) => object.removeFromParent());
+    layer.userData.selectableSurface = surface;
+    root.add(layer);
+    layers.set(instanceId, layer);
+    ingredientByLayerId.set(instanceId, ingredientId);
+    surfacesById.set(instanceId, surface);
+    order.push(instanceId);
+    return layer;
+  };
+
+  const removeLayerInstance = (instanceId) => {
+    assertActive(disposed);
+    if (BURGER_LAYER_IDS.includes(instanceId)) {
+      throw new TypeError("Canonical burger layers cannot be removed");
+    }
+    const layer = layers.get(instanceId);
+    if (!layer) return false;
+    for (let index = sauceEntries.length - 1; index >= 0; index -= 1) {
+      if (sauceEntries[index].stroke.layerId !== instanceId) continue;
+      disposeSauceEntry(sauceEntries[index]);
+      sauceEntries.splice(index, 1);
+    }
+    for (const [key, entry] of previewEntriesByKey) {
+      if (entry.stroke.layerId !== instanceId) continue;
+      previewEntriesByKey.delete(key);
+      disposeSauceEntry(entry);
+    }
+    layer.removeFromParent();
+    layers.delete(instanceId);
+    ingredientByLayerId.delete(instanceId);
+    surfacesById.delete(instanceId);
+    const index = order.indexOf(instanceId);
+    if (index >= 0) order.splice(index, 1);
+    return true;
+  };
+
   const selectableSurfaces = Object.freeze(BURGER_LAYER_IDS.map((id) => surfacesById.get(id)));
   const readonlyLayers = createReadonlyMapView(layers);
   const api = {
@@ -1332,6 +1416,12 @@ export function createBurgerModel3D(THREE, options = {}) {
     dropPreview,
     noRaycast: NO_RAYCAST,
     getLayer,
+    createLayerInstance,
+    removeLayerInstance,
+    getSelectableSurfaces() {
+      assertActive(disposed);
+      return Object.freeze([...surfacesById.values()]);
+    },
     getLayerOrder() {
       assertActive(disposed);
       return Object.freeze([...order]);
@@ -1346,7 +1436,7 @@ export function createBurgerModel3D(THREE, options = {}) {
     setLayerPose,
     setLayerHighlighted(layerId, highlighted = true) {
       assertActive(disposed);
-      assertLayerId(layerId);
+      getLayer(layerId);
       if (!highlighted) {
         selectionFeedback.visible = false;
         selectionFeedback.removeFromParent();
@@ -1369,7 +1459,7 @@ export function createBurgerModel3D(THREE, options = {}) {
       targetIndex,
     } = {}) {
       assertActive(disposed);
-      assertLayerId(layerId);
+      getLayer(layerId);
       if (!position || ![position.x, position.y, position.z].every(Number.isFinite)) {
         throw new TypeError("drop preview position must contain finite x, y, and z");
       }
@@ -1432,6 +1522,7 @@ export function createBurgerModel3D(THREE, options = {}) {
       ownedGeometries.clear();
       ownedMaterials.clear();
       layers.clear();
+      ingredientByLayerId.clear();
       surfacesById.clear();
       footprintsById.clear();
       projectionMeshesById.clear();

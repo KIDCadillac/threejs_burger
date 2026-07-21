@@ -131,7 +131,16 @@ test("starts once, renders registered frames, and pauses and resumes explicitly"
       viewport: () => ({ width: 390, height: 520, pixelRatio: 1 }),
     });
     const frameTimes = [];
-    host.onFrame((time) => frameTimes.push(time));
+    const order = [];
+    host.onFrame((time) => {
+      frameTimes.push(time);
+      order.push("before-render");
+    });
+    host.onAfterFrame(() => order.push("after-render"));
+    harness.renderer.render = (...args) => {
+      harness.calls.push(["render", ...args]);
+      order.push("render");
+    };
 
     host.start();
     const firstLoop = harness.animationLoop;
@@ -141,6 +150,7 @@ test("starts once, renders registered frames, and pauses and resumes explicitly"
 
     firstLoop(123);
     assert.deepEqual(frameTimes, [123]);
+    assert.deepEqual(order, ["before-render", "render", "after-render"]);
     assert.equal(harness.calls.filter(([name]) => name === "render").length, 1);
 
     host.setVisible(false);
@@ -167,6 +177,42 @@ test("does not render after a frame callback disposes the host", () => {
 
     assert.equal(harness.calls.filter(([name]) => name === "dispose").length, 1);
     assert.equal(harness.calls.filter(([name]) => name === "render").length, 0);
+  });
+});
+
+test("reads the live WebGL frame into a reusable pixel buffer for feedback capture", () => {
+  useFakeDocument(() => {
+    const canvas = createCanvas();
+    const harness = createRendererHarness(canvas);
+    const readCalls = [];
+    const targetCalls = [];
+    harness.renderer.getRenderTarget = () => null;
+    harness.renderer.setRenderTarget = (target) => targetCalls.push(target);
+    harness.renderer.readRenderTargetPixels = (...args) => {
+      readCalls.push(args.slice(1, -1));
+      args.at(-1).set([1, 2, 3, 4, 5, 6, 7, 8]);
+    };
+    const host = createThreeSceneHost({ canvas, rendererFactory: harness.rendererFactory });
+
+    const first = host.readFramePixels({ width: 2, height: 1 });
+    const second = host.readFramePixels({ width: 2, height: 1 });
+
+    assert.equal(harness.calls.filter(([name]) => name === "render").length, 2);
+    assert.deepEqual(readCalls, [
+      [0, 0, 2, 1],
+      [0, 0, 2, 1],
+    ]);
+    assert.equal(targetCalls.length, 4);
+    assert.equal(targetCalls[1], null);
+    assert.equal(targetCalls[3], null);
+    assert.equal(first.rgba, second.rgba);
+    assert.deepEqual([...second.rgba], [1, 2, 3, 4, 5, 6, 7, 8]);
+    assert.deepEqual(
+      { width: second.width, height: second.height, flippedY: second.flippedY },
+      { width: 2, height: 1, flippedY: true },
+    );
+    host.dispose();
+    assert.equal(host.readFramePixels(), null);
   });
 });
 

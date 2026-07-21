@@ -83,6 +83,35 @@ test("builds seven stable, independently transformable Three.js food layers", ()
   burger.dispose();
 });
 
+test("creates removable repeated ingredient instances that remain independently stackable and sauceable", () => {
+  const burger = createBurgerModel3D(THREE);
+  const template = burger.getLayer("patty");
+  const repeated = burger.createLayerInstance("patty", "patty#2");
+  const repeatedSurface = repeated.userData.selectableSurface;
+
+  assert.equal(burger.getLayer("patty#2"), repeated);
+  assert.equal(repeated.userData.foodLayer.ingredientId, "patty");
+  assert.equal(repeatedSurface.userData.cookingSelectable.layerId, "patty#2");
+  assert.equal(repeatedSurface.userData.cookingSelectable.ingredientId, "patty");
+  assert.equal(repeatedSurface.geometry, template.userData.selectableSurface.geometry);
+  assert.ok(burger.getSelectableSurfaces().includes(repeatedSurface));
+
+  burger.reorderLayer("patty#2", 0);
+  const sauce = burger.addSauceStroke({
+    sauce: "mustard",
+    layerId: "patty#2",
+    amount: 0.5,
+    points: [[-0.25, 0], [0.25, 0]],
+  });
+  assert.equal(sauce.parent, repeated);
+
+  assert.equal(burger.removeLayerInstance("patty#2"), true);
+  assert.equal(burger.layers.has("patty#2"), false);
+  assert.equal(burger.getSelectableSurfaces().includes(repeatedSurface), false);
+  assert.throws(() => burger.getLayer("patty#2"), /unknown/i);
+  burger.dispose();
+});
+
 test("uses distinct procedural volume geometry and texture-free cooking materials", () => {
   const burger = createBurgerModel3D(THREE);
   const surfaces = Object.fromEntries(

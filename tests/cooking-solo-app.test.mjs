@@ -40,12 +40,16 @@ function pageHarness() {
     return element;
   };
   const canvas = add("#cooking-canvas");
+  canvas.width = 390;
+  canvas.height = 844;
+  canvas.toDataURL = () => "data:image/png;base64,test";
   const elements = {
     canvas,
     loading: add("#cooking-loading"),
     error: add("#cooking-error"),
     objective: add("#cooking-objective"),
     progress: add("#cooking-progress"),
+    stock: add("#cooking-stock"),
     summary: add("#cooking-summary"),
     status: add("#cooking-status"),
     tutorial: add("#tutorial-coach"),
@@ -57,16 +61,38 @@ function pageHarness() {
     undoButton: add('[data-action="undo"]', "undo"),
     inspectButton: add('[data-action="toggle-expanded"]', "toggle-expanded"),
     focusButton: add('[data-action="toggle-focus"]', "toggle-focus"),
+    feedbackSheet: add("#feedback-sheet"),
+    feedbackPreview: add("#feedback-preview"),
+    feedbackMessage: add("#feedback-message"),
+    feedbackStatus: add("#feedback-status"),
+    feedbackOpenButton: add('[data-action="feedback-open"]', "feedback-open"),
+    feedbackCloseButton: add('[data-action="feedback-close"]', "feedback-close"),
+    feedbackSubmitButton: add('[data-action="feedback-submit"]', "feedback-submit"),
     resetButton: add('[data-action="reset"]', "reset"),
     continueButton: add('[data-action="continue"]', "continue"),
   };
   documentTarget.querySelector = (selector) => selectors.get(selector) ?? null;
+  documentTarget.createElement = (tag) => {
+    if (tag !== "canvas") return new Element();
+    return {
+      width: 0,
+      height: 0,
+      getContext: () => ({
+        drawImage() {},
+        getImageData: (_x, _y, width, height) => ({ data: new Uint8ClampedArray(width * height * 4) }),
+      }),
+    };
+  };
   const windowTarget = new Events();
   windowTarget.matchMediaCalls = [];
   windowTarget.matchMedia = (query) => {
     windowTarget.matchMediaCalls.push(query);
     return { matches: true };
   };
+  windowTarget.setInterval = () => 1;
+  windowTarget.clearInterval = () => {};
+  windowTarget.location = { href: "http://example.test/cooking.html" };
+  windowTarget.navigator = { userAgent: "test" };
   return { documentTarget, windowTarget, elements };
 }
 
@@ -84,7 +110,12 @@ function stageFactoryHarness() {
     const tutorial = { step: "pick" };
     const highlightCalls = [];
     const stage = {
-      host: { resize() {}, setVisible() {} },
+      host: {
+        resize() {},
+        setVisible() {},
+        onAfterFrame() { return () => {}; },
+        readFramePixels() { return null; },
+      },
       workbench: {
         highlightCalls,
         clearHighlights() { highlightCalls.push(["clear"]); },
@@ -113,7 +144,7 @@ function stageFactoryHarness() {
           tutorial,
           expanded: false,
           focused: Boolean(changes.focused),
-          progress: `${state.assembledOrder.length}/7`,
+          progress: `${state.assembledOrder.length}/20`,
           dropIntent,
         });
       },
@@ -162,6 +193,25 @@ test("renders cooking state without a text drop-intent control", () => {
   assert.deepEqual(stage.workbench.highlightCalls, highlightCallsBeforeIntent);
 });
 
+test("renders replenishing stock counts and repeated ingredient instance names", () => {
+  const page = pageHarness();
+  const stages = stageFactoryHarness();
+  const stage = bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: stages.factory,
+  });
+
+  stage.emit({
+    assembledOrder: ["patty", "patty#2"],
+    instances: { patty: "patty", "patty#2": "patty" },
+    inventory: { patty: 997 },
+  });
+
+  assert.match(page.elements.stock.textContent, /997/);
+  assert.doesNotMatch(page.elements.summary.innerHTML, /undefined/);
+  assert.equal(page.elements.progress.textContent, "2/20");
+});
+
 test("focus control follows stage view state and toggles the isolated burger view", () => {
   const page = pageHarness();
   const stages = stageFactoryHarness();
@@ -176,6 +226,32 @@ test("focus control follows stage view state and toggles the isolated burger vie
   assert.equal(page.elements.focusButton.disabled, false);
   assert.equal(page.elements.focusButton.textContent, "返回料理台");
   assert.equal(page.elements.focusButton.dataset.focused, "true");
+});
+
+test("feedback actions open, submit, and close the injected reporter", () => {
+  const page = pageHarness();
+  const stages = stageFactoryHarness();
+  const calls = [];
+  bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: stages.factory,
+    feedbackFactory(configuration) {
+      assert.equal(configuration.canvas, page.elements.canvas);
+      assert.equal(typeof configuration.subscribeFrame, "function");
+      assert.equal(typeof configuration.readFramePixels, "function");
+      assert.deepEqual(configuration.getContext().state.assembledOrder, []);
+      return {
+        open: () => calls.push("open"),
+        submit: () => calls.push("submit"),
+        close: () => calls.push("close"),
+      };
+    },
+  });
+
+  page.documentTarget.emit("click", { target: page.elements.feedbackOpenButton });
+  page.documentTarget.emit("click", { target: page.elements.feedbackSubmitButton });
+  page.documentTarget.emit("click", { target: page.elements.feedbackCloseButton });
+  assert.deepEqual(calls, ["open", "submit", "close"]);
 });
 
 test("a second boot disposes the old stage and leaves only the new click handler", () => {

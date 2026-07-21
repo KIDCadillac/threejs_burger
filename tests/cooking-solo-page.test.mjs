@@ -17,6 +17,7 @@ test("standalone cooking page is accessible, Chinese, and contains the full play
     'aria-describedby="cooking-objective"',
     'id="cooking-objective"',
     'id="cooking-progress"',
+    'id="cooking-stock"',
     'id="cooking-summary"',
     'data-action="rotate-left"',
     'data-action="rotate-right"',
@@ -30,6 +31,13 @@ test("standalone cooking page is accessible, Chinese, and contains the full play
     'data-action="restart"',
     'data-action="tutorial-skip"',
     'data-action="tutorial-replay"',
+    'data-action="feedback-open"',
+    'data-action="feedback-close"',
+    'data-action="feedback-submit"',
+    'id="feedback-sheet"',
+    'id="feedback-preview"',
+    'id="feedback-message"',
+    'id="feedback-status"',
     'role="dialog"',
     'aria-modal="true"',
     'aria-labelledby="finish-title"',
@@ -43,8 +51,9 @@ test("standalone cooking page is accessible, Chinese, and contains the full play
     'id="cooking-loading-bar"',
     'cooking-error',
   ]) assert.ok(html.includes(marker), marker);
+  assert.match(html, />0\/20</);
   assert.match(html, /自由料理台/);
-  assert.match(html, /先把七层食材装到中央餐盘/);
+  assert.match(html, /自由叠放食材，最多 20 层/);
   assert.match(html, /rel="icon" href="data:,"/);
   assert.doesNotMatch(html, /cooking-loading-elapsed|已等待\s*[\d.]+\s*秒/);
 });
@@ -128,6 +137,8 @@ test("mobile CSS protects touch targets, safe areas, WebGL states, and reduced m
     ".tutorial-coach",
     ".tutorial-pointer",
     ".finish-sheet",
+    ".feedback-sheet",
+    ".feedback-preview",
     "height: clamp(38rem, 72dvh, 48rem)",
   ]) assert.ok(css.includes(marker), marker);
   assert.doesNotMatch(css, /background-image\s*:\s*url\(/i);

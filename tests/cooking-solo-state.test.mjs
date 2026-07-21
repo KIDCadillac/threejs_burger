@@ -13,6 +13,8 @@ import {
   undoSoloCooking,
   resetSoloCookingState,
   serializeSoloComposition,
+  MAX_SOLO_STACK_LAYERS,
+  SOLO_INGREDIENT_STOCK,
 } from "../app/static/cooking-solo-state.mjs";
 import { BURGER_LAYER_IDS } from "../app/static/cooking-state.mjs";
 
@@ -119,4 +121,58 @@ test("rejects unknown layers, invalid indices, and malformed strokes without mut
   assert.throws(() => rotateSoloLayer(state, "patty", Infinity), TypeError);
   assert.throws(() => addSoloSauceStroke(state, { ...stroke(), points: [[0, 0]] }), TypeError);
   assert.deepEqual(state, createSoloCookingState());
+});
+
+test("replenishes a used ingredient source and allows twenty independent repeated layers", () => {
+  let state = createSoloCookingState();
+  assert.equal(state.inventory.patty, SOLO_INGREDIENT_STOCK);
+
+  for (let index = 0; index < MAX_SOLO_STACK_LAYERS; index += 1) {
+    const sourceId = state.binSources.patty;
+    state = placeSoloLayer(state, sourceId, state.assembledOrder.length, { replenish: true });
+    assert.equal(state.instances[sourceId], "patty");
+    assert.notEqual(state.binSources.patty, sourceId);
+  }
+
+  assert.equal(state.assembledOrder.length, 20);
+  assert.equal(new Set(state.assembledOrder).size, 20);
+  assert.ok(state.assembledOrder.every((id) => state.instances[id] === "patty"));
+  assert.equal(state.inventory.patty, SOLO_INGREDIENT_STOCK - 20);
+  assert.throws(
+    () => placeSoloLayer(state, state.binSources.patty, 20, { replenish: true }),
+    /20|maximum|layers/i,
+  );
+});
+
+test("returning a repeated layer consolidates the bin source and restores its stock", () => {
+  let state = createSoloCookingState();
+  state = placeSoloLayer(state, state.binSources.cheese, 0, { replenish: true });
+  const placedId = state.assembledOrder[0];
+  const replacementId = state.binSources.cheese;
+
+  state = removeSoloLayer(state, placedId, { consolidate: true });
+
+  assert.equal(state.binSources.cheese, placedId);
+  assert.equal(state.locations[placedId].kind, "bin");
+  assert.equal(state.instances[replacementId], undefined);
+  assert.equal(state.inventory.cheese, SOLO_INGREDIENT_STOCK);
+});
+
+test("returning several copies never leaves duplicate source models in one ingredient bin", () => {
+  let state = createSoloCookingState();
+  state = placeSoloLayer(state, state.binSources.tomato, 0, { replenish: true });
+  state = placeSoloLayer(state, state.binSources.tomato, 1, { replenish: true });
+  const [canonical, repeated] = state.assembledOrder;
+
+  state = removeSoloLayer(state, canonical, { consolidate: true });
+  assert.equal(state.binSources.tomato, canonical);
+  state = removeSoloLayer(state, repeated, { consolidate: true });
+
+  const tomatoInstances = Object.entries(state.instances)
+    .filter(([, ingredientId]) => ingredientId === "tomato")
+    .map(([id]) => id);
+  assert.equal(tomatoInstances.length, 1);
+  assert.equal(state.binSources.tomato, tomatoInstances[0]);
+  assert.equal(state.locations[tomatoInstances[0]].kind, "bin");
+  assert.equal(state.inventory.tomato, SOLO_INGREDIENT_STOCK);
 });

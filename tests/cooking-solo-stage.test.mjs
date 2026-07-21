@@ -4,6 +4,7 @@ import * as THREE from "../app/static/vendor/three.module.min.js";
 import { BURGER_LAYER_IDS } from "../app/static/cooking-state.mjs";
 import { createCookingInteractionController } from "../app/static/cooking-interaction-controller.mjs";
 import { createSoloCookingStage } from "../app/static/cooking-solo-stage.mjs";
+import { MAX_SOLO_STACK_LAYERS, SOLO_INGREDIENT_STOCK } from "../app/static/cooking-solo-state.mjs";
 import { createCookingWorkbench3D } from "../app/static/cooking-workbench-3d.mjs";
 import { createBurgerModel3D } from "../app/static/burger-model-3d.mjs";
 import { createCondimentTools3D } from "../app/static/condiment-tools-3d.mjs";
@@ -540,6 +541,36 @@ test("programmatic drops assemble, reinsert, remove, and rotate the visible 3d s
   stage.dispose();
 });
 
+test("replenishes bins, stacks twenty repeated portions in contact, and expands the camera", () => {
+  const { stage } = harness();
+  const initialView = stage.controller.getCameraView();
+
+  for (let index = 0; index < MAX_SOLO_STACK_LAYERS; index += 1) {
+    const sourceId = stage.getState().binSources.patty;
+    assert.equal(stage.dropLayer(sourceId, { kind: "prep" }), true);
+    stage.tick((index + 1) * 500);
+  }
+
+  const state = stage.getState();
+  assert.equal(state.assembledOrder.length, 20);
+  assert.equal(state.inventory.patty, SOLO_INGREDIENT_STOCK - 20);
+  assert.equal(stage.burger.layers.size, BURGER_LAYER_IDS.length + 20);
+  const intervals = state.assembledOrder.map((id) => visibleLayerInterval(stage.burger.getLayer(id)));
+  for (let index = 1; index < intervals.length; index += 1) {
+    assert.ok(Math.abs(intervals[index].bottom - intervals[index - 1].top) < 0.08);
+  }
+  const grownView = stage.controller.getCameraView();
+  assert.ok(grownView.target.y > initialView.target.y + 1);
+  assert.ok(grownView.distance > initialView.distance);
+  assert.equal(
+    stage.dropLayer(state.binSources.patty, { kind: "prep" }),
+    false,
+    "the twenty-first layer is rejected without disturbing the stack",
+  );
+  assert.equal(stage.getState().assembledOrder.length, 20);
+  stage.dispose();
+});
+
 test("an immediate toolbar rotation cancels the selected layer snap transition", () => {
   const { stage } = harness();
   stage.selectLayer("patty");
@@ -889,7 +920,7 @@ test("stage state and tutorial remain DOM-free and notify concise progress", () 
   stage.dropLayer("bottom-bun", { kind: "prep" });
 
   assert.equal(stage.getState().assembledOrder.length, 1);
-  assert.equal(changes.at(-1).progress, "1/7");
+  assert.equal(changes.at(-1).progress, "1/20");
   assert.equal(changes.at(-1).tutorial.step, "pick");
   assert.equal(JSON.stringify(stage.getState()).includes("HTMLElement"), false);
   stage.dispose();

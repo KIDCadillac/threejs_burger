@@ -306,7 +306,10 @@ export function createCookingInteractionController({
     }
     for (const surface of validated) {
       const metadata = surface.userData?.cookingSelectable;
-      if (metadata?.kind !== "food-layer" || !BURGER_LAYER_IDS.includes(metadata.layerId)) {
+      if (metadata?.kind !== "food-layer"
+        || metadata.food !== "burger"
+        || typeof metadata.layerId !== "string"
+        || !metadata.layerId) {
         throw new TypeError("foodSurfaces must be explicit burger food-layer surfaces");
       }
     }
@@ -597,7 +600,10 @@ export function createCookingInteractionController({
     if (!hit || !edibleSurfaceSet.has(hit.object) || !hit.point) return null;
     const surface = hit.object;
     const metadata = surface.userData?.cookingSelectable;
-    if (metadata?.kind !== "food-layer" || !BURGER_LAYER_IDS.includes(metadata.layerId)) return null;
+    if (metadata?.kind !== "food-layer"
+      || metadata.food !== "burger"
+      || typeof metadata.layerId !== "string"
+      || !metadata.layerId) return null;
     if (![hit.point.x, hit.point.y, hit.point.z].every(Number.isFinite)) return null;
     surface.geometry?.computeBoundingBox?.();
     const bounds = surface.geometry?.boundingBox;
