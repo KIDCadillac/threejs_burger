@@ -627,25 +627,22 @@ export function createSoloCookingStage({
     return true;
   };
 
-  const selectLayer = (layerId) => {
+  const selectLayer = (layerId, draggedPose = null) => {
     if (disposed) return false;
     if (!state.instances[layerId]) throw new TypeError(`Unknown burger layer: ${layerId}`);
     clearTransientVisuals();
     const layer = burger.getLayer(layerId);
-    const draggedPose = {
-      position: layer.position.clone(),
-      scale: layer.scale.clone(),
-      yaw: layer.rotation.y,
-    };
-    layer.position.copy(draggedPose.position);
-    layer.rotation.set(0, draggedPose.yaw, 0);
-    layer.scale.copy(draggedPose.scale);
+    if (draggedPose) {
+      layer.position.copy(draggedPose.position);
+      layer.rotation.set(0, draggedPose.yaw, 0);
+    }
+    const authoritativeScale = layer.scale.clone();
     selectedLayerId = layerId;
     highlightedLayerId = layerId;
     burger.setLayerHighlighted(layerId, true);
     pickMotion = {
       selectedId: layerId,
-      baseScale: draggedPose.scale,
+      baseScale: authoritativeScale,
       motion: createCookingMotion({
         kind: "pick",
         startedAt: lastFrameTime,
@@ -720,9 +717,14 @@ export function createSoloCookingStage({
       wrapYaw: true,
     },
     resolveDrop,
-    onPick: ({ id }) => {
+    onPick: ({ id, object }) => {
       dropIntent = null;
-      return selectLayer(id);
+      // The controller applies its drag lift before onPick. Carry that pose
+      // across the authoritative resync, but keep the restored target scale.
+      const draggedPose = object
+        ? { position: object.position.clone(), yaw: object.rotation.y }
+        : null;
+      return selectLayer(id, draggedPose);
     },
     onSelection: ({ id, selected }) => {
       if (selected) selectedLayerId = id;

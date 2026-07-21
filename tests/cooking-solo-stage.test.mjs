@@ -1461,28 +1461,55 @@ test("twenty maximum-tuned layers fit the real normal and focus camera frusta", 
   stage.dispose();
 });
 
-test("an immediate toolbar rotation cancels the selected layer snap transition", () => {
-  const { stage } = harness();
-  stage.selectLayer("patty");
+test("a quick pointer regrab stays continuous while cancelling the old snap transition", () => {
+  const updates = [];
+  const vibrations = [];
+  const { stage, canvas } = harness({
+    onChange: (detail) => updates.push(detail),
+    vibrate: (pattern) => vibrations.push(pattern),
+  });
   stage.dropLayer("patty", { kind: "prep" });
   const patty = stage.burger.getLayer("patty");
   const contactBeforeRegrab = visibleLayerInterval(patty).bottom;
+  const effectiveBottomSink = Math.min(stage.getTuning().ingredients.patty.sinkY, 0.03);
+  const expectedContactY = stage.workbench.prep.supportY - effectiveBottomSink;
   const targetScaleY = expectedLayerScale(stage, "patty")[1];
   const targetPositionY = stage.workbench.prep.supportY
+    - effectiveBottomSink
     - patty.userData.stackMinY * targetScaleY;
-  stage.selectLayer("patty");
-  assert.ok(Math.abs(patty.position.y - targetPositionY) < 1e-9);
-  assert.ok(Math.abs(visibleLayerInterval(patty).bottom - contactBeforeRegrab) < 1e-9);
+  assert.ok(Math.abs(contactBeforeRegrab - expectedContactY) < 1e-9);
+
+  const pointer = pointerAtWorld(
+    stage,
+    canvas,
+    54,
+    patty.userData.selectableSurface.getWorldPosition(new THREE.Vector3()),
+  );
+  stage.controller.pointerDown(pointer);
+  assert.equal(stage.controller.getState(), "dragging-layer");
+  const pickedY = patty.position.y;
   assert.deepEqual(
     patty.scale.toArray(),
     expectedLayerScale(stage, "patty"),
     "regrabbing never promotes the transient pop scale to authority",
   );
+
+  stage.controller.pointerMove(pointer);
+  assert.ok(
+    Math.abs(patty.position.y - pickedY) < 1e-6,
+    `same-coordinate drag jumps ${patty.position.y - pickedY}`,
+  );
+
+  stage.controller.pointerUp(pointer);
   stage.rotateSelected(Math.PI / 3);
 
   stage.tick(95);
   assert.ok(Math.abs(stage.burger.getLayer("patty").rotation.y - Math.PI / 3) < 1e-9);
   assert.ok(Math.abs(stage.getState().rotations.patty - Math.PI / 3) < 1e-9);
+  assert.ok(Math.abs(patty.position.y - targetPositionY) < 1e-9);
+  assert.ok(Math.abs(visibleLayerInterval(patty).bottom - contactBeforeRegrab) < 1e-9);
+  assert.deepEqual(vibrations, []);
+  assert.equal(updates.some(({ reason }) => reason === "invalid-drop"), false);
   stage.dispose();
 });
 
