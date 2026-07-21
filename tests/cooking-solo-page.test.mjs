@@ -9,6 +9,20 @@ const homeCssPath = new URL("../app/static/home.css", import.meta.url);
 const appPath = new URL("../app/static/cooking-solo-app.mjs", import.meta.url);
 const loaderPath = new URL("../app/static/cooking-loader.mjs", import.meta.url);
 
+function attribute(tag, name) {
+  return tag.match(new RegExp(`(?:^|\\s)${name}="([^"]*)"`))?.[1] ?? null;
+}
+
+function hasBooleanAttribute(tag, name) {
+  return new RegExp(`(?:^|\\s)${name}(?:\\s|>|$)`).test(tag);
+}
+
+function tagWithAttribute(html, tagName, name, value) {
+  return [...html.matchAll(new RegExp(`<${tagName}\\b[^>]*>`, "g"))]
+    .map((match) => match[0])
+    .find((tag) => attribute(tag, name) === value) ?? "";
+}
+
 test("standalone cooking page is accessible, Chinese, and contains the full playable HUD", async () => {
   const html = await readFile(htmlPath, "utf8");
   for (const marker of [
@@ -67,6 +81,93 @@ test("the public cooking page is connected to the automatic feedback receiver", 
   assert.ok(html.includes(
     '<meta name="feedback-upload-key" content="kid-burger-feedback-20260721-v1">',
   ));
+});
+
+test("the page exposes the complete accessible live tuning dialog contract", async () => {
+  const html = await readFile(htmlPath, "utf8");
+  const openButton = tagWithAttribute(html, "button", "data-action", "tuning-open");
+  const dialog = tagWithAttribute(html, "div", "id", "tuning-sheet");
+
+  assert.equal(attribute(openButton, "aria-haspopup"), "dialog");
+  assert.equal(attribute(openButton, "aria-controls"), "tuning-sheet");
+  assert.match(html, /<button\b(?=[^>]*data-action="tuning-open")[^>]*>\s*参数\s*<\/button>/);
+  assert.ok(html.indexOf('id="tuning-sheet"') > html.indexOf('id="feedback-sheet"'));
+  assert.equal(attribute(dialog, "role"), "dialog");
+  assert.equal(attribute(dialog, "aria-modal"), "true");
+  assert.equal(attribute(dialog, "aria-labelledby"), "tuning-title");
+  assert.equal(attribute(dialog, "aria-hidden"), "true");
+  assert.equal(hasBooleanAttribute(dialog, "hidden"), true);
+
+  const tabMatches = [...html.matchAll(
+    /<button\b[^>]*data-ingredient-id="([^"]+)"[^>]*>\s*([^<]+?)\s*<\/button>/g,
+  )];
+  assert.deepEqual(tabMatches.map((match) => match[1]), [
+    "bottom-bun", "patty", "cheese", "tomato", "lettuce", "pickle", "top-bun",
+  ]);
+  assert.deepEqual(tabMatches.map((match) => match[2].trim()), [
+    "下层面包", "牛肉饼", "芝士", "番茄", "生菜", "酸黄瓜", "上层面包",
+  ]);
+
+  const expectedLimits = {
+    presentationScale: { min: 0.55, max: 0.9, step: 0.01 },
+    scaleX: { min: 0.6, max: 1.6, step: 0.01 },
+    scaleY: { min: 0.4, max: 2.5, step: 0.01 },
+    scaleZ: { min: 0.6, max: 1.6, step: 0.01 },
+    sinkY: { min: 0, max: 0.18, step: 0.001 },
+  };
+  const tuningInputs = [...html.matchAll(/<input\b[^>]*>/g)]
+    .map((match) => match[0])
+    .filter((tag) => attribute(tag, "data-tuning-key"));
+  assert.equal(tuningInputs.length, 10);
+  for (const [key, limits] of Object.entries(expectedLimits)) {
+    const pair = tuningInputs.filter((tag) => attribute(tag, "data-tuning-key") === key);
+    assert.deepEqual(pair.map((tag) => attribute(tag, "type")).sort(), ["number", "range"], key);
+    for (const tag of pair) {
+      assert.equal(Number(attribute(tag, "min")), limits.min, `${key} min`);
+      assert.equal(Number(attribute(tag, "max")), limits.max, `${key} max`);
+      assert.equal(Number(attribute(tag, "step")), limits.step, `${key} step`);
+    }
+  }
+
+  for (const action of [
+    "tuning-close", "tuning-copy", "tuning-reset-current", "tuning-reset-all",
+  ]) {
+    assert.ok(tagWithAttribute(html, "button", "data-action", action), action);
+  }
+  const status = tagWithAttribute(html, "p", "data-tuning-status", "");
+  assert.equal(attribute(status, "role"), "status");
+  assert.equal(attribute(status, "aria-live"), "polite");
+  const fallback = tagWithAttribute(html, "textarea", "data-tuning-copy-fallback", "");
+  assert.equal(hasBooleanAttribute(fallback, "readonly"), true);
+  assert.equal(hasBooleanAttribute(fallback, "hidden"), true);
+});
+
+test("tuning CSS provides a safe responsive bottom sheet and wide side panel", async () => {
+  const css = await readFile(cssPath, "utf8");
+  const overlay = css.match(/\.tuning-sheet\s*\{([^}]+)\}/)?.[1] ?? "";
+  const card = css.match(/\.tuning-card\s*\{([^}]+)\}/)?.[1] ?? "";
+  const hidden = css.match(/\.tuning-sheet\[hidden\]\s*\{([^}]+)\}/)?.[1] ?? "";
+  const zIndex = Number(overlay.match(/z-index:\s*(\d+)/)?.[1]);
+
+  assert.match(overlay, /position:\s*fixed/);
+  assert.ok(zIndex > 30, `z-index ${zIndex}`);
+  assert.match(overlay, /align-items:\s*end/);
+  assert.match(card, /width:\s*100%/);
+  assert.match(card, /max-width:\s*100%/);
+  assert.match(card, /max-height:\s*min\(86dvh,\s*48rem\)/);
+  assert.match(card, /overflow-y:\s*auto/);
+  assert.match(card, /overscroll-behavior:\s*contain/);
+  assert.match(card, /env\(safe-area-inset-bottom\)/);
+  assert.match(hidden, /display:\s*none/);
+  assert.match(css, /\.tuning-tabs\s*\{[^}]*overflow-x:\s*auto/s);
+  assert.match(css, /\.tuning-inputs\s+input\s*\{[^}]*min-width:\s*0[^}]*min-height:\s*44px/s);
+  assert.match(css, /\.tuning-card\s+button[\s\S]*?min-height:\s*44px/);
+  assert.match(css, /input\[type="number"\][\s\S]*?font-size:\s*16px/);
+  assert.match(css, /\.tuning-copy-fallback\s*\{[^}]*font-size:\s*16px/s);
+  assert.match(css, /\.tuning-inputs\s*\{[^}]*minmax\(0,\s*1fr\)/s);
+  assert.match(css, /@media\s*\(min-width:\s*720px\)/);
+  assert.match(css, /width:\s*clamp\(420px,\s*42vw,\s*460px\)/);
+  assert.match(css, /@media\s*\(orientation:\s*landscape\)\s*and\s*\(max-height:\s*560px\)[\s\S]*?\.tuning-card\s*\{[^}]*max-height:[^;}]+[^}]*overflow-y:\s*auto/s);
 });
 
 test("the pure-food focus control stays inside the visible 3d stage", async () => {

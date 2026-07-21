@@ -2,6 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { bootSoloCookingPage } from "../app/static/cooking-solo-app.mjs";
+import {
+  BURGER_TUNING_STORAGE_KEY,
+  DEFAULT_BURGER_TUNING,
+} from "../app/static/burger-tuning.mjs";
 
 class Events {
   constructor() { this.listeners = new Map(); }
@@ -18,17 +22,24 @@ class Events {
 }
 
 class Element extends Events {
-  constructor(action = null) {
+  constructor(action = null, { dataset = {}, type = "" } = {}) {
     super();
-    this.dataset = action ? { action } : {};
+    this.dataset = action ? { action, ...dataset } : { ...dataset };
+    this.type = type;
     this.hidden = false;
     this.disabled = false;
     this.textContent = "";
     this.innerHTML = "";
+    this.value = "";
+    this.readOnly = false;
+    this.tabIndex = 0;
     this.focusCalls = 0;
+    this.attributes = new Map();
   }
   closest(selector) { return selector === "[data-action]" && this.dataset.action ? this : null; }
   focus() { this.focusCalls += 1; }
+  setAttribute(name, value) { this.attributes.set(name, String(value)); }
+  getAttribute(name) { return this.attributes.get(name) ?? null; }
 }
 
 function pageHarness() {
@@ -65,11 +76,42 @@ function pageHarness() {
     feedbackPreview: add("#feedback-preview"),
     feedbackMessage: add("#feedback-message"),
     feedbackStatus: add("#feedback-status"),
+    tuningRoot: add("#tuning-sheet"),
+    tuningOpenButton: add('[data-action="tuning-open"]', "tuning-open"),
+    tuningCloseButton: add('[data-action="tuning-close"]', "tuning-close"),
     feedbackOpenButton: add('[data-action="feedback-open"]', "feedback-open"),
     feedbackCloseButton: add('[data-action="feedback-close"]', "feedback-close"),
     feedbackSubmitButton: add('[data-action="feedback-submit"]', "feedback-submit"),
     resetButton: add('[data-action="reset"]', "reset"),
     continueButton: add('[data-action="continue"]', "continue"),
+  };
+  const tuningTabs = [
+    "bottom-bun", "patty", "cheese", "tomato", "lettuce", "pickle", "top-bun",
+  ].map((ingredientId) => new Element(null, { dataset: { ingredientId } }));
+  const tuningInputs = [
+    "presentationScale", "scaleX", "scaleY", "scaleZ", "sinkY",
+  ].flatMap((tuningKey) => ["range", "number"].map((type) => new Element(null, {
+    dataset: { tuningKey },
+    type,
+  })));
+  const tuningActions = Object.fromEntries([
+    "tuning-copy", "tuning-reset-current", "tuning-reset-all",
+  ].map((action) => [action, new Element(action)]));
+  const tuningStatus = new Element();
+  const tuningFallback = new Element();
+  tuningFallback.hidden = true;
+  tuningFallback.readOnly = true;
+  elements.tuningRoot.querySelectorAll = (selector) => {
+    if (selector === "[data-ingredient-id]") return tuningTabs;
+    if (selector === "[data-tuning-key]") return tuningInputs;
+    return [];
+  };
+  elements.tuningRoot.querySelector = (selector) => {
+    const action = selector.match(/^\[data-action="([^"]+)"\]$/)?.[1];
+    if (action) return tuningActions[action] ?? null;
+    if (selector === "[data-tuning-status]") return tuningStatus;
+    if (selector === "[data-tuning-copy-fallback]") return tuningFallback;
+    return null;
   };
   documentTarget.querySelector = (selector) => selectors.get(selector) ?? null;
   documentTarget.createElement = (tag) => {
@@ -109,6 +151,7 @@ function stageFactoryHarness() {
     };
     const tutorial = { step: "pick" };
     const highlightCalls = [];
+    let tuning = configuration.tuning;
     const stage = {
       host: {
         resize() {},
@@ -123,8 +166,19 @@ function stageFactoryHarness() {
       },
       disposed: 0,
       calls: [],
+      pauseCalls: [],
       getState: () => state,
       getTutorial: () => tutorial,
+      getTuning: () => tuning,
+      setTuning(next) {
+        stage.calls.push(["tuning", next]);
+        tuning = next;
+        return tuning;
+      },
+      setInteractionPaused(value) {
+        stage.pauseCalls.push(Boolean(value));
+        return Boolean(value);
+      },
       rotateSelected: () => stage.calls.push("rotate"),
       resetCamera: () => stage.calls.push("camera"),
       toggleExpanded: () => stage.calls.push("inspect"),
@@ -154,6 +208,269 @@ function stageFactoryHarness() {
   };
   return { factory, stages };
 }
+
+function panelFactoryHarness({ factoryError = null, disposeError = null } = {}) {
+  const panels = [];
+  const factory = (configuration) => {
+    if (factoryError) throw factoryError;
+    const panel = {
+      calls: [],
+      open() { panel.calls.push("open"); return true; },
+      close() { panel.calls.push("close"); return true; },
+      dispose() {
+        panel.calls.push("dispose");
+        if (disposeError) throw disposeError;
+      },
+    };
+    panels.push({ panel, configuration });
+    return panel;
+  };
+  return { factory, panels };
+}
+
+function feedbackFactoryHarness({ disposeError = null } = {}) {
+  const reporters = [];
+  const factory = (configuration) => {
+    const reporter = {
+      calls: [],
+      open() { reporter.calls.push("open"); },
+      close() { reporter.calls.push("close"); },
+      submit() { reporter.calls.push("submit"); },
+      dispose() {
+        reporter.calls.push("dispose");
+        if (disposeError) throw disposeError;
+      },
+    };
+    reporters.push({ reporter, configuration });
+    return reporter;
+  };
+  return { factory, reporters };
+}
+
+test("loads persisted tuning before stage construction and seeds the panel from the stage", () => {
+  const page = pageHarness();
+  const stages = stageFactoryHarness();
+  const panels = panelFactoryHarness();
+  const order = [];
+  page.windowTarget.localStorage = {
+    getItem(key) {
+      order.push("load");
+      assert.equal(key, BURGER_TUNING_STORAGE_KEY);
+      return JSON.stringify({
+        version: 1,
+        global: { presentationScale: 0.84 },
+        ingredients: { cheese: { scaleY: 2.1 } },
+      });
+    },
+  };
+  const factory = (configuration) => {
+    order.push("stage");
+    return stages.factory(configuration);
+  };
+
+  const stage = bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: factory,
+    tuningPanelFactory: panels.factory,
+  });
+
+  assert.deepEqual(order, ["load", "stage"]);
+  assert.equal(stages.stages[0].configuration.tuning.global.presentationScale, 0.84);
+  assert.equal(stages.stages[0].configuration.tuning.ingredients.cheese.scaleY, 2.1);
+  assert.strictEqual(panels.panels[0].configuration.root, page.elements.tuningRoot);
+  assert.strictEqual(panels.panels[0].configuration.documentTarget, page.documentTarget);
+  assert.strictEqual(panels.panels[0].configuration.navigatorTarget, page.windowTarget.navigator);
+  assert.strictEqual(panels.panels[0].configuration.initialTuning, stage.getTuning());
+});
+
+test("panel changes apply through the stage and persist its canonical result", () => {
+  const page = pageHarness();
+  const stages = stageFactoryHarness();
+  const panels = panelFactoryHarness();
+  const writes = [];
+  page.windowTarget.localStorage = {
+    getItem: () => null,
+    setItem(key, value) { writes.push([key, value]); },
+  };
+  const stage = bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: stages.factory,
+    tuningPanelFactory: panels.factory,
+  });
+  const requested = {
+    version: 1,
+    global: { presentationScale: 0.88 },
+    ingredients: { cheese: { scaleY: 2.2 } },
+  };
+  let received = null;
+  stage.setTuning = (next) => {
+    received = next;
+    return DEFAULT_BURGER_TUNING;
+  };
+
+  panels.panels[0].configuration.onChange(requested);
+
+  assert.strictEqual(received, requested);
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0][0], BURGER_TUNING_STORAGE_KEY);
+  assert.deepEqual(JSON.parse(writes[0][1]), DEFAULT_BURGER_TUNING);
+});
+
+test("a blocked localStorage getter falls back without preventing boot", () => {
+  const page = pageHarness();
+  const stages = stageFactoryHarness();
+  const panels = panelFactoryHarness();
+  let getterReads = 0;
+  Object.defineProperty(page.windowTarget, "localStorage", {
+    get() {
+      getterReads += 1;
+      throw new DOMException("denied", "SecurityError");
+    },
+  });
+
+  const stage = bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: stages.factory,
+    tuningPanelFactory: panels.factory,
+  });
+
+  assert.ok(stage);
+  assert.equal(getterReads, 1);
+  assert.strictEqual(stages.stages[0].configuration.tuning, DEFAULT_BURGER_TUNING);
+  assert.equal(panels.panels.length, 1);
+});
+
+test("tuning open pauses stage interaction and close always resumes it", () => {
+  const page = pageHarness();
+  const stages = stageFactoryHarness();
+  const panels = panelFactoryHarness();
+  const stage = bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: stages.factory,
+    tuningPanelFactory: panels.factory,
+  });
+
+  page.documentTarget.emit("click", { target: page.elements.tuningOpenButton });
+  page.documentTarget.emit("click", { target: page.elements.tuningCloseButton });
+
+  assert.deepEqual(panels.panels[0].panel.calls, ["open", "close"]);
+  assert.deepEqual(stage.pauseCalls, [true, false]);
+});
+
+test("a failed or throwing tuning open restores stage interaction", () => {
+  for (const outcome of ["false", "throw"]) {
+    const page = pageHarness();
+    const stages = stageFactoryHarness();
+    const panels = panelFactoryHarness();
+    const stage = bootSoloCookingPage(page.documentTarget, {
+      windowTarget: page.windowTarget,
+      stageFactory: stages.factory,
+      tuningPanelFactory: panels.factory,
+    });
+    panels.panels[0].panel.open = () => {
+      if (outcome === "throw") throw new Error("open failed");
+      return false;
+    };
+
+    if (outcome === "throw") {
+      assert.throws(
+        () => page.documentTarget.emit("click", { target: page.elements.tuningOpenButton }),
+        /open failed/,
+      );
+    } else {
+      page.documentTarget.emit("click", { target: page.elements.tuningOpenButton });
+    }
+
+    assert.deepEqual(stage.pauseCalls, [true, false], outcome);
+  }
+});
+
+test("a throwing tuning close still resumes stage interaction", () => {
+  const page = pageHarness();
+  const stages = stageFactoryHarness();
+  const panels = panelFactoryHarness();
+  const stage = bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: stages.factory,
+    tuningPanelFactory: panels.factory,
+  });
+  panels.panels[0].panel.close = () => { throw new Error("close failed"); };
+
+  assert.throws(
+    () => page.documentTarget.emit("click", { target: page.elements.tuningCloseButton }),
+    /close failed/,
+  );
+  assert.deepEqual(stage.pauseCalls, [false]);
+});
+
+test("panel construction failure restores and disposes the created stage", () => {
+  const page = pageHarness();
+  const stages = stageFactoryHarness();
+  const panels = panelFactoryHarness({ factoryError: new Error("panel failed") });
+
+  const result = bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: stages.factory,
+    tuningPanelFactory: panels.factory,
+  });
+
+  assert.equal(result, null);
+  assert.deepEqual(stages.stages[0].stage.pauseCalls, [false]);
+  assert.equal(stages.stages[0].stage.disposed, 1);
+  assert.equal(page.elements.error.hidden, false);
+  assert.match(page.elements.status.textContent, /panel failed/);
+});
+
+test("registration failure best-effort cleans panel, stage pause, and feedback", () => {
+  const page = pageHarness();
+  const stages = stageFactoryHarness();
+  const panels = panelFactoryHarness({ disposeError: new Error("panel cleanup failed") });
+  const feedback = feedbackFactoryHarness();
+  const add = page.windowTarget.addEventListener.bind(page.windowTarget);
+  page.windowTarget.addEventListener = (type, callback, options) => {
+    if (type === "pagehide") throw new Error("listener failed");
+    add(type, callback, options);
+  };
+
+  const result = bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: stages.factory,
+    tuningPanelFactory: panels.factory,
+    feedbackFactory: feedback.factory,
+  });
+
+  assert.equal(result, null);
+  assert.deepEqual(panels.panels[0].panel.calls, ["dispose"]);
+  assert.deepEqual(stages.stages[0].stage.pauseCalls, [false]);
+  assert.deepEqual(feedback.reporters[0].reporter.calls, ["dispose"]);
+  assert.equal(stages.stages[0].stage.disposed, 1);
+  assert.equal(page.documentTarget.count("click"), 0);
+  assert.equal(page.windowTarget.count("resize"), 0);
+  assert.match(page.elements.status.textContent, /listener failed/);
+});
+
+test("lifecycle disposal continues after panel cleanup throws", () => {
+  const page = pageHarness();
+  const stages = stageFactoryHarness();
+  const panels = panelFactoryHarness({ disposeError: new Error("panel cleanup failed") });
+  const feedback = feedbackFactoryHarness();
+  const stage = bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: stages.factory,
+    tuningPanelFactory: panels.factory,
+    feedbackFactory: feedback.factory,
+  });
+
+  assert.throws(
+    () => page.windowTarget.emit("pagehide", { persisted: false }),
+    /panel cleanup failed/,
+  );
+  assert.deepEqual(panels.panels[0].panel.calls, ["dispose"]);
+  assert.deepEqual(stage.pauseCalls, [false]);
+  assert.deepEqual(feedback.reporters[0].reporter.calls, ["dispose"]);
+  assert.equal(stage.disposed, 1);
+  assert.equal(page.documentTarget.count("click"), 0);
+});
 
 test("boot uses the injected window, wires buttons, and renders the completion dialog", () => {
   const page = pageHarness();
@@ -257,14 +574,20 @@ test("feedback actions open, submit, and close the injected reporter", () => {
 test("a second boot disposes the old stage and leaves only the new click handler", () => {
   const page = pageHarness();
   const stages = stageFactoryHarness();
+  const panels = panelFactoryHarness();
   const first = bootSoloCookingPage(page.documentTarget, {
     windowTarget: page.windowTarget, stageFactory: stages.factory,
+    tuningPanelFactory: panels.factory,
   });
   const second = bootSoloCookingPage(page.documentTarget, {
     windowTarget: page.windowTarget, stageFactory: stages.factory,
+    tuningPanelFactory: panels.factory,
   });
 
   assert.equal(first.disposed, 1);
+  assert.deepEqual(first.pauseCalls, [false]);
+  assert.deepEqual(panels.panels[0].panel.calls, ["dispose"]);
+  assert.deepEqual(panels.panels[1].panel.calls, []);
   assert.equal(page.documentTarget.count("click"), 1);
   page.documentTarget.emit("click", { target: page.elements.undoButton });
   assert.deepEqual(first.calls, []);
