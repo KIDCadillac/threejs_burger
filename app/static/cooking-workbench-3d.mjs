@@ -414,14 +414,14 @@ export function createCookingWorkbench3D(THREE, {
     counter,
     dropCue,
     layout,
-    prep: {
+    prep: Object.freeze({
       anchor: prepAnchor,
       surface: board,
       board,
       plate,
       dropAnchor: prepDropAnchor,
       supportY: prepSupportY,
-    },
+    }),
     ingredientSlots,
     toolDocks,
     selectableSurfaces,

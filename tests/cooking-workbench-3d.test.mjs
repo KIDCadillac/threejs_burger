@@ -19,15 +19,39 @@ test("builds a real Three workbench with default prep, ingredient, and tool stat
 });
 
 test("derives prep supportY and drop anchor from the plate geometry", () => {
-  const workbench = createCookingWorkbench3D(THREE);
+  const scaledPlateThree = {
+    ...THREE,
+    Mesh: class extends THREE.Mesh {
+      constructor(geometry, material) {
+        super(geometry, material);
+        if (geometry instanceof THREE.CylinderGeometry
+          && geometry.parameters.height === 0.16
+          && geometry.parameters.radiusTop > 1.5
+          && geometry.parameters.radiusBottom > 1.5) {
+          this.scale.y = 1.75;
+        }
+      }
+    },
+  };
+  const workbench = createCookingWorkbench3D(scaledPlateThree);
   const { plate } = workbench.prep;
   plate.geometry.computeBoundingBox();
   const expectedSupportY = plate.position.y
     + plate.geometry.boundingBox.max.y * plate.scale.y;
 
+  assert.strictEqual(plate.scale.y, 1.75);
+  assert.notStrictEqual(
+    expectedSupportY,
+    plate.position.y + plate.geometry.boundingBox.max.y,
+  );
   assert.strictEqual(workbench.prep.supportY, expectedSupportY);
   assert.strictEqual(workbench.prep.dropAnchor.position.y, expectedSupportY);
   assert.strictEqual(workbench.layout.prep.supportY, expectedSupportY);
+  assert.strictEqual(Object.isFrozen(workbench.prep), true);
+  assert.throws(() => {
+    workbench.prep.supportY = expectedSupportY + 1;
+  }, TypeError);
+  assert.strictEqual(workbench.prep.supportY, expectedSupportY);
 
   workbench.dispose();
 });
