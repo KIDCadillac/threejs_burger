@@ -40,6 +40,7 @@ const EXPLODED_GAP = 0.42;
 const SNAP_DURATION = 190;
 const MAX_STACK_CAMERA_DISTANCE = 180;
 const STACK_CAMERA_DEPTH_PADDING = 25;
+const MAX_BOTTOM_LAYER_SINK = 0.03;
 
 const layerStackMinY = (layer) => (
   Number.isFinite(layer?.userData?.stackMinY)
@@ -268,7 +269,10 @@ export function createSoloCookingStage({
       const layer = burger.getLayer(layerId);
       const config = tuningFor(layerId);
       const scale = targetScale(layerId);
-      const y = cursorY - layerStackMinY(layer) * scale.y - config.sinkY;
+      const sinkY = index === 0
+        ? Math.min(config.sinkY, MAX_BOTTOM_LAYER_SINK)
+        : config.sinkY;
+      const y = cursorY - layerStackMinY(layer) * scale.y - sinkY;
       result.set(layerId, {
         position: new THREE.Vector3(0, y + (expanded ? index * EXPLODED_GAP : 0), 0),
         scale,
@@ -402,16 +406,18 @@ export function createSoloCookingStage({
     selected.rotation.set(0, draggedPose.yaw, 0);
     selected.scale.copy(draggedPose.scale);
 
-    const baseY = workbench.prep.supportY;
     const lowerId = previewOrder[targetIndex - 1];
-    const gapY = lowerId
+    const cueTargetY = lowerId
       ? targets.get(lowerId).position.y
         + layerStackMaxY(burger.getLayer(lowerId)) * targets.get(lowerId).scale.y
-        - baseY + 0.015
-      : 0.015;
+        + (expanded ? EXPLODED_GAP : 0)
+        + 0.015
+      : workbench.prep.supportY + 0.015;
+    const cueWorld = burger.root.localToWorld(new THREE.Vector3(0, cueTargetY, 0));
+    const cueLocal = workbench.prep.dropAnchor.worldToLocal(cueWorld);
     workbench.setDropCue({
       targetIndex,
-      y: gapY,
+      y: cueLocal.y,
       radius: selected.userData.surfaceRadius
         * Math.max(selectedTarget.scale.x, selectedTarget.scale.z),
     });
@@ -624,13 +630,13 @@ export function createSoloCookingStage({
   const selectLayer = (layerId) => {
     if (disposed) return false;
     if (!state.instances[layerId]) throw new TypeError(`Unknown burger layer: ${layerId}`);
+    clearTransientVisuals();
     const layer = burger.getLayer(layerId);
     const draggedPose = {
       position: layer.position.clone(),
-      scale: targetScale(layerId),
+      scale: layer.scale.clone(),
       yaw: layer.rotation.y,
     };
-    clearTransientVisuals();
     layer.position.copy(draggedPose.position);
     layer.rotation.set(0, draggedPose.yaw, 0);
     layer.scale.copy(draggedPose.scale);

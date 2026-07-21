@@ -480,8 +480,8 @@ test("applies per-ingredient tuning to bin and authoritative stack contact plane
   assert.deepEqual(patty.scale.toArray(), pattyScale, "prep target keeps the tuned XYZ scale");
   const pattyBottom = patty.position.y + patty.userData.stackMinY * patty.scale.y;
   assert.ok(Math.abs(
-    pattyBottom - (stage.workbench.prep.supportY - pattyConfig.sinkY)
-  ) < 1e-9);
+    pattyBottom - (stage.workbench.prep.supportY - Math.min(pattyConfig.sinkY, 0.03))
+  ) < 1e-9, "the first layer clamps effective sink at the plate safety bound");
 
   stage.dropLayer("cheese", { kind: "prep" });
   const cheese = stage.burger.getLayer("cheese");
@@ -1077,15 +1077,34 @@ test("indexed preview uses each layer's live nonuniform target scale and prep su
   ) * selectedTargetScale[1];
   assert.ok(Math.abs(upper.position.y - upperY - tunedThickness - 0.08) < 1e-9);
   assert.equal(lower.position.y, lowerY);
-  const expectedCueY = lowerY
-    + lower.userData.stackMaxY * lower.scale.y
-    - stage.workbench.prep.supportY
-    + 0.015;
-  assert.ok(Math.abs(stage.workbench.dropCue.position.y - expectedCueY) < 1e-9);
+  stage.host.scene.updateMatrixWorld(true);
+  const expectedCueWorldY = lower.localToWorld(
+    new THREE.Vector3(0, lower.userData.stackMaxY, 0),
+  ).y + 0.015;
+  const cueWorldY = stage.workbench.dropCue.getWorldPosition(new THREE.Vector3()).y;
+  assert.ok(Math.abs(cueWorldY - expectedCueWorldY) < 1e-9);
   const expectedRadius = selected.userData.surfaceRadius
     * Math.max(selectedTargetScale[0], selectedTargetScale[2]);
   assert.ok(Math.abs(stage.workbench.dropCue.scale.x - expectedRadius) < 1e-9);
   assert.deepEqual(stage.burger.dropPreview.scale.toArray(), selectedTargetScale);
+  const collapsedGhostBottom = stage.burger.dropPreview.localToWorld(
+    new THREE.Vector3(0, selected.userData.stackMinY, 0),
+  ).y;
+
+  assert.equal(stage.toggleExpanded(), true);
+  configuration.onPick({ id: "patty" });
+  configuration.onMove({
+    id: "patty",
+    reason: "drag",
+    point: new THREE.Vector3(0, 0, (prep.minZ + prep.maxZ) / 2),
+  });
+  stage.host.scene.updateMatrixWorld(true);
+  const expandedCueWorldY = stage.workbench.dropCue.getWorldPosition(new THREE.Vector3()).y;
+  const expandedGhostBottom = stage.burger.dropPreview.localToWorld(
+    new THREE.Vector3(0, selected.userData.stackMinY, 0),
+  ).y;
+  assert.ok(Math.abs(expandedCueWorldY - cueWorldY - 0.42) < 1e-9);
+  assert.ok(Math.abs(expandedGhostBottom - collapsedGhostBottom - 0.42) < 1e-9);
   stage.dispose();
 });
 
@@ -1193,8 +1212,30 @@ test("bottom insertion lifts old layers while the new food pops at its target he
   stage.dispose();
 });
 
-test("bottom bun insert stays visibly supported throughout its local scale pop", () => {
-  const { stage } = harness();
+test("maximum bottom bun sink stays safe statically and throughout its local scale pop", () => {
+  const tuning = {
+    version: 1,
+    ingredients: {
+      "bottom-bun": { sinkY: 0.18 },
+      patty: { sinkY: 0.18 },
+    },
+  };
+  const { stage: settledStage } = harness({ reducedMotion: true, tuning });
+  settledStage.dropLayer("bottom-bun", { kind: "prep", targetIndex: 0 });
+  const settledBottomBun = settledStage.burger.getLayer("bottom-bun");
+  const settledGap = visibleLayerInterval(settledBottomBun).bottom
+    - settledStage.workbench.prep.supportY;
+  assert.equal(settledStage.getTuning().ingredients["bottom-bun"].sinkY, 0.18);
+  assert.ok(settledGap <= 0.005 && settledGap >= -0.03 - 1e-9);
+  settledStage.dropLayer("patty", { kind: "prep", targetIndex: 1 });
+  const patty = settledStage.burger.getLayer("patty");
+  const lowerTop = settledBottomBun.position.y
+    + settledBottomBun.userData.stackMaxY * settledBottomBun.scale.y;
+  const pattyBottom = patty.position.y + patty.userData.stackMinY * patty.scale.y;
+  assert.ok(Math.abs(pattyBottom - (lowerTop - 0.025 - 0.18)) < 1e-9);
+  settledStage.dispose();
+
+  const { stage } = harness({ tuning });
   const bottomBun = stage.burger.getLayer("bottom-bun");
   stage.dropLayer("bottom-bun", { kind: "prep", targetIndex: 0 });
 
@@ -1203,7 +1244,7 @@ test("bottom bun insert stays visibly supported throughout its local scale pop",
     const visibleBottom = visibleLayerInterval(bottomBun).bottom;
     const supportGap = visibleBottom - stage.workbench.prep.supportY;
     assert.ok(supportGap <= 0.005, `bottom bun floats ${supportGap} at ${time}ms`);
-    assert.ok(supportGap >= -0.03, `bottom bun penetrates ${-supportGap} at ${time}ms`);
+    assert.ok(supportGap >= -0.03 - 1e-9, `bottom bun penetrates ${-supportGap} at ${time}ms`);
   }
   stage.dispose();
 });
@@ -1424,9 +1465,16 @@ test("an immediate toolbar rotation cancels the selected layer snap transition",
   const { stage } = harness();
   stage.selectLayer("patty");
   stage.dropLayer("patty", { kind: "prep" });
+  const patty = stage.burger.getLayer("patty");
+  const contactBeforeRegrab = visibleLayerInterval(patty).bottom;
+  const targetScaleY = expectedLayerScale(stage, "patty")[1];
+  const targetPositionY = stage.workbench.prep.supportY
+    - patty.userData.stackMinY * targetScaleY;
   stage.selectLayer("patty");
+  assert.ok(Math.abs(patty.position.y - targetPositionY) < 1e-9);
+  assert.ok(Math.abs(visibleLayerInterval(patty).bottom - contactBeforeRegrab) < 1e-9);
   assert.deepEqual(
-    stage.burger.getLayer("patty").scale.toArray(),
+    patty.scale.toArray(),
     expectedLayerScale(stage, "patty"),
     "regrabbing never promotes the transient pop scale to authority",
   );
