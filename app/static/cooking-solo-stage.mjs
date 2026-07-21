@@ -35,10 +35,11 @@ import {
   normalizeBurgerTuning,
 } from "./burger-tuning.mjs";
 
-const LAYER_PRESENTATION_SCALE = 0.72;
 const STACK_OVERLAP = 0.025;
 const EXPLODED_GAP = 0.42;
 const SNAP_DURATION = 190;
+const MAX_STACK_CAMERA_DISTANCE = 180;
+const STACK_CAMERA_DEPTH_PADDING = 25;
 
 const layerStackMinY = (layer) => (
   Number.isFinite(layer?.userData?.stackMinY)
@@ -191,7 +192,10 @@ export function createSoloCookingStage({
   const cameraView = workbench.getLayout().camera;
   host.camera.fov = cameraView.fov;
   host.camera.near = cameraView.near;
-  host.camera.far = cameraView.far;
+  host.camera.far = Math.max(
+    cameraView.far,
+    MAX_STACK_CAMERA_DISTANCE + STACK_CAMERA_DEPTH_PADDING,
+  );
   // The generic workbench camera includes editor margins. The phone composition
   // intentionally crops only decorative counter edges while retaining every control.
   host.camera.position.set(
@@ -379,12 +383,12 @@ export function createSoloCookingStage({
     };
     const previewOrder = state.assembledOrder.filter((id) => id !== intent.id);
     const targets = targetTransforms(previewOrder);
-    const thickness = layerStackThickness(selected) * LAYER_PRESENTATION_SCALE;
     const targetIndex = Math.max(0, Math.min(intent.targetIndex, previewOrder.length));
     const upperIds = new Set(previewOrder.slice(targetIndex));
     const finalOrder = [...previewOrder];
     finalOrder.splice(targetIndex, 0, intent.id);
     const selectedTarget = targetTransforms(finalOrder).get(intent.id);
+    const thickness = layerStackThickness(selected) * selectedTarget.scale.y;
 
     for (const [layerId, target] of targets) {
       if (layerId === intent.id) continue;
@@ -398,17 +402,18 @@ export function createSoloCookingStage({
     selected.rotation.set(0, draggedPose.yaw, 0);
     selected.scale.copy(draggedPose.scale);
 
-    const baseY = workbench.prep.dropAnchor.position.y;
+    const baseY = workbench.prep.supportY;
     const lowerId = previewOrder[targetIndex - 1];
     const gapY = lowerId
       ? targets.get(lowerId).position.y
-        + layerStackMaxY(burger.getLayer(lowerId)) * LAYER_PRESENTATION_SCALE
+        + layerStackMaxY(burger.getLayer(lowerId)) * targets.get(lowerId).scale.y
         - baseY + 0.015
       : 0.015;
     workbench.setDropCue({
       targetIndex,
       y: gapY,
-      radius: selected.userData.surfaceRadius * LAYER_PRESENTATION_SCALE,
+      radius: selected.userData.surfaceRadius
+        * Math.max(selectedTarget.scale.x, selectedTarget.scale.z),
     });
     burger.setLayerDropPreview(intent.id, {
       position: selectedTarget.position,
@@ -485,7 +490,7 @@ export function createSoloCookingStage({
       motion: createCookingMotion({
         kind,
         startedAt: lastFrameTime,
-        thickness: layerStackThickness(layer) * LAYER_PRESENTATION_SCALE,
+        thickness: layerStackThickness(layer) * targetScale(layerId).y,
         reducedMotion,
       }),
       selectedId: layerId,
@@ -498,7 +503,7 @@ export function createSoloCookingStage({
       targets: targetTransforms(),
       impacted: false,
     };
-    if (reducedMotion) applyActiveMotion(lastFrameTime);
+    applyActiveMotion(lastFrameTime);
   };
 
   const adaptCameraToStack = () => {
@@ -622,7 +627,7 @@ export function createSoloCookingStage({
     const layer = burger.getLayer(layerId);
     const draggedPose = {
       position: layer.position.clone(),
-      scale: layer.scale.clone(),
+      scale: targetScale(layerId),
       yaw: layer.rotation.y,
     };
     clearTransientVisuals();
@@ -638,7 +643,7 @@ export function createSoloCookingStage({
       motion: createCookingMotion({
         kind: "pick",
         startedAt: lastFrameTime,
-        thickness: layerStackThickness(layer) * LAYER_PRESENTATION_SCALE,
+        thickness: layerStackThickness(layer) * targetScale(layerId).y,
         reducedMotion,
       }),
     };
@@ -705,7 +710,7 @@ export function createSoloCookingStage({
       minPitch: -1.18,
       maxPitch: 1.56,
       minDistance: 5,
-      maxDistance: 45,
+      maxDistance: MAX_STACK_CAMERA_DISTANCE,
       wrapYaw: true,
     },
     resolveDrop,
@@ -837,6 +842,7 @@ export function createSoloCookingStage({
       if (focusCameraView) controller.setCameraView?.(focusCameraView, "burger-focus-return");
       focusCameraView = null;
       focused = false;
+      adaptCameraToStack();
     }
     if (notify) emit("focus");
     return focused;
@@ -1062,7 +1068,11 @@ export function createSoloCookingStage({
     },
     setBurgerFocus(value) { return setFocusMode(value); },
     toggleBurgerFocus() { return setFocusMode(!focused); },
-    resetCamera() { return controller.resetCamera(); },
+    resetCamera() {
+      const reset = controller.resetCamera();
+      if (reset) adaptCameraToStack();
+      return reset;
+    },
     undo() {
       if (disposed || !state.history.length) return false;
       if (focused) setFocusMode(false, { notify: false });
