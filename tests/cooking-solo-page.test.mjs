@@ -263,6 +263,54 @@ test("root page is an original cooking map catalog with burger playable and sush
   assert.doesNotMatch(html, /Papa|老爹|pizzeria|burgeria/i);
 });
 
+test("root page offers accessible burger recipe quick starts with original public names", async () => {
+  const [html, css] = await Promise.all([
+    readFile(homePath, "utf8"),
+    readFile(homeCssPath, "utf8"),
+  ]);
+  const sectionTag = tagWithAttribute(html, "section", "id", "burger-quick-starts");
+  const sectionMatch = html.match(
+    /<section\b[^>]*id="burger-quick-starts"[^>]*>[\s\S]*?<\/section>/,
+  );
+
+  assert.ok(sectionMatch, "burger recipe quick-start section");
+  assert.equal(attribute(sectionTag, "aria-labelledby"), "burger-quick-starts-title");
+  assert.match(sectionMatch[0], /id="burger-quick-starts-title"/);
+
+  const links = [...sectionMatch[0].matchAll(/<a\b[^>]*>[\s\S]*?<\/a>/g)]
+    .map((match) => ({
+      html: match[0],
+      tag: match[0].match(/^<a\b[^>]*>/)?.[0] ?? "",
+    }));
+  const expectedLinks = [
+    ["./cooking.html?recipe=classic-beef", "小馆经典牛肉堡"],
+    ["./cooking.html?recipe=melty-cheese", "融金芝士牛肉堡"],
+    ["./cooking.html?recipe=double-melty-cheese", "双层融金芝士堡"],
+    ["./cooking.html?recipe=tower-double-beef", "三层高塔双牛堡"],
+    ["./cooking.html", "自由料理"],
+  ];
+
+  assert.deepEqual(links.map(({ tag }) => attribute(tag, "href")), expectedLinks.map(([href]) => href));
+  for (const [href, publicName] of expectedLinks) {
+    const link = links.find(({ tag }) => attribute(tag, "href") === href);
+    assert.ok(link?.html.includes(publicName), `${href} uses ${publicName}`);
+  }
+
+  const burgerCardStart = html.indexOf('<a class="map-card map-card--burger"');
+  const burgerCardEnd = html.indexOf("</a>", burgerCardStart);
+  const quickStartsAt = html.indexOf('id="burger-quick-starts"');
+  assert.ok(burgerCardStart >= 0 && burgerCardEnd > burgerCardStart);
+  assert.ok(quickStartsAt > burgerCardEnd, "quick starts are not nested in the map-card anchor");
+  assert.doesNotMatch(html, /麦当劳|巨无霸|吉士汉堡包/u);
+
+  const touchRule = css.match(/\.burger-quick-start\s*\{([^}]+)\}/)?.[1] ?? "";
+  assert.match(touchRule, /min-height:\s*44px/);
+  assert.match(
+    css,
+    /@media\s*\(max-width:\s*640px\)[\s\S]*?\.burger-quick-starts__grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s,
+  );
+});
+
 test("page and modules use only relative static imports with no socket dependency", async () => {
   const [html, app, loader] = await Promise.all([
     readFile(htmlPath, "utf8"),
