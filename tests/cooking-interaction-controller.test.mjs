@@ -5,6 +5,7 @@ import { createCookingInteractionController } from "../app/static/cooking-intera
 import { createCookingWorkbench3D } from "../app/static/cooking-workbench-3d.mjs";
 import { createBurgerModel3D } from "../app/static/burger-model-3d.mjs";
 import { createCondimentTools3D } from "../app/static/condiment-tools-3d.mjs";
+import { SOLO_COOKING_SAUCE_IDS } from "../app/static/burger-recipes.mjs";
 
 class FakeEventTarget {
   constructor() {
@@ -1222,6 +1223,39 @@ test("rejects a parented camera because orbit math is defined in world space", (
     () => createCookingInteractionController({ THREE, canvas, camera }),
     /camera must not be parented/i,
   );
+});
+
+test("accepts an explicit recipe sauce set while preserving legacy defaults", () => {
+  const canvas = createCanvas();
+  const camera = new THREE.PerspectiveCamera();
+  const workbench = createCookingWorkbench3D(THREE, {
+    toolIds: SOLO_COOKING_SAUCE_IDS,
+  });
+  const tools = createCondimentTools3D(THREE, {
+    toolDocks: workbench.toolDocks,
+    sauceIds: SOLO_COOKING_SAUCE_IDS,
+  });
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    condimentTools: tools,
+    sauceIds: SOLO_COOKING_SAUCE_IDS,
+  });
+
+  assert.equal(controller.getState(), "idle");
+  assert.throws(
+    () => createCookingInteractionController({ THREE, canvas: createCanvas(), camera, condimentTools: tools }),
+    /condiment-bottle metadata/i,
+  );
+  assert.throws(
+    () => createCookingInteractionController({ THREE, canvas: createCanvas(), camera, sauceIds: ["ketchup", "ketchup"] }),
+    /sauceIds/i,
+  );
+
+  controller.dispose();
+  tools.dispose();
+  workbench.dispose();
 });
 
 test("bottle surfaces win over food, drag camera-aware, tilt, preview, and commit a frozen stroke", () => {
