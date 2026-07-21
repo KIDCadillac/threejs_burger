@@ -89,7 +89,7 @@ Commit: `feat: add switchable workbench loadout model`
 - Modify: `app/static/cooking-workbench-3d.mjs`
 - Modify: `tests/cooking-workbench-3d.test.mjs`
 
-- [ ] **Step 1: 写失败测试，固定物理位置与查询 API**
+- [x] **Step 1: 写失败测试，固定物理位置与查询 API**
 
 用 `slotDescriptors` 创建料理台，断言面包槽的 X 为负、四个配料槽位于后排、酱料槽的 X 为正，并断言重复 `contentId` 不被拒绝：
 
@@ -99,12 +99,12 @@ assert.equal(workbench.getStationBySlot("filling-back-2").contentId, "patty");
 assert.equal(workbench.getStationsByContent("ingredient", "patty").length, 2);
 ```
 
-- [ ] **Step 2: 运行并确认失败**
+- [x] **Step 2: 运行并确认失败**
 
 Run:
 `& "C:\Users\KID\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" --test tests/cooking-workbench-3d.test.mjs`
 
-- [ ] **Step 3: 重构站点描述符**
+- [x] **Step 3: 重构站点描述符**
 
 `createCookingWorkbench3D` 新增 `slotDescriptors`，每站保存：
 
@@ -120,7 +120,7 @@ Run:
 
 保留旧 `ingredientIds/toolIds` 入参兼容现有测试。新增 `getStationBySlot(slotId)`、`getStationsByContent(kind, contentId)`、`setStationContent(slotId, contentId)`、`setSlotHighlighted(slotId, highlighted)`；原 `getStation(kind,id)` 返回同内容的第一站。重复内容的高亮和切换必须按槽位独立；移除“材料 ID 必须唯一”的物理布局限制，但槽位 ID 必须唯一。
 
-- [ ] **Step 4: 添加每个槽位的可点击折合牌**
+- [x] **Step 4: 添加每个槽位的可点击折合牌**
 
 每站创建独立 `selector` mesh，写入：
 
@@ -134,7 +134,7 @@ selector.userData.cookingSelectable = Object.freeze({
 
 选择牌在 3D 中贴近槽边，不遮挡材料；高亮只影响本槽。
 
-- [ ] **Step 5: 验证并提交**
+- [x] **Step 5: 验证并提交**
 
 Run:
 `& "C:\Users\KID\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" --test tests/cooking-workbench-3d.test.mjs`
