@@ -990,8 +990,7 @@ export function createSoloCookingStage({
 
   const setTuning = (value) => {
     if (disposed) return activeTuning;
-    const shouldResume = !state.finished && !externallyPaused;
-    let primaryError = null;
+    let hasPrimaryError = false;
     try {
       pauseInteractionsSilently();
       activeTuning = normalizeBurgerTuning(value);
@@ -1000,14 +999,14 @@ export function createSoloCookingStage({
       emit("tuning");
       return activeTuning;
     } catch (error) {
-      primaryError = error;
+      hasPrimaryError = true;
       throw error;
     } finally {
-      if (shouldResume) {
+      if (!disposed && !state.finished && !externallyPaused) {
         try {
           controller.resume();
         } catch (error) {
-          if (!primaryError) throw error;
+          if (!hasPrimaryError) throw error;
         }
       }
     }

@@ -775,6 +775,67 @@ test("setTuning preserves an observer error when the required resume also fails"
   stage.dispose();
 });
 
+test("setTuning does not resume after its observer externally pauses interaction", () => {
+  const calls = { pause: 0, resume: 0 };
+  const controller = {
+    resetCamera: () => true,
+    pause() { calls.pause += 1; },
+    resume() { calls.resume += 1; },
+    dispose() {},
+  };
+  let stage;
+  stage = createSoloCookingStage({
+    THREE,
+    canvas: new FakeCanvas(),
+    storage: null,
+    hostFactory: createHostHarness,
+    controllerFactory: () => controller,
+    onChange: ({ reason }) => {
+      if (reason === "tuning") stage.setInteractionPaused(true);
+    },
+  });
+
+  stage.setTuning({ version: 1, global: { presentationScale: 0.8 } });
+
+  assert.deepEqual(calls, { pause: 2, resume: 0 });
+  stage.dispose();
+});
+
+test("setTuning preserves falsy observer throws when resume also fails", () => {
+  const resumeError = new Error("resume failed");
+  let observerValue = null;
+  const controller = {
+    resetCamera: () => true,
+    pause() {},
+    resume() { throw resumeError; },
+    dispose() {},
+  };
+  const stage = createSoloCookingStage({
+    THREE,
+    canvas: new FakeCanvas(),
+    storage: null,
+    hostFactory: createHostHarness,
+    controllerFactory: () => controller,
+    onChange: ({ reason }) => {
+      if (reason === "tuning") throw observerValue;
+    },
+  });
+
+  for (const expected of [null, false]) {
+    observerValue = expected;
+    const notThrown = Symbol("not thrown");
+    let caught = notThrown;
+    try {
+      stage.setTuning({ version: 1, global: { presentationScale: 0.8 } });
+    } catch (error) {
+      caught = error;
+    }
+    assert.notStrictEqual(caught, notThrown);
+    assert.strictEqual(caught, expected);
+  }
+  stage.dispose();
+});
+
 test("setInteractionPaused silently cancels a real active drag", () => {
   const updates = [];
   const vibrations = [];
