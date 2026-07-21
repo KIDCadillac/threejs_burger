@@ -15,6 +15,7 @@ import {
   loadWorkbenchLoadout,
   saveWorkbenchLoadout,
 } from "./workbench-loadout.mjs";
+import { createSoloAutosave } from "./cooking-solo-autosave.mjs";
 
 const LAYER_NAMES = Object.freeze({
   "bottom-bun": "下层面包",
@@ -84,6 +85,7 @@ export function bootSoloCookingPage(
     feedbackFactory = createCookingFeedbackReporter,
     tuningPanelFactory = createCookingTuningPanel,
     workbenchPickerFactory = createWorkbenchSlotPicker,
+    autosaveFactory = createSoloAutosave,
     manageLoading = true,
   } = {},
 ) {
@@ -129,10 +131,12 @@ export function bootSoloCookingPage(
   let feedback = null;
   let tuningPanel = null;
   let workbenchPicker = null;
+  let autosave = null;
   let openWorkbenchPicker = () => false;
   let latest = null;
   const render = (detail) => {
     latest = detail;
+    autosave?.save?.(detail.state);
     if (!stage) return;
     const { state, tutorial, expanded, focused = false, progress, dropIntent = null } = detail;
     elements.progress.textContent = progress;
@@ -214,12 +218,15 @@ export function bootSoloCookingPage(
       pageStorage = null;
     }
     const tuning = loadBurgerTuning({ storage: pageStorage, globalTarget: windowTarget });
-    let loadout = loadWorkbenchLoadout(pageStorage);
+    autosave = autosaveFactory({ storage: pageStorage });
+    const initialState = autosave.load();
+    let loadout = initialState?.stationContents ?? loadWorkbenchLoadout(pageStorage);
     stage = stageFactory({
       THREE,
       canvas,
       tuning,
       loadout,
+      initialState,
       reducedMotion: windowTarget.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches,
       onChange: render,
       onStationSelector: (detail) => openWorkbenchPicker(detail),

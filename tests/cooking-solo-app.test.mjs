@@ -7,7 +7,11 @@ import {
   DEFAULT_BURGER_TUNING,
 } from "../app/static/burger-tuning.mjs";
 import { MAX_SOLO_STACK_LAYERS } from "../app/static/cooking-solo-state.mjs";
-import { WORKBENCH_LOADOUT_STORAGE_KEY } from "../app/static/workbench-loadout.mjs";
+import {
+  WORKBENCH_LOADOUT_STORAGE_KEY,
+  createDefaultWorkbenchLoadout,
+} from "../app/static/workbench-loadout.mjs";
+import { SOLO_AUTOSAVE_STORAGE_KEY } from "../app/static/cooking-solo-autosave.mjs";
 
 class Events {
   constructor() { this.listeners = new Map(); }
@@ -189,14 +193,20 @@ function pageHarness() {
 function stageFactoryHarness() {
   const stages = [];
   const factory = (configuration) => {
-    const state = {
-      assembledOrder: [],
-      locations: {},
-      strokes: [],
-      complete: false,
-      finished: false,
-      history: [],
-    };
+    const state = configuration.initialState
+      ? {
+          ...configuration.initialState,
+          assembledOrder: [...configuration.initialState.assembledOrder],
+          history: [...(configuration.initialState.history ?? [])],
+        }
+      : {
+          assembledOrder: [],
+          locations: {},
+          strokes: [],
+          complete: false,
+          finished: false,
+          history: [],
+        };
     const tutorial = { step: "pick" };
     const highlightCalls = [];
     let tuning = configuration.tuning;
@@ -394,6 +404,44 @@ test("a 3d slot selector opens the physical-slot picker and persists its replace
   assert.deepEqual(stage.pauseCalls, [true, false]);
 });
 
+test("restores a valid autosave before stage construction and saves later state changes", () => {
+  const page = pageHarness();
+  const stages = stageFactoryHarness();
+  const loadout = {
+    ...createDefaultWorkbenchLoadout(),
+    "filling-back-2": "pickle",
+  };
+  const restored = Object.freeze({
+    assembledOrder: Object.freeze(["bottom-bun", "patty"]),
+    instances: Object.freeze({ "bottom-bun": "bottom-bun", patty: "patty" }),
+    locations: Object.freeze({}),
+    strokes: Object.freeze([]),
+    complete: true,
+    finished: false,
+    history: Object.freeze([]),
+    stationContents: Object.freeze(loadout),
+  });
+  const saved = [];
+  const stage = bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: stages.factory,
+    autosaveFactory() {
+      return {
+        load: () => restored,
+        save: (state) => { saved.push([...state.assembledOrder]); return true; },
+      };
+    },
+  });
+
+  assert.strictEqual(stages.stages[0].configuration.initialState, restored);
+  assert.equal(stages.stages[0].configuration.loadout["filling-back-2"], "pickle");
+  assert.deepEqual(stage.getState().assembledOrder, ["bottom-bun", "patty"]);
+  assert.deepEqual(saved, [["bottom-bun", "patty"]]);
+
+  stage.emit({ assembledOrder: ["bottom-bun", "patty", "cheese"], complete: true });
+  assert.deepEqual(saved.at(-1), ["bottom-bun", "patty", "cheese"]);
+});
+
 test("dismissing the workbench picker resumes interaction without changing its slot", () => {
   const page = pageHarness();
   const stages = stageFactoryHarness();
@@ -458,7 +506,13 @@ test("loads persisted tuning before stage construction and seeds the panel from 
   const order = [];
   page.windowTarget.localStorage = {
     getItem(key) {
-      order.push(key === BURGER_TUNING_STORAGE_KEY ? "load-tuning" : "load-loadout");
+      order.push(
+        key === BURGER_TUNING_STORAGE_KEY
+          ? "load-tuning"
+          : key === SOLO_AUTOSAVE_STORAGE_KEY
+            ? "load-autosave"
+            : "load-loadout",
+      );
       if (key !== BURGER_TUNING_STORAGE_KEY) return null;
       return JSON.stringify({
         version: 1,
@@ -478,7 +532,7 @@ test("loads persisted tuning before stage construction and seeds the panel from 
     tuningPanelFactory: panels.factory,
   });
 
-  assert.deepEqual(order, ["load-tuning", "load-loadout", "stage"]);
+  assert.deepEqual(order, ["load-tuning", "load-autosave", "load-loadout", "stage"]);
   assert.equal(stages.stages[0].configuration.tuning.global.presentationScale, 0.84);
   assert.equal(stages.stages[0].configuration.tuning.ingredients.cheese.scaleY, 2.1);
   assert.strictEqual(panels.panels[0].configuration.root, page.elements.tuningRoot);
