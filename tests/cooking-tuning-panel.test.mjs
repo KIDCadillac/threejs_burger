@@ -442,6 +442,7 @@ test("copy invokes clipboard immediately with stable JSON and reports success", 
   });
   const expected = serializeBurgerTuning(harness.panel.getTuning());
 
+  harness.panel.open();
   harness.actions["tuning-copy"].dispatch("click");
 
   assert.deepEqual(writes, [expected]);
@@ -467,6 +468,7 @@ test("copy rejection or a missing API reveals and selects the same stable JSON",
     });
     const expected = serializeBurgerTuning(harness.panel.getTuning());
 
+    harness.panel.open();
     assert.doesNotThrow(() => harness.actions["tuning-copy"].dispatch("click"));
     await Promise.resolve();
     await Promise.resolve();
@@ -494,6 +496,7 @@ test("late clipboard fulfillment or rejection cannot change DOM after disposal",
       },
     });
     harness.status.textContent = "等待复制";
+    harness.panel.open();
     harness.actions["tuning-copy"].dispatch("click");
 
     harness.panel.dispose();
@@ -507,6 +510,93 @@ test("late clipboard fulfillment or rejection cannot change DOM after disposal",
     assert.equal(harness.fallback.hidden, true, outcome);
     assert.equal(harness.fallback.focusCalls, 0, outcome);
     assert.equal(harness.fallback.selectCalls, 0, outcome);
+  }
+});
+
+test("only the latest overlapping copy request may update status or fallback", async () => {
+  for (const staleOutcome of ["resolve", "reject"]) {
+    const requests = [];
+    const harness = makeHarness({
+      navigatorTarget: {
+        clipboard: {
+          writeText() {
+            let resolve;
+            let reject;
+            const promise = new Promise((resolvePromise, rejectPromise) => {
+              resolve = resolvePromise;
+              reject = rejectPromise;
+            });
+            requests.push({ promise, resolve, reject });
+            return promise;
+          },
+        },
+      },
+    });
+    harness.status.textContent = "等待最新请求";
+    harness.panel.open();
+
+    harness.actions["tuning-copy"].dispatch("click");
+    harness.actions["tuning-copy"].dispatch("click");
+    assert.equal(requests.length, 2);
+
+    if (staleOutcome === "resolve") requests[0].resolve();
+    else requests[0].reject(new Error("stale rejection"));
+    await requests[0].promise.catch(() => {});
+    await Promise.resolve();
+
+    assert.equal(harness.status.textContent, "等待最新请求", staleOutcome);
+    assert.equal(harness.fallback.hidden, true, staleOutcome);
+    assert.equal(harness.fallback.focusCalls, 0, staleOutcome);
+    assert.equal(harness.fallback.selectCalls, 0, staleOutcome);
+
+    requests[1].resolve();
+    await requests[1].promise;
+    await Promise.resolve();
+    assert.equal(harness.status.textContent, "参数已复制", staleOutcome);
+  }
+});
+
+test("close invalidates a pending copy across reopen while a new copy still succeeds", async () => {
+  for (const staleOutcome of ["resolve", "reject"]) {
+    const requests = [];
+    const harness = makeHarness({
+      navigatorTarget: {
+        clipboard: {
+          writeText() {
+            let resolve;
+            let reject;
+            const promise = new Promise((resolvePromise, rejectPromise) => {
+              resolve = resolvePromise;
+              reject = rejectPromise;
+            });
+            requests.push({ promise, resolve, reject });
+            return promise;
+          },
+        },
+      },
+    });
+    harness.panel.open();
+    harness.actions["tuning-copy"].dispatch("click");
+    assert.equal(harness.panel.close(), true);
+    harness.status.textContent = "关闭后保持";
+    assert.equal(harness.panel.open(), true);
+    harness.actions["tuning-copy"].dispatch("click");
+    assert.equal(requests.length, 2);
+
+    if (staleOutcome === "resolve") requests[0].resolve();
+    else requests[0].reject(new Error("closed session rejection"));
+    await requests[0].promise.catch(() => {});
+    await Promise.resolve();
+
+    assert.equal(harness.status.textContent, "关闭后保持", staleOutcome);
+    assert.equal(harness.fallback.hidden, true, staleOutcome);
+    assert.equal(harness.fallback.focusCalls, 0, staleOutcome);
+    assert.equal(harness.fallback.selectCalls, 0, staleOutcome);
+
+    requests[1].resolve();
+    await requests[1].promise;
+    await Promise.resolve();
+    assert.equal(harness.status.textContent, "参数已复制", staleOutcome);
   }
 });
 
@@ -551,6 +641,30 @@ test("dispose is idempotent, removes every listener, hides, and never restores f
   assert.deepEqual(harness.changes, []);
   assert.deepEqual(writes, []);
   assert.equal(harness.panel.getTuning().ingredients["bottom-bun"].scaleY, 1);
+});
+
+test("setTuning is inert after dispose and returns the existing frozen tuning", () => {
+  const harness = makeHarness({
+    initialTuning: {
+      version: 1,
+      global: { presentationScale: 0.8 },
+      ingredients: { cheese: { scaleY: 1.8 } },
+    },
+  });
+  const before = harness.panel.getTuning();
+  const beforeDom = harness.inputs.map((input) => input.value);
+  harness.panel.dispose();
+
+  const result = harness.panel.setTuning({
+    version: 1,
+    global: { presentationScale: 0.6 },
+    ingredients: { "bottom-bun": { scaleY: 2.4 } },
+  });
+
+  assert.strictEqual(result, before);
+  assert.strictEqual(harness.panel.getTuning(), before);
+  assert.deepEqual(harness.inputs.map((input) => input.value), beforeDom);
+  assertFrozenTree(result);
 });
 
 test("construction rejects every missing required node before adding any listener", () => {

@@ -43,6 +43,7 @@ export function createCookingTuningPanel({
   let opened = false;
   let previousFocus = null;
   let disposed = false;
+  let copyGeneration = 0;
   const tabs = [...root.querySelectorAll("[data-ingredient-id]")];
   const inputs = [...root.querySelectorAll("[data-tuning-key]")];
   const resetCurrent = root.querySelector('[data-action="tuning-reset-current"]');
@@ -149,8 +150,12 @@ export function createCookingTuningPanel({
     onChange(tuning);
   });
 
-  function showCopyFallback(json) {
-    if (disposed) return;
+  function isCurrentCopy(generation) {
+    return !disposed && opened && generation === copyGeneration;
+  }
+
+  function showCopyFallback(json, generation) {
+    if (!isCurrentCopy(generation)) return;
     copyFallback.value = json;
     copyFallback.readOnly = true;
     copyFallback.hidden = false;
@@ -160,6 +165,8 @@ export function createCookingTuningPanel({
   }
 
   listen(copyButton, "click", () => {
+    if (disposed || !opened) return;
+    const generation = copyGeneration += 1;
     const json = serializeBurgerTuning(tuning);
     let write;
     try {
@@ -168,17 +175,17 @@ export function createCookingTuningPanel({
       }
       write = navigatorTarget.clipboard.writeText(json);
     } catch {
-      showCopyFallback(json);
+      showCopyFallback(json, generation);
       return;
     }
-    Promise.resolve(write).then(
+    void Promise.resolve(write).then(
       () => {
-        if (disposed) return;
+        if (!isCurrentCopy(generation)) return;
         status.textContent = "参数已复制";
         copyFallback.hidden = true;
       },
-      () => showCopyFallback(json),
-    );
+      () => showCopyFallback(json, generation),
+    ).catch(() => {});
   });
 
   function open() {
@@ -194,6 +201,7 @@ export function createCookingTuningPanel({
   function close() {
     if (disposed || !opened) return false;
     opened = false;
+    copyGeneration += 1;
     root.hidden = true;
     root.setAttribute("aria-hidden", "true");
     const focusTarget = previousFocus;
@@ -206,6 +214,7 @@ export function createCookingTuningPanel({
     if (disposed) return;
     disposed = true;
     opened = false;
+    copyGeneration += 1;
     previousFocus = null;
     for (const remove of listenerRemovers.splice(0)) {
       try {
@@ -225,6 +234,7 @@ export function createCookingTuningPanel({
       return tuning;
     },
     setTuning(next) {
+      if (disposed) return tuning;
       tuning = normalizeBurgerTuning(next);
       syncDom();
       return tuning;
