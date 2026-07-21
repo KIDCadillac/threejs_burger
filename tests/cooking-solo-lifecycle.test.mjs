@@ -63,6 +63,7 @@ test("removes document/window listeners and disposes an ordinary unload exactly 
     documentTarget, windowTarget, stage, onClick() {},
   });
   assert.equal(documentTarget.count("click"), 1);
+  assert.equal(documentTarget.count("keydown"), 1);
   assert.equal(windowTarget.count("resize"), 1);
   assert.equal(windowTarget.count("pagehide"), 1);
   assert.equal(windowTarget.count("pageshow"), 1);
@@ -71,9 +72,31 @@ test("removes document/window listeners and disposes an ordinary unload exactly 
   lifecycle.dispose();
   assert.equal(stage.disposed, 1);
   assert.equal(documentTarget.count("click"), 0);
+  assert.equal(documentTarget.count("keydown"), 0);
   assert.equal(windowTarget.count("resize"), 0);
   assert.equal(windowTarget.count("pagehide"), 0);
   assert.equal(windowTarget.count("pageshow"), 0);
+});
+
+test("routes optional keyboard handling and removes it with the page lifecycle", () => {
+  const documentTarget = new Events();
+  const windowTarget = new Events();
+  const stage = stageSpy();
+  stage.host.owner = stage;
+  const keys = [];
+  const lifecycle = mountSoloCookingLifecycle({
+    documentTarget,
+    windowTarget,
+    stage,
+    onClick() {},
+    onKeyDown(event) { keys.push(event.key); },
+  });
+
+  documentTarget.emit("keydown", { key: "Escape" });
+  assert.deepEqual(keys, ["Escape"]);
+  lifecycle.dispose();
+  documentTarget.emit("keydown", { key: "Enter" });
+  assert.deepEqual(keys, ["Escape"]);
 });
 
 test("BFCache pagehide pauses without disposing and pageshow restores and resizes", () => {

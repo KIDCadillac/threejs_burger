@@ -49,6 +49,13 @@ test("standalone cooking page is accessible, Chinese, and contains the full play
     'data-action="feedback-open"',
     'data-action="feedback-close"',
     'data-action="feedback-submit"',
+    'data-action="highlight-open"',
+    'data-action="highlight-close"',
+    'data-action="highlight-previous"',
+    'data-action="highlight-next"',
+    'id="highlight-sheet"',
+    'id="highlight-video"',
+    'id="highlight-download"',
     'id="feedback-sheet"',
     'id="feedback-preview"',
     'id="feedback-message"',
@@ -74,6 +81,43 @@ test("standalone cooking page is accessible, Chinese, and contains the full play
   assert.doesNotMatch(html, /装完\s*7\s*层|再装\s*7\s*层/);
   assert.match(html, /rel="icon" href="data:,"/);
   assert.doesNotMatch(html, /cooking-loading-elapsed|已等待\s*[\d.]+\s*秒/);
+});
+
+test("the public page exposes a touch-safe playable highlight replay dialog", async () => {
+  const [html, css, app] = await Promise.all([
+    readFile(htmlPath, "utf8"),
+    readFile(cssPath, "utf8"),
+    readFile(appPath, "utf8"),
+  ]);
+  const openButton = tagWithAttribute(html, "button", "data-action", "highlight-open");
+  const dialog = tagWithAttribute(html, "div", "id", "highlight-sheet");
+  const video = tagWithAttribute(html, "video", "id", "highlight-video");
+  const download = tagWithAttribute(html, "a", "id", "highlight-download");
+
+  assert.equal(attribute(openButton, "aria-haspopup"), "dialog");
+  assert.equal(attribute(openButton, "aria-controls"), "highlight-sheet");
+  assert.equal(hasBooleanAttribute(openButton, "disabled"), false);
+  assert.equal(attribute(dialog, "role"), "dialog");
+  assert.equal(attribute(dialog, "aria-modal"), "true");
+  assert.equal(attribute(dialog, "aria-labelledby"), "highlight-title");
+  assert.equal(attribute(dialog, "tabindex"), "-1");
+  assert.equal(hasBooleanAttribute(dialog, "hidden"), true);
+  assert.equal(hasBooleanAttribute(video, "controls"), true);
+  assert.equal(hasBooleanAttribute(video, "playsinline"), true);
+  assert.equal(hasBooleanAttribute(video, "hidden"), true);
+  assert.equal(hasBooleanAttribute(download, "download"), true);
+  assert.equal(hasBooleanAttribute(download, "hidden"), true);
+  assert.match(html, /最近 8 秒高清短视频/);
+  assert.doesNotMatch(html, /最近 6 秒 GIF 操作回放/);
+
+  assert.match(app, /createCookingHighlightReplayCoordinator/);
+  assert.match(app, /createCanvasReplayRecorder/);
+  assert.match(app, /highlights\?\.observe/);
+  assert.match(app, /recorder:\s*replayRecorder/);
+  assert.match(css, /\.highlight-sheet\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*40/s);
+  assert.match(css, /\.highlight-sheet\[hidden\]\s*\{[^}]*display:\s*none/s);
+  assert.match(css, /#highlight-video\s*\{[^}]*width:\s*100%[^}]*object-fit:\s*contain/s);
+  assert.match(css, /\.highlight-actions\s+a\s*\{[^}]*min-height:\s*44px/s);
 });
 
 test("recipe selector publishes four original references plus free cooking without brand copy", async () => {

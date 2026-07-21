@@ -40,6 +40,9 @@ class Element extends Events {
     this.readOnly = false;
     this.tabIndex = 0;
     this.focusCalls = 0;
+    this.playCalls = 0;
+    this.pauseCalls = 0;
+    this.loadCalls = 0;
     this.attributes = new Map();
   }
   closest(selector) {
@@ -50,6 +53,13 @@ class Element extends Events {
     return null;
   }
   focus() { this.focusCalls += 1; }
+  play() { this.playCalls += 1; return Promise.resolve(); }
+  pause() { this.pauseCalls += 1; }
+  load() { this.loadCalls += 1; }
+  removeAttribute(name) {
+    this.attributes.delete(name);
+    if (name === "src") this.src = "";
+  }
   setAttribute(name, value) { this.attributes.set(name, String(value)); }
   getAttribute(name) { return this.attributes.get(name) ?? null; }
 }
@@ -94,6 +104,15 @@ function pageHarness() {
     feedbackOpenButton: add('[data-action="feedback-open"]', "feedback-open"),
     feedbackCloseButton: add('[data-action="feedback-close"]', "feedback-close"),
     feedbackSubmitButton: add('[data-action="feedback-submit"]', "feedback-submit"),
+    highlightOpenButton: add('[data-action="highlight-open"]', "highlight-open"),
+    highlightSheet: add("#highlight-sheet"),
+    highlightVideo: add("#highlight-video"),
+    highlightTitle: add("#highlight-title"),
+    highlightMeta: add("#highlight-meta"),
+    highlightDownload: add("#highlight-download"),
+    highlightPreviousButton: add('[data-action="highlight-previous"]', "highlight-previous"),
+    highlightNextButton: add('[data-action="highlight-next"]', "highlight-next"),
+    highlightCloseButton: add('[data-action="highlight-close"]', "highlight-close"),
     resetButton: add('[data-action="reset"]', "reset"),
     continueButton: add('[data-action="continue"]', "continue"),
     recipeSelector: add("#recipe-selector"),
@@ -104,6 +123,9 @@ function pageHarness() {
     workbenchPicker: add("#workbench-picker"),
   };
   elements.workbenchPicker.hidden = true;
+  elements.highlightSheet.hidden = true;
+  elements.highlightVideo.hidden = true;
+  elements.highlightDownload.hidden = true;
   const workbenchTitle = new Element(null, { dataset: { workbenchTitle: "" } });
   const workbenchClose = new Element(null, { dataset: { workbenchClose: "" } });
   const workbenchReset = new Element(null, { dataset: { workbenchReset: "" } });
@@ -875,6 +897,101 @@ test("feedback actions open, submit, and close the injected reporter", () => {
   page.documentTarget.emit("click", { target: page.elements.feedbackSubmitButton });
   page.documentTarget.emit("click", { target: page.elements.feedbackCloseButton });
   assert.deepEqual(calls, ["open", "submit", "close"]);
+});
+
+test("shares one replay recorder with feedback and exposes generated highlight clips", () => {
+  const page = pageHarness();
+  const stages = stageFactoryHarness();
+  const feedback = feedbackFactoryHarness();
+  const recorder = {
+    startCalls: 0,
+    start() { this.startCalls += 1; return true; },
+  };
+  let recorderConfiguration = null;
+  const highlightRecords = [];
+  const highlightFactory = (configuration) => {
+    const clips = [];
+    const coordinator = {
+      observed: [],
+      disposed: 0,
+      observe(value) { this.observed.push({ ...value }); return []; },
+      clips: () => Object.freeze([...clips]),
+      dispose() { this.disposed += 1; return true; },
+      emitClip(clip) {
+        clips.push(clip);
+        configuration.onClip(clip);
+      },
+    };
+    highlightRecords.push({ configuration, coordinator });
+    return coordinator;
+  };
+
+  const stage = bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: stages.factory,
+    feedbackFactory: feedback.factory,
+    replayRecorderFactory(configuration) {
+      recorderConfiguration = configuration;
+      return recorder;
+    },
+    highlightFactory,
+  });
+
+  assert.equal(recorder.startCalls, 1);
+  assert.equal(recorderConfiguration.width, 480);
+  assert.equal(recorderConfiguration.fps, 12);
+  assert.equal(recorderConfiguration.seconds, 8);
+  assert.strictEqual(feedback.reporters[0].configuration.recorder, recorder);
+  assert.strictEqual(highlightRecords[0].configuration.recorder, recorder);
+  assert.equal(highlightRecords[0].configuration.initialLayerCount, 0);
+  assert.equal(highlightRecords[0].configuration.initialFinished, false);
+  assert.equal(highlightRecords[0].configuration.maxSnapshotFrames, 96);
+  assert.equal(page.elements.highlightOpenButton.disabled, false);
+  page.documentTarget.emit("click", { target: page.elements.highlightOpenButton });
+  assert.equal(page.elements.highlightSheet.hidden, false);
+  assert.equal(page.elements.highlightVideo.hidden, true);
+  assert.match(page.elements.highlightMeta.textContent, /10/);
+  assert.equal(page.elements.highlightCloseButton.focusCalls, 1);
+  page.documentTarget.emit("click", { target: page.elements.highlightSheet });
+  assert.equal(page.elements.highlightSheet.hidden, true);
+
+  page.documentTarget.emit("click", { target: page.elements.highlightOpenButton });
+  page.documentTarget.emit("keydown", { key: "Escape" });
+  assert.equal(page.elements.highlightSheet.hidden, true);
+
+  stage.emit({
+    assembledOrder: Array.from({ length: 10 }, (_, index) => `layer-${index}`),
+    instances: Object.fromEntries(Array.from(
+      { length: 10 },
+      (_, index) => [`layer-${index}`, "patty"],
+    )),
+  });
+  assert.deepEqual(highlightRecords[0].coordinator.observed.at(-1), {
+    layerCount: 10,
+    finished: false,
+  });
+
+  highlightRecords[0].coordinator.emitClip({
+    id: "layers-10",
+    kind: "layers",
+    layerCount: 10,
+    url: "blob:highlight-10",
+    mimeType: "video/webm",
+  });
+  assert.equal(page.elements.highlightOpenButton.disabled, false);
+  assert.match(page.elements.highlightOpenButton.textContent, /1/);
+
+  page.documentTarget.emit("click", { target: page.elements.highlightOpenButton });
+  assert.equal(page.elements.highlightSheet.hidden, false);
+  assert.equal(page.elements.highlightVideo.src, "blob:highlight-10");
+  assert.equal(page.elements.highlightTitle.textContent, "10 层高光回放");
+  assert.equal(page.elements.highlightVideo.playCalls, 1);
+  assert.equal(page.elements.highlightDownload.href, "blob:highlight-10");
+
+  page.documentTarget.emit("click", { target: page.elements.highlightCloseButton });
+  assert.equal(page.elements.highlightSheet.hidden, true);
+  assert.equal(page.elements.highlightVideo.pauseCalls, 1);
+  assert.equal(page.elements.canvas.focusCalls, 3);
 });
 
 test("a second boot disposes the old stage and leaves only the new click handler", () => {

@@ -5,7 +5,11 @@ import {
   mountSoloCookingLifecycle,
 } from "./cooking-solo-lifecycle.mjs";
 import { createFinishFocusManager } from "./cooking-solo-focus.mjs";
-import { createCookingFeedbackReporter } from "./cooking-feedback.mjs";
+import {
+  createCanvasReplayRecorder,
+  createCookingFeedbackReporter,
+} from "./cooking-feedback.mjs";
+import { createCookingHighlightReplayCoordinator } from "./cooking-highlight-replay.mjs";
 import { createCookingTuningPanel } from "./cooking-tuning-panel.mjs";
 import { loadBurgerTuning, saveBurgerTuning } from "./burger-tuning.mjs";
 import { BURGER_RECIPES } from "./burger-recipes.mjs";
@@ -83,6 +87,8 @@ export function bootSoloCookingPage(
     windowTarget = globalThis,
     stageFactory = createSoloCookingStage,
     feedbackFactory = createCookingFeedbackReporter,
+    replayRecorderFactory = createCanvasReplayRecorder,
+    highlightFactory = createCookingHighlightReplayCoordinator,
     tuningPanelFactory = createCookingTuningPanel,
     workbenchPickerFactory = createWorkbenchSlotPicker,
     autosaveFactory = createSoloAutosave,
@@ -114,6 +120,15 @@ export function bootSoloCookingPage(
     feedbackMessage: documentTarget.querySelector("#feedback-message"),
     feedbackStatus: documentTarget.querySelector("#feedback-status"),
     feedbackSubmitButton: documentTarget.querySelector('[data-action="feedback-submit"]'),
+    highlightOpenButton: documentTarget.querySelector('[data-action="highlight-open"]'),
+    highlightSheet: documentTarget.querySelector("#highlight-sheet"),
+    highlightVideo: documentTarget.querySelector("#highlight-video"),
+    highlightTitle: documentTarget.querySelector("#highlight-title"),
+    highlightMeta: documentTarget.querySelector("#highlight-meta"),
+    highlightDownload: documentTarget.querySelector("#highlight-download"),
+    highlightPreviousButton: documentTarget.querySelector('[data-action="highlight-previous"]'),
+    highlightNextButton: documentTarget.querySelector('[data-action="highlight-next"]'),
+    highlightCloseButton: documentTarget.querySelector('[data-action="highlight-close"]'),
     tuningSheet: documentTarget.querySelector("#tuning-sheet"),
     recipeSelector: documentTarget.querySelector("#recipe-selector"),
     recipeReference: documentTarget.querySelector("#recipe-reference"),
@@ -129,16 +144,75 @@ export function bootSoloCookingPage(
 
   let stage = null;
   let feedback = null;
+  let replayRecorder = null;
+  let highlights = null;
+  let highlightIndex = 0;
   let tuningPanel = null;
   let workbenchPicker = null;
   let autosave = null;
   let openWorkbenchPicker = () => false;
   let latest = null;
+  const currentHighlightClips = () => highlights?.clips?.() ?? Object.freeze([]);
+  const syncHighlightButton = () => {
+    const count = currentHighlightClips().length;
+    if (!elements.highlightOpenButton) return count;
+    elements.highlightOpenButton.disabled = false;
+    elements.highlightOpenButton.textContent = `高光 ${count}`;
+    return count;
+  };
+  const showHighlightClip = (requestedIndex = highlightIndex) => {
+    const clips = currentHighlightClips();
+    if (!elements.highlightSheet || !elements.highlightVideo) return false;
+    if (!clips.length) {
+      elements.highlightTitle.textContent = "高光回放";
+      elements.highlightMeta.textContent = "继续料理：堆到 10、20、40、60 层或完成时会自动生成。";
+      if (!elements.highlightVideo.hidden) elements.highlightVideo.pause?.();
+      elements.highlightVideo.hidden = true;
+      elements.highlightDownload.hidden = true;
+      elements.highlightPreviousButton.disabled = true;
+      elements.highlightNextButton.disabled = true;
+      elements.highlightSheet.hidden = false;
+      elements.highlightCloseButton?.focus?.();
+      return true;
+    }
+    highlightIndex = ((Number(requestedIndex) % clips.length) + clips.length) % clips.length;
+    const clip = clips[highlightIndex];
+    elements.highlightTitle.textContent = clip.kind === "finish"
+      ? "完成料理高光回放"
+      : `${clip.layerCount} 层高光回放`;
+    elements.highlightMeta.textContent = `第 ${highlightIndex + 1}/${clips.length} 段 · 事件前后自动回放`;
+    elements.highlightVideo.src = clip.url;
+    elements.highlightVideo.hidden = false;
+    elements.highlightVideo.load?.();
+    elements.highlightDownload.href = clip.url;
+    const extension = clip.mimeType?.includes("mp4") ? "mp4" : "webm";
+    elements.highlightDownload.download = `burger-highlight-${clip.id}.${extension}`;
+    elements.highlightDownload.hidden = false;
+    elements.highlightPreviousButton.disabled = clips.length < 2;
+    elements.highlightNextButton.disabled = clips.length < 2;
+    elements.highlightSheet.hidden = false;
+    elements.highlightCloseButton?.focus?.();
+    Promise.resolve(elements.highlightVideo.play?.()).catch(() => {});
+    return true;
+  };
+  const closeHighlightSheet = () => {
+    if (!elements.highlightSheet || elements.highlightSheet.hidden) return false;
+    if (elements.highlightVideo && !elements.highlightVideo.hidden) {
+      elements.highlightVideo.pause?.();
+    }
+    elements.highlightSheet.hidden = true;
+    canvas.focus?.();
+    return true;
+  };
   const render = (detail) => {
     latest = detail;
     autosave?.save?.(detail.state);
     if (!stage) return;
     const { state, tutorial, expanded, focused = false, progress, dropIntent = null } = detail;
+    highlights?.observe?.({
+      layerCount: state.assembledOrder.length,
+      finished: state.finished,
+    });
     elements.progress.textContent = progress;
     const inventoryEntries = Object.entries(state.inventory ?? {});
     elements.stock.textContent = inventoryEntries.length
@@ -276,6 +350,50 @@ export function bootSoloCookingPage(
       },
       onRequestClose: closeTuning,
     });
+    replayRecorder = replayRecorderFactory({
+      canvas,
+      documentTarget,
+      windowTarget,
+      width: 480,
+      fps: 12,
+      seconds: 8,
+      subscribeFrame: stage.host?.onAfterFrame?.bind(stage.host),
+      readFramePixels: stage.host?.readFramePixels?.bind(stage.host),
+    });
+    replayRecorder.start();
+    try {
+      if (
+        highlightFactory === createCookingHighlightReplayCoordinator
+        && typeof windowTarget.MediaRecorder !== "function"
+      ) {
+        throw new Error("当前浏览器不支持视频高光回放");
+      }
+      const initialHighlightState = stage.getState();
+      highlights = highlightFactory({
+        recorder: replayRecorder,
+        initialLayerCount: initialHighlightState.assembledOrder.length,
+        initialFinished: initialHighlightState.finished,
+        preEventMs: 5_000,
+        postEventMs: 3_000,
+        maxPostEventMs: 3_000,
+        maxSnapshotFrames: 96,
+        onClip() {
+          const count = syncHighlightButton();
+          if (!elements.highlightSheet?.hidden && count) showHighlightClip(count - 1);
+        },
+        onError(error) {
+          if (elements.highlightMeta) {
+            elements.highlightMeta.textContent = error?.message ?? "高光回放生成失败";
+          }
+        },
+      });
+    } catch (error) {
+      highlights = null;
+      if (elements.highlightMeta) {
+        elements.highlightMeta.textContent = error?.message ?? "当前浏览器不支持高光回放";
+      }
+    }
+    syncHighlightButton();
     if (manageLoading) elements.loading.hidden = true;
     render(latest ?? {
       reason: "ready",
@@ -291,6 +409,7 @@ export function bootSoloCookingPage(
       message: elements.feedbackMessage,
       status: elements.feedbackStatus,
       submitButton: elements.feedbackSubmitButton,
+      recorder: replayRecorder,
       documentTarget,
       windowTarget,
       subscribeFrame: stage.host?.onAfterFrame?.bind(stage.host),
@@ -358,11 +477,19 @@ export function bootSoloCookingPage(
       "feedback-open": () => feedback.open(),
       "feedback-close": () => feedback.close(),
       "feedback-submit": () => feedback.submit(),
+      "highlight-open": () => showHighlightClip(currentHighlightClips().length - 1),
+      "highlight-close": closeHighlightSheet,
+      "highlight-previous": () => showHighlightClip(highlightIndex - 1),
+      "highlight-next": () => showHighlightClip(highlightIndex + 1),
       "tuning-open": openTuning,
       "tuning-close": closeTuning,
       "recipe-change": openRecipeSelector,
     };
     const handleClick = (event) => {
+      if (event.target === elements.highlightSheet) {
+        closeHighlightSheet();
+        return;
+      }
       const actionTarget = event.target.closest?.("[data-action]");
       const action = actionTarget?.dataset.action;
       if (action === "recipe-select") {
@@ -370,6 +497,9 @@ export function bootSoloCookingPage(
         return;
       }
       actionHandlers[action]?.();
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") closeHighlightSheet();
     };
     const routedRecipeId = recipeIdFromLocation(windowTarget.location);
     if (routedRecipeId && RECIPE_BY_ID.has(routedRecipeId)) {
@@ -383,7 +513,14 @@ export function bootSoloCookingPage(
         () => tuningPanel?.dispose?.(),
         () => workbenchPicker?.dispose?.(),
         () => stage?.setInteractionPaused?.(false),
+        () => {
+          closeHighlightSheet();
+          elements.highlightVideo?.removeAttribute?.("src");
+          elements.highlightVideo?.load?.();
+        },
+        () => highlights?.dispose?.(),
         () => feedback?.dispose?.(),
+        () => replayRecorder?.dispose?.(),
       ]) {
         try {
           task();
@@ -398,6 +535,7 @@ export function bootSoloCookingPage(
       windowTarget,
       stage,
       onClick: handleClick,
+      onKeyDown: handleKeyDown,
       onDispose: disposeIntegrations,
     });
     return stage;
@@ -406,7 +544,9 @@ export function bootSoloCookingPage(
       () => tuningPanel?.dispose?.(),
       () => workbenchPicker?.dispose?.(),
       () => stage?.setInteractionPaused?.(false),
+      () => highlights?.dispose?.(),
       () => feedback?.dispose?.(),
+      () => replayRecorder?.dispose?.(),
       () => stage?.dispose?.(),
     ]) {
       try {

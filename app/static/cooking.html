@@ -22,6 +22,7 @@
         </div>
         <div class="header-actions">
           <button class="tuning-button" type="button" data-action="tuning-open" aria-haspopup="dialog" aria-controls="tuning-sheet">参数</button>
+          <button class="highlight-button" type="button" data-action="highlight-open" aria-haspopup="dialog" aria-controls="highlight-sheet">高光 0</button>
           <button class="feedback-button" type="button" data-action="feedback-open">反馈</button>
           <button class="icon-button" type="button" data-action="tutorial-replay" aria-label="重新播放新手教程">?</button>
         </div>
@@ -134,9 +135,28 @@
           <img class="feedback-preview" id="feedback-preview" alt="刚才游戏画面的自动截图" hidden>
           <label for="feedback-message">问题说明</label>
           <textarea id="feedback-message" maxlength="1000" rows="4" placeholder="例如：第 12 层芝士放下后浮在空中"></textarea>
-          <p class="feedback-note">系统会自动附上截图、最近 6 秒 GIF 操作回放、层数、库存和设备信息，并上传到测试反馈云盘。</p>
+          <p class="feedback-note">系统会自动附上截图、最近 8 秒高清短视频、层数、库存和设备信息；不支持视频时才会降级为 GIF。</p>
           <p class="feedback-status" id="feedback-status" role="status" aria-live="polite"></p>
           <button class="feedback-submit" type="button" data-action="feedback-submit">自动上传反馈</button>
+        </section>
+      </div>
+
+      <div class="highlight-sheet" id="highlight-sheet" role="dialog" aria-modal="true" aria-labelledby="highlight-title" tabindex="-1" hidden>
+        <section class="highlight-card">
+          <div class="highlight-heading">
+            <div>
+              <p>自动记录精彩操作</p>
+              <h2 id="highlight-title">高光回放</h2>
+            </div>
+            <button type="button" data-action="highlight-close" aria-label="关闭高光回放">×</button>
+          </div>
+          <video id="highlight-video" controls playsinline preload="metadata" hidden></video>
+          <p class="highlight-meta" id="highlight-meta" role="status" aria-live="polite">堆到 10、20、40、60 层或完成料理时会自动生成。</p>
+          <div class="highlight-actions">
+            <button type="button" data-action="highlight-previous" aria-label="上一段高光">上一段</button>
+            <a id="highlight-download" href="#" download hidden>保存视频</a>
+            <button type="button" data-action="highlight-next" aria-label="下一段高光">下一段</button>
+          </div>
         </section>
       </div>
 
