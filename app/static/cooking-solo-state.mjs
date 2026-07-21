@@ -120,12 +120,41 @@ function freezeStationSources(record) {
   ));
 }
 
-function freezeInstanceHomes(record) {
-  // Keep historical provenance: undo snapshots can restore instances absent from the current frame.
+function freezeInstanceHomes(record, instances) {
   return Object.freeze(Object.fromEntries(
     Object.entries(record)
-      .filter(([, slotId]) => INGREDIENT_STATION_SLOT_IDS.has(slotId)),
+      .filter(([id, slotId]) => (
+        Object.hasOwn(instances, id) && INGREDIENT_STATION_SLOT_IDS.has(slotId)
+      )),
   ));
+}
+
+function referencedInstanceIds(snapshot, stationSources = null) {
+  const referenced = new Set([
+    ...snapshot.assembledOrder,
+    ...snapshot.strokes.map(({ layerId }) => layerId),
+  ]);
+  if (stationSources) {
+    Object.values(stationSources).forEach((id) => referenced.add(id));
+  } else if (!snapshot.instanceHomes) {
+    Object.values(snapshot.binSources).forEach((id) => {
+      if (typeof id === "string") referenced.add(id);
+    });
+  }
+  return referenced;
+}
+
+function selectInstanceRecords(snapshot, referenced) {
+  const instances = {};
+  const locations = {};
+  const rotations = {};
+  Object.keys(snapshot.instances).forEach((id) => {
+    if (!referenced.has(id)) return;
+    instances[id] = snapshot.instances[id];
+    locations[id] = snapshot.locations[id];
+    rotations[id] = snapshot.rotations[id];
+  });
+  return { instances, locations, rotations };
 }
 
 function stationSession(state, overrides = {}) {
@@ -173,7 +202,10 @@ function reconcileStationSnapshot(snapshot, session) {
   // A sauce stroke owns its target just like the assembled stack and the active station do.
   const strokedLayers = new Set(snapshot.strokes.map(({ layerId }) => layerId));
   const stationSources = {};
-  const instanceHomes = { ...session.instanceHomes };
+  const instanceHomes = {
+    ...session.instanceHomes,
+    ...(snapshot.instanceHomes ?? {}),
+  };
   const selectedSources = new Set();
   let nextInstanceSequence = snapshot.nextInstanceSequence;
 
@@ -225,16 +257,21 @@ function reconcileStationSnapshot(snapshot, session) {
 }
 
 function bareSnapshot(state) {
+  const referenced = referencedInstanceIds(state, state.stationSources);
+  const { instances, locations, rotations } = selectInstanceRecords(state, referenced);
   return Object.freeze({
     assembledOrder: Object.freeze([...state.assembledOrder]),
-    instances: freezeInstances(state.instances),
-    locations: freezeLocations(state.locations, state.instances),
-    rotations: freezeRotations(state.rotations, state.instances),
+    instances: freezeInstances(instances),
+    locations: freezeLocations(locations, instances),
+    rotations: freezeRotations(rotations, instances),
     binSources: freezeIngredientRecord(state.binSources),
     inventory: freezeIngredientRecord(state.inventory),
     nextInstanceSequence: state.nextInstanceSequence,
     strokes: Object.freeze(state.strokes.map((stroke) => freezeStroke(stroke, state.instances))),
     finished: Boolean(state.finished),
+    ...(state.instanceHomes ? {
+      instanceHomes: freezeInstanceHomes(state.instanceHomes, instances),
+    } : {}),
   });
 }
 
@@ -251,6 +288,14 @@ function buildState(
     const reconciled = reconcileStationSnapshot(snapshot, resolvedSession);
     resolvedSnapshot = reconciled.snapshot;
     resolvedSession = reconciled.session;
+  }
+  if (resolvedSession) {
+    const referenced = referencedInstanceIds(resolvedSnapshot, resolvedSession.stationSources);
+    const pruned = selectInstanceRecords(resolvedSnapshot, referenced);
+    resolvedSnapshot = {
+      ...resolvedSnapshot,
+      ...pruned,
+    };
   }
   const assembledOrder = Object.freeze([...resolvedSnapshot.assembledOrder]);
   const instances = freezeInstances(resolvedSnapshot.instances);
@@ -273,7 +318,7 @@ function buildState(
   if (resolvedSession) {
     state.stationContents = normalizeWorkbenchLoadout(resolvedSession.stationContents);
     state.stationSources = freezeStationSources(resolvedSession.stationSources);
-    state.instanceHomes = freezeInstanceHomes(resolvedSession.instanceHomes);
+    state.instanceHomes = freezeInstanceHomes(resolvedSession.instanceHomes, instances);
   }
   return Object.freeze(state);
 }

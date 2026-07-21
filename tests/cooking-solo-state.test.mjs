@@ -422,6 +422,79 @@ test("undo keeps a returned duplicate ingredient tied to its original slot after
   });
 });
 
+test("undo restores an assembled canonical instance to its historical home slot", () => {
+  let state = createSoloCookingState({ loadout: createDefaultWorkbenchLoadout() });
+  state = setSoloStationContent(state, "filling-back-1", "onion");
+  const returnedId = state.stationSources["filling-back-1"];
+  assert.equal(returnedId, "onion");
+
+  state = placeSoloLayer(state, returnedId, 0, { replenish: true });
+  state = removeSoloLayer(state, returnedId, { consolidate: true });
+  state = setSoloStationContent(state, "filling-back-1", "patty");
+  state = setSoloStationContent(state, "filling-back-2", "onion");
+  state = undoSoloCooking(state);
+
+  assert.deepEqual(state.assembledOrder, [returnedId]);
+  assert.equal(state.instanceHomes[returnedId], "filling-back-1");
+
+  state = removeSoloLayer(state, returnedId, { consolidate: true });
+
+  assert.equal(state.stationSources["filling-back-1"], returnedId);
+  assert.equal(state.stationContents["filling-back-1"], "onion");
+  assert.notEqual(state.stationSources["filling-back-2"], returnedId);
+  assert.deepEqual(state.locations[returnedId], {
+    kind: "bin",
+    slotId: "filling-back-1",
+  });
+});
+
+test("ten thousand station switches keep provenance bounded to live instances", () => {
+  let state = createSoloCookingState({ loadout: createDefaultWorkbenchLoadout() });
+
+  for (let index = 0; index < 10_000; index += 1) {
+    const contentId = state.stationContents["filling-back-1"] === "patty"
+      ? "onion"
+      : "patty";
+    state = setSoloStationContent(state, "filling-back-1", contentId);
+  }
+
+  assert.equal(Object.keys(state.instances).length, 7);
+  assert.deepEqual(
+    new Set(Object.keys(state.instanceHomes)),
+    new Set(Object.keys(state.instances)),
+  );
+});
+
+test("evicted strokes release unreachable bin instances after retained history expires", () => {
+  let state = createSoloCookingState({ loadout: createDefaultWorkbenchLoadout() });
+
+  for (let index = 0; index < 500; index += 1) {
+    const sourceId = state.stationSources["filling-back-1"];
+    state = addSoloSauceStroke(state, stroke("mustard", sourceId));
+    const contentId = state.stationContents["filling-back-1"] === "patty"
+      ? "onion"
+      : "patty";
+    state = setSoloStationContent(state, "filling-back-1", contentId);
+  }
+
+  const reachable = new Set([
+    ...state.assembledOrder,
+    ...Object.values(state.stationSources),
+    ...state.strokes.map(({ layerId }) => layerId),
+    ...state.history.flatMap((snapshot) => [
+      ...snapshot.assembledOrder,
+      ...snapshot.strokes.map(({ layerId }) => layerId),
+    ]),
+  ]);
+  const unreachableInstances = Object.keys(state.instances)
+    .filter((instanceId) => !reachable.has(instanceId));
+  const unreachableHomes = Object.keys(state.instanceHomes)
+    .filter((instanceId) => !reachable.has(instanceId));
+
+  assert.deepEqual(unreachableInstances, []);
+  assert.deepEqual(unreachableHomes, []);
+});
+
 test("undo preserves a stroked bin instance from the restored station snapshot", () => {
   let state = createSoloCookingState({ loadout: createDefaultWorkbenchLoadout() });
   const strokedId = state.stationSources["filling-back-1"];
