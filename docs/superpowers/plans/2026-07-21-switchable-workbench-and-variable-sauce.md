@@ -16,7 +16,7 @@
 - Create: `app/static/workbench-loadout.mjs`
 - Create: `tests/workbench-loadout.test.mjs`
 
-- [ ] **Step 1: 写失败测试，定义固定槽位和默认装载**
+- [x] **Step 1: 写失败测试，定义固定槽位和默认装载**
 
 ```js
 import test from "node:test";
@@ -41,14 +41,14 @@ test("默认装载是左侧三面包、后排四配料、右侧三酱料", () =>
 });
 ```
 
-- [ ] **Step 2: 运行并确认失败**
+- [x] **Step 2: 运行并确认失败**
 
 Run:
 `& "C:\Users\KID\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" --test tests/workbench-loadout.test.mjs`
 
 Expected: FAIL，模块尚不存在。
 
-- [ ] **Step 3: 实现槽位目录、区域候选项与验证**
+- [x] **Step 3: 实现槽位目录、区域候选项与验证**
 
 导出以下 API：
 
@@ -63,7 +63,7 @@ export function getWorkbenchSlot(slotId);
 
 规则：面包候选仅 `bottom-bun`、`middle-bun`、`top-bun`；配料候选为 `patty`、`cheese`、`tomato`、`lettuce`、`pickle`、`onion`；酱料候选为 `ketchup`、`mustard`、`house-sauce`。允许多个槽位选择相同材料，返回值全部冻结；无效或旧配置回退到该槽默认值。
 
-- [ ] **Step 4: 补充失败测试并实现本地持久化**
+- [x] **Step 4: 补充失败测试并实现本地持久化**
 
 再测试重复选择、非法跨区域选择、部分旧配置迁移以及存储异常不影响开局。导出：
 
@@ -74,7 +74,7 @@ export function saveWorkbenchLoadout(loadout, storage = globalThis.localStorage)
 export function resetWorkbenchLoadout(storage = globalThis.localStorage);
 ```
 
-- [ ] **Step 5: 运行测试并提交**
+- [x] **Step 5: 运行测试并提交**
 
 Run:
 `& "C:\Users\KID\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" --test tests/workbench-loadout.test.mjs`
@@ -118,7 +118,7 @@ Run:
 }
 ```
 
-保留旧 `ingredientIds/toolIds` 入参兼容现有测试。新增 `getStationBySlot(slotId)`、`getStationsByContent(kind, contentId)`、`setStationContent(slotId, contentId)`；原 `getStation(kind,id)` 返回同内容的第一站。移除“材料 ID 必须唯一”的物理布局限制，但槽位 ID 必须唯一。
+保留旧 `ingredientIds/toolIds` 入参兼容现有测试。新增 `getStationBySlot(slotId)`、`getStationsByContent(kind, contentId)`、`setStationContent(slotId, contentId)`、`setSlotHighlighted(slotId, highlighted)`；原 `getStation(kind,id)` 返回同内容的第一站。重复内容的高亮和切换必须按槽位独立；移除“材料 ID 必须唯一”的物理布局限制，但槽位 ID 必须唯一。
 
 - [ ] **Step 4: 添加每个槽位的可点击折合牌**
 
