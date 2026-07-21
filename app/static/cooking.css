@@ -256,13 +256,20 @@ canvas:focus-visible {
 .rotate-controls button { font-size: 1.65rem; color: var(--gold); }
 .cooking-controls > button { padding: 8px; font-size: .82rem; }
 
-.cooking-controls > .focus-button {
-  grid-column: 1 / -1;
+.cooking-stage > .focus-button {
+  position: absolute;
+  z-index: 5;
+  top: 12px;
+  right: 12px;
+  min-width: 108px;
   min-height: 50px;
+  padding: 10px 14px;
   border-color: rgba(255, 196, 77, 0.48);
+  border-radius: 16px;
   color: #2d1a14;
   font-weight: 900;
   background: linear-gradient(180deg, #ffd969, #efa933);
+  box-shadow: 0 8px 24px rgba(23, 10, 7, 0.28);
 }
 
 .focus-button[data-focused="true"] {

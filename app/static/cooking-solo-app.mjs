@@ -97,7 +97,7 @@ export function bootSoloCookingPage(
     elements.inspectButton.disabled = state.finished || !state.assembledOrder.length;
     elements.inspectButton.textContent = expanded ? "合拢汉堡" : "展开查看";
     elements.focusButton.disabled = state.finished || !state.assembledOrder.length;
-    elements.focusButton.textContent = focused ? "返回料理台" : "聚焦汉堡";
+    elements.focusButton.textContent = focused ? "返回料理台" : "聚焦食物";
     elements.focusButton.dataset.focused = String(focused);
     elements.focusButton.setAttribute?.("aria-pressed", String(focused));
     elements.finishSheet.hidden = !state.finished;

@@ -170,7 +170,7 @@ test("keeps full cooking orbit while allowing low, high, and close food inspecti
   assert.deepEqual(configuration.orbitLimits, {
     minYaw: -Math.PI,
     maxYaw: Math.PI,
-    minPitch: 0.02,
+    minPitch: -1.18,
     maxPitch: 1.56,
     minDistance: 5,
     maxDistance: 45,

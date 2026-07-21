@@ -49,6 +49,26 @@ test("standalone cooking page is accessible, Chinese, and contains the full play
   assert.doesNotMatch(html, /cooking-loading-elapsed|已等待\s*[\d.]+\s*秒/);
 });
 
+test("the pure-food focus control stays inside the visible 3d stage", async () => {
+  const html = await readFile(htmlPath, "utf8");
+  const stageStart = html.indexOf('<section class="cooking-stage"');
+  const stageEnd = html.indexOf("</section>", stageStart);
+  const focusControl = html.indexOf('class="focus-button"');
+
+  assert.ok(stageStart >= 0);
+  assert.ok(stageEnd > stageStart);
+  assert.ok(focusControl > stageStart && focusControl < stageEnd);
+});
+
+test("the pure-food focus control is a persistent stage overlay", async () => {
+  const css = await readFile(cssPath, "utf8");
+  const rule = css.match(/\.cooking-stage\s*>\s*\.focus-button\s*\{([^}]+)\}/)?.[1] ?? "";
+
+  assert.match(rule, /position:\s*absolute/);
+  assert.match(rule, /z-index:\s*[5-9]/);
+  assert.match(rule, /min-height:\s*(?:4[8-9]|[5-9]\d)px/);
+});
+
 test("root page is an original cooking map catalog with burger playable and sushi upcoming", async () => {
   const [html, css] = await Promise.all([
     readFile(homePath, "utf8"),

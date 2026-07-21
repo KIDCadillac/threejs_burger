@@ -33,6 +33,7 @@
         <canvas id="cooking-canvas" tabindex="0" aria-label="三维汉堡料理台，可拖动食材和调料瓶" aria-describedby="cooking-objective">
           你的浏览器需要支持 WebGL 才能使用三维料理台。
         </canvas>
+        <button class="focus-button" type="button" data-action="toggle-focus" aria-pressed="false" disabled>聚焦食物</button>
         <div class="cooking-loading" id="cooking-loading" role="status" aria-live="polite">
           <span class="cooking-loading__spinner" aria-hidden="true"></span>
           <strong id="cooking-loading-phase">正在连接料理台</strong>
@@ -73,7 +74,6 @@
           <span>旋转食材</span>
           <button type="button" data-action="rotate-right" aria-label="向右旋转选中食材">↷</button>
         </div>
-        <button class="focus-button" type="button" data-action="toggle-focus" aria-pressed="false" disabled>聚焦汉堡</button>
         <button type="button" data-action="camera-reset">镜头复位</button>
         <button type="button" data-action="toggle-expanded">展开查看</button>
         <button type="button" data-action="undo" disabled>撤销上一步</button>

@@ -610,7 +610,7 @@ export function createSoloCookingStage({
     orbitLimits: {
       minYaw: -Math.PI,
       maxYaw: Math.PI,
-      minPitch: 0.02,
+        minPitch: -1.18,
       maxPitch: 1.56,
       minDistance: 5,
       maxDistance: 45,
