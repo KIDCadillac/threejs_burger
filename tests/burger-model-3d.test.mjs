@@ -143,6 +143,31 @@ test("uses distinct procedural volume geometry and texture-free cooking material
   burger.dispose();
 });
 
+test("keeps cheese and lettuce visually thin while separating contact planes from loose edges", () => {
+  const burger = createBurgerModel3D(THREE);
+  const cheese = burger.getLayer("cheese");
+  const lettuce = burger.getLayer("lettuce");
+  const cheeseBounds = cheese.userData.selectableSurface.geometry.boundingBox;
+  const lettuceBounds = lettuce.userData.selectableSurface.geometry.boundingBox;
+
+  assert.ok(cheeseBounds.max.y - cheeseBounds.min.y <= 0.2, "cheese is a thin slice");
+  assert.ok(lettuceBounds.max.y - lettuceBounds.min.y <= 0.12, "lettuce is a thin leaf");
+  for (const layerId of BURGER_LAYER_IDS) {
+    const layer = burger.getLayer(layerId);
+    assert.ok(Number.isFinite(layer.userData.stackMinY), `${layerId} has a lower contact plane`);
+    assert.ok(Number.isFinite(layer.userData.stackMaxY), `${layerId} has an upper contact plane`);
+    assert.ok(layer.userData.stackMinY >= layer.userData.boundsMinY);
+    assert.ok(layer.userData.stackMaxY <= layer.userData.boundsMaxY);
+    assert.ok(layer.userData.stackMaxY > layer.userData.stackMinY);
+  }
+  assert.ok(
+    cheese.userData.stackMinY > cheese.userData.boundsMinY,
+    "a drooping cheese corner does not lift the whole stack",
+  );
+
+  burger.dispose();
+});
+
 test("uses smooth food materials and lightweight ingredient-specific surface details", () => {
   const burger = createBurgerModel3D(THREE);
   assert.ok(burger.selectableSurfaces.every(({ material }) => material.flatShading === false));

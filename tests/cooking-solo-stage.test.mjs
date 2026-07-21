@@ -365,7 +365,47 @@ test("stacks all seven scaled layers in visible contact without cumulative air g
   for (let index = 1; index < intervals.length; index += 1) {
     const gap = intervals[index].bottom - intervals[index - 1].top;
     assert.ok(gap <= 1e-9, `layer ${index} must not float by ${gap}`);
-    assert.ok(gap >= -0.04, `layer ${index} must not sink excessively by ${gap}`);
+    assert.ok(gap >= -0.12, `layer ${index} must not sink excessively by ${gap}`);
+  }
+  stage.dispose();
+});
+
+test("bun contact follows the shared footprint instead of only global bounding boxes", () => {
+  const { stage } = harness({ reducedMotion: true });
+  for (const layerId of ["bottom-bun", "patty", "top-bun"]) {
+    stage.dropLayer(layerId, { kind: "prep" });
+  }
+  stage.burger.root.updateMatrixWorld(true);
+
+  const surfaceY = (layerId, x, fromY, directionY) => {
+    const layer = stage.burger.getLayer(layerId);
+    const surface = layer.userData.selectableSurface;
+    const previousSide = surface.material.side;
+    surface.material.side = THREE.DoubleSide;
+    const origin = layer.localToWorld(new THREE.Vector3(x, fromY, 0));
+    const direction = new THREE.Vector3(0, directionY, 0)
+      .transformDirection(layer.matrixWorld);
+    const hit = new THREE.Raycaster(origin, direction, 0, 8)
+      .intersectObject(surface, false)[0];
+    surface.material.side = previousSide;
+    assert.ok(hit, `${layerId} exposes a contact surface at x=${x}`);
+    return hit.point.y;
+  };
+
+  for (const x of [0.95, 1.1]) {
+    const bottomBunTop = surfaceY("bottom-bun", x, 2, -1);
+    const pattyBottom = surfaceY("patty", x, -2, 1);
+    assert.ok(
+      pattyBottom - bottomBunTop <= 0.005,
+      `bottom bun has an outer contact gap of ${pattyBottom - bottomBunTop} at x=${x}`,
+    );
+
+    const pattyTop = surfaceY("patty", x, 2, -1);
+    const topBunBottom = surfaceY("top-bun", x, -2, 1);
+    assert.ok(
+      topBunBottom - pattyTop <= 0.005,
+      `top bun has an outer contact gap of ${topBunBottom - pattyTop} at x=${x}`,
+    );
   }
   stage.dispose();
 });
@@ -458,7 +498,7 @@ test("middle insertion opens only the upper stack and never moves bin ingredient
   stage.dispose();
 });
 
-test("top insertion rebounds and finishes at its exact contact target", () => {
+test("top insertion scales from its contact plane and finishes at its exact target", () => {
   const { stage, configuration, vibrations } = stageHarnessWithConfiguration();
   const patty = stage.burger.getLayer("patty");
   const finalY = stage.workbench.prep.dropAnchor.position.y
@@ -467,7 +507,13 @@ test("top insertion rebounds and finishes at its exact contact target", () => {
   configuration.onDrop({ id: "patty", anchor: stage.workbench.prep.dropAnchor, targetIndex: 0 });
   stage.tick(290);
   stage.tick(320);
-  assert.ok(patty.position.y > finalY, "top layer rebounds above its contact target");
+  const animatedBottom = patty.position.y + patty.userData.stackMinY * patty.scale.y;
+  const settledBottom = finalY
+    + patty.userData.stackMinY * stage.layerPresentationScale;
+  assert.ok(
+    Math.abs(animatedBottom - settledBottom) < 1e-9,
+    "top layer keeps its lower contact planted while it scales",
+  );
   stage.tick(380);
   assert.ok(Math.abs(patty.position.y - finalY) < 1e-9);
   assert.deepEqual(vibrations, [12]);
@@ -496,6 +542,80 @@ test("bottom insertion lifts old layers while the new food pops at its target he
   stage.tick(1380);
   assert.deepEqual(stage.getState().assembledOrder, ["bottom-bun", "patty"]);
   assert.ok(Math.abs(bottomBun.position.y - finalBottomY) < 1e-9);
+  stage.dispose();
+});
+
+test("assembled contact planes overlap slightly so neither bun can float", () => {
+  const { stage } = harness();
+  for (const layerId of ["bottom-bun", "cheese", "lettuce", "top-bun"]) {
+    stage.dropLayer(layerId, { kind: "prep" });
+  }
+  stage.tick(1000);
+
+  const order = stage.getState().assembledOrder;
+  for (let index = 1; index < order.length; index += 1) {
+    const lower = stage.burger.getLayer(order[index - 1]);
+    const upper = stage.burger.getLayer(order[index]);
+    const lowerTop = lower.position.y
+      + lower.userData.stackMaxY * stage.layerPresentationScale;
+    const upperBottom = upper.position.y
+      + upper.userData.stackMinY * stage.layerPresentationScale;
+    assert.ok(
+      upperBottom <= lowerTop + 1e-9,
+      `${order[index]} rests on ${order[index - 1]} instead of floating`,
+    );
+    assert.ok(lowerTop - upperBottom <= 0.08, "contact overlap stays subtle");
+  }
+
+  const topBun = stage.burger.getLayer("top-bun");
+  const lettuce = stage.burger.getLayer("lettuce");
+  const bunBottom = topBun.position.y
+    + topBun.userData.boundsMinY * stage.layerPresentationScale;
+  const lettuceTop = lettuce.position.y
+    + lettuce.userData.stackMaxY * stage.layerPresentationScale;
+  assert.ok(bunBottom <= lettuceTop + 1e-9, "top bun has no visible air gap");
+  stage.dispose();
+});
+
+test("insert pop scales from the food contact plane instead of lifting its bottom", () => {
+  const { stage: settledStage } = harness({ reducedMotion: true });
+  settledStage.dropLayer("bottom-bun", { kind: "prep" });
+  settledStage.dropLayer("top-bun", { kind: "prep" });
+  const settledUpper = settledStage.burger.getLayer("top-bun");
+  const settledVisibleBottom = settledUpper.position.y
+    + settledUpper.userData.boundsMinY * settledUpper.scale.y;
+  settledStage.dispose();
+
+  const { stage } = harness();
+  stage.dropLayer("bottom-bun", { kind: "prep" });
+  stage.tick(380);
+  stage.dropLayer("top-bun", { kind: "prep" });
+  const lower = stage.burger.getLayer("bottom-bun");
+  const upper = stage.burger.getLayer("top-bun");
+  for (const time of [400, 430, 475, 520, 570, 620, 680, 740]) {
+    stage.tick(time);
+    const lowerTop = lower.position.y
+      + lower.userData.stackMaxY * lower.scale.y;
+    const upperBottom = upper.position.y
+      + upper.userData.stackMinY * upper.scale.y;
+    const animatedVisibleBottom = upper.position.y
+      + upper.userData.boundsMinY * upper.scale.y;
+    assert.ok(
+      upperBottom <= lowerTop + 1e-9,
+      `pop animation lifted the bun by ${upperBottom - lowerTop} at ${time}ms`,
+    );
+    assert.ok(
+      animatedVisibleBottom <= settledVisibleBottom + 1e-9,
+      `pop animation lifted the visible underside at ${time}ms`,
+    );
+  }
+  stage.tick(760);
+  const finalVisibleBottom = upper.position.y
+    + upper.userData.boundsMinY * upper.scale.y;
+  assert.ok(
+    Math.abs(finalVisibleBottom - settledVisibleBottom) < 1e-9,
+    "settled animation returns to the exact supported target",
+  );
   stage.dispose();
 });
 

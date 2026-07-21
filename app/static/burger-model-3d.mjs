@@ -145,9 +145,11 @@ function validateStroke(stroke, isKnownLayer = (layerId) => BURGER_LAYER_IDS.inc
 function createCheeseGeometry(THREE) {
   const perimeter = CHEESE_PERIMETER;
   const positions = [];
-  for (const [x, z, corner] of perimeter) positions.push(x, corner ? -0.08 : 0.09, z);
-  for (const [x, z, corner] of perimeter) positions.push(x, corner ? -0.3 : -0.09, z);
-  positions.push(0, 0.09, 0, 0, -0.09, 0);
+  // Keep the edible body thin. The corners still droop for a soft-cheese silhouette,
+  // but no single decorative tip is allowed to dictate the whole burger's spacing.
+  for (const [x, z, corner] of perimeter) positions.push(x, corner ? 0.015 : 0.055, z);
+  for (const [x, z, corner] of perimeter) positions.push(x, corner ? -0.085 : -0.045, z);
+  positions.push(0, 0.055, 0, 0, -0.045, 0);
   const topCenter = perimeter.length * 2;
   const bottomCenter = topCenter + 1;
   const indices = [];
@@ -174,13 +176,13 @@ function createLettuceGeometry(THREE) {
     const angle = (index / segments) * Math.PI * 2;
     const outerRadius = 1.16 + 0.12 * Math.sin(angle * 7) + 0.05 * Math.cos(angle * 11);
     const innerRadius = 0.34 + 0.035 * Math.cos(angle * 5);
-    const wave = 0.035 * Math.sin(angle * 6);
+    const wave = 0.015 * Math.sin(angle * 6);
     const cos = Math.cos(angle);
     const sin = Math.sin(angle);
-    positions.push(outerRadius * cos, 0.07 + wave, outerRadius * sin);
-    positions.push(innerRadius * cos, 0.055 - wave * 0.3, innerRadius * sin);
-    positions.push(outerRadius * cos, -0.07 + wave, outerRadius * sin);
-    positions.push(innerRadius * cos, -0.055 - wave * 0.3, innerRadius * sin);
+    positions.push(outerRadius * cos, 0.03 + wave, outerRadius * sin);
+    positions.push(innerRadius * cos, 0.024 - wave * 0.3, innerRadius * sin);
+    positions.push(outerRadius * cos, -0.03 + wave, outerRadius * sin);
+    positions.push(innerRadius * cos, -0.024 - wave * 0.3, innerRadius * sin);
   }
   for (let index = 0; index < segments; index += 1) {
     const next = (index + 1) % segments;
@@ -575,6 +577,7 @@ function buildLayerDefinitions(THREE) {
     definitions: [
       {
         id: "bottom-bun", geometry: bottomBun, material: bunMaterial,
+        stackContact: Object.freeze({ maxY: 0.285 }),
         footprint: Object.freeze({ kind: "disc", radius: 1.22, margin: 0.88 }),
       },
       {
@@ -583,6 +586,7 @@ function buildLayerDefinitions(THREE) {
       },
       {
         id: "cheese", geometry: cheese, material: cheeseMaterial,
+        stackContact: Object.freeze({ minY: -0.044, maxY: 0.054 }),
         footprint: Object.freeze({ kind: "polygon", perimeter: CHEESE_PERIMETER, margin: 0.88 }),
       },
       {
@@ -591,6 +595,7 @@ function buildLayerDefinitions(THREE) {
       },
       {
         id: "lettuce", geometry: lettuce, material: lettuceMaterial,
+        stackContact: Object.freeze({ minY: -0.028, maxY: 0.028 }),
         footprint: Object.freeze({ kind: "annulus", margin: 0.86 }),
       },
       {
@@ -599,6 +604,7 @@ function buildLayerDefinitions(THREE) {
       },
       {
         id: "top-bun", geometry: topBun, material: bunMaterial,
+        stackContact: Object.freeze({ minY: -0.14 }),
         footprint: Object.freeze({ kind: "disc", radius: 1.23, margin: 0.88 }),
       },
     ],
@@ -666,6 +672,19 @@ export function createBurgerModel3D(THREE, options = {}) {
     group.userData.halfHeight = (bounds.max.y - bounds.min.y) / 2;
     group.userData.boundsMinY = bounds.min.y;
     group.userData.boundsMaxY = bounds.max.y;
+    const stackMinY = definition.stackContact?.minY ?? bounds.min.y;
+    const stackMaxY = definition.stackContact?.maxY ?? bounds.max.y;
+    if (
+      !Number.isFinite(stackMinY)
+      || !Number.isFinite(stackMaxY)
+      || stackMinY < bounds.min.y
+      || stackMaxY > bounds.max.y
+      || stackMaxY <= stackMinY
+    ) {
+      throw new RangeError(`Invalid stack contact planes for ${definition.id}`);
+    }
+    group.userData.stackMinY = stackMinY;
+    group.userData.stackMaxY = stackMaxY;
     group.userData.surfaceY = bounds.max.y + 0.025;
     group.userData.surfaceRadius = Math.max(
       Math.abs(bounds.min.x), Math.abs(bounds.max.x),
@@ -822,7 +841,7 @@ export function createBurgerModel3D(THREE, options = {}) {
     placements: Array.from({ length: 11 }, (_, index) => {
       const angle = index / 11 * Math.PI * 2;
       return {
-        position: [Math.cos(angle) * 0.73, 0.105, Math.sin(angle) * 0.73],
+        position: [Math.cos(angle) * 0.73, 0.044, Math.sin(angle) * 0.73],
         rotation: [0, -angle, 0],
         scale: [0.85 + (index % 3) * 0.08, 1, 1],
       };
@@ -855,8 +874,8 @@ export function createBurgerModel3D(THREE, options = {}) {
     order.forEach((id, index) => {
       const layer = layers.get(id);
       const scaleY = layer.scale.y;
-      const minY = layer.userData.boundsMinY * scaleY;
-      const maxY = layer.userData.boundsMaxY * scaleY;
+      const minY = layer.userData.stackMinY * scaleY;
+      const maxY = layer.userData.stackMaxY * scaleY;
       const y = cursorY - minY + (expanded ? index * EXPANDED_GAP : 0);
       layer.position.y = y;
       layer.userData.stackY = y;
