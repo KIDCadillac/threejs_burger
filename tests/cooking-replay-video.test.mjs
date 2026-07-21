@@ -184,7 +184,8 @@ test("timestamped replay buffer is ordered and bounded by duration and frame cou
   buffer.push(frame("three-fifty"), 350);
   buffer.push(frame("four-hundred"), 400);
 
-  assert.deepEqual(buffer.snapshot().map(({ frame, timestamp }) => [
+  const ordered = buffer.snapshot();
+  assert.deepEqual(ordered.map(({ frame, timestamp }) => [
     frame.source.snapshotValue,
     timestamp,
   ]), [
@@ -192,13 +193,17 @@ test("timestamped replay buffer is ordered and bounded by duration and frame cou
     ["four-hundred", 400],
     ["five-hundred", 500],
   ]);
+  ordered.release();
   assert.equal(buffer.size(), 3);
   assert.equal(buffer.durationMs(), 150);
 
   buffer.push(frame("too-old"), 10);
-  assert.deepEqual(buffer.snapshot().map(({ frame }) => frame.source.snapshotValue), [
+  const afterOldPush = buffer.snapshot();
+  assert.deepEqual(afterOldPush.map(({ frame }) => frame.source.snapshotValue), [
     "three-fifty", "four-hundred", "five-hundred",
   ]);
+  afterOldPush.release();
+  buffer.dispose();
 });
 
 test("replay buffer supports time-window snapshots, clearing, and disposal", () => {
@@ -214,19 +219,25 @@ test("replay buffer supports time-window snapshots, clearing, and disposal", () 
   buffer.push(frame("b"), 200);
   buffer.push(frame("c"), 300);
   const retained = buffer.snapshot();
-  assert.deepEqual(
-    buffer.snapshot({ fromTimestamp: 150, toTimestamp: 250 })
-      .map(({ frame }) => frame.source.snapshotValue),
-    ["b"],
-  );
+  const windowed = buffer.snapshot({ fromTimestamp: 150, toTimestamp: 250 });
+  assert.deepEqual(windowed.map(({ frame }) => frame.source.snapshotValue), ["b"]);
+  windowed.release();
   assert.equal(buffer.clear(), 3);
+  assert.deepEqual(retained.map(({ frame }) => [frame.source.width, frame.source.height]), [
+    [4, 2], [4, 2], [4, 2],
+  ]);
+  assert.equal(retained.release(), true);
+  assert.equal(retained.release(), false);
   assert.deepEqual(retained.map(({ frame }) => [frame.source.width, frame.source.height]), [
     [0, 0], [0, 0], [0, 0],
   ]);
   assert.equal(buffer.size(), 0);
   buffer.push(frame("d"), 400);
-  const disposedFrame = buffer.snapshot()[0].frame;
+  const disposedSnapshot = buffer.snapshot();
+  const disposedFrame = disposedSnapshot[0].frame;
   buffer.dispose();
+  assert.deepEqual([disposedFrame.source.width, disposedFrame.source.height], [4, 2]);
+  disposedSnapshot.release();
   assert.deepEqual([disposedFrame.source.width, disposedFrame.source.height], [0, 0]);
   assert.equal(buffer.size(), 0);
   assert.equal(buffer.push(frame("ignored"), 500), false);
@@ -242,11 +253,14 @@ test("replay buffer snapshots mutable canvases at target size and releases evict
   });
   const sharedCanvas = { width: 8, height: 4, snapshotValue: "first" };
   buffer.push(sharedCanvas, 0);
-  const firstSnapshot = buffer.snapshot()[0].frame;
+  const firstLease = buffer.snapshot();
+  const firstSnapshot = firstLease[0].frame;
 
   sharedCanvas.snapshotValue = "second";
   buffer.push(sharedCanvas, 100);
-  const twoSnapshots = buffer.snapshot().map(({ frame }) => frame);
+  const twoSnapshotLease = buffer.snapshot();
+  const twoSnapshots = twoSnapshotLease.map(({ frame }) => frame);
+  firstLease.release();
 
   assert.notEqual(twoSnapshots[0].source, twoSnapshots[1].source);
   assert.deepEqual(twoSnapshots.map(({ source }) => source.snapshotValue), ["first", "second"]);
@@ -254,14 +268,19 @@ test("replay buffer snapshots mutable canvases at target size and releases evict
 
   sharedCanvas.snapshotValue = "third";
   buffer.push(sharedCanvas, 200);
-  assert.deepEqual([firstSnapshot.source.width, firstSnapshot.source.height], [0, 0]);
+  assert.deepEqual([firstSnapshot.source.width, firstSnapshot.source.height], [4, 2]);
+  const current = buffer.snapshot();
   assert.deepEqual(
-    buffer.snapshot().map(({ frame }) => frame.source.snapshotValue),
+    current.map(({ frame }) => frame.source.snapshotValue),
     ["second", "third"],
   );
+  current.release();
+  twoSnapshotLease.release();
+  assert.deepEqual([firstSnapshot.source.width, firstSnapshot.source.height], [0, 0]);
+  buffer.dispose();
 });
 
-test("video exporter preserves timestamp gaps by duplicating scaled snapshots", async () => {
+test("video exporter preserves exact source timestamp intervals instead of delaying to fps grid", async () => {
   const supported = ["video/webm;codecs=vp8"];
   const MediaRecorderImpl = createMediaRecorderClass({ supported });
   const harness = createCanvasHarness();
@@ -278,9 +297,9 @@ test("video exporter preserves timestamp gaps by duplicating scaled snapshots", 
   const sourceC = { id: "c", videoWidth: 640, videoHeight: 320, width: 1, height: 1 };
 
   const result = await exporter.exportFrames([
-    { frame: { source: sourceC, width: 9, height: 9 }, timestamp: 500 },
+    { frame: { source: sourceC, width: 9, height: 9 }, timestamp: 200 },
     { frame: { source: sourceA, width: 9, height: 9 }, timestamp: 0 },
-    { frame: { source: sourceB, width: 9, height: 9 }, timestamp: 250 },
+    { frame: { source: sourceB, width: 9, height: 9 }, timestamp: 100 },
   ], {
     onProgress(value) { progress.push(value); },
   });
@@ -295,20 +314,95 @@ test("video exporter preserves timestamp gaps by duplicating scaled snapshots", 
   assert.equal(result.width, 480);
   assert.equal(result.height, 240);
   assert.equal(result.fps, 12);
-  assert.equal(result.durationMs, 500);
-  assert.deepEqual(harness.draws.map(({ source }) => source.id), [
-    "a", "a", "a", "b", "b", "b", "c",
-  ]);
-  assert.equal(waits.length, 6);
-  for (const delay of waits) assert.ok(Math.abs(delay - (1000 / 12)) < 1e-8);
-  assert.deepEqual(progress.at(-1), { completed: 7, total: 7, ratio: 1 });
+  assert.ok(Math.abs(result.durationMs - (200 + (1000 / 12))) < 1e-8);
+  assert.deepEqual(harness.draws.map(({ source }) => source.id), ["a", "b", "c"]);
+  assert.deepEqual(waits.slice(0, 2), [100, 100]);
+  assert.ok(Math.abs(waits[2] - (1000 / 12)) < 1e-8);
+  assert.deepEqual(progress.at(-1), { completed: 3, total: 3, ratio: 1 });
   assert.equal(harness.streams[0].fps, 12);
-  assert.equal(harness.streams[0].track.requestFrameCalls, 7);
+  assert.equal(harness.streams[0].track.requestFrameCalls, 3);
   assert.equal(harness.streams[0].track.stopCalls, 1);
   assert.deepEqual(MediaRecorderImpl.instances[0].options, {
     mimeType: "video/webm;codecs=vp8",
     videoBitsPerSecond: 800_000,
   });
+  exporter.dispose();
+});
+
+test("video exporter rejects overlong timestamp gaps with timeout armed before preparation", async () => {
+  const order = [];
+  const timers = createFakeTimers();
+  const harness = createCanvasHarness();
+  const originalCreateElement = harness.documentTarget.createElement;
+  harness.documentTarget.createElement = (...args) => {
+    const canvas = originalCreateElement(...args);
+    const originalCaptureStream = canvas.captureStream;
+    canvas.captureStream = (...captureArgs) => {
+      order.push("capture-stream");
+      return originalCaptureStream.apply(canvas, captureArgs);
+    };
+    return canvas;
+  };
+  const exporter = createReplayVideoExporter({
+    documentTarget: harness.documentTarget,
+    MediaRecorderImpl: createMediaRecorderClass({ supported: ["video/webm;codecs=vp8"] }),
+    maxDurationMs: 8_000,
+    timeoutMs: 20_000,
+    setTimeoutImpl(callback, delay) {
+      order.push("timeout-armed");
+      return timers.set(callback, delay);
+    },
+    clearTimeoutImpl: timers.clear,
+    sleepImpl: async () => {},
+  });
+
+  await assert.rejects(
+    exporter.exportFrames([
+      { frame: { source: { width: 4, height: 2 } }, timestamp: 0 },
+      { frame: { source: { width: 4, height: 2 } }, timestamp: 60_000 },
+    ]),
+    (error) => error.code === "VIDEO_REPLAY_DURATION_LIMIT"
+      && error.maxDurationMs === 8_000,
+  );
+  assert.deepEqual(order, ["timeout-armed"]);
+  assert.equal(timers.count(), 0);
+  exporter.dispose();
+});
+
+test("export owns a frozen buffer snapshot until completion and then releases retired frames", async () => {
+  const harness = createCanvasHarness();
+  const buffer = createReplayFrameBuffer({
+    documentTarget: harness.documentTarget,
+    outputWidth: 4,
+    maxDurationMs: 100,
+    maxFrames: 10,
+  });
+  buffer.push({ width: 8, height: 4, snapshotValue: "before-a" }, 0);
+  buffer.push({ width: 8, height: 4, snapshotValue: "before-b" }, 50);
+  const frozen = buffer.snapshot();
+
+  buffer.push({ width: 8, height: 4, snapshotValue: "after" }, 200);
+  assert.deepEqual(
+    frozen.map(({ frame }) => [frame.source.width, frame.source.height]),
+    [[4, 2], [4, 2]],
+  );
+
+  const exporter = createReplayVideoExporter({
+    documentTarget: harness.documentTarget,
+    MediaRecorderImpl: createMediaRecorderClass({ supported: ["video/webm;codecs=vp8"] }),
+    sleepImpl: async () => {},
+  });
+  await exporter.exportFrames(frozen);
+  assert.deepEqual(
+    [harness.canvases.at(-1).width, harness.canvases.at(-1).height],
+    [0, 0],
+  );
+  assert.deepEqual(
+    frozen.map(({ frame }) => [frame.source.width, frame.source.height]),
+    [[0, 0], [0, 0]],
+  );
+  assert.equal(frozen.release(), false);
+  buffer.dispose();
   exporter.dispose();
 });
 
