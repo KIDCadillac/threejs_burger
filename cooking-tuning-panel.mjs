@@ -1,19 +1,11 @@
 import {
+  BURGER_TUNING_INGREDIENT_IDS,
+  BURGER_TUNING_INGREDIENT_LABELS,
   DEFAULT_BURGER_TUNING,
   normalizeBurgerTuning,
   resetBurgerIngredient,
   serializeBurgerTuning,
 } from "./burger-tuning.mjs";
-
-const INGREDIENT_IDS = Object.freeze([
-  "bottom-bun",
-  "patty",
-  "cheese",
-  "tomato",
-  "lettuce",
-  "pickle",
-  "top-bun",
-]);
 
 const TUNING_KEYS = Object.freeze([
   "presentationScale",
@@ -22,6 +14,9 @@ const TUNING_KEYS = Object.freeze([
   "scaleZ",
   "sinkY",
 ]);
+const LEGACY_INGREDIENT_IDS = Object.freeze(BURGER_TUNING_INGREDIENT_IDS.filter((id) => (
+  id !== "onion" && id !== "middle-bun"
+)));
 
 export function createCookingTuningPanel({
   root,
@@ -60,13 +55,17 @@ export function createCookingTuningPanel({
     }
   }
 
-  requireNode(tabs.length === INGREDIENT_IDS.length, "ingredient tabs");
-  for (const id of INGREDIENT_IDS) {
-    requireNode(
-      tabs.filter((tab) => tab?.dataset?.ingredientId === id).length === 1,
-      `[data-ingredient-id="${id}"]`,
-    );
-  }
+  const tabIds = tabs.map((tab) => tab?.dataset?.ingredientId);
+  const matchesIngredientSet = (expectedIds) => (
+    tabIds.length === expectedIds.length
+    && new Set(tabIds).size === expectedIds.length
+    && expectedIds.every((id) => tabIds.includes(id))
+  );
+  requireNode(
+    matchesIngredientSet(BURGER_TUNING_INGREDIENT_IDS)
+      || matchesIngredientSet(LEGACY_INGREDIENT_IDS),
+    "ingredient tabs",
+  );
   requireNode(inputs.length === TUNING_KEYS.length * 2, "tuning inputs");
   for (const key of TUNING_KEYS) {
     for (const type of ["range", "number"]) {
@@ -94,6 +93,9 @@ export function createCookingTuningPanel({
 
   function syncDom() {
     for (const tab of tabs) {
+      const label = BURGER_TUNING_INGREDIENT_LABELS[tab.dataset.ingredientId];
+      tab.textContent = label;
+      tab.setAttribute("aria-label", label);
       const selected = tab.dataset.ingredientId === selectedIngredient;
       tab.setAttribute("aria-selected", String(selected));
       tab.tabIndex = selected ? 0 : -1;

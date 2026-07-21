@@ -1,4 +1,7 @@
-import { BURGER_LAYER_IDS } from "./cooking-state.mjs";
+import {
+  SOLO_BURGER_INGREDIENT_IDS,
+  SOLO_COOKING_SAUCE_IDS,
+} from "./burger-recipes.mjs";
 import { createThreeSceneHost } from "./three-scene-host.mjs";
 import { createCookingWorkbench3D } from "./cooking-workbench-3d.mjs";
 import { createBurgerModel3D } from "./burger-model-3d.mjs";
@@ -20,6 +23,7 @@ import {
   continueSoloCooking,
   undoSoloCooking,
   resetSoloCookingState,
+  selectSoloReferenceRecipe,
   serializeSoloComposition,
   MAX_SOLO_STACK_LAYERS,
 } from "./cooking-solo-state.mjs";
@@ -173,13 +177,22 @@ export function createSoloCookingStage({
   if (!host?.scene?.isScene || !host?.camera?.isCamera) {
     throw new TypeError("hostFactory must return a Three scene and camera");
   }
-  const workbench = workbenchFactory(THREE);
+  const workbench = workbenchFactory(THREE, {
+    ingredientIds: SOLO_BURGER_INGREDIENT_IDS,
+    toolIds: SOLO_COOKING_SAUCE_IDS,
+  });
   cleanupTasks.push(() => disposeObserved(workbench, "workbench"));
-  const burger = burgerFactory(THREE);
+  const burger = burgerFactory(THREE, {
+    ingredientIds: SOLO_BURGER_INGREDIENT_IDS,
+    sauceIds: SOLO_COOKING_SAUCE_IDS,
+  });
   cleanupTasks.push(() => disposeObserved(burger, "burger"));
   host.scene.add(workbench.root);
   workbench.root.add(burger.root);
-  const tools = toolsFactory(THREE, { toolDocks: workbench.toolDocks });
+  const tools = toolsFactory(THREE, {
+    toolDocks: workbench.toolDocks,
+    sauceIds: SOLO_COOKING_SAUCE_IDS,
+  });
   cleanupTasks.push(() => disposeObserved(tools, "tools"));
   const celebration = celebrationFactory(THREE);
   cleanupTasks.push(() => celebration?.dispose?.());
@@ -656,7 +669,7 @@ export function createSoloCookingStage({
   };
 
   let controller = null;
-  const registeredLayerIds = new Set(BURGER_LAYER_IDS);
+  const registeredLayerIds = new Set(SOLO_BURGER_INGREDIENT_IDS);
   const reconcileModelInstances = () => {
     const desiredIds = new Set(Object.keys(state.instances));
     for (const layerId of [...burger.layers.keys()]) {
@@ -666,7 +679,7 @@ export function createSoloCookingStage({
       }
       controller?.unregisterDraggable?.(layerId);
       registeredLayerIds.delete(layerId);
-      if (BURGER_LAYER_IDS.includes(layerId)) {
+      if (SOLO_BURGER_INGREDIENT_IDS.includes(layerId)) {
         burger.getLayer(layerId).visible = false;
         continue;
       }
@@ -697,12 +710,13 @@ export function createSoloCookingStage({
     camera: host.camera,
     documentTarget,
     selectableSurfaces: workbench.selectableSurfaces,
-    draggables: BURGER_LAYER_IDS.map((id) => ({
+    draggables: SOLO_BURGER_INGREDIENT_IDS.map((id) => ({
       id,
       object: burger.getLayer(id),
       surfaces: [burger.getLayer(id).userData.selectableSurface],
     })),
     condimentTools: tools,
+    sauceIds: SOLO_COOKING_SAUCE_IDS,
     foodSurfaces: burger.getSelectableSurfaces(),
     prepBounds: workbench.getLayout().bounds,
     prepPlaneY: 0.42,
@@ -1053,6 +1067,14 @@ export function createSoloCookingStage({
     isBurgerFocused: () => focused,
     isExpanded: () => expanded,
     getComposition: () => serializeSoloComposition(state),
+    selectReferenceRecipe(referenceRecipeId) {
+      if (disposed) return false;
+      const nextState = selectSoloReferenceRecipe(state, referenceRecipeId);
+      if (nextState === state) return false;
+      state = nextState;
+      emit("reference-recipe");
+      return true;
+    },
     tick,
     selectLayer,
     dropLayer,
@@ -1100,7 +1122,7 @@ export function createSoloCookingStage({
       if (focused) setFocusMode(false, { notify: false });
       clearTransientVisuals();
       dropIntent = null;
-      state = resetSoloCookingState();
+      state = resetSoloCookingState(state);
       reconcileModelInstances();
       selectedLayerId = null;
       expanded = false;

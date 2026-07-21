@@ -27,12 +27,58 @@
         </div>
       </header>
 
+      <div class="recipe-selector" id="recipe-selector" role="dialog" aria-modal="true" aria-labelledby="recipe-selector-title" aria-hidden="false">
+        <section class="recipe-selector__card">
+          <p class="recipe-selector__eyebrow">开火前先定一个参考</p>
+          <h2 id="recipe-selector-title">今天想做哪款汉堡？</h2>
+          <p class="recipe-selector__copy">配方只做步骤提示，不会自动装配，也不会限制你的摆放顺序。</p>
+          <div class="recipe-grid">
+            <button class="recipe-card recipe-card--free" type="button" data-action="recipe-select" data-recipe-id="">
+              <span class="recipe-card__icon" aria-hidden="true">✦</span>
+              <strong>自由料理</strong>
+              <small>不看配方，随手叠出自己的汉堡</small>
+            </button>
+            <button class="recipe-card" type="button" data-action="recipe-select" data-recipe-id="classic-beef">
+              <span class="recipe-card__icon" aria-hidden="true">🍔</span>
+              <strong>小馆经典牛肉堡</strong>
+              <small>牛肉、酸黄瓜、洋葱与番茄酱</small>
+            </button>
+            <button class="recipe-card" type="button" data-action="recipe-select" data-recipe-id="melty-cheese">
+              <span class="recipe-card__icon" aria-hidden="true">🧀</span>
+              <strong>融金芝士牛肉堡</strong>
+              <small>在经典牛肉组合里加入融化芝士</small>
+            </button>
+            <button class="recipe-card" type="button" data-action="recipe-select" data-recipe-id="double-melty-cheese">
+              <span class="recipe-card__icon" aria-hidden="true">🥩</span>
+              <strong>双层融金芝士堡</strong>
+              <small>双份牛肉与双份芝士的厚实组合</small>
+            </button>
+            <button class="recipe-card" type="button" data-action="recipe-select" data-recipe-id="tower-double-beef">
+              <span class="recipe-card__icon" aria-hidden="true">🏙️</span>
+              <strong>三层高塔双牛堡</strong>
+              <small>中层面包、双层牛肉与小馆特调酱</small>
+            </button>
+          </div>
+        </section>
+      </div>
+
       <section class="objective-card" aria-labelledby="cooking-objective">
         <div>
           <span class="objective-label">当前目标</span>
           <p id="cooking-objective">自由叠放食材，最多 20 层</p>
         </div>
         <strong id="cooking-progress">0/20</strong>
+      </section>
+
+      <section class="recipe-reference" id="recipe-reference" aria-labelledby="recipe-reference-name" hidden>
+        <div class="recipe-reference__heading">
+          <div>
+            <span>当前参考</span>
+            <strong id="recipe-reference-name">自由料理</strong>
+          </div>
+          <button type="button" data-action="recipe-change">更换参考</button>
+        </div>
+        <ol class="recipe-reference__steps" id="recipe-reference-steps"></ol>
       </section>
 
       <p class="inventory-stock" id="cooking-stock" aria-live="polite">每种原料库存 ×999</p>
@@ -112,6 +158,8 @@
             <button class="tuning-tab" type="button" role="tab" data-ingredient-id="lettuce" aria-selected="false">生菜</button>
             <button class="tuning-tab" type="button" role="tab" data-ingredient-id="pickle" aria-selected="false">酸黄瓜</button>
             <button class="tuning-tab" type="button" role="tab" data-ingredient-id="top-bun" aria-selected="false">上层面包</button>
+            <button class="tuning-tab" type="button" role="tab" data-ingredient-id="onion" aria-selected="false">洋葱碎</button>
+            <button class="tuning-tab" type="button" role="tab" data-ingredient-id="middle-bun" aria-selected="false">中层面包</button>
           </div>
 
           <div class="tuning-fields">
@@ -190,7 +238,7 @@
         </div>
       </section>
 
-      <button class="finish-button" type="button" data-action="finish" disabled>装完 7 层后完成料理</button>
+      <button class="finish-button" type="button" data-action="finish" disabled>至少放 2 层食材后完成料理</button>
       <p class="cooking-status" id="cooking-status" role="status" aria-live="polite"></p>
     </main>
     <script type="module" src="./cooking-loader.mjs"></script>

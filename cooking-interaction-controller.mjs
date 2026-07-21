@@ -36,6 +36,22 @@ function finiteNumber(value, fallback, label) {
   return normalized;
 }
 
+function copySauceIds(value = SAUCE_KEYS) {
+  if (!Array.isArray(value) || value.length < 1) {
+    throw new TypeError("sauceIds must contain at least one sauce id");
+  }
+  const normalized = value.map((id) => {
+    if (typeof id !== "string" || !id.trim()) {
+      throw new TypeError("sauceIds must contain non-empty strings");
+    }
+    return id;
+  });
+  if (new Set(normalized).size !== normalized.length) {
+    throw new TypeError("sauceIds must not contain duplicates");
+  }
+  return Object.freeze(normalized);
+}
+
 function copyBounds(value) {
   if (value == null) return null;
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -125,6 +141,7 @@ export function createCookingInteractionController({
   selectableSurfaces = [],
   draggables = [],
   condimentTools = null,
+  sauceIds = SAUCE_KEYS,
   foodSurfaces = [],
   raycast: injectedRaycast,
   projectToPrep,
@@ -186,6 +203,7 @@ export function createCookingInteractionController({
   const normalizedSaucePointSpacing = finiteNumber(
     saucePointSpacing, 0.04, "saucePointSpacing",
   );
+  const normalizedSauceIds = copySauceIds(sauceIds);
   const normalizedPrepPlaneY = finiteNumber(prepPlaneY, 0, "prepPlaneY");
   if (normalizedDragLift < 0) throw new TypeError("dragLift must not be negative");
   if (normalizedBottleLift <= 0) throw new TypeError("bottleLift must be positive");
@@ -266,7 +284,7 @@ export function createCookingInteractionController({
       requireObject3D(surface, "condiment selectable surface");
       const metadata = surface.userData?.cookingSelectable;
       const sauce = metadata?.sauce;
-      if (metadata?.kind !== "condiment-bottle" || !SAUCE_KEYS.includes(sauce)) {
+      if (metadata?.kind !== "condiment-bottle" || !normalizedSauceIds.includes(sauce)) {
         throw new TypeError("Condiment surfaces need exact condiment-bottle metadata");
       }
       const bottle = condimentTools.get(sauce);
@@ -450,6 +468,8 @@ export function createCookingInteractionController({
     mustard: 0xe8b62d,
     sour: 0x82b848,
     sticky: 0x734231,
+    ketchup: 0xd9472f,
+    "house-sauce": 0xf2b76b,
   });
 
   const pointerPressure = (event) => {

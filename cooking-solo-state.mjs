@@ -1,4 +1,8 @@
-import { BURGER_LAYER_IDS, SAUCE_KEYS } from "./cooking-state.mjs";
+import {
+  BURGER_RECIPES,
+  SOLO_BURGER_INGREDIENT_IDS,
+  SOLO_COOKING_SAUCE_IDS,
+} from "./burger-recipes.mjs";
 
 const MAX_HISTORY = 32;
 const MAX_STROKES = 64;
@@ -7,9 +11,20 @@ export const MAX_SOLO_STACK_LAYERS = 20;
 export const SOLO_INGREDIENT_STOCK = 999;
 
 function requireLayer(layerId) {
-  if (!BURGER_LAYER_IDS.includes(layerId)) {
+  if (!SOLO_BURGER_INGREDIENT_IDS.includes(layerId)) {
     throw new TypeError(`Unknown burger layer: ${String(layerId)}`);
   }
+}
+
+function requireReferenceRecipe(referenceRecipeId) {
+  if (referenceRecipeId === null) return null;
+  if (
+    typeof referenceRecipeId !== "string"
+    || !BURGER_RECIPES.some(({ id }) => id === referenceRecipeId)
+  ) {
+    throw new TypeError(`Unknown burger reference recipe: ${String(referenceRecipeId)}`);
+  }
+  return referenceRecipeId;
 }
 
 function requireInstance(state, layerId) {
@@ -31,7 +46,7 @@ function finite(value, label) {
 }
 
 function freezeStroke(stroke, instances) {
-  if (!SAUCE_KEYS.includes(stroke?.sauce)) {
+  if (!SOLO_COOKING_SAUCE_IDS.includes(stroke?.sauce)) {
     throw new TypeError(`Unknown sauce: ${String(stroke?.sauce)}`);
   }
   if (instances) {
@@ -81,7 +96,9 @@ function freezeInstances(instances) {
 }
 
 function freezeIngredientRecord(record) {
-  return Object.freeze(Object.fromEntries(BURGER_LAYER_IDS.map((id) => [id, record[id]])));
+  return Object.freeze(Object.fromEntries(
+    SOLO_BURGER_INGREDIENT_IDS.map((id) => [id, record[id]]),
+  ));
 }
 
 function bareSnapshot(state) {
@@ -98,7 +115,7 @@ function bareSnapshot(state) {
   });
 }
 
-function buildState(snapshot, history = []) {
+function buildState(snapshot, history = [], referenceRecipeId = null) {
   const assembledOrder = Object.freeze([...snapshot.assembledOrder]);
   const instances = freezeInstances(snapshot.instances);
   return Object.freeze({
@@ -110,32 +127,46 @@ function buildState(snapshot, history = []) {
     inventory: freezeIngredientRecord(snapshot.inventory),
     nextInstanceSequence: snapshot.nextInstanceSequence,
     strokes: Object.freeze(snapshot.strokes.map((stroke) => freezeStroke(stroke, instances))),
-    complete: assembledOrder.length >= BURGER_LAYER_IDS.length,
+    complete: assembledOrder.length >= 2,
     finished: Boolean(snapshot.finished),
     history: Object.freeze([...history]),
+    referenceRecipeId: requireReferenceRecipe(referenceRecipeId),
   });
 }
 
 function edited(state, changes) {
   const history = [...state.history, bareSnapshot(state)].slice(-MAX_HISTORY);
-  return buildState({ ...bareSnapshot(state), ...changes }, history);
+  return buildState(
+    { ...bareSnapshot(state), ...changes },
+    history,
+    state.referenceRecipeId,
+  );
 }
 
-export function createSoloCookingState() {
-  const instances = Object.fromEntries(BURGER_LAYER_IDS.map((id) => [id, id]));
+export function createSoloCookingState({ referenceRecipeId = null } = {}) {
+  requireReferenceRecipe(referenceRecipeId);
+  const instances = Object.fromEntries(SOLO_BURGER_INGREDIENT_IDS.map((id) => [id, id]));
   return buildState({
     assembledOrder: [],
     instances,
-    locations: Object.fromEntries(BURGER_LAYER_IDS.map((id, index) => [
+    locations: Object.fromEntries(SOLO_BURGER_INGREDIENT_IDS.map((id, index) => [
       id, { kind: "bin", index },
     ])),
-    rotations: Object.fromEntries(BURGER_LAYER_IDS.map((id) => [id, 0])),
-    binSources: Object.fromEntries(BURGER_LAYER_IDS.map((id) => [id, id])),
-    inventory: Object.fromEntries(BURGER_LAYER_IDS.map((id) => [id, SOLO_INGREDIENT_STOCK])),
+    rotations: Object.fromEntries(SOLO_BURGER_INGREDIENT_IDS.map((id) => [id, 0])),
+    binSources: Object.fromEntries(SOLO_BURGER_INGREDIENT_IDS.map((id) => [id, id])),
+    inventory: Object.fromEntries(
+      SOLO_BURGER_INGREDIENT_IDS.map((id) => [id, SOLO_INGREDIENT_STOCK]),
+    ),
     nextInstanceSequence: 2,
     strokes: [],
     finished: false,
-  });
+  }, [], referenceRecipeId);
+}
+
+export function selectSoloReferenceRecipe(state, referenceRecipeId) {
+  const selected = requireReferenceRecipe(referenceRecipeId);
+  if (state.referenceRecipeId === selected) return state;
+  return Object.freeze({ ...state, referenceRecipeId: selected });
 }
 
 export function placeSoloLayer(
@@ -169,7 +200,10 @@ export function placeSoloLayer(
       nextInstanceSequence += 1;
     } while (instances[replacementId]);
     instances[replacementId] = ingredientId;
-    locations[replacementId] = { kind: "bin", index: BURGER_LAYER_IDS.indexOf(ingredientId) };
+    locations[replacementId] = {
+      kind: "bin",
+      index: SOLO_BURGER_INGREDIENT_IDS.indexOf(ingredientId),
+    };
     rotations[replacementId] = 0;
     binSources[ingredientId] = replacementId;
     inventory[ingredientId] = Math.max(0, inventory[ingredientId] - 1);
@@ -209,7 +243,10 @@ export function removeSoloLayer(state, layerId, { consolidate = false } = {}) {
     inventory[ingredientId] = Math.min(SOLO_INGREDIENT_STOCK, inventory[ingredientId] + 1);
   }
   if (instances[returnedId]) {
-    locations[returnedId] = { kind: "bin", index: BURGER_LAYER_IDS.indexOf(ingredientId) };
+    locations[returnedId] = {
+      kind: "bin",
+      index: SOLO_BURGER_INGREDIENT_IDS.indexOf(ingredientId),
+    };
   }
   order.forEach((id, index) => { locations[id] = { kind: "prep", index }; });
   return edited(state, {
@@ -247,7 +284,7 @@ export function addSoloSauceStrokes(state, strokes) {
 
 export function finishSoloCooking(state) {
   requireEditable(state);
-  if (!state.complete) throw new Error("All seven layers must be assembled before finishing");
+  if (!state.complete) throw new Error("至少放上 2 层食材后才能完成料理");
   return edited(state, { finished: true });
 }
 
@@ -259,11 +296,17 @@ export function continueSoloCooking(state) {
 export function undoSoloCooking(state) {
   if (!state.history.length) return state;
   const previous = state.history[state.history.length - 1];
-  return buildState(previous, state.history.slice(0, -1));
+  return buildState(
+    previous,
+    state.history.slice(0, -1),
+    state.referenceRecipeId,
+  );
 }
 
-export function resetSoloCookingState() {
-  return createSoloCookingState();
+export function resetSoloCookingState(state) {
+  return createSoloCookingState({
+    referenceRecipeId: state?.referenceRecipeId ?? null,
+  });
 }
 
 export function serializeSoloComposition(state) {

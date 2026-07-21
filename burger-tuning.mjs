@@ -1,14 +1,28 @@
 export const BURGER_TUNING_STORAGE_KEY = "solo-cooking-burger-tuning:v1";
 
-const INGREDIENT_IDS = Object.freeze([
+export const BURGER_TUNING_INGREDIENT_IDS = Object.freeze([
   "bottom-bun",
   "patty",
   "cheese",
   "tomato",
   "lettuce",
   "pickle",
+  "onion",
+  "middle-bun",
   "top-bun",
 ]);
+
+export const BURGER_TUNING_INGREDIENT_LABELS = Object.freeze({
+  "bottom-bun": "下层面包",
+  patty: "牛肉饼",
+  cheese: "芝士",
+  tomato: "番茄",
+  lettuce: "生菜",
+  pickle: "酸黄瓜",
+  onion: "洋葱碎",
+  "middle-bun": "中层面包",
+  "top-bun": "上层面包",
+});
 
 const LIMITS = Object.freeze({
   presentationScale: Object.freeze({ minimum: 0.55, maximum: 0.9 }),
@@ -19,7 +33,7 @@ const LIMITS = Object.freeze({
 });
 
 function freezeTuning({ global, ingredients }) {
-  const frozenIngredients = Object.fromEntries(INGREDIENT_IDS.map((id) => [
+  const frozenIngredients = Object.fromEntries(BURGER_TUNING_INGREDIENT_IDS.map((id) => [
     id,
     Object.freeze({
       scaleX: ingredients[id].scaleX,
@@ -44,6 +58,8 @@ export const DEFAULT_BURGER_TUNING = freezeTuning({
     tomato: { scaleX: 1, scaleY: 1, scaleZ: 1, sinkY: 0 },
     lettuce: { scaleX: 1, scaleY: 1.55, scaleZ: 1, sinkY: 0.008 },
     pickle: { scaleX: 1, scaleY: 1, scaleZ: 1, sinkY: 0 },
+    onion: { scaleX: 1, scaleY: 1, scaleZ: 1, sinkY: 0.006 },
+    "middle-bun": { scaleX: 1, scaleY: 1, scaleZ: 1, sinkY: 0.012 },
     "top-bun": { scaleX: 1, scaleY: 1, scaleZ: 1, sinkY: 0.008 },
   },
 });
@@ -62,7 +78,7 @@ export function normalizeBurgerTuning(value) {
 
   const inputGlobal = isRecord(value.global) ? value.global : {};
   const inputIngredients = isRecord(value.ingredients) ? value.ingredients : {};
-  const ingredients = Object.fromEntries(INGREDIENT_IDS.map((id) => {
+  const ingredients = Object.fromEntries(BURGER_TUNING_INGREDIENT_IDS.map((id) => {
     const defaults = DEFAULT_BURGER_TUNING.ingredients[id];
     const input = isRecord(inputIngredients[id]) ? inputIngredients[id] : {};
     return [id, {
@@ -91,9 +107,9 @@ export function serializeBurgerTuning(value) {
 
 export function resetBurgerIngredient(value, id) {
   const normalized = normalizeBurgerTuning(value);
-  if (!INGREDIENT_IDS.includes(id)) return normalized;
+  if (!BURGER_TUNING_INGREDIENT_IDS.includes(id)) return normalized;
 
-  const ingredients = Object.fromEntries(INGREDIENT_IDS.map((ingredientId) => [
+  const ingredients = Object.fromEntries(BURGER_TUNING_INGREDIENT_IDS.map((ingredientId) => [
     ingredientId,
     ingredientId === id
       ? DEFAULT_BURGER_TUNING.ingredients[ingredientId]
