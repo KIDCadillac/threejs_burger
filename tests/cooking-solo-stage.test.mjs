@@ -99,6 +99,20 @@ function expectedLayerScale(stage, instanceId) {
     .map((value) => value * presentationScale);
 }
 
+function pointerAtWorld(stage, canvas, pointerId, worldPoint) {
+  stage.host.scene.updateMatrixWorld(true);
+  stage.host.camera.updateMatrixWorld(true);
+  const bounds = canvas.getBoundingClientRect();
+  const ndc = worldPoint.clone().project(stage.host.camera);
+  return {
+    pointerId,
+    clientX: bounds.left + (ndc.x + 1) * bounds.width / 2,
+    clientY: bounds.top + (1 - ndc.y) * bounds.height / 2,
+    pointerType: "touch",
+    preventDefault() {},
+  };
+}
+
 class FakeVisibilityDocument {
   constructor() {
     this.visibilityState = "visible";
@@ -589,6 +603,83 @@ test("setTuning clears transient visuals and transitions while adapting the stac
   const tunedTransform = readLayerTransform(cheese);
   stage.tick(10_000);
   assert.deepEqual(readLayerTransform(cheese), tunedTransform, "old transition stays cancelled");
+  stage.dispose();
+});
+
+test("setTuning silently cancels a real active drag and restores its tuned authority", () => {
+  const updates = [];
+  const vibrations = [];
+  const { stage, canvas } = harness({
+    reducedMotion: true,
+    onChange: (detail) => updates.push(detail),
+    vibrate: (pattern) => vibrations.push(pattern),
+  });
+  const patty = stage.burger.getLayer("patty");
+  const surfaceWorld = patty.userData.selectableSurface
+    .getWorldPosition(new THREE.Vector3());
+  stage.controller.pointerDown(pointerAtWorld(stage, canvas, 41, surfaceWorld));
+  assert.equal(stage.controller.getState(), "dragging-layer");
+
+  const prepWorld = stage.workbench.root.localToWorld(new THREE.Vector3(0, 0.42, 0));
+  stage.controller.pointerMove(pointerAtWorld(stage, canvas, 41, prepWorld));
+  assert.equal(stage.controller.getState(), "dragging-layer");
+  assert.equal(updates.at(-1).dropIntent?.kind, "prep");
+  assert.equal(stage.burger.dropPreview.visible, true);
+  updates.length = 0;
+
+  stage.setTuning({
+    version: 1,
+    global: { presentationScale: 0.81 },
+    ingredients: {
+      patty: { scaleX: 1.2, scaleY: 1.7, scaleZ: 0.8, sinkY: 0.04 },
+    },
+  });
+
+  assert.deepEqual(vibrations, []);
+  assert.deepEqual(updates.map(({ reason }) => reason), ["tuning"]);
+  assert.equal(updates[0].dropIntent, null);
+  assert.equal(stage.controller.getState(), "idle");
+  assert.equal(stage.burger.dropPreview.visible, false);
+  assert.equal(stage.workbench.dropCue.visible, false);
+  const binAnchor = stage.workbench.getStation("ingredient", "patty")
+    .pickupAnchor.getWorldPosition(new THREE.Vector3());
+  const actualWorld = patty.getWorldPosition(new THREE.Vector3());
+  assert.ok(actualWorld.distanceTo(binAnchor) < 1e-9);
+  assert.deepEqual(patty.scale.toArray(), expectedLayerScale(stage, "patty"));
+  stage.dispose();
+});
+
+test("setInteractionPaused silently cancels a real active drag", () => {
+  const updates = [];
+  const vibrations = [];
+  const { stage, canvas } = harness({
+    reducedMotion: true,
+    onChange: (detail) => updates.push(detail),
+    vibrate: (pattern) => vibrations.push(pattern),
+  });
+  const patty = stage.burger.getLayer("patty");
+  const surfaceWorld = patty.userData.selectableSurface
+    .getWorldPosition(new THREE.Vector3());
+  stage.controller.pointerDown(pointerAtWorld(stage, canvas, 42, surfaceWorld));
+  const prepWorld = stage.workbench.root.localToWorld(new THREE.Vector3(0, 0.42, 0));
+  stage.controller.pointerMove(pointerAtWorld(stage, canvas, 42, prepWorld));
+  assert.equal(stage.controller.getState(), "dragging-layer");
+  assert.equal(updates.at(-1).dropIntent?.kind, "prep");
+  updates.length = 0;
+
+  assert.equal(stage.setInteractionPaused(true), true);
+
+  assert.deepEqual(vibrations, []);
+  assert.deepEqual(updates, []);
+  assert.equal(stage.controller.getState(), "idle");
+  assert.equal(stage.burger.dropPreview.visible, false);
+  assert.equal(stage.workbench.dropCue.visible, false);
+  const binAnchor = stage.workbench.getStation("ingredient", "patty")
+    .pickupAnchor.getWorldPosition(new THREE.Vector3());
+  const actualWorld = patty.getWorldPosition(new THREE.Vector3());
+  assert.ok(actualWorld.distanceTo(binAnchor) < 1e-9);
+  assert.deepEqual(patty.scale.toArray(), expectedLayerScale(stage, "patty"));
+  assert.equal(stage.setInteractionPaused(false), false);
   stage.dispose();
 });
 

@@ -214,6 +214,7 @@ export function createSoloCookingStage({
   let focusWorkbenchVisible = true;
   let disposed = false;
   let externallyPaused = false;
+  let suppressInvalidFeedback = false;
   let lastFrameTime = 0;
   const transitions = new Map();
   let activeMotion = null;
@@ -768,6 +769,7 @@ export function createSoloCookingStage({
       else dropLayer(id, { kind: "bin" });
     },
     onInvalid: ({ reason } = {}) => {
+      if (suppressInvalidFeedback) return;
       dropIntent = null;
       clearTransientVisuals({ resync: false });
       syncTransforms({ animate: true });
@@ -975,11 +977,21 @@ export function createSoloCookingStage({
   host.start();
   emit("ready");
 
+  const pauseInteractionsSilently = () => {
+    suppressInvalidFeedback = true;
+    try {
+      controller.pause();
+    } finally {
+      suppressInvalidFeedback = false;
+      dropIntent = null;
+      clearTransientVisuals();
+    }
+  };
+
   const setTuning = (value) => {
     if (disposed) return activeTuning;
-    controller.pause();
+    pauseInteractionsSilently();
     activeTuning = normalizeBurgerTuning(value);
-    dropIntent = null;
     clearTransientVisuals();
     adaptCameraToStack();
     emit("tuning");
@@ -990,7 +1002,7 @@ export function createSoloCookingStage({
   const setInteractionPaused = (value) => {
     if (disposed) return externallyPaused;
     externallyPaused = Boolean(value);
-    if (externallyPaused) controller.pause();
+    if (externallyPaused) pauseInteractionsSilently();
     else if (!state.finished) controller.resume();
     return externallyPaused;
   };
