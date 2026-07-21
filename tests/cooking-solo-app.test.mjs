@@ -84,7 +84,16 @@ function pageHarness() {
     feedbackSubmitButton: add('[data-action="feedback-submit"]', "feedback-submit"),
     resetButton: add('[data-action="reset"]', "reset"),
     continueButton: add('[data-action="continue"]', "continue"),
+    recipeSelector: add("#recipe-selector"),
+    recipeReference: add("#recipe-reference"),
+    recipeReferenceName: add("#recipe-reference-name"),
+    recipeReferenceSteps: add("#recipe-reference-steps"),
+    recipeChangeButton: add('[data-action="recipe-change"]', "recipe-change"),
   };
+  const recipeCards = [
+    "", "classic-beef", "melty-cheese", "double-melty-cheese", "tower-double-beef",
+  ].map((recipeId) => new Element("recipe-select", { dataset: { recipeId } }));
+  elements.recipeCards = recipeCards;
   const tuningTabs = [
     "bottom-bun", "patty", "cheese", "tomato", "lettuce", "pickle", "top-bun",
     "onion", "middle-bun",
@@ -116,6 +125,9 @@ function pageHarness() {
     return null;
   };
   documentTarget.querySelector = (selector) => selectors.get(selector) ?? null;
+  documentTarget.querySelectorAll = (selector) => (
+    selector === '[data-action="recipe-select"]' ? recipeCards : []
+  );
   documentTarget.createElement = (tag) => {
     if (tag !== "canvas") return new Element();
     return {
@@ -135,7 +147,7 @@ function pageHarness() {
   };
   windowTarget.setInterval = () => 1;
   windowTarget.clearInterval = () => {};
-  windowTarget.location = { href: "http://example.test/cooking.html" };
+  windowTarget.location = { href: "http://example.test/cooking.html?recipe=classic-beef" };
   windowTarget.navigator = { userAgent: "test" };
   return { documentTarget, windowTarget, elements };
 }
@@ -169,6 +181,7 @@ function stageFactoryHarness() {
       disposed: 0,
       calls: [],
       pauseCalls: [],
+      referenceCalls: [],
       getState: () => state,
       getTutorial: () => tutorial,
       getTuning: () => tuning,
@@ -180,6 +193,11 @@ function stageFactoryHarness() {
       setInteractionPaused(value) {
         stage.pauseCalls.push(Boolean(value));
         return Boolean(value);
+      },
+      selectReferenceRecipe(recipeId) {
+        stage.referenceCalls.push(recipeId);
+        state.referenceRecipeId = recipeId;
+        return state;
       },
       rotateSelected: () => stage.calls.push("rotate"),
       resetCamera: () => stage.calls.push("camera"),
@@ -210,6 +228,88 @@ function stageFactoryHarness() {
   };
   return { factory, stages };
 }
+
+test("a valid neutral recipe deep link selects its public reference and enters directly", () => {
+  const page = pageHarness();
+  const stages = stageFactoryHarness();
+  page.windowTarget.location.href = "http://example.test/cooking.html?recipe=tower-double-beef";
+
+  const stage = bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: stages.factory,
+  });
+
+  assert.deepEqual(stage.referenceCalls, ["tower-double-beef"]);
+  assert.equal(page.elements.recipeSelector.hidden, true);
+  assert.equal(page.elements.recipeReferenceName.textContent, "三层高塔双牛堡");
+  assert.match(page.elements.recipeReferenceSteps.innerHTML, /中层面包/);
+  assert.deepEqual(stage.pauseCalls, []);
+});
+
+test("missing or invalid recipe links keep the selector open and pause the 3d stage", () => {
+  for (const href of [
+    "http://example.test/cooking.html",
+    "http://example.test/cooking.html?recipe=not-a-recipe",
+  ]) {
+    const page = pageHarness();
+    const stages = stageFactoryHarness();
+    page.windowTarget.location.href = href;
+
+    const stage = bootSoloCookingPage(page.documentTarget, {
+      windowTarget: page.windowTarget,
+      stageFactory: stages.factory,
+    });
+
+    assert.equal(page.elements.recipeSelector.hidden, false, href);
+    assert.deepEqual(stage.referenceCalls, [], href);
+    assert.deepEqual(stage.pauseCalls, [true], href);
+  }
+});
+
+test("choosing or changing a reference resumes interaction without clearing the current stack", () => {
+  const page = pageHarness();
+  const stages = stageFactoryHarness();
+  page.windowTarget.location.href = "http://example.test/cooking.html";
+  const stage = bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: stages.factory,
+  });
+  stage.emit({
+    assembledOrder: ["bottom-bun", "patty"],
+    instances: { "bottom-bun": "bottom-bun", patty: "patty" },
+  });
+
+  page.documentTarget.emit("click", { target: page.elements.recipeCards[3] });
+
+  assert.deepEqual(stage.referenceCalls, ["double-melty-cheese"]);
+  assert.deepEqual(stage.getState().assembledOrder, ["bottom-bun", "patty"]);
+  assert.equal(page.elements.recipeSelector.hidden, true);
+  assert.equal(page.elements.recipeReferenceName.textContent, "双层融金芝士堡");
+  assert.deepEqual(stage.pauseCalls, [true, false]);
+
+  page.documentTarget.emit("click", { target: page.elements.recipeChangeButton });
+  page.documentTarget.emit("click", { target: page.elements.recipeCards[1] });
+
+  assert.deepEqual(stage.referenceCalls, ["double-melty-cheese", "classic-beef"]);
+  assert.deepEqual(stage.getState().assembledOrder, ["bottom-bun", "patty"]);
+  assert.deepEqual(stage.pauseCalls, [true, false, true, false]);
+});
+
+test("the free-cooking card clears the reference and keeps unrestricted guidance", () => {
+  const page = pageHarness();
+  const stages = stageFactoryHarness();
+  page.windowTarget.location.href = "http://example.test/cooking.html";
+  const stage = bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: stages.factory,
+  });
+
+  page.documentTarget.emit("click", { target: page.elements.recipeCards[0] });
+
+  assert.deepEqual(stage.referenceCalls, [null]);
+  assert.equal(page.elements.recipeReferenceName.textContent, "自由料理");
+  assert.match(page.elements.recipeReferenceSteps.innerHTML, /自由搭配|不限制顺序/);
+});
 
 function panelFactoryHarness({ factoryError = null, disposeError = null } = {}) {
   const panels = [];

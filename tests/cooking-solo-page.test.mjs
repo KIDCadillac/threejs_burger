@@ -68,8 +68,56 @@ test("standalone cooking page is accessible, Chinese, and contains the full play
   assert.match(html, />0\/20</);
   assert.match(html, /自由料理台/);
   assert.match(html, /自由叠放食材，最多 20 层/);
+  assert.match(html, /至少放 2 层食材后完成料理/);
+  assert.doesNotMatch(html, /装完\s*7\s*层|再装\s*7\s*层/);
   assert.match(html, /rel="icon" href="data:,"/);
   assert.doesNotMatch(html, /cooking-loading-elapsed|已等待\s*[\d.]+\s*秒/);
+});
+
+test("recipe selector publishes four original references plus free cooking without brand copy", async () => {
+  const [html, css, app] = await Promise.all([
+    readFile(htmlPath, "utf8"),
+    readFile(cssPath, "utf8"),
+    readFile(appPath, "utf8"),
+  ]);
+  for (const marker of [
+    'id="recipe-selector"',
+    'aria-labelledby="recipe-selector-title"',
+    'data-action="recipe-select"',
+    'data-recipe-id="classic-beef"',
+    'data-recipe-id="melty-cheese"',
+    'data-recipe-id="double-melty-cheese"',
+    'data-recipe-id="tower-double-beef"',
+    "自由料理",
+    "小馆经典牛肉堡",
+    "融金芝士牛肉堡",
+    "双层融金芝士堡",
+    "三层高塔双牛堡",
+    'id="recipe-reference"',
+    'id="recipe-reference-name"',
+    'id="recipe-reference-steps"',
+    'data-action="recipe-change"',
+    "更换参考",
+  ]) assert.ok(html.includes(marker), marker);
+
+  const cards = [...html.matchAll(
+    /<button\b[^>]*data-action="recipe-select"[^>]*data-recipe-id="([^"]*)"[^>]*>/g,
+  )];
+  assert.deepEqual(cards.map((match) => match[1]), [
+    "", "classic-beef", "melty-cheese", "double-melty-cheese", "tower-double-beef",
+  ]);
+  assert.doesNotMatch(html, /麦当劳|巨无霸|吉士汉堡包/u);
+  assert.doesNotMatch(app, /developmentReferenceName/);
+  assert.match(app, /from "\.\/burger-recipes\.mjs"/);
+  assert.match(app, /stage\.selectReferenceRecipe/);
+
+  const overlay = css.match(/\.recipe-selector\s*\{([^}]+)\}/)?.[1] ?? "";
+  assert.match(overlay, /position:\s*fixed/);
+  assert.ok(Number(overlay.match(/z-index:\s*(\d+)/)?.[1]) > 40);
+  assert.match(css, /\.recipe-selector\[hidden\]\s*\{[^}]*display:\s*none/s);
+  assert.match(css, /\.recipe-grid\s*\{[^}]*grid-template-columns:/s);
+  assert.match(css, /\.recipe-card\s*\{[^}]*min-height:\s*(?:1[2-9]\d|[2-9]\d\d)px/s);
+  assert.match(css, /@media\s*\(max-width:\s*520px\)[\s\S]*?\.recipe-grid\s*\{[^}]*grid-template-columns:\s*1fr/s);
 });
 
 test("the public cooking page is connected to the automatic feedback receiver", async () => {
