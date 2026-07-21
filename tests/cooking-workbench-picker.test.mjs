@@ -187,3 +187,30 @@ test("invalid selector payloads fail closed and dispose removes delegated listen
   assert.equal(ui.root.count("keydown"), 0);
   assert.equal(picker.open({ slotId: "bread-left-1", region: "bread" }), false);
 });
+
+test("constructor rolls back its first listener if the second listener cannot attach", () => {
+  const ui = harness();
+  const originalAdd = ui.root.addEventListener.bind(ui.root);
+  ui.root.addEventListener = (type, callback) => {
+    if (type === "keydown") throw new Error("keydown listener rejected");
+    originalAdd(type, callback);
+  };
+
+  assert.throws(
+    () => createWorkbenchSlotPicker({ root: ui.root }),
+    /keydown listener rejected/,
+  );
+  assert.equal(ui.root.count("click"), 0);
+  assert.equal(ui.root.count("keydown"), 0);
+});
+
+test("closing the picker returns focus to the supplied cooking surface", () => {
+  const ui = harness();
+  const returnTarget = new Element();
+  const picker = createWorkbenchSlotPicker({ root: ui.root, returnTarget });
+
+  picker.open({ slotId: "bread-left-1", region: "bread" });
+  ui.root.emit("click", { target: ui.close });
+
+  assert.equal(returnTarget.focusCalls, 1);
+});

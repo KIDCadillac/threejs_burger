@@ -237,6 +237,7 @@ export function bootSoloCookingPage(
     });
     workbenchPicker = workbenchPickerFactory({
       root: elements.workbenchPicker,
+      returnTarget: canvas,
       initialLoadout: loadout,
       onChange(nextLoadout, { slotId, contentId }) {
         stage.setSlotContent(slotId, contentId);

@@ -31,6 +31,7 @@ export function createWorkbenchSlotPicker({
   initialLoadout = createDefaultWorkbenchLoadout(),
   onChange = () => {},
   onRequestClose = () => {},
+  returnTarget = null,
 } = {}) {
   requireRoot(root);
   if (typeof onChange !== "function") throw new TypeError("onChange must be a function");
@@ -68,6 +69,7 @@ export function createWorkbenchSlotPicker({
     root.setAttribute?.("aria-hidden", "true");
     activeSlot = null;
     onRequestClose(reason);
+    returnTarget?.focus?.();
     return true;
   };
 
@@ -111,7 +113,12 @@ export function createWorkbenchSlotPicker({
   };
 
   root.addEventListener("click", handleClick);
-  root.addEventListener("keydown", handleKeyDown);
+  try {
+    root.addEventListener("keydown", handleKeyDown);
+  } catch (error) {
+    root.removeEventListener("click", handleClick);
+    throw error;
+  }
   root.hidden = true;
   root.setAttribute?.("aria-hidden", "true");
 
