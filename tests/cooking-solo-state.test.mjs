@@ -394,6 +394,70 @@ test("a consolidated layer makes its changed home slot accept the returned ingre
   assert.deepEqual(returnedSlotSources, [returnedId]);
 });
 
+test("undo keeps a returned duplicate ingredient tied to its original slot after a slot switch", () => {
+  const loadout = {
+    ...createDefaultWorkbenchLoadout(),
+    "filling-back-2": "patty",
+  };
+  let state = createSoloCookingState({ loadout });
+  const firstSlotSource = state.stationSources["filling-back-1"];
+  const returnedId = state.stationSources["filling-back-2"];
+
+  state = placeSoloLayer(state, returnedId, 0, { replenish: true });
+  state = removeSoloLayer(state, returnedId, { consolidate: true });
+  state = setSoloStationContent(state, "filling-back-2", "cheese");
+  state = undoSoloCooking(state);
+
+  assert.deepEqual(state.assembledOrder, [returnedId]);
+  assert.equal(state.instanceHomes[returnedId], "filling-back-2");
+
+  state = removeSoloLayer(state, returnedId, { consolidate: true });
+
+  assert.equal(state.stationSources["filling-back-1"], firstSlotSource);
+  assert.equal(state.stationSources["filling-back-2"], returnedId);
+  assert.ok(Object.values(state.stationSources).every((id) => state.instances[id]));
+  assert.deepEqual(state.locations[returnedId], {
+    kind: "bin",
+    slotId: "filling-back-2",
+  });
+});
+
+test("undo preserves a stroked bin instance from the restored station snapshot", () => {
+  let state = createSoloCookingState({ loadout: createDefaultWorkbenchLoadout() });
+  const strokedId = state.stationSources["filling-back-1"];
+
+  state = placeSoloLayer(state, strokedId, 0, { replenish: true });
+  state = addSoloSauceStroke(state, stroke("ketchup", strokedId));
+  state = removeSoloLayer(state, strokedId, { consolidate: true });
+  state = placeSoloLayer(state, strokedId, 0, { replenish: true });
+  state = undoSoloCooking(state);
+
+  assert.equal(state.instances[strokedId], "patty");
+  assert.deepEqual(state.locations[strokedId], {
+    kind: "bin",
+    slotId: "filling-back-1",
+  });
+  assert.deepEqual(state.strokes.map(({ layerId }) => layerId), [strokedId]);
+});
+
+test("switching a slot keeps its stroked bin source alive", () => {
+  let state = createSoloCookingState({ loadout: createDefaultWorkbenchLoadout() });
+  const strokedId = state.stationSources["filling-back-1"];
+  state = addSoloSauceStroke(state, stroke("mustard", strokedId));
+
+  state = setSoloStationContent(state, "filling-back-1", "onion");
+
+  assert.equal(state.instances[strokedId], "patty");
+  assert.deepEqual(state.locations[strokedId], {
+    kind: "bin",
+    slotId: "filling-back-1",
+  });
+  assert.equal(state.instanceHomes[strokedId], "filling-back-1");
+  assert.deepEqual(state.strokes.map(({ layerId }) => layerId), [strokedId]);
+  assert.notEqual(state.stationSources["filling-back-1"], strokedId);
+  assert.equal(state.instances[state.stationSources["filling-back-1"]], "onion");
+});
+
 test("explicit station records are frozen, validated, and excluded from serialization", () => {
   const state = createSoloCookingState({ loadout: createDefaultWorkbenchLoadout() });
 

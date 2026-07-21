@@ -120,11 +120,11 @@ function freezeStationSources(record) {
   ));
 }
 
-function freezeInstanceHomes(record, instances) {
+function freezeInstanceHomes(record) {
+  // Keep historical provenance: undo snapshots can restore instances absent from the current frame.
   return Object.freeze(Object.fromEntries(
-    Object.keys(instances)
-      .filter((id) => typeof record[id] === "string")
-      .map((id) => [id, record[id]]),
+    Object.entries(record)
+      .filter(([, slotId]) => INGREDIENT_STATION_SLOT_IDS.has(slotId)),
   ));
 }
 
@@ -170,6 +170,8 @@ function reconcileStationSnapshot(snapshot, session) {
     Object.keys(instances).map((id) => [id, { ...snapshot.locations[id] }]),
   );
   const rotations = { ...snapshot.rotations };
+  // A sauce stroke owns its target just like the assembled stack and the active station do.
+  const strokedLayers = new Set(snapshot.strokes.map(({ layerId }) => layerId));
   const stationSources = {};
   const instanceHomes = { ...session.instanceHomes };
   const selectedSources = new Set();
@@ -196,7 +198,7 @@ function reconcileStationSnapshot(snapshot, session) {
   });
 
   Object.keys(instances).forEach((id) => {
-    if (assembled.has(id) || selectedSources.has(id)) return;
+    if (assembled.has(id) || selectedSources.has(id) || strokedLayers.has(id)) return;
     const location = locations[id];
     if (
       location?.kind === "bin"
@@ -206,12 +208,7 @@ function reconcileStationSnapshot(snapshot, session) {
       delete instances[id];
       delete locations[id];
       delete rotations[id];
-      delete instanceHomes[id];
     }
-  });
-
-  Object.keys(instanceHomes).forEach((id) => {
-    if (!Object.hasOwn(instances, id)) delete instanceHomes[id];
   });
 
   return {
@@ -276,7 +273,7 @@ function buildState(
   if (resolvedSession) {
     state.stationContents = normalizeWorkbenchLoadout(resolvedSession.stationContents);
     state.stationSources = freezeStationSources(resolvedSession.stationSources);
-    state.instanceHomes = freezeInstanceHomes(resolvedSession.instanceHomes, instances);
+    state.instanceHomes = freezeInstanceHomes(resolvedSession.instanceHomes);
   }
   return Object.freeze(state);
 }
@@ -381,15 +378,18 @@ export function setSoloStationContent(state, slotId, contentId) {
   const stationSources = { ...session.stationSources };
   const instanceHomes = { ...session.instanceHomes };
   const previousSourceId = stationSources[slotId];
+  const previousSourceHasStrokes = state.strokes.some(
+    ({ layerId }) => layerId === previousSourceId,
+  );
   if (
-    instances[previousSourceId]
+    !previousSourceHasStrokes
+    && instances[previousSourceId]
     && locations[previousSourceId]?.kind === "bin"
     && locations[previousSourceId]?.slotId === slotId
   ) {
     delete instances[previousSourceId];
     delete locations[previousSourceId];
     delete rotations[previousSourceId];
-    delete instanceHomes[previousSourceId];
   }
 
   const allocated = allocateInstanceId(instances, contentId, state.nextInstanceSequence);
@@ -528,7 +528,6 @@ export function removeSoloLayer(state, layerId, { consolidate = false } = {}) {
       delete instances[previousSourceId];
       delete locations[previousSourceId];
       delete rotations[previousSourceId];
-      delete instanceHomes[previousSourceId];
       strokes = strokes.filter((stroke) => stroke.layerId !== previousSourceId);
     }
     stationContents[homeSlotId] = ingredientId;
