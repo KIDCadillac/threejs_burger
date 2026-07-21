@@ -167,7 +167,7 @@ test("replay recorder snapshots the buffered 2D frame instead of a cleared WebGL
     height: 0,
     getContext: () => ({
       drawImage() {},
-      getImageData: () => ({ data: new Uint8ClampedArray(320 * 160 * 4) }),
+      getImageData: () => ({ data: new Uint8ClampedArray(480 * 240 * 4) }),
     }),
     toDataURL: () => "data:image/png;base64,visible-frame",
   };
@@ -192,22 +192,23 @@ test("replay recorder snapshots the buffered 2D frame instead of a cleared WebGL
   assert.equal(recorder.start(), true);
   afterRender(250);
   assert.equal(recorder.snapshotDataUrl(), "data:image/png;base64,visible-frame");
-  assert.equal(frameCanvas.width, 320);
-  assert.equal(frameCanvas.height, 160);
+  assert.equal(frameCanvas.width, 480);
+  assert.equal(frameCanvas.height, 240);
   recorder.dispose();
   assert.equal(unsubscribeCalls, 1);
 });
 
-test("replay recorder uses bounded mobile video defaults and resumes after stop", () => {
+test("replay recorder uses the signed six-second 480p video defaults and resumes after stop", () => {
   let afterRender = null;
   let unsubscribeCalls = 0;
   let subscribeCalls = 0;
+  const exporterConfigurations = [];
   const frameCanvas = {
     width: 0,
     height: 0,
     getContext: () => ({
       drawImage() {},
-      getImageData: () => ({ data: new Uint8ClampedArray(320 * 160 * 4) }),
+      getImageData: () => ({ data: new Uint8ClampedArray(480 * 240 * 4) }),
     }),
   };
   const recorder = createCanvasReplayRecorder({
@@ -218,19 +219,87 @@ test("replay recorder uses bounded mobile video defaults and resumes after stop"
       afterRender = callback;
       return () => { unsubscribeCalls += 1; };
     },
+    createVideoExporter(configuration) {
+      exporterConfigurations.push(configuration);
+      return { exportFrames() {}, dispose() {} };
+    },
   });
 
   recorder.start();
-  for (let index = 0; index < 60; index += 1) afterRender(index * 201);
-  assert.equal(frameCanvas.width, 320);
-  assert.equal(frameCanvas.height, 160);
-  assert.equal(recorder.frameCount(), 30);
+  for (let index = 0; index < 100; index += 1) afterRender(index * 84);
+  assert.equal(frameCanvas.width, 480);
+  assert.equal(frameCanvas.height, 240);
+  assert.equal(recorder.frameCount(), 72);
+  assert.deepEqual(exporterConfigurations.map((configuration) => ({
+    outputWidth: configuration.outputWidth,
+    fps: configuration.fps,
+    videoBitsPerSecond: configuration.videoBitsPerSecond,
+    maxDurationMs: configuration.maxDurationMs,
+  })), [{
+    outputWidth: 480,
+    fps: 12,
+    videoBitsPerSecond: 750_000,
+    maxDurationMs: 6_000,
+  }]);
 
   assert.equal(recorder.stop(), true);
   assert.equal(unsubscribeCalls, 1);
-  assert.equal(recorder.frameCount(), 30);
+  assert.equal(recorder.frameCount(), 72);
   assert.equal(recorder.start(), true);
   assert.equal(subscribeCalls, 2);
+  recorder.dispose();
+});
+
+test("replay recorder falls back to bounded defaults for invalid dimensions and timing", () => {
+  let intervalCallback = null;
+  let intervalDelay = null;
+  let exporterConfiguration = null;
+  const frameCanvas = {
+    width: 0,
+    height: 0,
+    getContext: () => ({
+      drawImage() {},
+      getImageData: () => ({ data: new Uint8ClampedArray(480 * 240 * 4) }),
+    }),
+  };
+  const recorder = createCanvasReplayRecorder({
+    canvas: { width: 480, height: 240 },
+    fps: Number.NaN,
+    seconds: Number.POSITIVE_INFINITY,
+    width: -1,
+    documentTarget: { createElement: () => frameCanvas },
+    windowTarget: {
+      setInterval(callback, delay) {
+        intervalCallback = callback;
+        intervalDelay = delay;
+        return 1;
+      },
+      clearInterval() {},
+    },
+    createVideoExporter(configuration) {
+      exporterConfiguration = configuration;
+      return { exportFrames() {}, dispose() {} };
+    },
+  });
+
+  recorder.start();
+  for (let index = 0; index < 100; index += 1) intervalCallback();
+
+  assert.equal(intervalDelay, 83);
+  assert.equal(frameCanvas.width, 480);
+  assert.equal(frameCanvas.height, 240);
+  assert.equal(recorder.frameCount(), 72);
+  assert.deepEqual({
+    outputWidth: exporterConfiguration.outputWidth,
+    fps: exporterConfiguration.fps,
+    videoBitsPerSecond: exporterConfiguration.videoBitsPerSecond,
+    maxDurationMs: exporterConfiguration.maxDurationMs,
+  }, {
+    outputWidth: 480,
+    fps: 12,
+    videoBitsPerSecond: 750_000,
+    maxDurationMs: 6_000,
+  });
   recorder.dispose();
 });
 
@@ -324,6 +393,117 @@ test("replay recorder exports a timestamped video snapshot through the injected 
   assert.equal(recorder.cancelVideoExport(), true);
   assert.equal(stopCalls, 1);
   recorder.dispose();
+});
+
+test("replay recorder serializes public video exports in call order and continues after failure", async () => {
+  const started = [];
+  let rejectFirstExport;
+  const secondVideo = new Blob(["second-video"], { type: "video/webm" });
+  const recorder = createCanvasReplayRecorder({
+    canvas: { width: 4, height: 2 },
+    width: 4,
+    documentTarget: {
+      createElement: () => ({
+        width: 0,
+        height: 0,
+        getContext: () => ({
+          drawImage() {},
+          getImageData: () => ({ data: new Uint8ClampedArray(4 * 2 * 4) }),
+        }),
+      }),
+    },
+    videoExporter: {
+      exportFrames(frames) {
+        started.push(frames[0].label);
+        if (started.length === 1) {
+          return new Promise((resolve, reject) => { rejectFirstExport = reject; });
+        }
+        return Promise.resolve({ blob: secondVideo });
+      },
+      dispose() {},
+    },
+  });
+  const frames = (label, timestamp) => Object.freeze([Object.freeze({
+    label,
+    rgba: new Uint8ClampedArray([0, 0, 0, 255]),
+    width: 1,
+    height: 1,
+    timestamp,
+  })]);
+
+  const first = recorder.exportVideo({ frames: frames("highlight", 100) });
+  const firstFailure = assert.rejects(first, (error) => (
+    error.code === "VIDEO_REPLAY_ENCODING_FAILED"
+    && error.cause?.message === "first export failed"
+  ));
+  const second = recorder.exportVideo({ frames: frames("feedback", 200) });
+  await waitFor(() => typeof rejectFirstExport === "function");
+  await Promise.resolve();
+  const startedBeforeFirstSettled = [...started];
+
+  rejectFirstExport(new Error("first export failed"));
+  await firstFailure;
+  assert.strictEqual(await second, secondVideo);
+
+  assert.deepEqual(startedBeforeFirstSettled, ["highlight"]);
+  assert.deepEqual(started, ["highlight", "feedback"]);
+  recorder.dispose();
+});
+
+test("disposing the recorder releases a queued leased snapshot without starting its export", async () => {
+  let rejectActiveExport;
+  let leasedReleases = 0;
+  const started = [];
+  const recorder = createCanvasReplayRecorder({
+    canvas: { width: 4, height: 2 },
+    width: 4,
+    documentTarget: {
+      createElement: () => ({
+        width: 0,
+        height: 0,
+        getContext: () => ({
+          drawImage() {},
+          getImageData: () => ({ data: new Uint8ClampedArray(4 * 2 * 4) }),
+        }),
+      }),
+    },
+    videoExporter: {
+      exportFrames(frames) {
+        started.push(frames[0].label);
+        return new Promise((resolve, reject) => { rejectActiveExport = reject; });
+      },
+      dispose() {
+        rejectActiveExport?.(Object.assign(new Error("disposed"), {
+          code: "VIDEO_REPLAY_DISPOSED",
+        }));
+      },
+    },
+  });
+  const frame = (label) => Object.freeze({
+    label,
+    rgba: new Uint8ClampedArray([0, 0, 0, 255]),
+    width: 1,
+    height: 1,
+    timestamp: 100,
+  });
+  const queuedFrames = [frame("queued")];
+  Object.defineProperty(queuedFrames, "release", {
+    value() { leasedReleases += 1; },
+  });
+  Object.freeze(queuedFrames);
+
+  const activeResult = recorder.exportVideo({ frames: Object.freeze([frame("active")]) })
+    .catch((error) => error);
+  const queuedResult = recorder.exportVideo({ frames: queuedFrames })
+    .catch((error) => error);
+  await waitFor(() => started.length === 1);
+  recorder.dispose();
+  const [activeError, queuedError] = await Promise.all([activeResult, queuedResult]);
+
+  assert.equal(activeError.code, "VIDEO_REPLAY_DISPOSED");
+  assert.equal(queuedError.code, "VIDEO_REPLAY_DISPOSED");
+  assert.deepEqual(started, ["active"]);
+  assert.equal(leasedReleases, 1);
 });
 
 test("Google Drive uploader posts a browser-safe Apps Script payload for any replay Blob MIME", async () => {
@@ -633,6 +813,7 @@ test("feedback reporter captures a preview and automatically uploads a compact v
   assert.equal(preview.hidden, false);
   assert.equal(preview.src, "data:image/png;base64,abc123");
   assert.equal(message.focusCalls, 1);
+  assert.match(status.textContent, /6/);
 
   const result = await reporter.submit();
   assert.equal(result.id, "RPT-20260721-001");
@@ -801,6 +982,45 @@ test("feedback reporter retries a failed upload with the cached video Blob", asy
   assert.equal(uploadedReplays[0], uploadedReplays[1]);
 });
 
+test("feedback reporter exports only the newest six seconds from a longer shared recorder", async () => {
+  const frames = [
+    { timestamp: 1_000 },
+    { timestamp: 3_999 },
+    { timestamp: 4_000 },
+    { timestamp: 10_000 },
+  ];
+  let snapshotOptions;
+  let exportedFrames;
+  const replay = new Blob(["six-seconds"], { type: "video/webm" });
+  const reporter = createCookingFeedbackReporter({
+    canvas: element(), dialog: element(), preview: element(), message: element({ value: "浮空" }),
+    status: element(), submitButton: element({ textContent: "自动上传反馈" }),
+    windowTarget: { navigator: {}, location: {} },
+    recorder: {
+      start() {}, stop() {}, snapshotDataUrl: () => "data:image/png;base64,abc",
+      snapshotFrames(options) {
+        snapshotOptions = options;
+        return Object.freeze(frames.filter(({ timestamp }) => timestamp >= 4_000));
+      },
+      async exportVideo({ frames: requestedFrames }) {
+        exportedFrames = requestedFrames;
+        return replay;
+      },
+      dispose() {},
+    },
+    uploader: {
+      async submit(payload) {
+        assert.equal(payload.replay, replay);
+        return { id: "RPT-SIX-SECONDS" };
+      },
+    },
+  });
+
+  assert.equal((await reporter.submit()).id, "RPT-SIX-SECONDS");
+  assert.deepEqual(snapshotOptions, { maxDurationMs: 6_000 });
+  assert.deepEqual(exportedFrames.map(({ timestamp }) => timestamp), [4_000, 10_000]);
+});
+
 test("feedback dialog freezes recording, resumes on close, and starts a fresh replay session", async () => {
   const calls = [];
   let exports = 0;
@@ -831,15 +1051,17 @@ test("feedback dialog freezes recording, resumes on close, and starts a fresh re
 
 test("reopening during video encoding cannot mix the old replay with the new screenshot", async () => {
   let resolveFirstExport;
+  let resolveSecondExport;
   let exportCalls = 0;
   let screenshotCalls = 0;
   const uploads = [];
   const oldReplay = new Blob(["old"], { type: "video/webm" });
   const newReplay = new Blob(["new"], { type: "video/webm" });
   const dialog = element({ hidden: true });
+  const submitButton = element({ textContent: "自动上传反馈" });
   const reporter = createCookingFeedbackReporter({
     canvas: element(), dialog, preview: element(), message: element({ value: "浮空" }),
-    status: element(), submitButton: element({ textContent: "自动上传反馈" }),
+    status: element(), submitButton,
     windowTarget: { navigator: {}, location: {} },
     recorder: {
       start() {}, stop() {},
@@ -852,7 +1074,7 @@ test("reopening during video encoding cannot mix the old replay with the new scr
         if (exportCalls === 1) {
           return new Promise((resolve) => { resolveFirstExport = resolve; });
         }
-        return Promise.resolve(newReplay);
+        return new Promise((resolve) => { resolveSecondExport = resolve; });
       },
       dispose() {},
     },
@@ -866,11 +1088,17 @@ test("reopening during video encoding cannot mix the old replay with the new scr
   await waitFor(() => typeof resolveFirstExport === "function");
   reporter.close();
   reporter.open();
+  const newSubmission = reporter.submit();
+  await waitFor(() => typeof resolveSecondExport === "function");
+  assert.equal(submitButton.disabled, true);
+
   resolveFirstExport(oldReplay);
   assert.equal(await oldSubmission, false);
   assert.equal(uploads.length, 0);
+  assert.equal(submitButton.disabled, true);
 
-  assert.equal((await reporter.submit()).id, "RPT-NEW");
+  resolveSecondExport(newReplay);
+  assert.equal((await newSubmission).id, "RPT-NEW");
   assert.equal(exportCalls, 2);
   assert.equal(uploads[0].replay, newReplay);
   assert.equal(uploads[0].screenshotDataUrl, "data:image/png;base64,session-2");

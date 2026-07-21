@@ -4,11 +4,16 @@ import { MAX_SOLO_STACK_LAYERS } from "./cooking-solo-state.mjs";
 
 const DEFAULT_ENDPOINT = "/api/feedback";
 const MAX_MESSAGE_LENGTH = 1000;
-const DEFAULT_REPLAY_FPS = 5;
+const DEFAULT_REPLAY_FPS = 12;
 const DEFAULT_REPLAY_SECONDS = 6;
-const DEFAULT_REPLAY_WIDTH = 320;
-const DEFAULT_VIDEO_WIDTH = 360;
-const DEFAULT_VIDEO_BITRATE = 480_000;
+const DEFAULT_REPLAY_WIDTH = 480;
+const DEFAULT_VIDEO_WIDTH = 480;
+const DEFAULT_VIDEO_BITRATE = 750_000;
+
+function positiveFinite(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : fallback;
+}
 
 function boundedText(value, limit) {
   return String(value ?? "").trim().slice(0, limit);
@@ -108,9 +113,12 @@ export function createCanvasReplayRecorder({
   const frameCanvas = documentTarget?.createElement?.("canvas");
   const context = frameCanvas?.getContext?.("2d", { willReadFrequently: true });
   if (!frameCanvas || !context) throw new Error("浏览器不支持操作回放录制");
+  const replayFps = positiveFinite(fps, DEFAULT_REPLAY_FPS);
+  const replaySeconds = positiveFinite(seconds, DEFAULT_REPLAY_SECONDS);
+  const replayWidth = Math.max(1, Math.round(positiveFinite(width, DEFAULT_REPLAY_WIDTH)));
   const frames = [];
-  const maxFrames = Math.max(2, Math.round(fps * seconds));
-  const maxDurationMs = seconds * 1000;
+  const maxFrames = Math.max(2, Math.round(replayFps * replaySeconds));
+  const maxDurationMs = replaySeconds * 1000;
   const timerApi = windowTarget.setInterval ? windowTarget : globalThis;
   const replayVideoExporter = videoExporter ?? createVideoExporter({
     documentTarget,
@@ -118,7 +126,7 @@ export function createCanvasReplayRecorder({
     BlobImpl,
     URLImpl: windowTarget.URL,
     outputWidth: DEFAULT_VIDEO_WIDTH,
-    fps,
+    fps: replayFps,
     videoBitsPerSecond: DEFAULT_VIDEO_BITRATE,
     maxDurationMs,
   });
@@ -131,14 +139,15 @@ export function createCanvasReplayRecorder({
   let pixelContext = null;
   let lastCaptureMode = "canvas";
   let lastCaptureHasColor = false;
+  let videoExportTail = Promise.resolve();
 
   const drawCurrentFrame = (nextHeight) => {
     const sourcePixels = typeof readFramePixels === "function"
-      ? readFramePixels({ width, height: nextHeight })
+      ? readFramePixels({ width: replayWidth, height: nextHeight })
       : null;
     if (!sourcePixels?.rgba || !sourcePixels.width || !sourcePixels.height) {
       lastCaptureMode = "canvas";
-      context.drawImage(canvas, 0, 0, width, nextHeight);
+      context.drawImage(canvas, 0, 0, replayWidth, nextHeight);
       return;
     }
     lastCaptureMode = "render-target";
@@ -154,7 +163,7 @@ export function createCanvasReplayRecorder({
       pixelContext = pixelCanvas?.getContext?.("2d");
     }
     if (!pixelCanvas || !pixelContext?.createImageData || !pixelContext?.putImageData) {
-      context.drawImage(canvas, 0, 0, width, nextHeight);
+      context.drawImage(canvas, 0, 0, replayWidth, nextHeight);
       return;
     }
     if (pixelCanvas.width !== sourcePixels.width || pixelCanvas.height !== sourcePixels.height) {
@@ -168,10 +177,10 @@ export function createCanvasReplayRecorder({
       context.save();
       context.translate(0, nextHeight);
       context.scale(1, -1);
-      context.drawImage(pixelCanvas, 0, 0, width, nextHeight);
+      context.drawImage(pixelCanvas, 0, 0, replayWidth, nextHeight);
       context.restore();
     } else {
-      context.drawImage(pixelCanvas, 0, 0, width, nextHeight);
+      context.drawImage(pixelCanvas, 0, 0, replayWidth, nextHeight);
     }
   };
 
@@ -191,16 +200,16 @@ export function createCanvasReplayRecorder({
 
   const capture = (timestamp) => {
     if (disposed || !canvas.width || !canvas.height) return false;
-    const nextHeight = Math.max(1, Math.round(width * canvas.height / canvas.width));
-    if (frameCanvas.width !== width || frameCanvas.height !== nextHeight) {
-      frameCanvas.width = width;
+    const nextHeight = Math.max(1, Math.round(replayWidth * canvas.height / canvas.width));
+    if (frameCanvas.width !== replayWidth || frameCanvas.height !== nextHeight) {
+      frameCanvas.width = replayWidth;
       frameCanvas.height = nextHeight;
     }
     drawCurrentFrame(nextHeight);
-    const image = context.getImageData(0, 0, width, nextHeight);
+    const image = context.getImageData(0, 0, replayWidth, nextHeight);
     frames.push(Object.freeze({
       rgba: new Uint8ClampedArray(image.data),
-      width,
+      width: replayWidth,
       height: nextHeight,
       timestamp: monotonicTimestamp(timestamp),
     }));
@@ -209,7 +218,7 @@ export function createCanvasReplayRecorder({
   };
   const captureAfterRender = (time = 0) => {
     const frameTime = Number(time);
-    if (!Number.isFinite(frameTime) || frameTime - lastCaptureTime >= (1000 / fps) - 1) {
+    if (!Number.isFinite(frameTime) || frameTime - lastCaptureTime >= (1000 / replayFps) - 1) {
       lastCaptureTime = Number.isFinite(frameTime) ? frameTime : lastCaptureTime;
       capture(frameTime);
     }
@@ -245,6 +254,21 @@ export function createCanvasReplayRecorder({
     })));
   };
 
+  const enqueueVideoExport = (replayFrames, onProgress) => {
+    const exportJob = videoExportTail.then(() => {
+      if (disposed) {
+        try { replayFrames?.release?.(); } catch { /* best effort */ }
+        throw codedError("VIDEO_REPLAY_DISPOSED", "The replay video recorder is disposed.");
+      }
+      return replayVideoExporter.exportFrames(replayFrames, { onProgress });
+    });
+    videoExportTail = exportJob.then(
+      () => undefined,
+      () => undefined,
+    );
+    return exportJob;
+  };
+
   return Object.freeze({
     start() {
       if (disposed || timer !== null || removeFrame !== null) return false;
@@ -252,7 +276,7 @@ export function createCanvasReplayRecorder({
       if (typeof subscribeFrame === "function") {
         removeFrame = subscribeFrame(captureAfterRender) ?? (() => {});
       } else {
-        timer = timerApi.setInterval(capture, Math.round(1000 / fps));
+        timer = timerApi.setInterval(capture, Math.round(1000 / replayFps));
       }
       return true;
     },
@@ -267,15 +291,18 @@ export function createCanvasReplayRecorder({
         return "";
       }
     },
-    async exportGif({ onProgress } = {}) {
-      if (typeof readFramePixels === "function" || !frames.length) capture();
-      if (!frames.length) {
+    async exportGif({ frames: requestedFrames, onProgress } = {}) {
+      if (!requestedFrames && (typeof readFramePixels === "function" || !frames.length)) capture();
+      const replayFrames = requestedFrames ?? snapshotFrames();
+      if (!replayFrames.length) {
         throw codedError("NO_REPLAY_FRAMES", "暂时没有录到操作画面，请继续操作几秒后再提交");
       }
       try {
-        const replayFrames = frames.length === 1 ? [frames[0], frames[0]] : [...frames];
-        const bytes = await encodeGif(replayFrames, {
-          delay: Math.round(1000 / fps),
+        const encodingFrames = replayFrames.length === 1
+          ? [replayFrames[0], replayFrames[0]]
+          : [...replayFrames];
+        const bytes = await encodeGif(encodingFrames, {
+          delay: Math.round(1000 / replayFps),
           onProgress,
         });
         return new BlobImpl([bytes], { type: "image/gif" });
@@ -294,7 +321,7 @@ export function createCanvasReplayRecorder({
         throw codedError("NO_REPLAY_FRAMES", "暂时没有录到操作画面，请继续操作几秒后再提交");
       }
       try {
-        const result = await replayVideoExporter.exportFrames(replayFrames, { onProgress });
+        const result = await enqueueVideoExport(replayFrames, onProgress);
         return result?.blob ?? result;
       } catch (error) {
         if (error?.code) throw error;
@@ -566,7 +593,7 @@ export function createCookingFeedbackReporter({
     throw new Error("问题反馈界面不完整");
   }
   let screenshotDataUrl = "";
-  let submitting = false;
+  let activeSubmission = null;
   let disposed = false;
   let cachedReplay = null;
   let sessionId = 0;
@@ -575,10 +602,19 @@ export function createCookingFeedbackReporter({
     || "自动上传反馈";
   submitButton.disabled = false;
   submitButton.textContent = idleButtonText;
-  const setStage = (text, expectedSession) => {
-    if (disposed || expectedSession !== sessionId) return false;
+  const isCurrentSubmission = (submission) => (
+    !disposed
+    && activeSubmission === submission
+    && submission.sessionId === sessionId
+  );
+  const resetSubmitButton = () => {
+    submitButton.disabled = false;
+    submitButton.textContent = idleButtonText;
+  };
+  const setStage = (text, submission) => {
+    if (!isCurrentSubmission(submission)) return false;
     status.textContent = text;
-    if (submitting) submitButton.textContent = text;
+    submitButton.textContent = text;
     return true;
   };
   recorder.start();
@@ -587,6 +623,8 @@ export function createCookingFeedbackReporter({
     open() {
       if (disposed) return false;
       sessionId += 1;
+      activeSubmission = null;
+      resetSubmitButton();
       screenshotDataUrl = recorder.snapshotDataUrl();
       recorder.stop?.();
       cachedReplay = null;
@@ -611,8 +649,8 @@ export function createCookingFeedbackReporter({
       return true;
     },
     async submit() {
-      if (disposed || submitting) return false;
-      const submissionSession = sessionId;
+      if (disposed || activeSubmission) return false;
+      const submission = { sessionId };
       const submissionScreenshot = screenshotDataUrl;
       const reportMessage = boundedText(message.value, MAX_MESSAGE_LENGTH);
       if (!reportMessage) {
@@ -620,36 +658,41 @@ export function createCookingFeedbackReporter({
         message.focus?.();
         return false;
       }
-      submitting = true;
+      activeSubmission = submission;
       submitButton.disabled = true;
       try {
         let replay = cachedReplay;
         if (!replay) {
+          const replayFrames = typeof recorder.snapshotFrames === "function"
+            ? recorder.snapshotFrames({ maxDurationMs: DEFAULT_REPLAY_SECONDS * 1000 })
+            : undefined;
           try {
             if (typeof recorder.exportVideo !== "function") {
               throw codedError("VIDEO_REPLAY_UNSUPPORTED", "当前浏览器不支持操作视频。");
             }
-            setStage("正在生成高清操作视频…", submissionSession);
+            setStage("正在生成高清操作视频…", submission);
             replay = await recorder.exportVideo({
+              frames: replayFrames,
               onProgress({ completed, total }) {
-                setStage(`正在生成高清操作视频 ${completed}/${total}`, submissionSession);
+                setStage(`正在生成高清操作视频 ${completed}/${total}`, submission);
               },
             });
           } catch (error) {
             if (error?.code !== "VIDEO_REPLAY_UNSUPPORTED") throw error;
-            if (disposed || submissionSession !== sessionId) return false;
-            setStage("当前浏览器不支持视频，正在生成 GIF 回放…", submissionSession);
+            if (!isCurrentSubmission(submission)) return false;
+            setStage("当前浏览器不支持视频，正在生成 GIF 回放…", submission);
             replay = await recorder.exportGif({
+              frames: replayFrames,
               onProgress({ completed, total }) {
-                setStage(`正在生成 GIF 回放 ${completed}/${total}`, submissionSession);
+                setStage(`正在生成 GIF 回放 ${completed}/${total}`, submission);
               },
             });
           }
-          if (disposed || submissionSession !== sessionId) return false;
+          if (!isCurrentSubmission(submission)) return false;
           cachedReplay = replay;
         }
-        if (disposed || submissionSession !== sessionId) return false;
-        setStage("正在准备上传数据", submissionSession);
+        if (!isCurrentSubmission(submission)) return false;
+        setStage("正在准备上传数据", submission);
         const metadata = buildCookingReportMetadata({
           message: reportMessage,
           generatedAt: now().toISOString(),
@@ -663,24 +706,23 @@ export function createCookingFeedbackReporter({
           screenshotDataUrl: submissionScreenshot,
         }, {
           onUploadStart() {
-            setStage("正在上传到反馈云盘，最多等待 20 秒", submissionSession);
+            setStage("正在上传到反馈云盘，最多等待 20 秒", submission);
           },
         });
-        if (disposed || submissionSession !== sessionId) return false;
+        if (!isCurrentSubmission(submission)) return false;
         status.textContent = `反馈已提交，编号 ${result.id ?? "已生成"}。`;
         return result;
       } catch (error) {
-        if (!disposed && submissionSession === sessionId) {
+        if (isCurrentSubmission(submission)) {
           status.textContent = FEEDBACK_ERROR_COPY[error?.code]
             ?? error?.message
             ?? "反馈自动上传失败，请稍后再试。";
         }
         return false;
       } finally {
-        submitting = false;
-        if (!disposed) {
-          submitButton.disabled = false;
-          submitButton.textContent = idleButtonText;
+        if (activeSubmission === submission) {
+          activeSubmission = null;
+          if (!disposed) resetSubmitButton();
         }
       }
     },
@@ -688,11 +730,11 @@ export function createCookingFeedbackReporter({
       if (disposed) return;
       disposed = true;
       sessionId += 1;
+      activeSubmission = null;
       cachedReplay = null;
       uploader.cancel?.();
       recorder.dispose();
-      submitButton.disabled = false;
-      submitButton.textContent = idleButtonText;
+      resetSubmitButton();
     },
   });
 }

@@ -1,11 +1,11 @@
 export const HIGHLIGHT_LAYER_MILESTONES = Object.freeze([10, 20, 40, 60]);
 
-const DEFAULT_PRE_EVENT_MS = 2_500;
-const DEFAULT_POST_EVENT_MS = 600;
-const DEFAULT_MAX_POST_EVENT_MS = 1_500;
-const HARD_MAX_POST_EVENT_MS = 2_000;
-const DEFAULT_MAX_SNAPSHOT_FRAMES = 18;
-const HARD_MAX_SNAPSHOT_FRAMES = 30;
+const DEFAULT_PRE_EVENT_MS = 5_000;
+const DEFAULT_POST_EVENT_MS = 3_000;
+const DEFAULT_MAX_POST_EVENT_MS = 3_000;
+const HARD_MAX_POST_EVENT_MS = 3_000;
+const DEFAULT_MAX_SNAPSHOT_FRAMES = 96;
+const HARD_MAX_SNAPSHOT_FRAMES = 96;
 const DEFAULT_MAX_CLIPS = 3;
 const HARD_MAX_CLIPS = HIGHLIGHT_LAYER_MILESTONES.length + 1;
 
@@ -83,22 +83,26 @@ export function createCookingHighlightReplayCoordinator({
   );
   const clipLimit = boundedInteger(maxClips, DEFAULT_MAX_CLIPS, HARD_MAX_CLIPS);
   const startingLayerCount = finiteNonNegative(initialLayerCount, 0);
-  const seen = new Set(
+  const completedEvents = new Set(
     HIGHLIGHT_LAYER_MILESTONES
       .filter((milestone) => milestone <= startingLayerCount)
       .map((milestone) => `layers-${milestone}`),
   );
-  if (initialFinished) seen.add("finish");
+  if (initialFinished) completedEvents.add("finish");
+  const pendingEvents = new Map();
   const clips = [];
   const pendingWaits = new Map();
   const activeBatches = new Set();
-  let previousLayerCount = startingLayerCount;
-  let previousFinished = Boolean(initialFinished);
   let exportTail = Promise.resolve();
   let disposed = false;
 
   const reportError = (error, event) => {
     try { onError(error, event); } catch { /* lifecycle callbacks are isolated */ }
+  };
+
+  const clearPendingEvent = (event) => {
+    if (pendingEvents.get(event.id) !== event) return false;
+    return pendingEvents.delete(event.id);
   };
 
   const revokeUrl = (url) => {
@@ -142,10 +146,14 @@ export function createCookingHighlightReplayCoordinator({
       if (disposed) return null;
       try {
         const result = await recorder.exportVideo({ frames });
-        return retainClip(event, replayBlob(result));
+        const clip = retainClip(event, replayBlob(result));
+        if (clip) completedEvents.add(event.id);
+        return clip;
       } catch (error) {
         if (!disposed) reportError(error, event);
         return null;
+      } finally {
+        clearPendingEvent(event);
       }
     });
     return exportTail;
@@ -173,6 +181,7 @@ export function createCookingHighlightReplayCoordinator({
     let batch;
     batch = (async () => {
       const preSnapshot = recorder.snapshotFrames({
+        fromTimestamp: eventTimestamp - preWindowMs,
         toTimestamp: eventTimestamp,
         maxDurationMs: preWindowMs,
       });
@@ -197,6 +206,7 @@ export function createCookingHighlightReplayCoordinator({
     })().catch((error) => {
       if (!disposed) reportError(error, events[0]);
     }).finally(() => {
+      for (const event of events) clearPendingEvent(event);
       for (const snapshot of leasedSnapshots) {
         try { snapshot?.release?.(); } catch { /* best effort */ }
       }
@@ -215,27 +225,27 @@ export function createCookingHighlightReplayCoordinator({
       const events = [];
       for (const milestone of HIGHLIGHT_LAYER_MILESTONES) {
         const id = `layers-${milestone}`;
-        if (previousLayerCount < milestone && nextLayerCount >= milestone && !seen.has(id)) {
-          seen.add(id);
-          events.push(Object.freeze({
+        if (nextLayerCount >= milestone && !completedEvents.has(id) && !pendingEvents.has(id)) {
+          const event = Object.freeze({
             id,
             kind: "layers",
             layerCount: milestone,
             createdAt: observedAt,
-          }));
+          });
+          pendingEvents.set(id, event);
+          events.push(event);
         }
       }
-      if (!previousFinished && nextFinished && !seen.has("finish")) {
-        seen.add("finish");
-        events.push(Object.freeze({
+      if (nextFinished && !completedEvents.has("finish") && !pendingEvents.has("finish")) {
+        const event = Object.freeze({
           id: "finish",
           kind: "finish",
           layerCount: nextLayerCount,
           createdAt: observedAt,
-        }));
+        });
+        pendingEvents.set(event.id, event);
+        events.push(event);
       }
-      previousLayerCount = nextLayerCount;
-      previousFinished = nextFinished;
       if (events.length) scheduleBatch(events, observedAt);
       return Object.freeze(events.map(({ id }) => id));
     },
@@ -262,7 +272,6 @@ export function createCookingHighlightReplayCoordinator({
         resolve(false);
       }
       pendingWaits.clear();
-      try { recorder.cancelVideoExport?.(); } catch { /* best effort */ }
       while (clips.length) removeClipAt(0);
       return true;
     },
