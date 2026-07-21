@@ -493,6 +493,22 @@ test("maps canonical, repeated, and replenished instances through their ingredie
     assert.equal(stage.getState().instances[instanceId], "patty");
     assert.deepEqual(stage.burger.getLayer(instanceId).scale.toArray(), expectedScale, instanceId);
   }
+
+  const latestInput = {
+    version: 1,
+    global: { presentationScale: 0.77 },
+    ingredients: {
+      patty: { scaleX: 1.4, scaleY: 0.65, scaleZ: 0.85, sinkY: 0.02 },
+    },
+  };
+  const latest = normalizeBurgerTuning(latestInput);
+  stage.setTuning(latestInput);
+  const latestConfig = latest.ingredients.patty;
+  const latestScale = [latestConfig.scaleX, latestConfig.scaleY, latestConfig.scaleZ]
+    .map((value) => value * latest.global.presentationScale);
+  for (const instanceId of [canonicalId, repeatedId, replenishedId]) {
+    assert.deepEqual(stage.burger.getLayer(instanceId).scale.toArray(), latestScale, instanceId);
+  }
   stage.dispose();
 });
 
@@ -646,6 +662,116 @@ test("setTuning silently cancels a real active drag and restores its tuned autho
   const actualWorld = patty.getWorldPosition(new THREE.Vector3());
   assert.ok(actualWorld.distanceTo(binAnchor) < 1e-9);
   assert.deepEqual(patty.scale.toArray(), expectedLayerScale(stage, "patty"));
+  stage.dispose();
+});
+
+test("setTuning cancels a real active sauce preview without invalid feedback", () => {
+  const updates = [];
+  const vibrations = [];
+  const { stage, canvas } = harness({
+    reducedMotion: true,
+    onChange: (detail) => updates.push(detail),
+    vibrate: (pattern) => vibrations.push(pattern),
+  });
+  stage.dropLayer("patty", { kind: "prep" });
+  const bottle = stage.tools.get("chili");
+  const bottleWorld = bottle.body.getWorldPosition(new THREE.Vector3());
+  stage.controller.pointerDown(pointerAtWorld(stage, canvas, 43, bottleWorld));
+  assert.equal(stage.controller.getState(), "dragging-bottle");
+  const patty = stage.burger.getLayer("patty");
+  const foodWorld = patty.userData.selectableSurface
+    .getWorldPosition(new THREE.Vector3());
+  stage.controller.pointerMove(pointerAtWorld(stage, canvas, 43, foodWorld));
+  assert.ok(patty.children.some(({ userData }) => userData.preview === true));
+  updates.length = 0;
+
+  stage.setTuning({ version: 1, global: { presentationScale: 0.82 } });
+
+  assert.deepEqual(vibrations, []);
+  assert.deepEqual(updates.map(({ reason }) => reason), ["tuning"]);
+  assert.equal(stage.controller.getState(), "idle");
+  assert.equal(patty.children.some(({ userData }) => userData.preview === true), false);
+  assert.equal(stage.tools.previewRoot.children.length, 0);
+  stage.dispose();
+});
+
+test("setTuning resumes an eligible stage after pause failure without masking the primary error", () => {
+  const pauseError = new Error("pause failed");
+  const resumeError = new Error("resume failed");
+  const calls = { pause: 0, resume: 0 };
+  const updates = [];
+  const vibrations = [];
+  let configuration;
+  let throwPause = true;
+  let throwResume = true;
+  const controller = {
+    resetCamera: () => true,
+    pause() {
+      calls.pause += 1;
+      if (throwPause) throw pauseError;
+    },
+    resume() {
+      calls.resume += 1;
+      if (throwResume) throw resumeError;
+    },
+    dispose() {},
+  };
+  const stage = createSoloCookingStage({
+    THREE,
+    canvas: new FakeCanvas(),
+    storage: null,
+    hostFactory: createHostHarness,
+    controllerFactory: (value) => { configuration = value; return controller; },
+    onChange: (detail) => updates.push(detail),
+    vibrate: (pattern) => vibrations.push(pattern),
+  });
+
+  assert.throws(
+    () => stage.setTuning({ version: 1, global: { presentationScale: 0.8 } }),
+    (error) => error === pauseError,
+  );
+  assert.deepEqual(calls, { pause: 1, resume: 1 });
+
+  configuration.onInvalid({ reason: "outside-prep" });
+  assert.deepEqual(vibrations, [28], "suppression is reset after the failed pause");
+  assert.equal(updates.at(-1).reason, "invalid-drop");
+  throwPause = false;
+  throwResume = false;
+  stage.dispose();
+});
+
+test("setTuning preserves an observer error when the required resume also fails", () => {
+  const observerError = new Error("observer failed");
+  const resumeError = new Error("resume failed");
+  const calls = { pause: 0, resume: 0 };
+  let throwResume = true;
+  const controller = {
+    resetCamera: () => true,
+    pause() { calls.pause += 1; },
+    resume() {
+      calls.resume += 1;
+      if (throwResume) throw resumeError;
+    },
+    dispose() {},
+  };
+  const stage = createSoloCookingStage({
+    THREE,
+    canvas: new FakeCanvas(),
+    storage: null,
+    hostFactory: createHostHarness,
+    controllerFactory: () => controller,
+    onChange: ({ reason }) => {
+      if (reason === "tuning") throw observerError;
+    },
+  });
+
+  assert.throws(
+    () => stage.setTuning({ version: 1, global: { presentationScale: 0.8 } }),
+    (error) => error === observerError,
+  );
+  assert.deepEqual(calls, { pause: 1, resume: 1 });
+  assert.equal(stage.getTuning().global.presentationScale, 0.8);
+  throwResume = false;
   stage.dispose();
 });
 
@@ -1185,6 +1311,72 @@ test("completion freezes editing, shows a real 3d celebration, then allows adjus
   stage.dispose();
 });
 
+test("finish silently cancels a real active drag", () => {
+  const updates = [];
+  const vibrations = [];
+  const { stage, canvas } = harness({
+    reducedMotion: true,
+    onChange: (detail) => updates.push(detail),
+    vibrate: (pattern) => vibrations.push(pattern),
+  });
+  BURGER_LAYER_IDS.forEach((layerId) => stage.dropLayer(layerId, { kind: "prep" }));
+  const patty = stage.burger.getLayer("patty");
+  const authoritativeTransform = readLayerTransform(patty);
+  const surfaceWorld = patty.userData.selectableSurface
+    .getWorldPosition(new THREE.Vector3());
+  stage.controller.pointerDown(pointerAtWorld(stage, canvas, 51, surfaceWorld));
+  const prepWorld = stage.workbench.root.localToWorld(new THREE.Vector3(0.2, 0.42, 0));
+  stage.controller.pointerMove(pointerAtWorld(stage, canvas, 51, prepWorld));
+  assert.equal(stage.controller.getState(), "dragging-layer");
+  assert.equal(updates.at(-1).dropIntent?.kind, "prep");
+  updates.length = 0;
+
+  assert.equal(stage.finish(), true);
+
+  assert.deepEqual(vibrations, []);
+  assert.deepEqual(updates.map(({ reason }) => reason), ["finish"]);
+  assert.equal(stage.controller.getState(), "idle");
+  assert.equal(stage.getState().finished, true);
+  assert.equal(stage.burger.dropPreview.visible, false);
+  assert.equal(stage.workbench.dropCue.visible, false);
+  assert.deepEqual(readLayerTransform(patty), authoritativeTransform);
+  stage.dispose();
+});
+
+test("undo silently cancels a real active drag when restoring finished state", () => {
+  const updates = [];
+  const vibrations = [];
+  const { stage, canvas } = harness({
+    reducedMotion: true,
+    onChange: (detail) => updates.push(detail),
+    vibrate: (pattern) => vibrations.push(pattern),
+  });
+  BURGER_LAYER_IDS.forEach((layerId) => stage.dropLayer(layerId, { kind: "prep" }));
+  stage.finish();
+  stage.continueEditing();
+  const patty = stage.burger.getLayer("patty");
+  const authoritativeTransform = readLayerTransform(patty);
+  const surfaceWorld = patty.userData.selectableSurface
+    .getWorldPosition(new THREE.Vector3());
+  stage.controller.pointerDown(pointerAtWorld(stage, canvas, 52, surfaceWorld));
+  const prepWorld = stage.workbench.root.localToWorld(new THREE.Vector3(-0.2, 0.42, 0));
+  stage.controller.pointerMove(pointerAtWorld(stage, canvas, 52, prepWorld));
+  assert.equal(stage.controller.getState(), "dragging-layer");
+  assert.equal(updates.at(-1).dropIntent?.kind, "prep");
+  updates.length = 0;
+
+  assert.equal(stage.undo(), true);
+
+  assert.deepEqual(vibrations, []);
+  assert.deepEqual(updates.map(({ reason }) => reason), ["undo"]);
+  assert.equal(stage.controller.getState(), "idle");
+  assert.equal(stage.getState().finished, true);
+  assert.equal(stage.burger.dropPreview.visible, false);
+  assert.equal(stage.workbench.dropCue.visible, false);
+  assert.deepEqual(readLayerTransform(patty), authoritativeTransform);
+  stage.dispose();
+});
+
 test("undoing continue-editing re-freezes the controller with the restored finished state", () => {
   const canvas = new FakeCanvas();
   const host = createHostHarness();
@@ -1298,6 +1490,33 @@ test("disposes controller before every scene resource and remains idempotent", (
   stage.dispose();
   stage.dispose();
   assert.deepEqual(order, ["controller", "tools", "burger", "workbench", "host"]);
+});
+
+test("dispose silently cancels a real active drag before releasing resources", () => {
+  const updates = [];
+  const vibrations = [];
+  const { stage, canvas, host, configuration } = harness({
+    reducedMotion: true,
+    onChange: (detail) => updates.push(detail),
+    vibrate: (pattern) => vibrations.push(pattern),
+  });
+  const patty = stage.burger.getLayer("patty");
+  const surfaceWorld = patty.userData.selectableSurface
+    .getWorldPosition(new THREE.Vector3());
+  stage.controller.pointerDown(pointerAtWorld(stage, canvas, 53, surfaceWorld));
+  const prepWorld = stage.workbench.root.localToWorld(new THREE.Vector3(0, 0.42, 0));
+  stage.controller.pointerMove(pointerAtWorld(stage, canvas, 53, prepWorld));
+  assert.equal(stage.controller.getState(), "dragging-layer");
+  assert.equal(updates.at(-1).dropIntent?.kind, "prep");
+  updates.length = 0;
+
+  stage.dispose();
+
+  assert.doesNotThrow(() => configuration.onInvalid({ reason: "disposed" }));
+  assert.deepEqual(vibrations, []);
+  assert.equal(updates.some(({ reason }) => reason === "invalid-drop"), false);
+  assert.equal(stage.controller.getState(), "idle");
+  assert.equal(host.disposed, 1);
 });
 
 function trackedDisposable(value, name, order, { throws = false } = {}) {

@@ -769,7 +769,7 @@ export function createSoloCookingStage({
       else dropLayer(id, { kind: "bin" });
     },
     onInvalid: ({ reason } = {}) => {
-      if (suppressInvalidFeedback) return;
+      if (disposed || suppressInvalidFeedback) return;
       dropIntent = null;
       clearTransientVisuals({ resync: false });
       syncTransforms({ animate: true });
@@ -990,13 +990,27 @@ export function createSoloCookingStage({
 
   const setTuning = (value) => {
     if (disposed) return activeTuning;
-    pauseInteractionsSilently();
-    activeTuning = normalizeBurgerTuning(value);
-    clearTransientVisuals();
-    adaptCameraToStack();
-    emit("tuning");
-    if (!state.finished && !externallyPaused) controller.resume();
-    return activeTuning;
+    const shouldResume = !state.finished && !externallyPaused;
+    let primaryError = null;
+    try {
+      pauseInteractionsSilently();
+      activeTuning = normalizeBurgerTuning(value);
+      clearTransientVisuals();
+      adaptCameraToStack();
+      emit("tuning");
+      return activeTuning;
+    } catch (error) {
+      primaryError = error;
+      throw error;
+    } finally {
+      if (shouldResume) {
+        try {
+          controller.resume();
+        } catch (error) {
+          if (!primaryError) throw error;
+        }
+      }
+    }
   };
 
   const setInteractionPaused = (value) => {
@@ -1058,7 +1072,7 @@ export function createSoloCookingStage({
       state = undoSoloCooking(state);
       reconcileModelInstances();
       tutorial = reconcileCookingTutorial(tutorial, state, { selectedLayerId });
-      if (state.finished) controller.pause();
+      if (state.finished) pauseInteractionsSilently();
       else if (!externallyPaused) controller.resume();
       applyVisualState({ animate: true, sauces: true });
       emit("undo");
@@ -1086,7 +1100,7 @@ export function createSoloCookingStage({
       clearTransientVisuals();
       state = finishSoloCooking(state);
       expanded = false;
-      controller.pause();
+      pauseInteractionsSilently();
       applyVisualState({ animate: true });
       advanceTutorial("finished");
       emit("finish");
@@ -1114,9 +1128,14 @@ export function createSoloCookingStage({
     dispose() {
       if (disposed) return;
       if (focused) setFocusMode(false, { notify: false });
-      clearTransientVisuals();
+      let cancellationError = null;
+      try {
+        pauseInteractionsSilently();
+      } catch (error) {
+        cancellationError = error;
+      }
       disposed = true;
-      cleanup();
+      cleanup(cancellationError);
     },
   };
   return api;
