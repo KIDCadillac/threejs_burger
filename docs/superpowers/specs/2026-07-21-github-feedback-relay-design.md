@@ -37,7 +37,7 @@ reports/
 
 - GitHub token 只赋予专用仓库 `Contents: write`，设置到期日，并存为 Worker 加密 secret。
 - Worker 允许的来源默认只有正式 GitHub Pages 域名和本地开发域名。
-- 限制请求体 10MB；回放 8MB、截图 2MB、说明 2,000 字；仅接受 WebM、MP4、GIF 和 PNG 白名单。
+- 限制 JSON 请求体 15MB（覆盖 base64 膨胀）；原始回放 8MB、截图 2MB、说明 2,000 字；仅接受 WebM、MP4、GIF 和 PNG 白名单。
 - 每设备每日限制 20 条，并使用随机报告 ID 防止覆盖。
 - 前端 upload key 只能用于区分版本和减少误调用，不能视为真正秘密；服务端仍要做格式、体积、来源和频率校验。
 - 并发提交遇到 branch ref 冲突时重新读取 head 并最多重试一次；不能盲目无限重试，避免重复报告。

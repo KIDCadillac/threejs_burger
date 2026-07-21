@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "burger-feedback-relay",
+  "main": "src/index.mjs",
+  "compatibility_date": "2026-07-21",
+  "workers_dev": true,
+  "vars": {
+    "ALLOWED_ORIGINS": "https://kidcadillac.github.io,http://localhost:4173,http://127.0.0.1:4173",
+    "GITHUB_OWNER": "KIDCadillac",
+    "GITHUB_REPO": "burger-feedback",
+    "GITHUB_BRANCH": "feedback",
+    "DAILY_REPORT_LIMIT": "20"
+  }
+}

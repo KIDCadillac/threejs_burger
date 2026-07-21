@@ -16,7 +16,7 @@
 - Create: `deploy/cloudflare-feedback-worker/package.json`
 - Create: `tests/github-feedback-worker.test.mjs`
 
-- [ ] RED tests for CORS allowlist, upload key, 10MB body, 2,000-char message, replay/screenshot MIME allowlists, malformed base64, and path-safe IDs.
+- [ ] RED tests for CORS allowlist, upload key, 15MB encoded body, 2,000-char message, replay/screenshot MIME allowlists, malformed base64, and path-safe IDs.
 - [ ] Implement pure validation/decoding helpers and OPTIONS handling. Never log payloads or secrets.
 - [ ] Return structured error codes consumed by the existing feedback reporter.
 - [ ] Run focused/full tests and commit.
