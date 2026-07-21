@@ -66,14 +66,15 @@
 **Files:**
 - Modify: `app/static/cooking-feedback.mjs`
 - Modify: `tests/cooking-feedback.test.mjs`
-- Modify: `deploy/google-apps-script/Code.gs`
+- Modify: `deploy/google-apps-script/Code.gs` (optional compatibility backend)
 - Modify: `deploy/google-apps-script/README.md`
+- Integrate: `deploy/cloudflare-feedback-worker/` from the dedicated GitHub relay plan
 
 - [ ] RED: reporter prefers video, shows true format/progress, caches the replay on retry, and falls back to GIF only when unsupported/failed.
-- [ ] RED: uploader sends `replayMimeType` and `replayFileName`; Apps Script accepts only WebM/MP4/GIF, uses correct extension, and rejects type mismatch/oversize payloads.
+- [ ] RED: uploader sends `replayMimeType` and `replayFileName`; the default GitHub relay and optional Apps Script adapter accept only WebM/MP4/GIF, use correct extensions, and reject type mismatch/oversize payloads.
 - [ ] Raise replay upload ceiling to 8MB while retaining screenshot and daily quota limits.
 - [ ] Preserve timeout, cancellation, retry, no-cors wording, and screenshot behavior.
-- [ ] Run JS/server source tests, full suites, and commit. Note that the user must redeploy the updated Apps Script version before the public endpoint accepts video.
+- [ ] Run JS/server source tests, full suites, and commit. Production defaults to the GitHub relay; Apps Script requires redeployment only if its compatibility path is retained.
 
 ## Task 6: Implement genuine high-light capture and playback
 

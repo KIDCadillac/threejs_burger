@@ -54,7 +54,7 @@
 - 录制画面来自 WebGL canvas 的 `captureStream()`；截图仍单独上传，便于快速预览。
 - 反馈弹窗明确显示“正在生成 WebM/MP4 视频”或“设备不支持视频，正在生成兼容 GIF”，不再统一写 GIF。
 - 同一反馈会话网络失败后复用已经生成的视频，不重复编码。
-- Apps Script 只接受显式白名单 `video/webm`、`video/mp4`、`image/gif`，按真实 MIME 保存正确扩展名，拒绝伪造类型。
+- 默认上传到 Cloudflare Worker 中转的专用 GitHub 反馈仓库；Google Apps Script 只保留为可选兼容适配器。两种后端都必须只接受显式白名单 `video/webm`、`video/mp4`、`image/gif`，按真实 MIME 保存正确扩展名并拒绝伪造类型。
 
 ## 高光回放
 
