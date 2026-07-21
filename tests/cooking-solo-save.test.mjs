@@ -8,6 +8,7 @@ import {
   placeSoloLayer,
   removeSoloLayer,
   rotateSoloLayer,
+  setSoloStationContent,
   undoSoloCooking,
 } from "../app/static/cooking-solo-state.mjs";
 import {
@@ -316,6 +317,34 @@ test("a hydrated slot state can return a layer and undo to the exact saved home"
   assert.deepEqual(undone.assembledOrder, restored.assembledOrder);
   assert.equal(undone.instanceHomes[returnedId], homeSlotId);
   assert.ok(Object.values(undone.stationSources).every((id) => undone.instances[id]));
+});
+
+test("undoing a returned hydrated layer restores the saved replacement content in its home slot", () => {
+  let original = createSoloCookingState({ loadout: createDefaultWorkbenchLoadout() });
+  const pattyId = original.stationSources["filling-back-1"];
+  original = placeSoloLayer(original, pattyId, 0, { replenish: true });
+  original = setSoloStationContent(original, "filling-back-1", "cheese");
+  const restored = roundTrip(original).hydrated;
+  const cheeseSource = restored.stationSources["filling-back-1"];
+
+  assert.equal(restored.stationContents["filling-back-1"], "cheese");
+  assert.equal(restored.instances[cheeseSource], "cheese");
+  assert.equal(restored.instanceHomes[pattyId], "filling-back-1");
+
+  const returned = removeSoloLayer(restored, pattyId, { consolidate: true });
+  assert.equal(returned.stationContents["filling-back-1"], "patty");
+  assert.equal(returned.stationSources["filling-back-1"], pattyId);
+
+  const undone = undoSoloCooking(returned);
+  assert.deepEqual(undone.assembledOrder, restored.assembledOrder);
+  assert.deepEqual(undone.stationContents, restored.stationContents);
+  assert.deepEqual(undone.stationSources, restored.stationSources);
+  assert.equal(undone.instances[cheeseSource], "cheese");
+  assert.deepEqual(undone.locations[cheeseSource], {
+    kind: "bin",
+    slotId: "filling-back-1",
+  });
+  assert.deepEqual(undone.history, []);
 });
 
 test("rejects an oversized save before calling JSON.parse", () => {

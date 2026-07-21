@@ -5,6 +5,21 @@ import { SOLO_COOKING_SAUCE_IDS } from "../app/static/burger-recipes.mjs";
 import { SAUCE_KEYS } from "../app/static/cooking-state.mjs";
 import { createCookingWorkbench3D } from "../app/static/cooking-workbench-3d.mjs";
 import { createCondimentTools3D } from "../app/static/condiment-tools-3d.mjs";
+import {
+  WORKBENCH_SLOTS,
+  createDefaultWorkbenchLoadout,
+} from "../app/static/workbench-loadout.mjs";
+
+function slotDescriptors(loadout) {
+  const indices = { bread: 0, filling: 0, sauce: 0 };
+  return WORKBENCH_SLOTS.map(({ slotId, region }) => ({
+    slotId,
+    region,
+    kind: region === "sauce" ? "tool" : "ingredient",
+    index: indices[region]++,
+    contentId: loadout[slotId],
+  }));
+}
 
 function closeVector(actual, expected, epsilon = 1e-9) {
   assert.ok(actual.distanceTo(expected) <= epsilon, [
@@ -76,6 +91,48 @@ test("builds the three injected solo cooking sauces on their exact matching dock
     );
   }
   assert.throws(() => tools.setActive("chili"), /unknown condiment/i);
+
+  tools.dispose();
+  workbench.dispose();
+});
+
+test("addresses duplicate sauce bottles by physical slot and switches one bottle in place", () => {
+  const loadout = {
+    ...createDefaultWorkbenchLoadout(),
+    "sauce-right-2": "ketchup",
+  };
+  const workbench = createCookingWorkbench3D(THREE, {
+    slotDescriptors: slotDescriptors(loadout),
+  });
+  const tools = createCondimentTools3D(THREE, {
+    toolDocks: workbench.toolDocks,
+    sauceIds: SOLO_COOKING_SAUCE_IDS,
+  });
+  const first = tools.getBySlot("sauce-right-1");
+  const second = tools.getBySlot("sauce-right-2");
+  const secondHome = second.root.position.clone();
+
+  assert.notStrictEqual(first, second);
+  assert.equal(first.sauce, "ketchup");
+  assert.equal(second.sauce, "ketchup");
+  assert.deepEqual([...tools.bottles.keys()], [
+    "sauce-right-1",
+    "sauce-right-2",
+    "sauce-right-3",
+  ]);
+  assert.ok(second.selectableSurfaces.every(({ userData }) => (
+    userData.cookingSelectable.slotId === "sauce-right-2"
+  )));
+
+  assert.equal(tools.setSlotContent("sauce-right-2", "mustard"), true);
+  assert.equal(first.sauce, "ketchup");
+  assert.equal(second.sauce, "mustard");
+  assert.equal(second.body.material.color.getHex(), 0xe5ad2c);
+  assert.ok(second.selectableSurfaces.every(({ userData }) => (
+    userData.cookingSelectable.sauce === "mustard"
+  )));
+  closeVector(second.root.position, secondHome);
+  assert.equal(tools.setSlotContent("sauce-right-2", "mustard"), false);
 
   tools.dispose();
   workbench.dispose();

@@ -14,6 +14,7 @@ import {
 } from "./cooking-insertion-animation.mjs";
 import {
   createSoloCookingState,
+  setSoloStationContent,
   placeSoloLayer,
   removeSoloLayer,
   rotateSoloLayer,
@@ -27,6 +28,12 @@ import {
   serializeSoloComposition,
   MAX_SOLO_STACK_LAYERS,
 } from "./cooking-solo-state.mjs";
+import {
+  WORKBENCH_SLOTS,
+  getWorkbenchSlot,
+  normalizeWorkbenchLoadout,
+} from "./workbench-loadout.mjs";
+import { hydrateSoloCookingState } from "./cooking-solo-save.mjs";
 import {
   createCookingTutorial,
   advanceCookingTutorial,
@@ -47,6 +54,7 @@ const STACK_CAMERA_DEPTH_PADDING = 25;
 const STACK_CAMERA_SAFE_NDC_MARGIN = 0.86;
 const STACK_CAMERA_NEAR_PADDING = 0.25;
 const MAX_BOTTOM_LAYER_SINK = 0.03;
+const SWITCHABLE_WORKBENCH_CAMERA_SCALE = 0.59;
 
 const layerStackMinY = (layer) => (
   Number.isFinite(layer?.userData?.stackMinY)
@@ -115,6 +123,8 @@ export function createSoloCookingStage({
   THREE,
   canvas,
   storage,
+  loadout,
+  initialState,
   documentTarget = globalThis.document,
   hostFactory = createThreeSceneHost,
   workbenchFactory = createCookingWorkbench3D,
@@ -124,6 +134,7 @@ export function createSoloCookingStage({
   controllerFactory = createCookingInteractionController,
   onChange = () => {},
   onError = () => {},
+  onStationSelector = () => {},
   reducedMotion = false,
   tuning = DEFAULT_BURGER_TUNING,
   vibrate,
@@ -143,6 +154,7 @@ export function createSoloCookingStage({
   validateFactory(controllerFactory, "controllerFactory");
   validateFactory(onChange, "onChange");
   validateFactory(onError, "onError");
+  validateFactory(onStationSelector, "onStationSelector");
   validateFactory(resourceDisposeObserver, "resourceDisposeObserver");
 
   const cleanupTasks = [];
@@ -179,10 +191,26 @@ export function createSoloCookingStage({
   if (!host?.scene?.isScene || !host?.camera?.isCamera) {
     throw new TypeError("hostFactory must return a Three scene and camera");
   }
-  const workbench = workbenchFactory(THREE, {
-    ingredientIds: SOLO_BURGER_INGREDIENT_IDS,
-    toolIds: SOLO_COOKING_SAUCE_IDS,
-  });
+  const verifiedInitialState = Object.isFrozen(initialState)
+    && initialState?.stationContents
+    && hydrateSoloCookingState(initialState)
+    ? initialState
+    : null;
+  const activeLoadout = normalizeWorkbenchLoadout(
+    verifiedInitialState?.stationContents ?? loadout,
+  );
+  const regionIndices = { bread: 0, filling: 0, sauce: 0 };
+  const slotDescriptors = Object.freeze(WORKBENCH_SLOTS.map(({ slotId, region }) => (
+    Object.freeze({
+      slotId,
+      region,
+      kind: region === "sauce" ? "tool" : "ingredient",
+      index: regionIndices[region]++,
+      contentId: activeLoadout[slotId],
+    })
+  )));
+  let state = verifiedInitialState ?? createSoloCookingState({ loadout: activeLoadout });
+  const workbench = workbenchFactory(THREE, { slotDescriptors });
   cleanupTasks.push(() => disposeObserved(workbench, "workbench"));
   const burger = burgerFactory(THREE, {
     ingredientIds: SOLO_BURGER_INGREDIENT_IDS,
@@ -215,15 +243,14 @@ export function createSoloCookingStage({
   // The generic workbench camera includes editor margins. The phone composition
   // intentionally crops only decorative counter edges while retaining every control.
   host.camera.position.set(
-    cameraView.position.x * 0.52,
-    cameraView.position.y * 0.52,
-    cameraView.position.z * 0.52,
+    cameraView.position.x * SWITCHABLE_WORKBENCH_CAMERA_SCALE,
+    cameraView.position.y * SWITCHABLE_WORKBENCH_CAMERA_SCALE,
+    cameraView.position.z * SWITCHABLE_WORKBENCH_CAMERA_SCALE,
   );
   host.camera.lookAt(cameraView.target.x, cameraView.target.y, cameraView.target.z);
   host.camera.updateProjectionMatrix?.();
   host.camera.updateMatrixWorld?.(true);
 
-  let state = createSoloCookingState();
   let activeTuning = normalizeBurgerTuning(tuning);
   let tutorial = createCookingTutorial({ storage });
   let selectedLayerId = null;
@@ -264,6 +291,20 @@ export function createSoloCookingStage({
   };
 
   const ingredientForInstance = (instanceId) => state.instances[instanceId];
+  const homeSlotIdForInstance = (instanceId) => {
+    const location = state.locations[instanceId];
+    if (location?.kind === "bin" && typeof location.slotId === "string") {
+      return location.slotId;
+    }
+    return typeof state.instanceHomes?.[instanceId] === "string"
+      ? state.instanceHomes[instanceId]
+      : null;
+  };
+  const stationForInstance = (instanceId) => {
+    const slotId = homeSlotIdForInstance(instanceId);
+    const station = slotId ? workbench.getStationBySlot?.(slotId) : null;
+    return station ?? workbench.getStation("ingredient", ingredientForInstance(instanceId));
+  };
   const tuningFor = (instanceId) => activeTuning.ingredients[ingredientForInstance(instanceId)];
   const targetScale = (instanceId) => {
     const config = tuningFor(instanceId);
@@ -297,7 +338,7 @@ export function createSoloCookingStage({
     });
     for (const layerId of Object.keys(state.instances)) {
       if (result.has(layerId)) continue;
-      const station = workbench.getStation("ingredient", state.instances[layerId]);
+      const station = stationForInstance(layerId);
       const world = station.pickupAnchor.getWorldPosition(new THREE.Vector3());
       const local = burger.root.worldToLocal(world.clone());
       result.set(layerId, {
@@ -469,7 +510,11 @@ export function createSoloCookingStage({
   const resolveDropIntent = (id, point) => {
     const layout = workbench.getLayout();
     const ingredientId = state.instances[id];
-    const station = layout.ingredients.find((entry) => entry.id === ingredientId);
+    const homeSlotId = homeSlotIdForInstance(id);
+    const station = (homeSlotId
+      ? layout.ingredients.find((entry) => entry.slotId === homeSlotId)
+      : null)
+      ?? layout.ingredients.find((entry) => entry.id === ingredientId);
     if (!station) return Object.freeze({
       kind: "invalid", intent: "invalid", id, targetIndex: null,
     });
@@ -502,7 +547,7 @@ export function createSoloCookingStage({
     if (intent.kind === "bin") {
       return {
         valid: true,
-        anchor: workbench.getStation("ingredient", state.instances[id]).dropAnchor,
+        anchor: stationForInstance(id).dropAnchor,
       };
     }
     return { valid: false, reason: "请放到中央餐盘或原料盒" };
@@ -759,7 +804,7 @@ export function createSoloCookingStage({
   };
 
   let controller = null;
-  const registeredLayerIds = new Set(SOLO_BURGER_INGREDIENT_IDS);
+  const registeredLayerIds = new Set();
   const reconcileModelInstances = () => {
     const desiredIds = new Set(Object.keys(state.instances));
     for (const layerId of [...burger.layers.keys()]) {
@@ -780,7 +825,7 @@ export function createSoloCookingStage({
         ? burger.getLayer(layerId)
         : burger.createLayerInstance(state.instances[layerId], layerId);
       layer.visible = true;
-      if (!registeredLayerIds.has(layerId)) {
+      if (!registeredLayerIds.has(layerId) && controller) {
         controller?.registerDraggable?.({
           id: layerId,
           object: layer,
@@ -794,20 +839,25 @@ export function createSoloCookingStage({
     ));
   };
 
+  reconcileModelInstances();
+  const initialLayerIds = Object.keys(state.instances);
+
   controller = controllerFactory({
     THREE,
     canvas,
     camera: host.camera,
     documentTarget,
     selectableSurfaces: workbench.selectableSurfaces,
-    draggables: SOLO_BURGER_INGREDIENT_IDS.map((id) => ({
+    draggables: initialLayerIds.map((id) => ({
       id,
       object: burger.getLayer(id),
       surfaces: [burger.getLayer(id).userData.selectableSurface],
     })),
     condimentTools: tools,
     sauceIds: SOLO_COOKING_SAUCE_IDS,
-    foodSurfaces: burger.getSelectableSurfaces(),
+    foodSurfaces: initialLayerIds.map(
+      (id) => burger.getLayer(id).userData.selectableSurface,
+    ),
     prepBounds: workbench.getLayout().bounds,
     prepPlaneY: 0.42,
     cameraTarget: cameraView.target,
@@ -873,7 +923,9 @@ export function createSoloCookingStage({
             burger.clearLayerDropPreview();
             workbench.clearDropCue();
             if (nextIntent.kind === "bin") {
-              workbench.setHighlighted("ingredient", id, true);
+              const slotId = homeSlotIdForInstance(id);
+              if (slotId) workbench.setSlotHighlighted?.(slotId, true);
+              else workbench.setHighlighted("ingredient", state.instances[id], true);
             }
           }
           emit("drop-intent");
@@ -911,7 +963,11 @@ export function createSoloCookingStage({
     onSaucePreview: previewSauceGesture,
     onSauceCommit: commitSauceGesture,
     onSauceCancel: cancelSauceGesture,
+    onStationSelector: ({ slotId, region }) => {
+      onStationSelector(Object.freeze({ slotId, region }));
+    },
   });
+  initialLayerIds.forEach((id) => registeredLayerIds.add(id));
   cleanupTasks.push(() => controller?.dispose?.());
 
   const setFocusMode = (value, { notify = true } = {}) => {
@@ -1079,7 +1135,7 @@ export function createSoloCookingStage({
       documentTarget.removeEventListener("visibilitychange", handleVisibilityChange)
     ));
   }
-  syncTransforms();
+  applyVisualState({ sauces: true });
   host.start();
   emit("ready");
 
@@ -1126,6 +1182,25 @@ export function createSoloCookingStage({
     return externallyPaused;
   };
 
+  const setSlotContent = (slotId, contentId) => {
+    if (disposed) return false;
+    const slot = getWorkbenchSlot(slotId);
+    const nextState = setSoloStationContent(state, slotId, contentId);
+    if (nextState === state) return false;
+
+    clearTransientVisuals();
+    if (slot.region === "sauce") tools.setSlotContent(slotId, contentId);
+    workbench.setStationContent(slotId, contentId);
+    state = nextState;
+    if (selectedLayerId && !state.instances[selectedLayerId]) selectedLayerId = null;
+    reconcileModelInstances();
+    applyVisualState();
+    emit("slot-content", {
+      slot: Object.freeze({ slotId, region: slot.region, contentId }),
+    });
+    return true;
+  };
+
   const api = {
     host,
     workbench,
@@ -1138,6 +1213,7 @@ export function createSoloCookingStage({
     get prepLayerScale() { return activeTuning.global.presentationScale; },
     getTuning: () => activeTuning,
     setTuning,
+    setSlotContent,
     setInteractionPaused,
     getState: () => state,
     getTutorial: () => tutorial,

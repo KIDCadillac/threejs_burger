@@ -8,11 +8,24 @@ import {
 } from "../app/static/burger-recipes.mjs";
 import { createCookingInteractionController } from "../app/static/cooking-interaction-controller.mjs";
 import { createSoloCookingStage } from "../app/static/cooking-solo-stage.mjs";
-import { MAX_SOLO_STACK_LAYERS, SOLO_INGREDIENT_STOCK } from "../app/static/cooking-solo-state.mjs";
+import {
+  MAX_SOLO_STACK_LAYERS,
+  SOLO_INGREDIENT_STOCK,
+  addSoloSauceStroke,
+  createSoloCookingState,
+  placeSoloLayer,
+  rotateSoloLayer,
+} from "../app/static/cooking-solo-state.mjs";
+import { hydrateSoloCookingState } from "../app/static/cooking-solo-save.mjs";
 import { createCookingWorkbench3D } from "../app/static/cooking-workbench-3d.mjs";
 import { createBurgerModel3D } from "../app/static/burger-model-3d.mjs";
 import { createCondimentTools3D } from "../app/static/condiment-tools-3d.mjs";
 import { normalizeBurgerTuning } from "../app/static/burger-tuning.mjs";
+import {
+  WORKBENCH_SLOTS,
+  createDefaultWorkbenchLoadout,
+  normalizeWorkbenchLoadout,
+} from "../app/static/workbench-loadout.mjs";
 
 class FakeCanvas {
   constructor() {
@@ -72,6 +85,19 @@ function harness(options = {}) {
   });
   return { canvas, host, stage, controllerCount, configuration };
 }
+
+const slotDescriptorsFor = (loadout) => {
+  const regionIndices = { bread: 0, filling: 0, sauce: 0 };
+  return WORKBENCH_SLOTS.map(({ slotId, region }) => Object.freeze({
+    slotId,
+    region,
+    kind: region === "sauce" ? "tool" : "ingredient",
+    index: regionIndices[region]++,
+    contentId: loadout[slotId],
+  }));
+};
+
+const loadedLayerIds = (stage) => Object.values(stage.getState().stationSources);
 
 const sampleStroke = (sauce, layerId = "patty") => ({
   sauce,
@@ -227,11 +253,233 @@ test("integrates the complete recipe ingredient and sauce sets into the solo sta
   );
   assert.ok(stage.burger.getLayer("onion") instanceof THREE.Group);
   assert.ok(stage.burger.getLayer("middle-bun") instanceof THREE.Group);
-  assert.deepEqual([...stage.tools.bottles.keys()], SOLO_COOKING_SAUCE_IDS);
+  const sauceSlotIds = WORKBENCH_SLOTS
+    .filter(({ region }) => region === "sauce")
+    .map(({ slotId }) => slotId);
+  assert.deepEqual([...stage.tools.bottles.keys()], sauceSlotIds);
+  assert.deepEqual(
+    sauceSlotIds.map((slotId) => stage.tools.getBySlot(slotId).sauce),
+    SOLO_COOKING_SAUCE_IDS,
+  );
   assert.ok(stage.tools.get("ketchup").root instanceof THREE.Group);
-  assert.equal(stage.workbench.ingredientSlots.length, SOLO_BURGER_INGREDIENT_IDS.length);
+  assert.equal(stage.workbench.ingredientSlots.length, 7);
   assert.equal(stage.workbench.toolDocks.length, SOLO_COOKING_SAUCE_IDS.length);
   assert.equal(host.starts, 1);
+  stage.dispose();
+});
+
+test("builds the fixed workbench and solo state from one normalized loadout", () => {
+  const requestedLoadout = {
+    ...createDefaultWorkbenchLoadout(),
+    "filling-back-1": "patty",
+    "filling-back-2": "patty",
+    "filling-back-3": "onion",
+    "bread-left-2": "not-a-bread",
+  };
+  const expectedLoadout = normalizeWorkbenchLoadout(requestedLoadout);
+  let workbenchOptions;
+  let controllerOptions;
+  const stage = createSoloCookingStage({
+    THREE,
+    canvas: new FakeCanvas(),
+    storage: null,
+    loadout: requestedLoadout,
+    hostFactory: createHostHarness,
+    workbenchFactory: (Three, options) => {
+      workbenchOptions = options;
+      return createCookingWorkbench3D(Three, options);
+    },
+    controllerFactory: (options) => {
+      controllerOptions = options;
+      return createCookingInteractionController(options);
+    },
+  });
+
+  assert.deepEqual(workbenchOptions, {
+    slotDescriptors: slotDescriptorsFor(expectedLoadout),
+  });
+  assert.deepEqual(stage.getState().stationContents, expectedLoadout);
+  assert.equal(stage.workbench.ingredientSlots.length, 7);
+  assert.equal(stage.workbench.toolDocks.length, 3);
+
+  const firstSource = stage.getState().stationSources["filling-back-1"];
+  const secondSource = stage.getState().stationSources["filling-back-2"];
+  assert.notEqual(firstSource, secondSource);
+  assert.equal(stage.getState().instances[firstSource], "patty");
+  assert.equal(stage.getState().instances[secondSource], "patty");
+
+  for (const [slotId, sourceId] of Object.entries(stage.getState().stationSources)) {
+    const station = stage.workbench.getStationBySlot(slotId);
+    const stationWorld = station.pickupAnchor.getWorldPosition(new THREE.Vector3());
+    const sourceWorld = stage.burger.getLayer(sourceId).getWorldPosition(new THREE.Vector3());
+    assert.ok(sourceWorld.distanceTo(stationWorld) < 1e-9, `${sourceId} uses ${slotId}`);
+  }
+
+  const secondHome = stage.workbench.getLayout().ingredients.find(
+    ({ slotId }) => slotId === "filling-back-2",
+  );
+  const returnDrop = controllerOptions.resolveDrop({
+    id: secondSource,
+    point: new THREE.Vector3(secondHome.position.x, 0, secondHome.position.z),
+  });
+  assert.equal(returnDrop.valid, true);
+  assert.equal(
+    returnDrop.anchor,
+    stage.workbench.getStationBySlot("filling-back-2").dropAnchor,
+    "duplicate content returns to its physical home slot",
+  );
+  stage.dispose();
+});
+
+test("starts from a verified saved state and lets its station contents override an explicit loadout", () => {
+  const savedLoadout = {
+    ...createDefaultWorkbenchLoadout(),
+    "filling-back-2": "patty",
+  };
+  let saved = createSoloCookingState({ loadout: savedLoadout });
+  const bottomSource = saved.stationSources["bread-left-1"];
+  const pattySource = saved.stationSources["filling-back-1"];
+  saved = placeSoloLayer(saved, bottomSource, 0, { replenish: true });
+  saved = placeSoloLayer(saved, pattySource, 1, { replenish: true });
+  saved = rotateSoloLayer(saved, pattySource, Math.PI / 3);
+  saved = addSoloSauceStroke(saved, sampleStroke("mustard", pattySource));
+  const initialState = hydrateSoloCookingState(saved);
+  assert.ok(initialState);
+  const ready = [];
+
+  const { stage } = harness({
+    initialState,
+    loadout: {
+      ...createDefaultWorkbenchLoadout(),
+      "filling-back-2": "onion",
+    },
+    reducedMotion: true,
+    onChange: (detail) => ready.push(detail),
+  });
+
+  assert.strictEqual(stage.getState(), initialState, "verified state is not rebuilt or mutated");
+  assert.deepEqual(stage.getState().stationContents, normalizeWorkbenchLoadout(savedLoadout));
+  assert.equal(stage.workbench.getStationBySlot("filling-back-2").id, "patty");
+  assert.deepEqual(stage.getState().assembledOrder, [bottomSource, pattySource]);
+  assert.equal(stage.burger.getLayer(pattySource).rotation.y, Math.PI / 3);
+  assert.deepEqual(stage.burger.getSnapshot().strokes, initialState.strokes);
+  assert.strictEqual(stage.getState().history, initialState.history);
+  assert.strictEqual(ready.at(-1).state, initialState);
+  const cameraView = stage.workbench.getLayout().camera;
+  assert.deepEqual(stage.host.camera.position.toArray(), [
+    cameraView.position.x * 0.59,
+    cameraView.position.y * 0.59,
+    cameraView.position.z * 0.59,
+  ]);
+  stage.dispose();
+
+  const fallback = harness({
+    initialState: Object.freeze({ incomplete: true }),
+    loadout: {
+      ...createDefaultWorkbenchLoadout(),
+      "filling-back-2": "onion",
+    },
+  }).stage;
+  assert.equal(fallback.getState().stationContents["filling-back-2"], "onion");
+  fallback.dispose();
+});
+
+test("forwards stable station-selector details without changing cooking or camera state", () => {
+  let controllerOptions;
+  const observed = [];
+  const { stage } = harness({
+    onStationSelector: (detail) => observed.push(detail),
+    controllerFactory: (options) => {
+      controllerOptions = options;
+      return createCookingInteractionController(options);
+    },
+  });
+  const stateBefore = stage.getState();
+  const cameraBefore = stage.controller.getCameraView();
+
+  const mutablePayload = { slotId: "filling-back-3", region: "filling" };
+  controllerOptions.onStationSelector(mutablePayload);
+  mutablePayload.slotId = "bread-left-1";
+
+  assert.deepEqual(observed, [{ slotId: "filling-back-3", region: "filling" }]);
+  assert.equal(Object.isFrozen(observed[0]), true);
+  assert.strictEqual(stage.getState(), stateBefore);
+  assert.deepEqual(stage.controller.getCameraView(), cameraBefore);
+  stage.dispose();
+});
+
+test("switches one ingredient slot without clearing the plated burger, history, or camera", () => {
+  const changes = [];
+  const { stage } = harness({
+    loadout: createDefaultWorkbenchLoadout(),
+    onChange: (detail) => changes.push(detail),
+  });
+  const bottomSource = stage.getState().stationSources["bread-left-1"];
+  const pattySource = stage.getState().stationSources["filling-back-1"];
+  stage.dropLayer(bottomSource, { kind: "prep" });
+  stage.dropLayer(pattySource, { kind: "prep" });
+  stage.tick(500);
+
+  const stateBefore = stage.getState();
+  const orderBefore = [...stateBefore.assembledOrder];
+  const historyBefore = stateBefore.history.map((snapshot) => snapshot.assembledOrder);
+  const cameraBefore = stage.controller.getCameraView();
+  const platedBefore = Object.fromEntries(orderBefore.map((id) => [
+    id,
+    readLayerTransform(stage.burger.getLayer(id)),
+  ]));
+
+  assert.equal(stage.setSlotContent("filling-back-2", "onion"), true);
+  const nextState = stage.getState();
+  assert.equal(nextState.stationContents["filling-back-2"], "onion");
+  assert.equal(stage.workbench.getStationBySlot("filling-back-2").id, "onion");
+  assert.deepEqual(nextState.assembledOrder, orderBefore);
+  assert.deepEqual(nextState.history.map((snapshot) => snapshot.assembledOrder), historyBefore);
+  assert.deepEqual(stage.controller.getCameraView(), cameraBefore);
+  assert.deepEqual(Object.fromEntries(orderBefore.map((id) => [
+    id,
+    readLayerTransform(stage.burger.getLayer(id)),
+  ])), platedBefore);
+
+  const onionSource = nextState.stationSources["filling-back-2"];
+  assert.equal(nextState.instances[onionSource], "onion");
+  const onionWorld = stage.burger.getLayer(onionSource).getWorldPosition(new THREE.Vector3());
+  const slotWorld = stage.workbench.getStationBySlot("filling-back-2")
+    .pickupAnchor.getWorldPosition(new THREE.Vector3());
+  assert.ok(onionWorld.distanceTo(slotWorld) < 1e-9);
+  assert.equal(changes.at(-1).reason, "slot-content");
+  assert.deepEqual(changes.at(-1).slot, {
+    slotId: "filling-back-2",
+    region: "filling",
+    contentId: "onion",
+  });
+  assert.equal(stage.setSlotContent("filling-back-2", "onion"), false);
+  stage.dispose();
+});
+
+test("keeps duplicate sauce slots physically distinct and switches one live bottle", () => {
+  const loadout = {
+    ...createDefaultWorkbenchLoadout(),
+    "sauce-right-2": "ketchup",
+  };
+  const { stage } = harness({ loadout });
+  const first = stage.tools.getBySlot("sauce-right-1");
+  const second = stage.tools.getBySlot("sauce-right-2");
+  assert.notStrictEqual(first, second);
+  assert.equal(first.sauce, "ketchup");
+  assert.equal(second.sauce, "ketchup");
+  const stateBefore = stage.getState();
+  const historyBefore = stateBefore.history;
+  const cameraBefore = stage.controller.getCameraView();
+
+  assert.equal(stage.setSlotContent("sauce-right-2", "mustard"), true);
+  assert.equal(stage.getState().stationContents["sauce-right-1"], "ketchup");
+  assert.equal(stage.getState().stationContents["sauce-right-2"], "mustard");
+  assert.equal(stage.workbench.getStationBySlot("sauce-right-2").id, "mustard");
+  assert.equal(first.sauce, "ketchup");
+  assert.equal(second.sauce, "mustard");
+  assert.strictEqual(stage.getState().history, historyBefore);
+  assert.deepEqual(stage.controller.getCameraView(), cameraBefore);
   stage.dispose();
 });
 
@@ -285,7 +533,8 @@ test("food focus shows only assembled burger layers and restores the full workbe
   assert.equal(stage.toggleBurgerFocus(), false);
   assert.equal(stage.workbench.root.visible, true);
   assert.equal(stage.burger.root.parent, stage.workbench.root);
-  assert.ok(BURGER_LAYER_IDS.every((id) => stage.burger.getLayer(id).visible));
+  assert.ok(loadedLayerIds(stage).every((id) => stage.burger.getLayer(id).visible));
+  assert.equal(stage.burger.getLayer("pickle").visible, false);
   const restored = stage.controller.getCameraView();
   assert.deepEqual(restored.target, before.target);
   assert.ok(new THREE.Vector3(...restored.position).distanceTo(new THREE.Vector3(...before.position)) < 1e-9);
@@ -382,9 +631,9 @@ test("places all recipe ingredients into matching U-shaped bins", () => {
   assert.equal(stage.layerPresentationScale, 0.72);
   assert.equal(stage.binLayerScale, stage.layerPresentationScale);
   assert.equal(stage.prepLayerScale, stage.layerPresentationScale);
-  for (const layerId of SOLO_BURGER_INGREDIENT_IDS) {
+  for (const [slotId, layerId] of Object.entries(stage.getState().stationSources)) {
     const layer = stage.burger.getLayer(layerId);
-    const station = stage.workbench.getStation("ingredient", layerId);
+    const station = stage.workbench.getStationBySlot(slotId);
     const stationWorld = station.pickupAnchor.getWorldPosition(new THREE.Vector3());
     const layerWorld = layer.getWorldPosition(new THREE.Vector3());
     assert.ok(layerWorld.distanceTo(stationWorld) < 0.35, layerId);
@@ -416,7 +665,7 @@ test("exposes live presentation scale compatibility getters", () => {
   stage.dispose();
 });
 
-test("fills a tall phone with a larger prep board while keeping every control visible", () => {
+test("fits the fixed switchable workbench into a tall phone with a usable prep board", () => {
   const { stage, host } = harness();
   host.camera.aspect = 390 / 608;
   host.camera.updateProjectionMatrix();
@@ -425,7 +674,7 @@ test("fills a tall phone with a larger prep board while keeping every control vi
   const prepLeft = new THREE.Vector3(layout.prep.bounds.minX, 0, 0).project(host.camera);
   const prepRight = new THREE.Vector3(layout.prep.bounds.maxX, 0, 0).project(host.camera);
   const prepPixels = (prepRight.x - prepLeft.x) * 390 / 2;
-  assert.ok(prepPixels >= 210, `prep board is only ${prepPixels}px wide`);
+  assert.ok(prepPixels >= 180, `prep board is only ${prepPixels}px wide`);
 
   for (const station of [...layout.ingredients, ...layout.tools]) {
     for (const x of [station.bounds.minX, station.bounds.maxX]) {
@@ -962,7 +1211,7 @@ test("setInteractionPaused owns gesture cancellation and prevents forbidden resu
   assert.equal(stage.setInteractionPaused(false), false);
   assert.equal(calls.resume, 1, "an unfinished active stage may resume");
 
-  BURGER_LAYER_IDS.forEach((layerId) => stage.dropLayer(layerId, { kind: "prep" }));
+  loadedLayerIds(stage).forEach((layerId) => stage.dropLayer(layerId, { kind: "prep" }));
   assert.equal(stage.finish(), true);
   const finishedState = stage.getState();
   const resumesAtFinish = calls.resume;
@@ -980,7 +1229,7 @@ test("setInteractionPaused owns gesture cancellation and prevents forbidden resu
 
 test("stacks all seven scaled layers in visible contact without cumulative air gaps", () => {
   const { stage } = harness({ reducedMotion: true });
-  BURGER_LAYER_IDS.forEach((id) => stage.dropLayer(id, { kind: "prep" }));
+  loadedLayerIds(stage).forEach((id) => stage.dropLayer(id, { kind: "prep" }));
 
   const intervals = stage.getState().assembledOrder.map((id) => (
     visibleLayerInterval(stage.burger.getLayer(id))
@@ -1153,7 +1402,7 @@ test("middle insertion opens only the upper stack and never moves bin ingredient
   const patty = stage.burger.getLayer("patty");
   const bottomBefore = bottomBun.position.y;
   const pattyBefore = patty.position.y;
-  const untouchedIds = ["tomato", "lettuce", "pickle", "top-bun"];
+  const untouchedIds = ["tomato", "lettuce", "middle-bun", "top-bun"];
   const homes = new Map(untouchedIds.map((id) => (
     [id, readLayerTransform(stage.burger.getLayer(id))]
   )));
@@ -1892,7 +2141,7 @@ test("highlight ghost and sauce visuals inherit tuned scale without identity or 
 
 test("completion freezes editing, shows a real 3d celebration, then allows adjustment", () => {
   const { stage } = harness();
-  BURGER_LAYER_IDS.forEach((layerId) => stage.dropLayer(layerId, { kind: "prep" }));
+  loadedLayerIds(stage).forEach((layerId) => stage.dropLayer(layerId, { kind: "prep" }));
 
   assert.equal(stage.getState().complete, true);
   assert.equal(stage.finish(), true);
@@ -1914,7 +2163,7 @@ test("finish silently cancels a real active drag", () => {
     onChange: (detail) => updates.push(detail),
     vibrate: (pattern) => vibrations.push(pattern),
   });
-  BURGER_LAYER_IDS.forEach((layerId) => stage.dropLayer(layerId, { kind: "prep" }));
+  loadedLayerIds(stage).forEach((layerId) => stage.dropLayer(layerId, { kind: "prep" }));
   const patty = stage.burger.getLayer("patty");
   const authoritativeTransform = readLayerTransform(patty);
   const surfaceWorld = patty.userData.selectableSurface
@@ -1946,7 +2195,7 @@ test("undo silently cancels a real active drag when restoring finished state", (
     onChange: (detail) => updates.push(detail),
     vibrate: (pattern) => vibrations.push(pattern),
   });
-  BURGER_LAYER_IDS.forEach((layerId) => stage.dropLayer(layerId, { kind: "prep" }));
+  loadedLayerIds(stage).forEach((layerId) => stage.dropLayer(layerId, { kind: "prep" }));
   stage.finish();
   stage.continueEditing();
   const patty = stage.burger.getLayer("patty");
@@ -1990,7 +2239,7 @@ test("undoing continue-editing re-freezes the controller with the restored finis
     hostFactory: () => host,
     controllerFactory: () => controller,
   });
-  BURGER_LAYER_IDS.forEach((layerId) => stage.dropLayer(layerId, { kind: "prep" }));
+  loadedLayerIds(stage).forEach((layerId) => stage.dropLayer(layerId, { kind: "prep" }));
   stage.finish();
   stage.continueEditing();
   stage.undo();
@@ -2259,7 +2508,7 @@ test("tutorial reconciles an already complete burger immediately after the first
   stage.selectLayer("bottom-bun");
   stage.dropLayer("bottom-bun", { kind: "prep" });
   stage.rotateSelected(0.2);
-  for (const layerId of BURGER_LAYER_IDS.slice(1)) {
+  for (const layerId of loadedLayerIds(stage).filter((id) => id !== "bottom-bun")) {
     stage.dropLayer(layerId, { kind: "prep" });
   }
   assert.equal(stage.getState().complete, true);
@@ -2306,7 +2555,7 @@ test("invalid placement emits a Chinese reason and safe short haptic without esc
 
 test("reduced motion keeps the completed WebGL celebration visibly static", () => {
   const { stage } = harness({ reducedMotion: true });
-  BURGER_LAYER_IDS.forEach((layerId) => stage.dropLayer(layerId, { kind: "prep" }));
+  loadedLayerIds(stage).forEach((layerId) => stage.dropLayer(layerId, { kind: "prep" }));
   stage.finish();
   const before = stage.celebration.pieces.map((piece) => ({
     position: piece.position.toArray(), rotation: piece.rotation.toArray(),

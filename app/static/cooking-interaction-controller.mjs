@@ -291,9 +291,12 @@ export function createCookingInteractionController({
       if (metadata?.kind !== "condiment-bottle" || !normalizedSauceIds.includes(sauce)) {
         throw new TypeError("Condiment surfaces need exact condiment-bottle metadata");
       }
-      const bottle = condimentTools.get(sauce);
+      const slotId = metadata?.slotId;
+      const bottle = slotId && typeof condimentTools.getBySlot === "function"
+        ? condimentTools.getBySlot(slotId)
+        : condimentTools.get(metadata?.id ?? sauce);
       if (!bottle?.root?.isObject3D || !bottle?.nozzleAnchor?.isObject3D) {
-        throw new TypeError(`Condiment ${sauce} is missing a bottle root or nozzle anchor`);
+        throw new TypeError(`Condiment ${slotId ?? sauce} is missing a bottle root or nozzle anchor`);
       }
       if (!bottle.selectableSurfaces?.includes(surface)) {
         throw new TypeError(`Condiment ${sauce} does not own its selectable surface`);
@@ -732,15 +735,15 @@ export function createCookingInteractionController({
     // Hit-test from a stable home pose, then aim the physical nozzle in world space.
     // The prep projection itself came from the active camera, so the fallback is also
     // camera-aware without coupling screen X/Y to fixed bottle-local axes.
-    condimentTools.setTilt(session.bottle.sauce, { x: 0, z: 0 });
-    condimentTools.setActive(session.bottle.sauce, true);
+    condimentTools.setTilt(session.bottle.id, { x: 0, z: 0 });
+    condimentTools.setActive(session.bottle.id, true);
     const targetHit = sampleBottleTarget(session, event);
     const targetWorld = targetHit?.worldPoint ?? point;
     if (targetWorld) {
       session.bottle.root.updateWorldMatrix?.(true, false);
       session.bottle.root.getWorldPosition(bottleOriginScratch);
       bottleAimScratch.subVectors(targetWorld, bottleOriginScratch);
-      condimentTools.setTilt(session.bottle.sauce, {
+      condimentTools.setTilt(session.bottle.id, {
         worldDirection: {
           x: bottleAimScratch.x,
           y: bottleAimScratch.y,
@@ -874,10 +877,10 @@ export function createCookingInteractionController({
         reason,
       }));
       destroyBottlePreview(cancelledBottle);
-      condimentTools.setActive(cancelledBottle.bottle.sauce, false);
-      condimentTools.dock(cancelledBottle.bottle.sauce);
+      condimentTools.setActive(cancelledBottle.bottle.id, false);
+      condimentTools.dock(cancelledBottle.bottle.id);
       invalidDetail = Object.freeze({
-        id: cancelledBottle.bottle.sauce,
+        id: cancelledBottle.bottle.id,
         object: cancelledBottle.bottle.root,
         kind: "condiment-bottle",
         reason,
@@ -948,7 +951,7 @@ export function createCookingInteractionController({
         bottleSession = transactionSession;
         nextSauceGestureId += 1;
         state = "dragging-bottle";
-        condimentTools.setActive(bottle.sauce, true);
+        condimentTools.setActive(bottle.id, true);
         const startProjection = projectedPoint(event, projectedScratch);
         if (startProjection) {
           desiredScratch.set(
@@ -1242,8 +1245,8 @@ export function createCookingInteractionController({
       }
     }
     destroyBottlePreview(session);
-    condimentTools.setActive(session.bottle.sauce, false);
-    condimentTools.dock(session.bottle.sauce);
+    condimentTools.setActive(session.bottle.id, false);
+    condimentTools.dock(session.bottle.id);
     bottleSession = null;
     dragSession = null;
     orbitSession = null;

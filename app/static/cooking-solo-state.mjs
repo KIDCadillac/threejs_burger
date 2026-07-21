@@ -263,7 +263,7 @@ function reconcileStationSnapshot(snapshot, session) {
   };
 }
 
-function bareSnapshot(state) {
+function bareSnapshot(state, { includeStationSession = false } = {}) {
   const referenced = referencedInstanceIds(state, state.stationSources);
   const { instances, locations, rotations } = selectInstanceRecords(state, referenced);
   return Object.freeze({
@@ -278,6 +278,10 @@ function bareSnapshot(state) {
     finished: Boolean(state.finished),
     ...(state.instanceHomes ? {
       instanceHomes: freezeInstanceHomes(state.instanceHomes, instances),
+    } : {}),
+    ...(includeStationSession && state.stationContents ? {
+      stationContents: normalizeWorkbenchLoadout(state.stationContents),
+      stationSources: freezeStationSources(state.stationSources),
     } : {}),
   });
 }
@@ -330,8 +334,11 @@ function buildState(
   return Object.freeze(state);
 }
 
-function edited(state, changes) {
-  const history = [...state.history, bareSnapshot(state)].slice(-MAX_HISTORY);
+function edited(state, changes, { preservePreviousStation = false } = {}) {
+  const history = [
+    ...state.history,
+    bareSnapshot(state, { includeStationSession: preservePreviousStation }),
+  ].slice(-MAX_HISTORY);
   return buildState(
     { ...bareSnapshot(state), ...changes },
     history,
@@ -562,6 +569,7 @@ export function removeSoloLayer(state, layerId, { consolidate = false } = {}) {
   const stationSources = session ? { ...session.stationSources } : null;
   const instanceHomes = session ? { ...session.instanceHomes } : null;
   let strokes = state.strokes;
+  let stationSessionChanged = false;
   const returnedId = layerId;
   const homeSlotId = session ? instanceHomes[returnedId] : undefined;
   if (
@@ -585,6 +593,7 @@ export function removeSoloLayer(state, layerId, { consolidate = false } = {}) {
     stationContents[homeSlotId] = ingredientId;
     stationSources[homeSlotId] = returnedId;
     instanceHomes[returnedId] = homeSlotId;
+    stationSessionChanged = true;
     locations[returnedId] = { kind: "bin", slotId: homeSlotId };
     binSources = deriveStationBinSources(stationContents, stationSources);
     inventory[ingredientId] = Math.min(SOLO_INGREDIENT_STOCK, inventory[ingredientId] + 1);
@@ -620,7 +629,7 @@ export function removeSoloLayer(state, layerId, { consolidate = false } = {}) {
       stationSources,
       instanceHomes,
     } : {}),
-  });
+  }, { preservePreviousStation: stationSessionChanged });
 }
 
 export function rotateSoloLayer(state, layerId, yaw) {
@@ -658,12 +667,13 @@ export function continueSoloCooking(state) {
 export function undoSoloCooking(state) {
   if (!state.history.length) return state;
   const previous = state.history[state.history.length - 1];
+  const previousSession = stationSession(previous) ?? stationSession(state);
   return buildState(
     previous,
     state.history.slice(0, -1),
     state.referenceRecipeId,
-    stationSession(state),
-    { reconcileStations: Boolean(state.stationContents) },
+    previousSession,
+    { reconcileStations: Boolean(previousSession) },
   );
 }
 
