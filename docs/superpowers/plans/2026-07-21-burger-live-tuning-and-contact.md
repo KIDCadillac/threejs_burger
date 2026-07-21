@@ -38,7 +38,14 @@ $nodeExe='C:\Users\KID\.cache\codex-runtimes\codex-primary-runtime\dependencies\
 & $nodeExe --test tests\burger-tuning.test.mjs
 ```
 
-- [ ] Implement and export `BURGER_TUNING_STORAGE_KEY`, `DEFAULT_BURGER_TUNING`, `normalizeBurgerTuning`, `loadBurgerTuning`, `saveBurgerTuning`, `serializeBurgerTuning`, and `resetBurgerIngredient`.
+- [ ] Implement and export `BURGER_TUNING_STORAGE_KEY`, `DEFAULT_BURGER_TUNING`, `normalizeBurgerTuning`, `loadBurgerTuning`, `saveBurgerTuning`, `serializeBurgerTuning`, and `resetBurgerIngredient`. Use these exact signatures and return values:
+
+```js
+loadBurgerTuning({ storage, globalTarget = globalThis } = {}) // frozen normalized tuning
+saveBurgerTuning(value, { storage, globalTarget = globalThis } = {}) // boolean
+resetBurgerIngredient(value, ingredientId) // frozen normalized tuning
+serializeBurgerTuning(value) // canonical pretty JSON string
+```
 
 ```js
 export const BURGER_TUNING_STORAGE_KEY = "solo-cooking-burger-tuning:v1";
@@ -83,6 +90,16 @@ assert.equal(workbench.prep.dropAnchor.position.y, expectedSupportY);
 
 - [ ] Run the test and confirm it exposes the existing `0.38` anchor versus `0.32` plate-top gap.
 - [ ] Compute the support height after creating the plate, use it for the drop anchor, and expose it on `prep` and frozen `layout.prep`. Delete the independent `0.38` magic number.
+
+```js
+plate.geometry.computeBoundingBox();
+const supportY = plate.position.y
+  + plate.geometry.boundingBox.max.y * plate.scale.y;
+prepDropAnchor.position.y = supportY;
+// Returned workbench:
+prep: Object.freeze({ ..., supportY, dropAnchor: prepDropAnchor }),
+layout: Object.freeze({ ..., prep: Object.freeze({ ..., supportY }) }),
+```
 - [ ] Re-run the workbench tests until GREEN.
 - [ ] Commit.
 
@@ -97,8 +114,14 @@ git commit -m "fix: derive burger support height from plate geometry"
 - Modify: `app/static/cooking-solo-stage.mjs`
 - Modify: `tests/cooking-solo-stage.test.mjs`
 
-- [ ] Add RED contact tests for the default bottom bun at rest and during every sampled insertion frame. The visible bottom may penetrate at most `0.03`, and any positive gap must be at most `0.005`.
-- [ ] Add RED tuning tests covering independent XYZ/sink values, previews, cue radius, insertion/pick motion, repeated and replenished instances, sauce/selection children, transient cancellation, 20 maximum-thickness layers, normal view, and focused view.
+- [ ] RED/GREEN cycle A: add the default bottom-bun-at-rest test, run it to observe the old `0.06` gap, then minimally start `targetTransforms()` at `workbench.prep.supportY` and make it GREEN.
+- [ ] RED/GREEN cycle B: sample the empty-plate bottom-bun insertion at `0`, `80`, `160`, `240`, `320`, and `380ms`. Run RED, then anchor the motion's visible underside to `workbench.prep.supportY - sinkY` at every frame while only scaling/popping at that local layer height. The visible bottom may penetrate at most `0.03`, and any positive gap must be at most `0.005`.
+- [ ] RED/GREEN cycle C: test and implement independent XYZ/sink values in assembled targets and bins.
+- [ ] RED/GREEN cycle D: test and implement the same tuned scale/contact in drop preview, cue radius, ghost, pick motion, and insertion motion.
+- [ ] RED/GREEN cycle E: test and implement repeated and future replenished instances using `state.instances[instanceId]`.
+- [ ] RED/GREEN cycle F: test that sauce/selection children inherit tuning without object rebuild and that tuning preserves state/history/inventory/strokes.
+- [ ] RED/GREEN cycle G: test that changing tuning cancels drag, sauce, previews, and insertion transients before authoritative transforms are restored.
+- [ ] RED/GREEN cycle H: test 20 maximum-thickness layers in both normal and focused camera views, then trigger camera adaptation from `setTuning()`.
 
 ```js
 const tuning = normalizeBurgerTuning({
@@ -146,7 +169,8 @@ for (const instanceId of assembledOrder) {
 
 - [ ] Replace every geometric use of `LAYER_PRESENTATION_SCALE`: bin targets, assembled min/max, drop preview thickness, lower-layer top, cue radius, ghost scale, insertion thickness, pick thickness, and public presentation-scale fields. Cue radius uses `Math.max(scale.x, scale.z)`.
 - [ ] Keep insertion pop anchored to the selected layer's visible underside using its tuned `scale.y`; do not animate from the bottom of the whole stack.
-- [ ] Add `getTuning()` and `setTuning(next)`. A tuning update must cancel drag/sauce/preview/insertion transients, restore authoritative transforms, adapt the camera, emit once, and never alter cooking order, inventory, history, sauce strokes, completion, or instance identity.
+- [ ] Add `getTuning()` and `setTuning(next)`. `setTuning(next)` returns the frozen normalized `activeTuning`. A tuning update must cancel drag/sauce/preview/insertion transients, restore authoritative transforms, adapt the camera, emit once, and never alter cooking order, inventory, history, sauce strokes, completion, or instance identity.
+- [ ] Add `setInteractionPaused(value)`. Track `externallyPaused`; `true` calls `controller.pause()` (which already cancels the active gesture), while `false` resumes only when the stage is not finished. `setTuning()` temporarily pauses and resumes only when `!state.finished && !externallyPaused`.
 - [ ] Update old tests whose expected geometry hard-coded `0.72` to derive expectations from actual layer scale or `stage.getTuning()`.
 - [ ] Run focused tests until GREEN.
 
@@ -218,7 +242,7 @@ const tuningPanel = tuningPanelFactory({
 });
 ```
 
-- [ ] Dispose the panel with the existing app lifecycle and pause game interactions while the modal sheet is open.
+- [ ] Dispose the panel with the existing app lifecycle. `tuningPanel.open()` is paired with `stage.setInteractionPaused(true)`; close and dispose are paired with `stage.setInteractionPaused(false)`. Add an app test for open → pause, close → resume, and dispose → resume without resuming a finished stage.
 - [ ] Run the focused UI/app suite until GREEN.
 
 ```powershell
@@ -243,6 +267,7 @@ C:\Users\KID\AppData\Local\Programs\Python\Python313\python.exe -m pytest -q
 git diff --check
 ```
 
-- [ ] Use Playwright at `390x844` and landscape size to verify panel scrolling, real-time response, copy/fallback, refresh persistence, a supported first bun, 20-layer camera fitting, and focused view.
-- [ ] Capture comparison screenshots and record the final copied JSON used for acceptance.
+- [ ] Start a local server with `python -m http.server 4173 --directory app/static`, then use Playwright against `http://127.0.0.1:4173/cooking.html` at `390x844` and `844x390`.
+- [ ] Assert the tuning sheet is visible after `[data-action="tuning-open"]`, its last reset action is reachable in landscape, slider input changes the selected Three.js group scale, copied JSON contains `"version": 1`, refresh restores it, the first bun/plate gap is within tolerance, and both normal/focused 20-layer bounds remain inside the viewport.
+- [ ] Capture `output/tuning-mobile-portrait.png`, `output/tuning-mobile-landscape.png`, and `output/tuning-20-layer-focus.png`; keep `output/` untracked and record the final copied JSON in the verification notes only.
 - [ ] Do not deploy until all automated and visual checks pass.

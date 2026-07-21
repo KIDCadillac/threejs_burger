@@ -75,7 +75,11 @@ git commit -m "perf: encode feedback replay incrementally"
 - Modify: `app/static/cooking-feedback.mjs`
 - Modify: `tests/cooking-feedback.test.mjs`
 
-- [ ] Add RED tests for a never-settling fetch, signal abortion at exactly 20 seconds, fallback timeout without AbortController, late-result suppression, timer cleanup, replay/base64 preparation failure, one network attempt only, and explicit cancellation.
+- [ ] RED/GREEN cycle A: test a never-settling fetch and signal abortion at exactly 20 seconds; implement the controlled logical timeout and `UPLOAD_TIMEOUT`.
+- [ ] RED/GREEN cycle B: test fallback timeout without AbortController plus late resolve/reject suppression; implement the no-controller path and consume late results.
+- [ ] RED/GREEN cycle C: test timer cleanup on success/failure and implement a single finalizer.
+- [ ] RED/GREEN cycle D: test replay/base64 preparation failure before fetch and implement `REPLAY_PREPARATION_FAILED`.
+- [ ] RED/GREEN cycle E: test one network attempt and explicit `cancel()`; implement `UPLOAD_FAILED` and `UPLOAD_CANCELLED` without automatic retry.
 
 ```js
 test("Google Drive uploader aborts a hanging request after 20 seconds", async () => {
@@ -110,8 +114,12 @@ git commit -m "feat: add cancellable feedback upload timeout"
 - Modify: `app/static/cooking-feedback.mjs`
 - Modify: `tests/cooking-feedback.test.mjs`
 
-- [ ] Extend the fake button fixture with `disabled` and pass a submit button into every reporter test.
-- [ ] Add RED tests for the exact phase order, disabled state, concurrent-submit rejection, cached Blob identity on retry, cache reset when a new feedback session opens, no-frame and encoding failures, preparation/network/timeout copy, closing during upload, and dispose cancellation.
+- [ ] RED/GREEN cycle A: extend the fake button with `disabled`; test exact phase order, button locking, and concurrent-submit rejection; implement `setStage` and the guarded `finally` unlock.
+- [ ] RED/GREEN cycle B: test cached Blob identity on retry and implement cache reuse.
+- [ ] RED/GREEN cycle C: test cache reset when a new feedback session opens and when recorder revision changes after new captures; implement a revision-keyed cache.
+- [ ] RED/GREEN cycle D: test no-frame/encoding failures and implement their distinct copy without calling the uploader.
+- [ ] RED/GREEN cycle E: test preparation/network/timeout copy and implement the fixed error map.
+- [ ] RED/GREEN cycle F: test closing during upload and dispose cancellation; implement lifecycle semantics.
 
 Expected visible phases:
 
@@ -124,7 +132,7 @@ Expected visible phases:
 
 - [ ] Run RED and verify current combined status and re-encoding behavior fail these expectations.
 - [ ] Accept `submitButton`, retain its idle label, and centralize `setStage(text)` so both status and the locked button visibly update.
-- [ ] Cache the first successfully encoded replay Blob for the current open dialog session. A retry after upload failure starts at preparation; opening a new feedback session clears the cache.
+- [ ] Add `revision()` to the recorder. Increment its integer revision after every accepted capture and reset it only on dispose. Cache `{ replay, revision }`; reuse it only while `cached.revision === recorder.revision()`. A retry after upload failure with no new frame starts at preparation; any accepted new capture forces re-encoding. Opening a new feedback session also clears the cache.
 
 ```js
 let submitting = false;
@@ -144,7 +152,18 @@ async function submit() {
       });
     }
     setStage("正在准备上传数据");
-    const result = await uploader.submit(buildPayload(cachedReplay), {
+    const metadata = buildCookingReportMetadata({
+      message: reportMessage,
+      generatedAt: now().toISOString(),
+      pageUrl: windowTarget.location?.href,
+      userAgent: windowTarget.navigator?.userAgent,
+      context: getContext(),
+    });
+    const result = await uploader.submit({
+      metadata,
+      replay: cachedReplay,
+      screenshotDataUrl,
+    }, {
       onUploadStart() {
         setStage("正在上传到反馈云盘，最多等待 20 秒");
       },
@@ -212,6 +231,8 @@ C:\Users\KID\AppData\Local\Programs\Python\Python313\python.exe -m pytest -q
 git diff --check
 ```
 
-- [ ] In a phone-sized browser, verify per-frame progress repaints, a deliberately stalled request exits within 20 seconds, the button unlocks, and retry immediately reuses the cached GIF.
-- [ ] Verify opening a new report captures a new replay and a successful opaque request says only “反馈已提交”.
+- [ ] Start `python -m http.server 4173 --directory app/static` and use a `390x844` Playwright page at `http://127.0.0.1:4173/cooking.html`.
+- [ ] Intercept the Apps Script POST with a never-resolving route; assert visible compression progress changes at least twice, the upload phase appears, timeout copy appears by 21 seconds, and the submit button is enabled again.
+- [ ] Retry without interacting and assert compression progress is skipped; render one new frame, retry again, and assert compression runs because recorder revision changed.
+- [ ] Fulfil the intercepted request and assert the final copy contains “反馈已提交” and does not contain “上传成功”. Save `output/feedback-timeout-mobile.png`; keep `output/` untracked.
 - [ ] Do not deploy until automated and browser checks pass.
