@@ -12,6 +12,11 @@ const AVAILABLE_BURGER_INGREDIENT_IDS = Object.freeze([
   "middle-bun",
   "top-bun",
 ]);
+const AVAILABLE_SAUCE_IDS = Object.freeze([
+  ...SAUCE_KEYS,
+  "ketchup",
+  "house-sauce",
+]);
 const MAX_STROKES = 64;
 const MAX_POINTS = 24;
 const COLLAPSED_OVERLAP = 0.035;
@@ -40,6 +45,8 @@ const SAUCE_COLORS = Object.freeze({
   mustard: 0xe6ab20,
   sour: 0x8ebf36,
   sticky: 0x784127,
+  ketchup: 0xd9472f,
+  "house-sauce": 0xf2b76b,
 });
 
 function assertActive(disposed) {
@@ -64,6 +71,21 @@ function normalizeIngredientIds(value) {
     || BURGER_LAYER_IDS.some((id) => !uniqueIds.has(id))
   ) {
     throw new TypeError("options.ingredientIds must be unique known burger ingredients");
+  }
+  return Object.freeze([...value]);
+}
+
+function normalizeSauceIds(value) {
+  if (value === undefined) return Object.freeze([...SAUCE_KEYS]);
+  if (!Array.isArray(value) || value.length < 1) {
+    throw new TypeError("options.sauceIds must contain at least one sauce");
+  }
+  const uniqueIds = new Set(value);
+  if (
+    uniqueIds.size !== value.length
+    || value.some((id) => !AVAILABLE_SAUCE_IDS.includes(id))
+  ) {
+    throw new TypeError("options.sauceIds must be unique known sauces");
   }
   return Object.freeze([...value]);
 }
@@ -135,9 +157,13 @@ function createReadonlyMapView(source) {
   return Object.freeze(view);
 }
 
-function validateStroke(stroke, isKnownLayer = (layerId) => BURGER_LAYER_IDS.includes(layerId)) {
+function validateStroke(
+  stroke,
+  isKnownLayer = (layerId) => BURGER_LAYER_IDS.includes(layerId),
+  sauceIds = SAUCE_KEYS,
+) {
   assertExactKeys(stroke, STROKE_KEYS, "Sauce stroke");
-  if (!SAUCE_KEYS.includes(stroke.sauce)) {
+  if (!sauceIds.includes(stroke.sauce)) {
     throw new TypeError(`Unknown sauce: ${String(stroke.sauce)}`);
   }
   if (!isKnownLayer(stroke.layerId)) {
@@ -761,6 +787,7 @@ export function createBurgerModel3D(THREE, options = {}) {
     throw new TypeError("options.onSauceGeometry must be a function");
   }
   const ingredientIds = normalizeIngredientIds(options.ingredientIds);
+  const sauceIds = normalizeSauceIds(options.sauceIds);
 
   const root = new THREE.Group();
   root.name = "food:burger";
@@ -1007,7 +1034,7 @@ export function createBurgerModel3D(THREE, options = {}) {
   layers.get("lettuce").add(lettuceVeins);
   ownedGeometries.add(veinGeometry);
 
-  const sauceMaterials = new Map(SAUCE_KEYS.map((sauce) => {
+  const sauceMaterials = new Map(sauceIds.map((sauce) => {
     const material = makeMaterial(THREE, {
       color: SAUCE_COLORS[sauce],
       roughness: sauce === "sticky" ? 0.24 : 0.32,
@@ -1276,7 +1303,7 @@ export function createBurgerModel3D(THREE, options = {}) {
 
   const addSauceStroke = (stroke) => {
     assertActive(disposed);
-    const normalized = validateStroke(stroke, (layerId) => layers.has(layerId));
+    const normalized = validateStroke(stroke, (layerId) => layers.has(layerId), sauceIds);
     const entry = createSauceEntry(normalized, sauceEntries.length);
     layers.get(normalized.layerId).add(entry.mesh);
     sauceEntries.push(entry);
@@ -1294,7 +1321,7 @@ export function createBurgerModel3D(THREE, options = {}) {
   const previewSauceStroke = (previewKey, stroke) => {
     assertActive(disposed);
     const key = assertPreviewIdentifier(previewKey, "previewKey");
-    const normalized = validateStroke(stroke, (layerId) => layers.has(layerId));
+    const normalized = validateStroke(stroke, (layerId) => layers.has(layerId), sauceIds);
     const next = createSauceEntry(normalized, `preview:${key}`, key);
     layers.get(normalized.layerId).add(next.mesh);
     const previous = previewEntriesByKey.get(key);
@@ -1438,7 +1465,7 @@ export function createBurgerModel3D(THREE, options = {}) {
       }];
     }));
     const validatedStrokes = composition.strokes.map((stroke) => (
-      validateStroke(stroke, (layerId) => layers.has(layerId))
+      validateStroke(stroke, (layerId) => layers.has(layerId), sauceIds)
     ));
     const stagedSauces = stageSauceEntries(validatedStrokes);
 

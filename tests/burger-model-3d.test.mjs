@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "../app/static/vendor/three.module.min.js";
 import { BURGER_LAYER_IDS, SAUCE_KEYS } from "../app/static/cooking-state.mjs";
+import { SOLO_COOKING_SAUCE_IDS } from "../app/static/burger-recipes.mjs";
 import { createBurgerModel3D } from "../app/static/burger-model-3d.mjs";
 
 const SOLO_INGREDIENT_IDS = Object.freeze([
@@ -149,6 +150,41 @@ test("injects all nine solo ingredients without changing the legacy seven-layer 
   assert.throws(
     () => createBurgerModel3D(THREE, { ingredientIds: [...SOLO_INGREDIENT_IDS, "unknown"] }),
     /ingredientIds/i,
+  );
+  burger.dispose();
+});
+
+test("injects recipe sauces without widening the legacy sauce default", () => {
+  const legacy = createBurgerModel3D(THREE);
+  assert.throws(() => legacy.addSauceStroke({
+    sauce: "ketchup",
+    layerId: "patty",
+    amount: 0.5,
+    points: [[-0.25, 0], [0.25, 0]],
+  }), /Unknown sauce/i);
+  legacy.dispose();
+
+  const burger = createBurgerModel3D(THREE, {
+    ingredientIds: SOLO_INGREDIENT_IDS,
+    sauceIds: SOLO_COOKING_SAUCE_IDS,
+  });
+  const ketchup = burger.addSauceStroke({
+    sauce: "ketchup",
+    layerId: "patty",
+    amount: 0.5,
+    points: [[-0.25, 0], [0.25, 0]],
+  });
+  const houseSauce = burger.addSauceStroke({
+    sauce: "house-sauce",
+    layerId: "middle-bun",
+    amount: 0.4,
+    points: [[-0.2, -0.1], [0.2, 0.1]],
+  });
+  assert.equal(ketchup.material.color.getHex(), 0xd9472f);
+  assert.equal(houseSauce.material.color.getHex(), 0xf2b76b);
+  assert.throws(
+    () => createBurgerModel3D(THREE, { sauceIds: ["ketchup", "ketchup"] }),
+    /sauceIds/i,
   );
   burger.dispose();
 });
