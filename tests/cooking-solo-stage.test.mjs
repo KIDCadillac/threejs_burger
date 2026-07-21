@@ -8,6 +8,7 @@ import { MAX_SOLO_STACK_LAYERS, SOLO_INGREDIENT_STOCK } from "../app/static/cook
 import { createCookingWorkbench3D } from "../app/static/cooking-workbench-3d.mjs";
 import { createBurgerModel3D } from "../app/static/burger-model-3d.mjs";
 import { createCondimentTools3D } from "../app/static/condiment-tools-3d.mjs";
+import { normalizeBurgerTuning } from "../app/static/burger-tuning.mjs";
 
 class FakeCanvas {
   constructor() {
@@ -51,18 +52,20 @@ function harness(options = {}) {
   const canvas = new FakeCanvas();
   const host = createHostHarness();
   let controllerCount = 0;
+  let configuration;
   const stage = createSoloCookingStage({
     THREE,
     canvas,
     storage: null,
     hostFactory: () => host,
-    controllerFactory: (configuration) => {
+    controllerFactory: (value) => {
       controllerCount += 1;
-      return createCookingInteractionController(configuration);
+      configuration = value;
+      return createCookingInteractionController(value);
     },
     ...options,
   });
-  return { canvas, host, stage, controllerCount };
+  return { canvas, host, stage, controllerCount, configuration };
 }
 
 const sampleStroke = (sauce, layerId = "patty") => ({
@@ -86,6 +89,14 @@ function readLayerTransform(layer) {
     rotation: layer.rotation.toArray(),
     scale: layer.scale.toArray(),
   };
+}
+
+function expectedLayerScale(stage, instanceId) {
+  const ingredientId = stage.getState().instances[instanceId];
+  const config = stage.getTuning().ingredients[ingredientId];
+  const presentationScale = stage.getTuning().global.presentationScale;
+  return [config.scaleX, config.scaleY, config.scaleZ]
+    .map((value) => value * presentationScale);
 }
 
 class FakeVisibilityDocument {
@@ -302,9 +313,31 @@ test("places seven actual independent layer groups into their matching U-shaped 
     const stationWorld = station.pickupAnchor.getWorldPosition(new THREE.Vector3());
     const layerWorld = layer.getWorldPosition(new THREE.Vector3());
     assert.ok(layerWorld.distanceTo(stationWorld) < 0.35, layerId);
-    assert.equal(layer.scale.x, stage.binLayerScale);
+    assert.deepEqual(layer.scale.toArray(), expectedLayerScale(stage, layerId));
   }
+  assert.ok(
+    stage.burger.getLayer("cheese").scale.y > stage.burger.getLayer("cheese").scale.x,
+    "default cheese keeps its tuned thickness",
+  );
+  assert.ok(
+    stage.burger.getLayer("lettuce").scale.y > stage.burger.getLayer("lettuce").scale.x,
+    "default lettuce keeps its tuned thickness",
+  );
   assert.deepEqual(stage.getState().assembledOrder, []);
+  stage.dispose();
+});
+
+test("exposes live presentation scale compatibility getters", () => {
+  const { stage } = harness();
+  for (const property of ["layerPresentationScale", "binLayerScale", "prepLayerScale"]) {
+    assert.equal(typeof Object.getOwnPropertyDescriptor(stage, property)?.get, "function", property);
+    assert.equal(stage[property], 0.72, property);
+  }
+
+  stage.setTuning({ version: 1, global: { presentationScale: 0.83 } });
+  assert.equal(stage.layerPresentationScale, 0.83);
+  assert.equal(stage.binLayerScale, 0.83);
+  assert.equal(stage.prepLayerScale, 0.83);
   stage.dispose();
 });
 
@@ -336,7 +369,7 @@ test("fills a tall phone with a larger prep board while keeping every control vi
 test("keeps one base food scale while plate snapping adds only a temporary local pop", () => {
   const { stage } = harness();
   const layer = stage.burger.getLayer("patty");
-  const expected = [0.72, 0.72, 0.72];
+  const expected = expectedLayerScale(stage, "patty");
   assert.deepEqual(layer.scale.toArray(), expected);
 
   stage.dropLayer("patty", { kind: "prep" });
@@ -353,6 +386,253 @@ test("keeps one base food scale while plate snapping adds only a temporary local
   stage.tick(620);
   assert.deepEqual(layer.scale.toArray(), expected, "returning home also preserves size");
   stage.dispose();
+});
+
+test("rests the default bottom bun visible underside on the prep support", () => {
+  const { stage } = harness({
+    reducedMotion: true,
+    workbenchFactory: (Three) => {
+      const workbench = createCookingWorkbench3D(Three);
+      workbench.prep.dropAnchor.position.y = 0.38;
+      return workbench;
+    },
+  });
+  stage.dropLayer("bottom-bun", { kind: "prep" });
+
+  const bottom = visibleLayerInterval(stage.burger.getLayer("bottom-bun")).bottom;
+  const supportY = stage.workbench.prep.supportY;
+  const gap = bottom - supportY;
+  const config = stage.getTuning().ingredients[stage.getState().instances["bottom-bun"]];
+  assert.equal(config.sinkY, 0.012);
+  assert.ok(Math.abs(gap + config.sinkY) < 1e-9, "default sink is applied to the visible underside");
+  assert.ok(gap <= 0.005, `bottom bun floats ${gap} above the prep support`);
+  assert.ok(gap >= -0.03, `bottom bun penetrates ${-gap} below the prep support`);
+  stage.dispose();
+});
+
+test("applies per-ingredient tuning to bin and authoritative stack contact planes", () => {
+  const tuning = {
+    version: 1,
+    global: { presentationScale: 0.8 },
+    ingredients: {
+      patty: { scaleX: 1.25, scaleY: 1.8, scaleZ: 0.7, sinkY: 0.04 },
+      cheese: { scaleX: 0.9, scaleY: 1.6, scaleZ: 1.1, sinkY: 0.015 },
+    },
+  };
+  const normalized = normalizeBurgerTuning(tuning);
+  const { stage } = harness({ reducedMotion: true, tuning });
+  const patty = stage.burger.getLayer("patty");
+  const pattyConfig = normalized.ingredients.patty;
+  const presentationScale = normalized.global.presentationScale;
+  const pattyScale = [pattyConfig.scaleX, pattyConfig.scaleY, pattyConfig.scaleZ]
+    .map((value) => value * presentationScale);
+
+  assert.deepEqual(patty.scale.toArray(), pattyScale, "bin uses tuned XYZ scale without sink");
+  const binAnchor = stage.workbench.getStation("ingredient", "patty")
+    .pickupAnchor.getWorldPosition(new THREE.Vector3());
+  const binPosition = patty.getWorldPosition(new THREE.Vector3());
+  assert.ok(binPosition.distanceTo(binAnchor) < 1e-9, "sink never offsets a bin ingredient");
+  stage.dropLayer("patty", { kind: "prep" });
+  assert.deepEqual(patty.scale.toArray(), pattyScale, "prep target keeps the tuned XYZ scale");
+  const pattyBottom = patty.position.y + patty.userData.stackMinY * patty.scale.y;
+  assert.ok(Math.abs(
+    pattyBottom - (stage.workbench.prep.supportY - pattyConfig.sinkY)
+  ) < 1e-9);
+
+  stage.dropLayer("cheese", { kind: "prep" });
+  const cheese = stage.burger.getLayer("cheese");
+  const cheeseConfig = normalized.ingredients.cheese;
+  assert.deepEqual(cheese.scale.toArray(), [
+    presentationScale * cheeseConfig.scaleX,
+    presentationScale * cheeseConfig.scaleY,
+    presentationScale * cheeseConfig.scaleZ,
+  ]);
+  const pattyTop = patty.position.y + patty.userData.stackMaxY * patty.scale.y;
+  const cheeseBottom = cheese.position.y + cheese.userData.stackMinY * cheese.scale.y;
+  assert.ok(Math.abs(
+    cheeseBottom - (pattyTop - 0.025 - cheeseConfig.sinkY)
+  ) < 1e-9, "next layer follows tuned scaleY contact planes and sink");
+  stage.dispose();
+});
+
+test("maps canonical, repeated, and replenished instances through their ingredient type", () => {
+  const tuning = {
+    version: 1,
+    global: { presentationScale: 0.8 },
+    ingredients: {
+      patty: { scaleX: 0.75, scaleY: 2.1, scaleZ: 1.3, sinkY: 0.035 },
+    },
+  };
+  const normalized = normalizeBurgerTuning(tuning);
+  const config = normalized.ingredients.patty;
+  const expectedScale = [config.scaleX, config.scaleY, config.scaleZ]
+    .map((value) => value * normalized.global.presentationScale);
+  const { stage } = harness({ reducedMotion: true, tuning });
+
+  const canonicalId = stage.getState().binSources.patty;
+  stage.dropLayer(canonicalId, { kind: "prep" });
+  const repeatedId = stage.getState().binSources.patty;
+  stage.dropLayer(repeatedId, { kind: "prep" });
+  const replenishedId = stage.getState().binSources.patty;
+
+  for (const instanceId of [canonicalId, repeatedId, replenishedId]) {
+    assert.equal(stage.getState().instances[instanceId], "patty");
+    assert.deepEqual(stage.burger.getLayer(instanceId).scale.toArray(), expectedScale, instanceId);
+  }
+  stage.dispose();
+});
+
+test("getTuning and setTuning normalize frozen live targets without mutating cooking state", () => {
+  const changes = [];
+  const { stage } = harness({ onChange: (detail) => changes.push(detail) });
+  stage.dropLayer("bottom-bun", { kind: "prep" });
+  stage.applySauceStroke(sampleStroke("sticky", "bottom-bun"));
+  const stateBefore = stage.getState();
+  const fieldIdentities = {
+    assembledOrder: stateBefore.assembledOrder,
+    inventory: stateBefore.inventory,
+    history: stateBefore.history,
+    strokes: stateBefore.strokes,
+  };
+  const input = {
+    version: 1,
+    global: { presentationScale: 0.86 },
+    ingredients: {
+      "bottom-bun": { scaleX: 1.3, scaleY: 2, scaleZ: 0.9, sinkY: 0.02 },
+      cheese: { scaleX: "invalid", scaleY: 999, scaleZ: Infinity, sinkY: -10 },
+    },
+  };
+  const expected = normalizeBurgerTuning(input);
+
+  const applied = stage.setTuning(input);
+
+  assert.strictEqual(stage.getTuning(), applied);
+  assert.deepEqual(applied, expected);
+  assert.ok(Object.isFrozen(applied));
+  assert.ok(Object.isFrozen(applied.global));
+  assert.ok(Object.isFrozen(applied.ingredients));
+  assert.ok(Object.isFrozen(applied.ingredients.cheese));
+  assert.strictEqual(stage.getState(), stateBefore);
+  assert.strictEqual(stage.getState().assembledOrder, fieldIdentities.assembledOrder);
+  assert.strictEqual(stage.getState().inventory, fieldIdentities.inventory);
+  assert.strictEqual(stage.getState().history, fieldIdentities.history);
+  assert.strictEqual(stage.getState().strokes, fieldIdentities.strokes);
+  assert.equal(stage.getState().finished, false);
+
+  const bottomBun = stage.burger.getLayer("bottom-bun");
+  const bottomConfig = expected.ingredients["bottom-bun"];
+  assert.deepEqual(bottomBun.scale.toArray(), [
+    expected.global.presentationScale * bottomConfig.scaleX,
+    expected.global.presentationScale * bottomConfig.scaleY,
+    expected.global.presentationScale * bottomConfig.scaleZ,
+  ]);
+  assert.ok(Math.abs(
+    bottomBun.position.y + bottomBun.userData.stackMinY * bottomBun.scale.y
+      - (stage.workbench.prep.supportY - bottomConfig.sinkY)
+  ) < 1e-9);
+  const cheese = stage.burger.getLayer(stage.getState().binSources.cheese);
+  const cheeseConfig = expected.ingredients.cheese;
+  assert.deepEqual(cheese.scale.toArray(), [
+    expected.global.presentationScale * cheeseConfig.scaleX,
+    expected.global.presentationScale * cheeseConfig.scaleY,
+    expected.global.presentationScale * cheeseConfig.scaleZ,
+  ]);
+
+  const tunedTransform = readLayerTransform(bottomBun);
+  stage.tick(10_000);
+  assert.deepEqual(readLayerTransform(bottomBun), tunedTransform, "old motion cannot overwrite tuning");
+  assert.equal(changes.at(-1).reason, "tuning");
+  assert.equal(changes.at(-1).dropIntent, null);
+  stage.dispose();
+});
+
+test("setTuning clears transient visuals and transitions while adapting the stack camera", () => {
+  const changes = [];
+  const { stage, configuration } = harness({
+    reducedMotion: true,
+    onChange: (detail) => changes.push(detail),
+  });
+  stage.dropLayer("bottom-bun", { kind: "prep" });
+  stage.dropLayer("cheese", { kind: "prep" });
+  const cameraReasons = [];
+  stage.controller.getCameraView = () => ({
+    target: { x: 0, y: -10, z: 0 },
+    yaw: 0,
+    pitch: 0.3,
+    distance: 5,
+  });
+  stage.controller.setCameraView = (_view, reason) => {
+    cameraReasons.push(reason);
+    return true;
+  };
+
+  configuration.onPick({ id: "patty" });
+  configuration.onMove({ id: "patty", reason: "drag", point: prepIntentPoints(stage).top });
+  assert.equal(stage.burger.selectionFeedback.visible, true);
+  assert.equal(stage.burger.dropPreview.visible, true);
+  assert.equal(stage.workbench.dropCue.visible, true);
+  const stateBefore = stage.getState();
+
+  stage.setTuning({ version: 1, global: { presentationScale: 0.88 } });
+
+  assert.strictEqual(stage.getState(), stateBefore);
+  assert.equal(stage.burger.selectionFeedback.visible, false);
+  assert.equal(stage.burger.dropPreview.visible, false);
+  assert.equal(stage.workbench.dropCue.visible, false);
+  assert.equal(changes.at(-1).reason, "tuning");
+  assert.equal(changes.at(-1).dropIntent, null);
+  assert.deepEqual(cameraReasons, ["stack-growth"]);
+
+  stage.toggleExpanded();
+  stage.setTuning({ version: 1, global: { presentationScale: 0.79 } });
+  const cheese = stage.burger.getLayer("cheese");
+  const tunedTransform = readLayerTransform(cheese);
+  stage.tick(10_000);
+  assert.deepEqual(readLayerTransform(cheese), tunedTransform, "old transition stays cancelled");
+  stage.dispose();
+});
+
+test("setInteractionPaused owns gesture cancellation and prevents forbidden resumes", () => {
+  const calls = { pause: 0, resume: 0, dispose: 0 };
+  let gestureActive = true;
+  const controller = {
+    resetCamera: () => true,
+    pause() { calls.pause += 1; gestureActive = false; },
+    resume() { calls.resume += 1; },
+    dispose() { calls.dispose += 1; },
+  };
+  const stage = createSoloCookingStage({
+    THREE,
+    canvas: new FakeCanvas(),
+    storage: null,
+    hostFactory: createHostHarness,
+    controllerFactory: () => controller,
+    reducedMotion: true,
+  });
+
+  assert.equal(stage.setInteractionPaused(true), true);
+  assert.equal(gestureActive, false, "pausing cancels the controller's current gesture");
+  assert.equal(calls.pause, 1);
+  stage.setTuning({ version: 1, global: { presentationScale: 0.8 } });
+  assert.equal(calls.pause, 2, "live tuning temporarily pauses the controller");
+  assert.equal(calls.resume, 0, "live tuning cannot override an external pause");
+  assert.equal(stage.setInteractionPaused(false), false);
+  assert.equal(calls.resume, 1, "an unfinished active stage may resume");
+
+  BURGER_LAYER_IDS.forEach((layerId) => stage.dropLayer(layerId, { kind: "prep" }));
+  assert.equal(stage.finish(), true);
+  const finishedState = stage.getState();
+  const resumesAtFinish = calls.resume;
+  assert.equal(stage.setInteractionPaused(false), false);
+  stage.setTuning({ version: 1, global: { presentationScale: 0.75 } });
+  assert.strictEqual(stage.getState(), finishedState);
+  assert.equal(stage.getState().finished, true);
+  assert.equal(calls.resume, resumesAtFinish, "finished stages never resume interaction");
+
+  stage.dispose();
+  assert.equal(calls.dispose, 1);
+  assert.equal(stage.setInteractionPaused(false), false);
+  assert.equal(calls.resume, resumesAtFinish, "disposed stages never resume interaction");
 });
 
 test("stacks all seven scaled layers in visible contact without cumulative air gaps", () => {
@@ -501,15 +781,18 @@ test("middle insertion opens only the upper stack and never moves bin ingredient
 test("top insertion scales from its contact plane and finishes at its exact target", () => {
   const { stage, configuration, vibrations } = stageHarnessWithConfiguration();
   const patty = stage.burger.getLayer("patty");
-  const finalY = stage.workbench.prep.dropAnchor.position.y
-    - patty.userData.boundsMinY * stage.layerPresentationScale;
+  const pattyConfig = stage.getTuning().ingredients[stage.getState().instances.patty];
+  const targetScaleY = expectedLayerScale(stage, "patty")[1];
+  const finalY = stage.workbench.prep.supportY
+    - patty.userData.stackMinY * targetScaleY
+    - pattyConfig.sinkY;
   configuration.onPick({ id: "patty" });
   configuration.onDrop({ id: "patty", anchor: stage.workbench.prep.dropAnchor, targetIndex: 0 });
   stage.tick(290);
   stage.tick(320);
   const animatedBottom = patty.position.y + patty.userData.stackMinY * patty.scale.y;
   const settledBottom = finalY
-    + patty.userData.stackMinY * stage.layerPresentationScale;
+    + patty.userData.stackMinY * targetScaleY;
   assert.ok(
     Math.abs(animatedBottom - settledBottom) < 1e-9,
     "top layer keeps its lower contact planted while it scales",
@@ -534,11 +817,15 @@ test("bottom insertion lifts old layers while the new food pops at its target he
   stage.tick(1070);
   assert.ok(stage.burger.getLayer("patty").position.y > oldPattyY);
   const bottomBun = stage.burger.getLayer("bottom-bun");
-  const finalBottomY = stage.workbench.prep.dropAnchor.position.y
-    - bottomBun.userData.boundsMinY * stage.layerPresentationScale;
+  const bottomConfig = stage.getTuning().ingredients[stage.getState().instances["bottom-bun"]];
+  const targetScaleX = expectedLayerScale(stage, "bottom-bun")[0];
+  const targetScaleY = expectedLayerScale(stage, "bottom-bun")[1];
+  const finalBottomY = stage.workbench.prep.supportY
+    - bottomBun.userData.stackMinY * targetScaleY
+    - bottomConfig.sinkY;
   stage.tick(1250);
   assert.ok(bottomBun.position.y >= finalBottomY, "new layer never travels through the stack");
-  assert.notEqual(bottomBun.scale.x, stage.layerPresentationScale, "new layer is scaling locally");
+  assert.notEqual(bottomBun.scale.x, targetScaleX, "new layer is scaling locally");
   stage.tick(1380);
   assert.deepEqual(stage.getState().assembledOrder, ["bottom-bun", "patty"]);
   assert.ok(Math.abs(bottomBun.position.y - finalBottomY) < 1e-9);
@@ -557,9 +844,9 @@ test("assembled contact planes overlap slightly so neither bun can float", () =>
     const lower = stage.burger.getLayer(order[index - 1]);
     const upper = stage.burger.getLayer(order[index]);
     const lowerTop = lower.position.y
-      + lower.userData.stackMaxY * stage.layerPresentationScale;
+      + lower.userData.stackMaxY * lower.scale.y;
     const upperBottom = upper.position.y
-      + upper.userData.stackMinY * stage.layerPresentationScale;
+      + upper.userData.stackMinY * upper.scale.y;
     assert.ok(
       upperBottom <= lowerTop + 1e-9,
       `${order[index]} rests on ${order[index - 1]} instead of floating`,
@@ -570,9 +857,9 @@ test("assembled contact planes overlap slightly so neither bun can float", () =>
   const topBun = stage.burger.getLayer("top-bun");
   const lettuce = stage.burger.getLayer("lettuce");
   const bunBottom = topBun.position.y
-    + topBun.userData.boundsMinY * stage.layerPresentationScale;
+    + topBun.userData.boundsMinY * topBun.scale.y;
   const lettuceTop = lettuce.position.y
-    + lettuce.userData.stackMaxY * stage.layerPresentationScale;
+    + lettuce.userData.stackMaxY * lettuce.scale.y;
   assert.ok(bunBottom <= lettuceTop + 1e-9, "top bun has no visible air gap");
   stage.dispose();
 });

@@ -30,6 +30,10 @@ import {
   replayCookingTutorial,
   reconcileCookingTutorial,
 } from "./cooking-tutorial-state.mjs";
+import {
+  DEFAULT_BURGER_TUNING,
+  normalizeBurgerTuning,
+} from "./burger-tuning.mjs";
 
 const LAYER_PRESENTATION_SCALE = 0.72;
 const STACK_OVERLAP = 0.025;
@@ -113,6 +117,7 @@ export function createSoloCookingStage({
   onChange = () => {},
   onError = () => {},
   reducedMotion = false,
+  tuning = DEFAULT_BURGER_TUNING,
   vibrate,
   resourceDisposeObserver = () => {},
 } = {}) {
@@ -199,6 +204,7 @@ export function createSoloCookingStage({
   host.camera.updateMatrixWorld?.(true);
 
   let state = createSoloCookingState();
+  let activeTuning = normalizeBurgerTuning(tuning);
   let tutorial = createCookingTutorial({ storage });
   let selectedLayerId = null;
   let dropIntent = null;
@@ -207,6 +213,7 @@ export function createSoloCookingStage({
   let focusCameraView = null;
   let focusWorkbenchVisible = true;
   let disposed = false;
+  let externallyPaused = false;
   let lastFrameTime = 0;
   const transitions = new Map();
   let activeMotion = null;
@@ -235,26 +242,34 @@ export function createSoloCookingStage({
     if (tutorial !== previous) emit("tutorial");
   };
 
+  const ingredientForInstance = (instanceId) => state.instances[instanceId];
+  const tuningFor = (instanceId) => activeTuning.ingredients[ingredientForInstance(instanceId)];
+  const targetScale = (instanceId) => {
+    const config = tuningFor(instanceId);
+    const presentationScale = activeTuning.global.presentationScale;
+    return new THREE.Vector3(
+      presentationScale * config.scaleX,
+      presentationScale * config.scaleY,
+      presentationScale * config.scaleZ,
+    );
+  };
+
   const targetTransforms = (assembledOrder = state.assembledOrder) => {
     workbench.root.updateMatrixWorld?.(true);
     burger.root.updateMatrixWorld?.(true);
     const result = new Map();
-    let cursorY = workbench.prep.dropAnchor.position.y;
+    let cursorY = workbench.prep.supportY;
     assembledOrder.forEach((layerId, index) => {
       const layer = burger.getLayer(layerId);
-      const scaledMinY = layerStackMinY(layer) * LAYER_PRESENTATION_SCALE;
-      const scaledMaxY = layerStackMaxY(layer) * LAYER_PRESENTATION_SCALE;
-      const y = cursorY - scaledMinY + (expanded ? index * EXPLODED_GAP : 0);
+      const config = tuningFor(layerId);
+      const scale = targetScale(layerId);
+      const y = cursorY - layerStackMinY(layer) * scale.y - config.sinkY;
       result.set(layerId, {
-        position: new THREE.Vector3(0, y, 0),
-        scale: new THREE.Vector3(
-          LAYER_PRESENTATION_SCALE,
-          LAYER_PRESENTATION_SCALE,
-          LAYER_PRESENTATION_SCALE,
-        ),
+        position: new THREE.Vector3(0, y + (expanded ? index * EXPLODED_GAP : 0), 0),
+        scale,
         yaw: state.rotations[layerId],
       });
-      cursorY += scaledMaxY - scaledMinY - STACK_OVERLAP;
+      cursorY = y + layerStackMaxY(layer) * scale.y - STACK_OVERLAP;
     });
     for (const layerId of Object.keys(state.instances)) {
       if (result.has(layerId)) continue;
@@ -263,11 +278,7 @@ export function createSoloCookingStage({
       const local = burger.root.worldToLocal(world.clone());
       result.set(layerId, {
         position: local,
-        scale: new THREE.Vector3(
-          LAYER_PRESENTATION_SCALE,
-          LAYER_PRESENTATION_SCALE,
-          LAYER_PRESENTATION_SCALE,
-        ),
+        scale: targetScale(layerId),
         yaw: state.rotations[layerId],
       });
     }
@@ -964,6 +975,26 @@ export function createSoloCookingStage({
   host.start();
   emit("ready");
 
+  const setTuning = (value) => {
+    if (disposed) return activeTuning;
+    controller.pause();
+    activeTuning = normalizeBurgerTuning(value);
+    dropIntent = null;
+    clearTransientVisuals();
+    adaptCameraToStack();
+    emit("tuning");
+    if (!state.finished && !externallyPaused) controller.resume();
+    return activeTuning;
+  };
+
+  const setInteractionPaused = (value) => {
+    if (disposed) return externallyPaused;
+    externallyPaused = Boolean(value);
+    if (externallyPaused) controller.pause();
+    else if (!state.finished) controller.resume();
+    return externallyPaused;
+  };
+
   const api = {
     host,
     workbench,
@@ -971,9 +1002,12 @@ export function createSoloCookingStage({
     tools,
     controller,
     celebration,
-    layerPresentationScale: LAYER_PRESENTATION_SCALE,
-    binLayerScale: LAYER_PRESENTATION_SCALE,
-    prepLayerScale: LAYER_PRESENTATION_SCALE,
+    get layerPresentationScale() { return activeTuning.global.presentationScale; },
+    get binLayerScale() { return activeTuning.global.presentationScale; },
+    get prepLayerScale() { return activeTuning.global.presentationScale; },
+    getTuning: () => activeTuning,
+    setTuning,
+    setInteractionPaused,
     getState: () => state,
     getTutorial: () => tutorial,
     getSelectedLayerId: () => selectedLayerId,
@@ -1013,7 +1047,7 @@ export function createSoloCookingStage({
       reconcileModelInstances();
       tutorial = reconcileCookingTutorial(tutorial, state, { selectedLayerId });
       if (state.finished) controller.pause();
-      else controller.resume();
+      else if (!externallyPaused) controller.resume();
       applyVisualState({ animate: true, sauces: true });
       emit("undo");
       return true;
@@ -1028,7 +1062,7 @@ export function createSoloCookingStage({
       selectedLayerId = null;
       expanded = false;
       tutorial = reconcileCookingTutorial(tutorial, state, { reset: true });
-      controller.resume();
+      if (!externallyPaused) controller.resume();
       controller.resetCamera();
       applyVisualState({ sauces: true });
       emit("reset");
@@ -1050,7 +1084,7 @@ export function createSoloCookingStage({
       if (disposed || !state.finished) return false;
       clearTransientVisuals();
       state = continueSoloCooking(state);
-      controller.resume();
+      if (!externallyPaused) controller.resume();
       celebration.visible = false;
       emit("continue");
       return true;
