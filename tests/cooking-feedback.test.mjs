@@ -167,7 +167,7 @@ test("replay recorder snapshots the buffered 2D frame instead of a cleared WebGL
     height: 0,
     getContext: () => ({
       drawImage() {},
-      getImageData: () => ({ data: new Uint8ClampedArray(240 * 120 * 4) }),
+      getImageData: () => ({ data: new Uint8ClampedArray(320 * 160 * 4) }),
     }),
     toDataURL: () => "data:image/png;base64,visible-frame",
   };
@@ -192,13 +192,13 @@ test("replay recorder snapshots the buffered 2D frame instead of a cleared WebGL
   assert.equal(recorder.start(), true);
   afterRender(250);
   assert.equal(recorder.snapshotDataUrl(), "data:image/png;base64,visible-frame");
-  assert.equal(frameCanvas.width, 180);
-  assert.equal(frameCanvas.height, 90);
+  assert.equal(frameCanvas.width, 320);
+  assert.equal(frameCanvas.height, 160);
   recorder.dispose();
   assert.equal(unsubscribeCalls, 1);
 });
 
-test("replay recorder defaults to 3 fps, six seconds, 180px, and resumes after stop", () => {
+test("replay recorder uses bounded mobile video defaults and resumes after stop", () => {
   let afterRender = null;
   let unsubscribeCalls = 0;
   let subscribeCalls = 0;
@@ -207,7 +207,7 @@ test("replay recorder defaults to 3 fps, six seconds, 180px, and resumes after s
     height: 0,
     getContext: () => ({
       drawImage() {},
-      getImageData: () => ({ data: new Uint8ClampedArray(180 * 90 * 4) }),
+      getImageData: () => ({ data: new Uint8ClampedArray(320 * 160 * 4) }),
     }),
   };
   const recorder = createCanvasReplayRecorder({
@@ -221,20 +221,112 @@ test("replay recorder defaults to 3 fps, six seconds, 180px, and resumes after s
   });
 
   recorder.start();
-  for (let index = 0; index < 30; index += 1) afterRender(index * 334);
-  assert.equal(frameCanvas.width, 180);
-  assert.equal(frameCanvas.height, 90);
-  assert.equal(recorder.frameCount(), 18);
+  for (let index = 0; index < 60; index += 1) afterRender(index * 201);
+  assert.equal(frameCanvas.width, 320);
+  assert.equal(frameCanvas.height, 160);
+  assert.equal(recorder.frameCount(), 30);
 
   assert.equal(recorder.stop(), true);
   assert.equal(unsubscribeCalls, 1);
-  assert.equal(recorder.frameCount(), 18);
+  assert.equal(recorder.frameCount(), 30);
   assert.equal(recorder.start(), true);
   assert.equal(subscribeCalls, 2);
   recorder.dispose();
 });
 
-test("Google Drive uploader posts a browser-safe Apps Script payload", async () => {
+test("replay recorder returns detached timestamped snapshots in monotonic order", () => {
+  let afterRender = null;
+  let fill = 1;
+  const recorder = createCanvasReplayRecorder({
+    canvas: { width: 4, height: 2 },
+    width: 4,
+    fps: 10,
+    seconds: 1,
+    now: () => 90,
+    documentTarget: {
+      createElement: () => ({
+        width: 0,
+        height: 0,
+        getContext: () => ({
+          drawImage() {},
+          getImageData() {
+            return { data: new Uint8ClampedArray(4 * 2 * 4).fill(fill++) };
+          },
+        }),
+      }),
+    },
+    subscribeFrame(callback) {
+      afterRender = callback;
+      return () => {};
+    },
+  });
+
+  recorder.start();
+  afterRender(200);
+  afterRender(150);
+  afterRender(310);
+  const first = recorder.snapshotFrames();
+  const firstPixel = first[0].rgba[0];
+  recorder.capture(450);
+  first[0].rgba[0] = 255;
+  const second = recorder.snapshotFrames();
+
+  assert.equal(Object.isFrozen(first), true);
+  assert.equal(first.every(Object.isFrozen), true);
+  assert.ok(first.every((frame, index) => index === 0 || frame.timestamp > first[index - 1].timestamp));
+  assert.equal(second[0].rgba[0], firstPixel);
+  assert.equal(second.length, first.length + 1);
+  recorder.dispose();
+});
+
+test("replay recorder exports a timestamped video snapshot through the injected exporter", async () => {
+  const exports = [];
+  const progress = [];
+  let stopCalls = 0;
+  const video = new Blob(["compact-video"], { type: "video/webm" });
+  const recorder = createCanvasReplayRecorder({
+    canvas: { width: 4, height: 2 },
+    width: 4,
+    now: () => 100,
+    documentTarget: {
+      createElement: () => ({
+        width: 0,
+        height: 0,
+        getContext: () => ({
+          drawImage() {},
+          getImageData: () => ({ data: new Uint8ClampedArray(4 * 2 * 4) }),
+        }),
+      }),
+    },
+    windowTarget: { setInterval: () => 1, clearInterval() {} },
+    videoExporter: {
+      async exportFrames(frames, options) {
+        exports.push(frames);
+        options.onProgress({ completed: 1, total: frames.length });
+        return { blob: video };
+      },
+      stop() { stopCalls += 1; return true; },
+      dispose() {},
+    },
+  });
+  recorder.start();
+
+  const result = await recorder.exportVideo({
+    onProgress(value) { progress.push(value); },
+  });
+
+  assert.strictEqual(result, video);
+  assert.equal(exports.length, 1);
+  assert.equal(Object.isFrozen(exports[0]), true);
+  assert.equal(exports[0].length, 1);
+  assert.equal(Number.isFinite(exports[0][0].timestamp), true);
+  assert.deepEqual(progress, [{ completed: 1, total: 1 }]);
+  assert.equal(recorder.cancelVideoExport(), true);
+  assert.equal(stopCalls, 1);
+  recorder.dispose();
+});
+
+test("Google Drive uploader posts a browser-safe Apps Script payload for any replay Blob MIME", async () => {
   const requests = [];
   const uploader = createGoogleDriveFeedbackUploader({
     endpoint: "https://script.google.com/macros/s/example/exec",
@@ -247,7 +339,7 @@ test("Google Drive uploader posts a browser-safe Apps Script payload", async () 
       generatedAt: "2026-07-21T10:00:00.000Z",
       message: "汉堡第十二层浮空",
     },
-    replay: new Blob(["GIF89a"], { type: "image/gif" }),
+    replay: new Blob(["compact-video"], { type: "video/webm" }),
     screenshotDataUrl: "data:image/png;base64,c2NyZWVuc2hvdA==",
   });
 
@@ -258,9 +350,9 @@ test("Google Drive uploader posts a browser-safe Apps Script payload", async () 
   assert.equal(options.method, "POST");
   assert.equal(options.mode, "no-cors");
   assert.equal(options.headers["content-type"], "text/plain;charset=UTF-8");
+  assert.match(payload.replayDataUrl, /^data:video\/webm;base64,/);
   assert.equal(payload.uploadKey, "test-upload-key");
   assert.match(payload.id, /^FB-20260721100000-[a-f0-9]{8}$/);
-  assert.match(payload.replayDataUrl, /^data:image\/gif;base64,/);
   assert.equal(payload.screenshotDataUrl, "data:image/png;base64,c2NyZWVuc2hvdA==");
   assert.deepEqual(result, { id: payload.id, destination: "google-drive" });
 });
@@ -492,7 +584,7 @@ test("replay recorder classifies GIF encoding failures", async () => {
   recorder.dispose();
 });
 
-test("feedback reporter captures a preview and automatically uploads a GIF replay", async () => {
+test("feedback reporter captures a preview and automatically uploads a compact video replay", async () => {
   const uploads = [];
   const canvas = element({
     toDataURL: () => "data:image/png;base64,abc123",
@@ -506,12 +598,14 @@ test("feedback reporter captures a preview and automatically uploads a GIF repla
     location: { href: "https://kidcadillac.github.io/threejs_burger/cooking.html" },
     navigator: { userAgent: "Mobile QA" },
   };
-  const replay = new Blob(["GIF89a"], { type: "image/gif" });
+  const replay = new Blob(["compact-video"], { type: "video/webm" });
   const recorder = {
     startCalls: 0,
+    gifExports: 0,
     start() { this.startCalls += 1; },
     snapshotDataUrl: () => "data:image/png;base64,abc123",
-    exportGif: async () => replay,
+    exportVideo: async () => replay,
+    exportGif() { this.gifExports += 1; return Promise.resolve(new Blob([], { type: "image/gif" })); },
     dispose() {},
   };
   const reporter = createCookingFeedbackReporter({
@@ -544,9 +638,55 @@ test("feedback reporter captures a preview and automatically uploads a GIF repla
   assert.equal(result.id, "RPT-20260721-001");
   assert.equal(uploads.length, 1);
   assert.equal(uploads[0].replay, replay);
+  assert.equal(uploads[0].replay.type, "video/webm");
+  assert.equal(recorder.gifExports, 0);
   assert.equal(uploads[0].screenshotDataUrl, preview.src);
   assert.equal(uploads[0].metadata.stackLayers, 12);
   assert.match(status.textContent, /反馈已提交/);
+});
+
+test("feedback reporter falls back to GIF only for the exact unsupported-video error", async () => {
+  for (const [videoCode, expected] of [
+    ["VIDEO_REPLAY_UNSUPPORTED", { result: "RPT-GIF", gifExports: 1, uploads: 1 }],
+    ["VIDEO_REPLAY_ENCODING_FAILED", { result: false, gifExports: 0, uploads: 0 }],
+  ]) {
+    let gifExports = 0;
+    let uploads = 0;
+    const status = element();
+    const reporter = createCookingFeedbackReporter({
+      canvas: element(), dialog: element(), preview: element(), message: element({ value: "浮空" }),
+      status, submitButton: element({ textContent: "自动上传反馈" }),
+      windowTarget: { navigator: {}, location: {} },
+      recorder: {
+        start() {}, stop() {}, snapshotDataUrl: () => "data:image/png;base64,abc",
+        async exportVideo() {
+          throw Object.assign(new Error(videoCode), { code: videoCode });
+        },
+        async exportGif() {
+          gifExports += 1;
+          return new Blob(["GIF89a"], { type: "image/gif" });
+        },
+        dispose() {},
+      },
+      uploader: {
+        async submit({ replay }) {
+          uploads += 1;
+          assert.equal(replay.type, "image/gif");
+          return { id: "RPT-GIF" };
+        },
+      },
+    });
+
+    const result = await reporter.submit();
+
+    assert.equal(result?.id ?? result, expected.result, videoCode);
+    assert.equal(gifExports, expected.gifExports, videoCode);
+    assert.equal(uploads, expected.uploads, videoCode);
+    if (videoCode === "VIDEO_REPLAY_ENCODING_FAILED") {
+      assert.equal(status.textContent, "操作视频生成失败，截图和问题说明已保留，请稍后重试。");
+    }
+    reporter.dispose();
+  }
 });
 
 test("feedback reporter keeps the dialog open when the problem description is empty", async () => {
@@ -578,13 +718,13 @@ test("feedback reporter exposes exact phases, locks the button, and rejects conc
   const phases = [];
   const status = element();
   const submitButton = element({ textContent: "自动上传反馈" });
-  const replay = new Blob(["GIF89a"], { type: "image/gif" });
+  const replay = new Blob(["compact-video"], { type: "video/webm" });
   const reporter = createCookingFeedbackReporter({
     canvas: element(), dialog: element(), preview: element(), message: element({ value: "浮空" }),
     status, submitButton, windowTarget: { navigator: {}, location: {} },
     recorder: {
       start() {}, stop() {}, snapshotDataUrl: () => "data:image/png;base64,abc",
-      async exportGif({ onProgress }) {
+      async exportVideo({ onProgress }) {
         assert.equal(submitButton.disabled, true);
         onProgress({ completed: 1, total: 2 });
         phases.push(status.textContent);
@@ -611,8 +751,8 @@ test("feedback reporter exposes exact phases, locks the button, and rejects conc
   assert.equal(await reporter.submit(), false);
   assert.equal(submitButton.disabled, true);
   assert.deepEqual(phases, [
-    "正在压缩操作回放 1/2",
-    "正在压缩操作回放 2/2",
+    "正在生成高清操作视频 1/2",
+    "正在生成高清操作视频 2/2",
     "正在准备上传数据",
     "正在上传到反馈云盘，最多等待 20 秒",
   ]);
@@ -624,8 +764,8 @@ test("feedback reporter exposes exact phases, locks the button, and rejects conc
   assert.equal(submitButton.textContent, "自动上传反馈");
 });
 
-test("feedback reporter retries a failed upload with the cached replay Blob", async () => {
-  const replay = new Blob(["GIF89a"], { type: "image/gif" });
+test("feedback reporter retries a failed upload with the cached video Blob", async () => {
+  const replay = new Blob(["compact-video"], { type: "video/webm" });
   const uploadedReplays = [];
   let exports = 0;
   let attempts = 0;
@@ -635,7 +775,9 @@ test("feedback reporter retries a failed upload with the cached replay Blob", as
     windowTarget: { navigator: {}, location: {} },
     recorder: {
       start() {}, stop() {}, snapshotDataUrl: () => "data:image/png;base64,abc",
-      async exportGif() { exports += 1; return replay; }, dispose() {},
+      async exportVideo() { exports += 1; return replay; },
+      async exportGif() { throw new Error("GIF fallback must not run"); },
+      dispose() {},
     },
     uploader: {
       async submit(payload, { onUploadStart }) {
@@ -671,7 +813,7 @@ test("feedback dialog freezes recording, resumes on close, and starts a fresh re
       start() { calls.push("start"); },
       stop() { calls.push("stop"); },
       snapshotDataUrl() { calls.push("snapshot"); return "data:image/png;base64,abc"; },
-      async exportGif() { exports += 1; return new Blob([String(exports)], { type: "image/gif" }); },
+      async exportVideo() { exports += 1; return new Blob([String(exports)], { type: "video/webm" }); },
       dispose() {},
     },
     uploader: { async submit() { return { id: `RPT-${exports}` }; } },
@@ -687,13 +829,13 @@ test("feedback dialog freezes recording, resumes on close, and starts a fresh re
   assert.equal(exports, 2);
 });
 
-test("reopening during GIF encoding cannot mix the old replay with the new screenshot", async () => {
+test("reopening during video encoding cannot mix the old replay with the new screenshot", async () => {
   let resolveFirstExport;
   let exportCalls = 0;
   let screenshotCalls = 0;
   const uploads = [];
-  const oldReplay = new Blob(["old"], { type: "image/gif" });
-  const newReplay = new Blob(["new"], { type: "image/gif" });
+  const oldReplay = new Blob(["old"], { type: "video/webm" });
+  const newReplay = new Blob(["new"], { type: "video/webm" });
   const dialog = element({ hidden: true });
   const reporter = createCookingFeedbackReporter({
     canvas: element(), dialog, preview: element(), message: element({ value: "浮空" }),
@@ -705,7 +847,7 @@ test("reopening during GIF encoding cannot mix the old replay with the new scree
         screenshotCalls += 1;
         return `data:image/png;base64,session-${screenshotCalls}`;
       },
-      exportGif() {
+      exportVideo() {
         exportCalls += 1;
         if (exportCalls === 1) {
           return new Promise((resolve) => { resolveFirstExport = resolve; });
