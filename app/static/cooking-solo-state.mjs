@@ -215,7 +215,8 @@ function reconcileStationSnapshot(snapshot, session) {
     const sourceConflicts = typeof sourceId !== "string"
       || selectedSources.has(sourceId)
       || (Object.hasOwn(instances, sourceId) && instances[sourceId] !== ingredientId)
-      || assembled.has(sourceId);
+      || assembled.has(sourceId)
+      || strokedLayers.has(sourceId);
     if (sourceConflicts) {
       const allocated = allocateInstanceId(instances, ingredientId, nextInstanceSequence);
       sourceId = allocated.instanceId;

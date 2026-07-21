@@ -448,6 +448,38 @@ test("undo restores an assembled canonical instance to its historical home slot"
   });
 });
 
+test("undo keeps a retained stroked canonical target separate from a reused station source", () => {
+  let state = createSoloCookingState({ loadout: createDefaultWorkbenchLoadout() });
+  const strokedId = state.stationSources["filling-back-1"];
+  assert.equal(strokedId, "patty");
+
+  state = addSoloSauceStroke(state, stroke("ketchup", strokedId));
+  state = setSoloStationContent(state, "filling-back-1", "onion");
+  const onionId = state.stationSources["filling-back-1"];
+  for (let index = 0; index < 64; index += 1) {
+    state = addSoloSauceStroke(state, stroke("mustard", onionId));
+  }
+
+  assert.equal(state.instances[strokedId], undefined);
+  assert.ok(state.history.at(-1).strokes.some(({ layerId }) => layerId === strokedId));
+
+  state = setSoloStationContent(state, "filling-back-2", "patty");
+  assert.equal(state.stationSources["filling-back-2"], strokedId);
+  state = undoSoloCooking(state);
+
+  const currentPattySource = state.stationSources["filling-back-2"];
+  assert.notEqual(currentPattySource, strokedId);
+  assert.equal(state.instances[currentPattySource], "patty");
+  assert.equal(state.instanceHomes[currentPattySource], "filling-back-2");
+  assert.equal(state.instances[strokedId], "patty");
+  assert.equal(state.instanceHomes[strokedId], "filling-back-1");
+  assert.deepEqual(state.locations[strokedId], {
+    kind: "bin",
+    slotId: "filling-back-1",
+  });
+  assert.ok(state.strokes.some(({ layerId }) => layerId === strokedId));
+});
+
 test("ten thousand station switches keep provenance bounded to live instances", () => {
   let state = createSoloCookingState({ loadout: createDefaultWorkbenchLoadout() });
 
