@@ -212,11 +212,17 @@ function reconcileStationSnapshot(snapshot, session) {
   INGREDIENT_STATION_SLOTS.forEach(({ slotId }) => {
     const ingredientId = stationContents[slotId];
     let sourceId = session.stationSources?.[slotId];
+    const historicalLocation = snapshot.locations[sourceId];
+    const historicalSlotId = snapshot.instanceHomes?.[sourceId]
+      ?? (historicalLocation?.kind === "bin" ? historicalLocation.slotId : undefined);
+    const strokedSourceMovedSlots = strokedLayers.has(sourceId)
+      && typeof historicalSlotId === "string"
+      && historicalSlotId !== slotId;
     const sourceConflicts = typeof sourceId !== "string"
       || selectedSources.has(sourceId)
       || (Object.hasOwn(instances, sourceId) && instances[sourceId] !== ingredientId)
       || assembled.has(sourceId)
-      || strokedLayers.has(sourceId);
+      || strokedSourceMovedSlots;
     if (sourceConflicts) {
       const allocated = allocateInstanceId(instances, ingredientId, nextInstanceSequence);
       sourceId = allocated.instanceId;

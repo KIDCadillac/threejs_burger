@@ -480,6 +480,27 @@ test("undo keeps a retained stroked canonical target separate from a reused stat
   assert.ok(state.strokes.some(({ layerId }) => layerId === strokedId));
 });
 
+test("undoing a same-slot stroke keeps one canonical station source", () => {
+  let state = createSoloCookingState({ loadout: createDefaultWorkbenchLoadout() });
+  const sourceId = state.stationSources["filling-back-1"];
+  state = addSoloSauceStroke(state, stroke("ketchup", sourceId));
+  state = addSoloSauceStroke(state, stroke("mustard", sourceId));
+
+  state = undoSoloCooking(state);
+
+  assert.equal(state.stationSources["filling-back-1"], sourceId);
+  assert.equal(state.instanceHomes[sourceId], "filling-back-1");
+  assert.deepEqual(state.strokes.map(({ sauce, layerId }) => [sauce, layerId]), [
+    ["ketchup", sourceId],
+  ]);
+  const firstSlotInstances = Object.entries(state.locations)
+    .filter(([, location]) => (
+      location.kind === "bin" && location.slotId === "filling-back-1"
+    ))
+    .map(([id]) => id);
+  assert.deepEqual(firstSlotInstances, [sourceId]);
+});
+
 test("ten thousand station switches keep provenance bounded to live instances", () => {
   let state = createSoloCookingState({ loadout: createDefaultWorkbenchLoadout() });
 
