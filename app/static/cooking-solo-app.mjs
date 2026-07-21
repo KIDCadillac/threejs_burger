@@ -10,6 +10,11 @@ import { createCookingTuningPanel } from "./cooking-tuning-panel.mjs";
 import { loadBurgerTuning, saveBurgerTuning } from "./burger-tuning.mjs";
 import { BURGER_RECIPES } from "./burger-recipes.mjs";
 import { MAX_SOLO_STACK_LAYERS } from "./cooking-solo-state.mjs";
+import { createWorkbenchSlotPicker } from "./cooking-workbench-picker.mjs";
+import {
+  loadWorkbenchLoadout,
+  saveWorkbenchLoadout,
+} from "./workbench-loadout.mjs";
 
 const LAYER_NAMES = Object.freeze({
   "bottom-bun": "下层面包",
@@ -78,6 +83,7 @@ export function bootSoloCookingPage(
     stageFactory = createSoloCookingStage,
     feedbackFactory = createCookingFeedbackReporter,
     tuningPanelFactory = createCookingTuningPanel,
+    workbenchPickerFactory = createWorkbenchSlotPicker,
     manageLoading = true,
   } = {},
 ) {
@@ -112,6 +118,7 @@ export function bootSoloCookingPage(
     recipeReferenceName: documentTarget.querySelector("#recipe-reference-name"),
     recipeReferenceSteps: documentTarget.querySelector("#recipe-reference-steps"),
     recipeCards: [...(documentTarget.querySelectorAll?.('[data-action="recipe-select"]') ?? [])],
+    workbenchPicker: documentTarget.querySelector("#workbench-picker"),
   };
   const focusManager = createFinishFocusManager({
     dialog: elements.finishSheet,
@@ -121,6 +128,8 @@ export function bootSoloCookingPage(
   let stage = null;
   let feedback = null;
   let tuningPanel = null;
+  let workbenchPicker = null;
+  let openWorkbenchPicker = () => false;
   let latest = null;
   const render = (detail) => {
     latest = detail;
@@ -198,18 +207,49 @@ export function bootSoloCookingPage(
   };
 
   try {
-    const tuning = loadBurgerTuning({ globalTarget: windowTarget });
+    let pageStorage = null;
+    try {
+      pageStorage = windowTarget?.localStorage ?? null;
+    } catch {
+      pageStorage = null;
+    }
+    const tuning = loadBurgerTuning({ storage: pageStorage, globalTarget: windowTarget });
+    let loadout = loadWorkbenchLoadout(pageStorage);
     stage = stageFactory({
       THREE,
       canvas,
       tuning,
+      loadout,
       reducedMotion: windowTarget.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches,
       onChange: render,
+      onStationSelector: (detail) => openWorkbenchPicker(detail),
       onError: (error) => {
         elements.error.hidden = false;
         elements.status.textContent = error?.message ?? "WebGL 运行异常";
       },
     });
+    workbenchPicker = workbenchPickerFactory({
+      root: elements.workbenchPicker,
+      initialLoadout: loadout,
+      onChange(nextLoadout, { slotId, contentId }) {
+        stage.setSlotContent(slotId, contentId);
+        loadout = saveWorkbenchLoadout(nextLoadout, pageStorage);
+        return loadout;
+      },
+      onRequestClose() {
+        stage.setInteractionPaused(false);
+      },
+    });
+    openWorkbenchPicker = (detail) => {
+      stage.setInteractionPaused(true);
+      let opened = false;
+      try {
+        opened = workbenchPicker.open(detail);
+        return opened;
+      } finally {
+        if (!opened) stage.setInteractionPaused(false);
+      }
+    };
     const closeTuning = () => {
       try {
         return tuningPanel?.close?.() ?? false;
@@ -224,7 +264,7 @@ export function bootSoloCookingPage(
       initialTuning: stage.getTuning(),
       onChange(next) {
         const applied = stage.setTuning(next);
-        saveBurgerTuning(applied, { globalTarget: windowTarget });
+        saveBurgerTuning(applied, { storage: pageStorage, globalTarget: windowTarget });
       },
       onRequestClose: closeTuning,
     });
@@ -333,6 +373,7 @@ export function bootSoloCookingPage(
       let firstError = null;
       for (const task of [
         () => tuningPanel?.dispose?.(),
+        () => workbenchPicker?.dispose?.(),
         () => stage?.setInteractionPaused?.(false),
         () => feedback?.dispose?.(),
       ]) {
@@ -355,6 +396,7 @@ export function bootSoloCookingPage(
   } catch (error) {
     for (const task of [
       () => tuningPanel?.dispose?.(),
+      () => workbenchPicker?.dispose?.(),
       () => stage?.setInteractionPaused?.(false),
       () => feedback?.dispose?.(),
       () => stage?.dispose?.(),

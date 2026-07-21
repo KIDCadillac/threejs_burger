@@ -140,6 +140,34 @@
         </section>
       </div>
 
+      <div class="workbench-picker" id="workbench-picker" role="dialog" aria-modal="true" aria-labelledby="workbench-picker-title" aria-hidden="true" tabindex="-1" hidden>
+        <section class="workbench-picker__card">
+          <div class="workbench-picker__heading">
+            <div>
+              <p>更换这个物理槽位</p>
+              <h2 id="workbench-picker-title" data-workbench-title>选择材料</h2>
+            </div>
+            <button type="button" data-workbench-close aria-label="关闭材料选择">×</button>
+          </div>
+          <p class="workbench-picker__hint">只替换料台上的预备材料，已经装进汉堡的内容不会消失。</p>
+          <div class="workbench-picker__options" aria-label="可选材料">
+            <button type="button" data-workbench-region="bread" data-workbench-content="bottom-bun"><span>🍞</span><strong>下层面包</strong><small>当前</small></button>
+            <button type="button" data-workbench-region="bread" data-workbench-content="middle-bun"><span>🥯</span><strong>中层面包</strong><small>当前</small></button>
+            <button type="button" data-workbench-region="bread" data-workbench-content="top-bun"><span>🍔</span><strong>上层面包</strong><small>当前</small></button>
+            <button type="button" data-workbench-region="filling" data-workbench-content="patty"><span>🥩</span><strong>牛肉饼</strong><small>当前</small></button>
+            <button type="button" data-workbench-region="filling" data-workbench-content="cheese"><span>🧀</span><strong>芝士</strong><small>当前</small></button>
+            <button type="button" data-workbench-region="filling" data-workbench-content="tomato"><span>🍅</span><strong>番茄</strong><small>当前</small></button>
+            <button type="button" data-workbench-region="filling" data-workbench-content="lettuce"><span>🥬</span><strong>生菜</strong><small>当前</small></button>
+            <button type="button" data-workbench-region="filling" data-workbench-content="pickle"><span>🥒</span><strong>酸黄瓜</strong><small>当前</small></button>
+            <button type="button" data-workbench-region="filling" data-workbench-content="onion"><span>🧅</span><strong>洋葱碎</strong><small>当前</small></button>
+            <button type="button" data-workbench-region="sauce" data-workbench-content="ketchup"><span>🔴</span><strong>番茄酱</strong><small>当前</small></button>
+            <button type="button" data-workbench-region="sauce" data-workbench-content="mustard"><span>🟡</span><strong>芥末酱</strong><small>当前</small></button>
+            <button type="button" data-workbench-region="sauce" data-workbench-content="house-sauce"><span>🟠</span><strong>小馆特调酱</strong><small>当前</small></button>
+          </div>
+          <button class="workbench-picker__reset" type="button" data-workbench-reset>恢复这个槽位的默认材料</button>
+        </section>
+      </div>
+
       <div class="tuning-sheet" id="tuning-sheet" role="dialog" aria-modal="true" aria-labelledby="tuning-title" aria-hidden="true" hidden>
         <section class="tuning-card">
           <div class="tuning-heading">

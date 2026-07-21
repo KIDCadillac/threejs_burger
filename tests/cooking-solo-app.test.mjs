@@ -7,6 +7,7 @@ import {
   DEFAULT_BURGER_TUNING,
 } from "../app/static/burger-tuning.mjs";
 import { MAX_SOLO_STACK_LAYERS } from "../app/static/cooking-solo-state.mjs";
+import { WORKBENCH_LOADOUT_STORAGE_KEY } from "../app/static/workbench-loadout.mjs";
 
 class Events {
   constructor() { this.listeners = new Map(); }
@@ -37,7 +38,13 @@ class Element extends Events {
     this.focusCalls = 0;
     this.attributes = new Map();
   }
-  closest(selector) { return selector === "[data-action]" && this.dataset.action ? this : null; }
+  closest(selector) {
+    if (selector === "[data-action]" && this.dataset.action) return this;
+    if (selector === "[data-workbench-content]" && this.dataset.workbenchContent) return this;
+    if (selector === "[data-workbench-close]" && "workbenchClose" in this.dataset) return this;
+    if (selector === "[data-workbench-reset]" && "workbenchReset" in this.dataset) return this;
+    return null;
+  }
   focus() { this.focusCalls += 1; }
   setAttribute(name, value) { this.attributes.set(name, String(value)); }
   getAttribute(name) { return this.attributes.get(name) ?? null; }
@@ -90,7 +97,33 @@ function pageHarness() {
     recipeReferenceName: add("#recipe-reference-name"),
     recipeReferenceSteps: add("#recipe-reference-steps"),
     recipeChangeButton: add('[data-action="recipe-change"]', "recipe-change"),
+    workbenchPicker: add("#workbench-picker"),
   };
+  elements.workbenchPicker.hidden = true;
+  const workbenchTitle = new Element(null, { dataset: { workbenchTitle: "" } });
+  const workbenchClose = new Element(null, { dataset: { workbenchClose: "" } });
+  const workbenchReset = new Element(null, { dataset: { workbenchReset: "" } });
+  const workbenchOptions = [
+    ["bread", "bottom-bun"], ["bread", "middle-bun"], ["bread", "top-bun"],
+    ["filling", "patty"], ["filling", "cheese"], ["filling", "tomato"],
+    ["filling", "lettuce"], ["filling", "pickle"], ["filling", "onion"],
+    ["sauce", "ketchup"], ["sauce", "mustard"], ["sauce", "house-sauce"],
+  ].map(([workbenchRegion, workbenchContent]) => new Element(null, {
+    dataset: { workbenchRegion, workbenchContent },
+  }));
+  elements.workbenchTitle = workbenchTitle;
+  elements.workbenchClose = workbenchClose;
+  elements.workbenchReset = workbenchReset;
+  elements.workbenchOptions = workbenchOptions;
+  elements.workbenchPicker.querySelector = (selector) => {
+    if (selector === "[data-workbench-title]") return workbenchTitle;
+    if (selector === "[data-workbench-close]") return workbenchClose;
+    if (selector === "[data-workbench-reset]") return workbenchReset;
+    return null;
+  };
+  elements.workbenchPicker.querySelectorAll = (selector) => (
+    selector === "[data-workbench-content]" ? workbenchOptions : []
+  );
   const recipeCards = [
     "", "classic-beef", "melty-cheese", "double-melty-cheese", "tower-double-beef",
   ].map((recipeId) => new Element("recipe-select", { dataset: { recipeId } }));
@@ -183,6 +216,7 @@ function stageFactoryHarness() {
       calls: [],
       pauseCalls: [],
       referenceCalls: [],
+      slotCalls: [],
       getState: () => state,
       getTutorial: () => tutorial,
       getTuning: () => tuning,
@@ -199,6 +233,10 @@ function stageFactoryHarness() {
         stage.referenceCalls.push(recipeId);
         state.referenceRecipeId = recipeId;
         return state;
+      },
+      setSlotContent(slotId, contentId) {
+        stage.slotCalls.push([slotId, contentId]);
+        return true;
       },
       rotateSelected: () => stage.calls.push("rotate"),
       resetCamera: () => stage.calls.push("camera"),
@@ -312,6 +350,69 @@ test("the free-cooking card clears the reference and keeps unrestricted guidance
   assert.match(page.elements.recipeReferenceSteps.innerHTML, /自由搭配|不限制顺序/);
 });
 
+test("a 3d slot selector opens the physical-slot picker and persists its replacement", () => {
+  const page = pageHarness();
+  const stages = stageFactoryHarness();
+  const stored = new Map([
+    [WORKBENCH_LOADOUT_STORAGE_KEY, JSON.stringify({ "filling-back-2": "pickle" })],
+  ]);
+  page.windowTarget.localStorage = {
+    getItem(key) { return stored.get(key) ?? null; },
+    setItem(key, value) { stored.set(key, String(value)); },
+  };
+  const stage = bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: stages.factory,
+  });
+  stage.emit({
+    assembledOrder: ["bottom-bun", "patty"],
+    instances: { "bottom-bun": "bottom-bun", patty: "patty" },
+  });
+
+  assert.equal(stages.stages[0].configuration.loadout["filling-back-2"], "pickle");
+  assert.equal(typeof stages.stages[0].configuration.onStationSelector, "function");
+  stages.stages[0].configuration.onStationSelector({
+    slotId: "filling-back-2",
+    region: "filling",
+  });
+
+  assert.equal(page.elements.workbenchPicker.hidden, false);
+  assert.equal(page.elements.workbenchTitle.textContent, "后排配料 · 2号槽");
+  assert.deepEqual(stage.pauseCalls, [true]);
+  const onion = page.elements.workbenchOptions.find(
+    ({ dataset }) => dataset.workbenchContent === "onion",
+  );
+  page.elements.workbenchPicker.emit("click", { target: onion });
+
+  assert.deepEqual(stage.slotCalls, [["filling-back-2", "onion"]]);
+  assert.equal(
+    JSON.parse(stored.get(WORKBENCH_LOADOUT_STORAGE_KEY))["filling-back-2"],
+    "onion",
+  );
+  assert.deepEqual(stage.getState().assembledOrder, ["bottom-bun", "patty"]);
+  assert.equal(page.elements.workbenchPicker.hidden, true);
+  assert.deepEqual(stage.pauseCalls, [true, false]);
+});
+
+test("dismissing the workbench picker resumes interaction without changing its slot", () => {
+  const page = pageHarness();
+  const stages = stageFactoryHarness();
+  const stage = bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: stages.factory,
+  });
+
+  stages.stages[0].configuration.onStationSelector({
+    slotId: "bread-left-1",
+    region: "bread",
+  });
+  page.elements.workbenchPicker.emit("click", { target: page.elements.workbenchClose });
+
+  assert.deepEqual(stage.slotCalls, []);
+  assert.deepEqual(stage.pauseCalls, [true, false]);
+  assert.equal(page.elements.workbenchPicker.hidden, true);
+});
+
 function panelFactoryHarness({ factoryError = null, disposeError = null } = {}) {
   const panels = [];
   const factory = (configuration) => {
@@ -357,8 +458,8 @@ test("loads persisted tuning before stage construction and seeds the panel from 
   const order = [];
   page.windowTarget.localStorage = {
     getItem(key) {
-      order.push("load");
-      assert.equal(key, BURGER_TUNING_STORAGE_KEY);
+      order.push(key === BURGER_TUNING_STORAGE_KEY ? "load-tuning" : "load-loadout");
+      if (key !== BURGER_TUNING_STORAGE_KEY) return null;
       return JSON.stringify({
         version: 1,
         global: { presentationScale: 0.84 },
@@ -377,7 +478,7 @@ test("loads persisted tuning before stage construction and seeds the panel from 
     tuningPanelFactory: panels.factory,
   });
 
-  assert.deepEqual(order, ["load", "stage"]);
+  assert.deepEqual(order, ["load-tuning", "load-loadout", "stage"]);
   assert.equal(stages.stages[0].configuration.tuning.global.presentationScale, 0.84);
   assert.equal(stages.stages[0].configuration.tuning.ingredients.cheese.scaleY, 2.1);
   assert.strictEqual(panels.panels[0].configuration.root, page.elements.tuningRoot);
