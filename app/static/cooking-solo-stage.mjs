@@ -42,7 +42,7 @@ import {
 const STACK_OVERLAP = 0.025;
 const EXPLODED_GAP = 0.42;
 const SNAP_DURATION = 190;
-const MAX_STACK_CAMERA_DISTANCE = 180;
+const MAX_STACK_CAMERA_DISTANCE = 220;
 const STACK_CAMERA_DEPTH_PADDING = 25;
 const MAX_BOTTOM_LAYER_SINK = 0.03;
 
@@ -544,6 +544,11 @@ export function createSoloCookingStage({
     const height = Math.max(0, maxY - minY);
     const targetY = Math.max(view.target.y, centerWorld.y);
     const distance = Math.max(view.distance, 8 + height * 2.7);
+    const requiredFar = MAX_STACK_CAMERA_DISTANCE + height + STACK_CAMERA_DEPTH_PADDING;
+    if (host.camera.far < requiredFar) {
+      host.camera.far = requiredFar;
+      host.camera.updateProjectionMatrix?.();
+    }
     if (targetY <= view.target.y + 0.01 && distance <= view.distance + 0.01) return false;
     controller.setCameraView?.({
       target: { x: view.target.x, y: targetY, z: view.target.z },

@@ -238,7 +238,7 @@ test("keeps full cooking orbit while allowing low, high, and close food inspecti
     minPitch: -1.18,
     maxPitch: 1.56,
     minDistance: 5,
-    maxDistance: 180,
+    maxDistance: 220,
     wrapYaw: true,
   });
   stage.dispose();
@@ -1410,7 +1410,7 @@ test("programmatic drops assemble, reinsert, remove, and rotate the visible 3d s
   stage.dispose();
 });
 
-test("replenishes bins, stacks twenty repeated portions in contact, and expands the camera", () => {
+test("replenishes bins, stacks sixty repeated portions in contact, and expands the camera", () => {
   const { stage } = harness();
   const initialView = stage.controller.getCameraView();
 
@@ -1421,9 +1421,9 @@ test("replenishes bins, stacks twenty repeated portions in contact, and expands 
   }
 
   const state = stage.getState();
-  assert.equal(state.assembledOrder.length, 20);
-  assert.equal(state.inventory.patty, SOLO_INGREDIENT_STOCK - 20);
-  assert.equal(stage.burger.layers.size, SOLO_BURGER_INGREDIENT_IDS.length + 20);
+  assert.equal(state.assembledOrder.length, 60);
+  assert.equal(state.inventory.patty, SOLO_INGREDIENT_STOCK - 60);
+  assert.equal(stage.burger.layers.size, SOLO_BURGER_INGREDIENT_IDS.length + 60);
   const intervals = state.assembledOrder.map((id) => visibleLayerInterval(stage.burger.getLayer(id)));
   for (let index = 1; index < intervals.length; index += 1) {
     assert.ok(Math.abs(intervals[index].bottom - intervals[index - 1].top) < 0.08);
@@ -1434,13 +1434,13 @@ test("replenishes bins, stacks twenty repeated portions in contact, and expands 
   assert.equal(
     stage.dropLayer(state.binSources.patty, { kind: "prep" }),
     false,
-    "the twenty-first layer is rejected without disturbing the stack",
+    "the sixty-first layer is rejected without disturbing the stack",
   );
-  assert.equal(stage.getState().assembledOrder.length, 20);
+  assert.equal(stage.getState().assembledOrder.length, 60);
   stage.dispose();
 });
 
-test("twenty maximum-tuned layers fit the real normal and focus camera frusta", () => {
+test("sixty maximum-tuned layers fit the real normal and focus camera frusta", () => {
   const { stage } = harness();
   const maximumTuning = {
     version: 1,
@@ -2014,7 +2014,7 @@ test("stage state and tutorial remain DOM-free and notify concise progress", () 
   stage.dropLayer("bottom-bun", { kind: "prep" });
 
   assert.equal(stage.getState().assembledOrder.length, 1);
-  assert.equal(changes.at(-1).progress, "1/20");
+  assert.equal(changes.at(-1).progress, "1/60");
   assert.equal(changes.at(-1).tutorial.step, "pick");
   assert.equal(JSON.stringify(stage.getState()).includes("HTMLElement"), false);
   stage.dispose();
