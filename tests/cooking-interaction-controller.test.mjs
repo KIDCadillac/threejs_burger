@@ -1350,6 +1350,8 @@ test("emits attached sauce previews before release and commits each gesture once
 
   canvas.dispatch("pointerdown", pointer(813, 100, 100, { pressure: 0.4 }));
   canvas.dispatch("pointermove", pointer(813, 108, 104, { pressure: 0.5 }));
+  assert.equal(previews.length, 1, "the first valid surface sample is visible immediately");
+  assert.ok(previews[0].stroke.points.length >= 2, "a visible first dab has drawable width");
   canvas.dispatch("pointermove", pointer(813, 120, 110, { pressure: 0.6 }));
 
   assert.ok(previews.length >= 1, "two valid samples create a surface preview");
@@ -1551,6 +1553,45 @@ test("aims the bottle nozzle at the same world target across camera yaws and a t
     "the same world drag target must not change when the camera rotates",
     aimedDirections.map((value) => value.toArray().join(",")).join(" vs "),
   ].join("; "));
+});
+
+test("lifts a held bottle above the live tallest food surface before every squeeze sample", () => {
+  const harness = createPouringScene();
+  const {
+    canvas, camera, burger, tools, scene,
+  } = harness;
+  const chili = tools.get("chili");
+  burger.getLayer("top-bun").position.y = 6;
+  scene.updateMatrixWorld(true);
+  const targetHit = layerWorldPoint(burger, "top-bun", 0, 0);
+  const foodBounds = new THREE.Box3();
+  for (const surface of burger.selectableSurfaces) foodBounds.expandByObject(surface);
+
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    condimentTools: tools,
+    foodSurfaces: burger.selectableSurfaces,
+    bottleLift: 1.45,
+    projectToPrep: () => new THREE.Vector3(targetHit.point.x, 0.48, targetHit.point.z),
+    raycast: ({ kind }) => (kind === "condiment"
+      ? { object: chili.body, point: chili.body.getWorldPosition(new THREE.Vector3()) }
+      : { object: targetHit.object, point: targetHit.point.clone() }),
+  });
+
+  canvas.dispatch("pointerdown", pointer(819, 100, 100));
+  canvas.dispatch("pointermove", pointer(819, 112, 108));
+  scene.updateMatrixWorld(true);
+
+  assert.ok(
+    chili.root.getWorldPosition(new THREE.Vector3()).y >= foodBounds.max.y + 1.4,
+    "the bottle body follows stack height instead of staying on the fixed prep plane",
+  );
+
+  canvas.dispatch("pointercancel", pointer(819, 112, 108));
+  controller.dispose();
+  harness.dispose();
 });
 
 test("real camera rays pick an exact bottle solid and its gravity stream hits only real food solids", () => {
