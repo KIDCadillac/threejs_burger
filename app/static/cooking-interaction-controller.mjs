@@ -3,6 +3,7 @@ import { BURGER_LAYER_IDS, SAUCE_KEYS } from "./cooking-state.mjs";
 const PREVIEW_MAX_POINTS = 25;
 const PREVIEW_RADIAL_SEGMENTS = 5;
 const PREVIEW_TUBE_RADIUS = 0.045;
+const STATION_SELECTOR_TAP_SLOP = 10;
 
 function requireEventTarget(value, label) {
   if (!value?.addEventListener || !value?.removeEventListener) {
@@ -160,6 +161,7 @@ export function createCookingInteractionController({
   onDrop = () => {},
   onInvalid = () => {},
   onSelection = () => {},
+  onStationSelector = () => {},
   onCameraChange = () => {},
   onSauceStroke = () => {},
   onSaucePreview = () => {},
@@ -187,6 +189,7 @@ export function createCookingInteractionController({
   requireFunction(onDrop, "onDrop");
   requireFunction(onInvalid, "onInvalid");
   requireFunction(onSelection, "onSelection");
+  requireFunction(onStationSelector, "onStationSelector");
   requireFunction(onCameraChange, "onCameraChange");
   requireFunction(onSauceStroke, "onSauceStroke");
   requireFunction(onSaucePreview, "onSaucePreview");
@@ -269,6 +272,7 @@ export function createCookingInteractionController({
   let bottleSession = null;
   let nextSauceGestureId = 1;
   let selected = null;
+  let selectorSession = null;
   let orbitSession = null;
   let pinchSession = null;
   const activePointers = new Map();
@@ -858,6 +862,7 @@ export function createCookingInteractionController({
     activePointers.clear();
     dragSession = null;
     bottleSession = null;
+    selectorSession = null;
     orbitSession = null;
     pinchSession = null;
     state = "idle";
@@ -898,6 +903,10 @@ export function createCookingInteractionController({
     if (disposed || documentHidden || contextLost || explicitlyPaused) return;
     if (camera.parent) {
       throw new TypeError("camera must not be parented; cooking orbit math uses world coordinates");
+    }
+    if (selectorSession) {
+      cancelGesture("station-selector-multitouch");
+      return;
     }
     const previousSelection = selectionFlagSnapshot(selected);
     let candidateSelection = null;
@@ -952,6 +961,21 @@ export function createCookingInteractionController({
         return;
       }
       const hit = hitTest(event);
+      const selectorMetadata = hit?.object?.userData?.cookingSelectable;
+      if (selectorMetadata?.kind === "station-selector"
+        && typeof selectorMetadata.slotId === "string" && selectorMetadata.slotId
+        && typeof selectorMetadata.region === "string" && selectorMetadata.region) {
+        selectorSession = {
+          pointerId: event.pointerId,
+          start: point,
+          payload: Object.freeze({
+            slotId: selectorMetadata.slotId,
+            region: selectorMetadata.region,
+          }),
+        };
+        state = "idle";
+        return;
+      }
       const draggable = hit
         ? (draggableBySurface.get(hit.object) ?? implicitDraggable(hit.object))
         : null;
@@ -1026,6 +1050,12 @@ export function createCookingInteractionController({
     const coordinates = pointerCoordinates(event);
     activePointers.set(event.pointerId, coordinates);
     event.preventDefault?.();
+    if (selectorSession?.pointerId === event.pointerId) {
+      if (pointerDistance(selectorSession.start, coordinates) > STATION_SELECTOR_TAP_SLOP) {
+        cancelGesture("station-selector-moved");
+      }
+      return;
+    }
     if (state === "dragging-bottle" && bottleSession?.pointerId === event.pointerId) {
       try {
         moveBottle(bottleSession, event);
@@ -1230,6 +1260,25 @@ export function createCookingInteractionController({
   const handlePointerUp = (event) => {
     if (disposed || !activePointers.has(event.pointerId)) return;
     event.preventDefault?.();
+    if (selectorSession?.pointerId === event.pointerId) {
+      const session = selectorSession;
+      let coordinates;
+      let coordinateError = null;
+      try {
+        coordinates = pointerCoordinates(event);
+      } catch (error) {
+        coordinateError = error;
+      }
+      selectorSession = null;
+      activePointers.delete(event.pointerId);
+      releaseCapture(event.pointerId);
+      state = "idle";
+      if (coordinateError) throw coordinateError;
+      if (pointerDistance(session.start, coordinates) <= STATION_SELECTOR_TAP_SLOP) {
+        onStationSelector(session.payload);
+      }
+      return;
+    }
     if (state === "dragging-bottle" && bottleSession?.pointerId === event.pointerId) {
       finishBottleGesture(event);
       return;

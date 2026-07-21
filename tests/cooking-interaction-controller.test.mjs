@@ -112,6 +112,176 @@ function layerWorldPoint(burger, layerId, normalizedX, normalizedZ) {
   };
 }
 
+test("station selector clicks emit one frozen exact payload without starting another interaction", () => {
+  const canvas = createCanvas();
+  const camera = new THREE.PerspectiveCamera();
+  camera.position.set(1, 5, 10);
+  const initialCamera = camera.position.clone();
+  const selector = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+  selector.userData.cookingSelectable = Object.freeze({
+    kind: "station-selector",
+    slotId: "filling-back-2",
+    region: "filling",
+  });
+  const observed = {
+    selectors: [], picks: 0, selections: 0, moves: 0, cameraChanges: 0,
+  };
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    selectableSurfaces: [selector],
+    raycast: () => ({ object: selector, point: new THREE.Vector3() }),
+    onStationSelector: (detail) => observed.selectors.push(detail),
+    onPick: () => { observed.picks += 1; },
+    onSelection: () => { observed.selections += 1; },
+    onMove: () => { observed.moves += 1; },
+    onCameraChange: () => { observed.cameraChanges += 1; },
+  });
+
+  canvas.dispatch("pointerdown", pointer(41, 20, 30));
+
+  assert.equal(observed.selectors.length, 0, "pointerdown only arms the selector click");
+  assert.equal(controller.getState(), "idle");
+  assert.deepEqual([...canvas.captured], [41]);
+  assert.deepEqual(canvas.released, []);
+
+  canvas.dispatch("pointerup", pointer(41, 23, 34));
+
+  assert.equal(observed.selectors.length, 1);
+  assert.deepEqual(observed.selectors[0], {
+    slotId: "filling-back-2",
+    region: "filling",
+  });
+  assert.deepEqual(Object.keys(observed.selectors[0]), ["slotId", "region"]);
+  assert.equal(Object.isFrozen(observed.selectors[0]), true);
+  assert.deepEqual(
+    [observed.picks, observed.selections, observed.moves, observed.cameraChanges],
+    [0, 0, 0, 0],
+  );
+  assert.equal(controller.getState(), "idle");
+  assert.equal(controller.getSelectedId(), null);
+  closeVector(camera.position, initialCamera);
+  assert.deepEqual([...canvas.captured], []);
+  assert.deepEqual(canvas.released, [41]);
+  controller.dispose();
+});
+
+test("station selector taps are safe without a callback and pointercancel cannot leak capture", () => {
+  const canvas = createCanvas();
+  const camera = new THREE.PerspectiveCamera();
+  const selector = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+  selector.userData.cookingSelectable = Object.freeze({
+    kind: "station-selector",
+    slotId: "bread-left-1",
+    region: "bread",
+  });
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    selectableSurfaces: [selector],
+    raycast: () => ({ object: selector, point: new THREE.Vector3() }),
+  });
+
+  assert.doesNotThrow(() => canvas.dispatch("pointerdown", pointer(42, 10, 10)));
+  assert.equal(controller.getState(), "idle");
+  assert.deepEqual([...canvas.captured], [42]);
+  assert.deepEqual(canvas.released, []);
+  assert.doesNotThrow(() => canvas.dispatch("pointercancel", pointer(42, 10, 10)));
+  assert.equal(controller.getState(), "idle");
+  assert.deepEqual([...canvas.captured], []);
+  assert.deepEqual(canvas.released, [42]);
+  controller.dispose();
+});
+
+test("station selector clicks cancel beyond tap slop without orbiting or selecting", () => {
+  const canvas = createCanvas();
+  const camera = new THREE.PerspectiveCamera();
+  camera.position.set(0, 5, 10);
+  const initialCamera = camera.position.clone();
+  const selector = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+  selector.userData.cookingSelectable = Object.freeze({
+    kind: "station-selector",
+    slotId: "sauce-right-2",
+    region: "sauce",
+  });
+  const selectors = [];
+  let selections = 0;
+  let cameraChanges = 0;
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    selectableSurfaces: [selector],
+    raycast: () => ({ object: selector, point: new THREE.Vector3() }),
+    onStationSelector: (detail) => selectors.push(detail),
+    onSelection: () => { selections += 1; },
+    onCameraChange: () => { cameraChanges += 1; },
+  });
+
+  canvas.dispatch("pointerdown", pointer(43, 10, 10));
+  canvas.dispatch("pointermove", pointer(43, 40, 10));
+  canvas.dispatch("pointerup", pointer(43, 40, 10));
+
+  assert.deepEqual(selectors, []);
+  assert.equal(selections, 0);
+  assert.equal(cameraChanges, 0);
+  closeVector(camera.position, initialCamera);
+  assert.equal(controller.getState(), "idle");
+  assert.deepEqual([...canvas.captured], []);
+  assert.deepEqual(canvas.released, [43]);
+  controller.dispose();
+});
+
+test("station selector clicks cancel on every lifecycle interruption", () => {
+  for (const interruption of [
+    "pointercancel", "lostpointercapture", "hidden", "contextlost", "dispose",
+  ]) {
+    const canvas = createCanvas();
+    const documentTarget = new FakeEventTarget();
+    documentTarget.hidden = false;
+    const camera = new THREE.PerspectiveCamera();
+    const selector = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+    selector.userData.cookingSelectable = Object.freeze({
+      kind: "station-selector",
+      slotId: "bread-left-2",
+      region: "bread",
+    });
+    const selections = [];
+    const controller = createCookingInteractionController({
+      THREE,
+      canvas,
+      camera,
+      documentTarget,
+      selectableSurfaces: [selector],
+      raycast: () => ({ object: selector, point: new THREE.Vector3() }),
+      onStationSelector: (detail) => selections.push(detail),
+    });
+
+    canvas.dispatch("pointerdown", pointer(44, 10, 10));
+    assert.equal(controller.getState(), "idle", `${interruption}: selector remains armed, not orbiting`);
+    if (interruption === "pointercancel") {
+      canvas.dispatch("pointercancel", pointer(44, 10, 10));
+    } else if (interruption === "lostpointercapture") {
+      canvas.dispatch("lostpointercapture", pointer(44, 10, 10));
+    } else if (interruption === "hidden") {
+      documentTarget.hidden = true;
+      documentTarget.dispatch("visibilitychange");
+    } else if (interruption === "contextlost") {
+      canvas.dispatch("webglcontextlost", { preventDefault() {} });
+    } else {
+      controller.dispose();
+    }
+
+    assert.deepEqual(selections, [], interruption);
+    assert.equal(controller.getState(), "idle", interruption);
+    assert.deepEqual([...canvas.captured], [], interruption);
+    assert.deepEqual(canvas.released, [44], interruption);
+    controller.dispose();
+  }
+});
+
 test("uses a real Three raycaster against explicit surfaces and ignores decorations", () => {
   const canvas = createCanvas();
   const documentTarget = new FakeEventTarget();
