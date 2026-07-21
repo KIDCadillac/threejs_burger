@@ -6,7 +6,9 @@ import {
   createSoloCookingState,
   finishSoloCooking,
   placeSoloLayer,
+  removeSoloLayer,
   rotateSoloLayer,
+  undoSoloCooking,
 } from "../app/static/cooking-solo-state.mjs";
 import {
   decodeSoloSave,
@@ -80,6 +82,61 @@ function mutateSerialized(serialized, mutate) {
   const payload = JSON.parse(serialized);
   mutate(payload);
   return JSON.stringify(payload);
+}
+
+function renameInstance(saved, oldId, newId) {
+  saved.instances[newId] = saved.instances[oldId];
+  saved.locations[newId] = saved.locations[oldId];
+  saved.rotations[newId] = saved.rotations[oldId];
+  if (Object.hasOwn(saved.instanceHomes ?? {}, oldId)) {
+    saved.instanceHomes[newId] = saved.instanceHomes[oldId];
+    delete saved.instanceHomes[oldId];
+  }
+  saved.assembledOrder = saved.assembledOrder.map((id) => (id === oldId ? newId : id));
+  saved.strokes.forEach((entry) => {
+    if (entry.layerId === oldId) entry.layerId = newId;
+  });
+  Object.keys(saved.binSources).forEach((ingredientId) => {
+    if (saved.binSources[ingredientId] === oldId) saved.binSources[ingredientId] = newId;
+  });
+  Object.keys(saved.stationSources ?? {}).forEach((slotId) => {
+    if (saved.stationSources[slotId] === oldId) saved.stationSources[slotId] = newId;
+  });
+  delete saved.instances[oldId];
+  delete saved.locations[oldId];
+  delete saved.rotations[oldId];
+}
+
+function handwrittenLegacyV1() {
+  const instances = Object.fromEntries([
+    ["bottom-bun", "bottom-bun"],
+    ["patty", "patty"],
+    ["cheese", "cheese"],
+    ["tomato", "tomato"],
+    ["lettuce", "lettuce"],
+    ["pickle", "pickle"],
+    ["top-bun", "top-bun"],
+    ["onion", "onion"],
+    ["middle-bun", "middle-bun"],
+  ]);
+  return JSON.stringify({
+    version: 1,
+    state: {
+      assembledOrder: ["bottom-bun", "patty"],
+      instances,
+      locations: Object.fromEntries(Object.entries(instances).map(([id, ingredientId], index) => [
+        id,
+        index < 2 ? { kind: "prep", index } : { kind: "bin", index },
+      ])),
+      rotations: Object.fromEntries(Object.keys(instances).map((id) => [id, 0])),
+      binSources: Object.fromEntries(Object.keys(instances).map((id) => [id, id])),
+      inventory: Object.fromEntries(Object.keys(instances).map((id) => [id, 999])),
+      nextInstanceSequence: 2,
+      strokes: [],
+      referenceRecipeId: null,
+      finished: false,
+    },
+  });
 }
 
 test("round-trips all persisted fields while dropping history and deriving complete", () => {
@@ -165,6 +222,19 @@ test("loads a valid small v1 save and ignores future versions", () => {
   assert.equal(decodeSoloSave(future), null);
 });
 
+test("loads a handwritten legacy v1 save with all three station fields absent", () => {
+  const decoded = decodeSoloSave(handwrittenLegacyV1());
+  assert.ok(decoded);
+  assert.equal(decoded.state.stationContents, null);
+  assert.equal(decoded.state.stationSources, null);
+  assert.equal(decoded.state.instanceHomes, null);
+
+  const hydrated = hydrateSoloCookingState(decoded.state);
+  assert.deepEqual(hydrated.assembledOrder, ["bottom-bun", "patty"]);
+  assert.equal(Object.hasOwn(hydrated, "stationContents"), false);
+  assert.equal(hydrated.complete, true);
+});
+
 test("returns null instead of throwing for corrupt serialized input", () => {
   const inputs = [
     null,
@@ -215,6 +285,111 @@ test("rejects invalid locations, slot homes, rotations, counters, and inventory"
   for (const mutate of cases) {
     assert.equal(decodeSoloSave(mutateSerialized(serialized, mutate)), null);
   }
+});
+
+test("rejects ingredient homes and bin locations assigned across workbench regions", () => {
+  const serialized = serializeSoloSave(makeDuplicateSlotState({ layers: 4 }));
+  const pattyInBreadHome = mutateSerialized(serialized, ({ state }) => {
+    state.instanceHomes[state.assembledOrder[0]] = "bread-left-1";
+  });
+  const bunInFillingHome = mutateSerialized(serialized, ({ state }) => {
+    const bunId = state.stationSources["bread-left-1"];
+    state.instanceHomes[bunId] = "filling-back-1";
+    state.locations[bunId] = { kind: "bin", slotId: "filling-back-1" };
+  });
+
+  assert.equal(decodeSoloSave(pattyInBreadHome), null);
+  assert.equal(decodeSoloSave(bunInFillingHome), null);
+});
+
+test("a hydrated slot state can return a layer and undo to the exact saved home", () => {
+  const original = makeDuplicateSlotState({ layers: 4 });
+  const restored = hydrateSoloCookingState(decodeSoloSave(serializeSoloSave(original)).state);
+  const returnedId = restored.assembledOrder[1];
+  const homeSlotId = restored.instanceHomes[returnedId];
+
+  const returned = removeSoloLayer(restored, returnedId, { consolidate: true });
+  assert.equal(returned.stationSources[homeSlotId], returnedId);
+  assert.deepEqual(returned.locations[returnedId], { kind: "bin", slotId: homeSlotId });
+
+  const undone = undoSoloCooking(returned);
+  assert.deepEqual(undone.assembledOrder, restored.assembledOrder);
+  assert.equal(undone.instanceHomes[returnedId], homeSlotId);
+  assert.ok(Object.values(undone.stationSources).every((id) => undone.instances[id]));
+});
+
+test("rejects an oversized save before calling JSON.parse", () => {
+  const oversized = " ".repeat((256 * 1024) + 1);
+  const originalParse = JSON.parse;
+  let parseCalls = 0;
+  JSON.parse = (...args) => {
+    parseCalls += 1;
+    return originalParse(...args);
+  };
+  try {
+    assert.equal(decodeSoloSave(oversized), null);
+  } finally {
+    JSON.parse = originalParse;
+  }
+  assert.equal(parseCalls, 0);
+});
+
+test("rejects coherent instance floods above the live-state bound", () => {
+  const payload = JSON.parse(handwrittenLegacyV1());
+  payload.state.assembledOrder = [];
+  payload.state.locations["bottom-bun"] = { kind: "bin", index: 0 };
+  payload.state.locations.patty = { kind: "bin", index: 1 };
+  for (let index = 0; index < 257; index += 1) {
+    const id = `patty#${index + 2}`;
+    payload.state.instances[id] = "patty";
+    payload.state.locations[id] = { kind: "bin", index: 1 };
+    payload.state.rotations[id] = 0;
+  }
+  payload.state.nextInstanceSequence = 259;
+  const serialized = JSON.stringify(payload);
+  assert.ok(serialized.length < 256 * 1024);
+  assert.equal(decodeSoloSave(serialized), null);
+
+  const fiveThousandSeven = JSON.parse(handwrittenLegacyV1());
+  for (let index = 0; index < 5007; index += 1) {
+    fiveThousandSeven.state.instances[`patty#flood-${index}`] = "patty";
+  }
+  assert.equal(decodeSoloSave(JSON.stringify(fiveThousandSeven)), null);
+});
+
+test("rejects unsafe sequence and numeric suffix boundaries", () => {
+  const serialized = serializeSoloSave(makeDuplicateSlotState({ layers: 4 }));
+  const maxSafe = mutateSerialized(serialized, ({ state }) => {
+    state.nextInstanceSequence = Number.MAX_SAFE_INTEGER;
+  });
+  const overPracticalLimit = mutateSerialized(serialized, ({ state }) => {
+    state.nextInstanceSequence = 1_000_001;
+  });
+  const collidingNextSuffix = mutateSerialized(serialized, ({ state }) => {
+    const oldId = state.assembledOrder[0];
+    renameInstance(state, oldId, "patty#1000000");
+    state.nextInstanceSequence = 1_000_000;
+  });
+
+  assert.equal(decodeSoloSave(maxSafe), null);
+  assert.equal(decodeSoloSave(overPracticalLimit), null);
+  assert.equal(decodeSoloSave(collidingNextSuffix), null);
+});
+
+test("rejects prototype-shaped instance keys without throwing", () => {
+  const payload = JSON.parse(handwrittenLegacyV1());
+  payload.state.instances.constructor = "patty";
+  payload.state.locations.constructor = { kind: "bin", index: 1 };
+  payload.state.rotations.constructor = 0;
+  assert.doesNotThrow(() => decodeSoloSave(JSON.stringify(payload)));
+  assert.equal(decodeSoloSave(JSON.stringify(payload)), null);
+
+  const protoText = handwrittenLegacyV1().replace(
+    '"instances":{',
+    '"instances":{"__proto__":"patty",',
+  );
+  assert.doesNotThrow(() => decodeSoloSave(protoText));
+  assert.equal(decodeSoloSave(protoText), null);
 });
 
 test("rejects malformed, out-of-range, or dangling sauce strokes", () => {

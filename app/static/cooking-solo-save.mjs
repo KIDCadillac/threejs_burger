@@ -18,6 +18,9 @@ const MAX_STROKE_POINTS = 24;
 const MIN_STROKE_AMOUNT = 0.01;
 const MAX_STROKE_AMOUNT = 1;
 const MAX_INSTANCE_ID_LENGTH = 128;
+const MAX_SERIALIZED_SAVE_CHARS = 256 * 1024;
+const MAX_SAVE_INSTANCES = 256;
+const MAX_NEXT_INSTANCE_SEQUENCE = 1_000_000;
 
 const RECIPE_IDS = new Set(BURGER_RECIPES.map(({ id }) => id));
 const INGREDIENT_IDS = new Set(SOLO_BURGER_INGREDIENT_IDS);
@@ -26,6 +29,7 @@ const ALL_SLOT_IDS = WORKBENCH_SLOTS.map(({ slotId }) => slotId);
 const INGREDIENT_SLOTS = WORKBENCH_SLOTS.filter(({ region }) => region !== "sauce");
 const INGREDIENT_SLOT_IDS = INGREDIENT_SLOTS.map(({ slotId }) => slotId);
 const INGREDIENT_SLOT_ID_SET = new Set(INGREDIENT_SLOT_IDS);
+const SLOT_BY_ID = new Map(WORKBENCH_SLOTS.map((slot) => [slot.slotId, slot]));
 
 function fail(message) {
   throw new TypeError(`Invalid solo cooking save: ${message}`);
@@ -78,6 +82,9 @@ function requireInteger(value, label, minimum, maximum = Number.MAX_SAFE_INTEGER
 function cloneInstances(value) {
   const record = requireRecord(value, "instances");
   const ids = Object.keys(record).sort();
+  if (ids.length > MAX_SAVE_INSTANCES) {
+    fail(`instances must contain at most ${MAX_SAVE_INSTANCES} entries`);
+  }
   const instances = {};
   ids.forEach((id) => {
     requireSafeId(id, "instances key");
@@ -85,6 +92,37 @@ function cloneInstances(value) {
     instances[id] = record[id];
   });
   return instances;
+}
+
+function validateInstanceSequences(instances, nextInstanceSequence) {
+  Object.entries(instances).forEach(([instanceId, ingredientId]) => {
+    if (instanceId === ingredientId) return;
+    const prefix = `${ingredientId}#`;
+    if (!instanceId.startsWith(prefix)) {
+      fail(`instances.${instanceId} has a non-canonical id`);
+    }
+    const suffixText = instanceId.slice(prefix.length);
+    if (!/^\d+$/.test(suffixText)) {
+      fail(`instances.${instanceId} has a non-numeric sequence`);
+    }
+    const suffix = Number(suffixText);
+    if (
+      !Number.isSafeInteger(suffix)
+      || suffix < 2
+      || suffix >= nextInstanceSequence
+    ) {
+      fail(`instances.${instanceId} has an invalid sequence`);
+    }
+  });
+}
+
+function ingredientFitsSlot(ingredientId, slotId) {
+  const slot = SLOT_BY_ID.get(slotId);
+  return Boolean(
+    slot
+    && slot.region !== "sauce"
+    && WORKBENCH_REGION_OPTIONS[slot.region].includes(ingredientId),
+  );
 }
 
 function cloneAssembledOrder(value, instances) {
@@ -129,6 +167,9 @@ function cloneLocations(value, instances, assembledOrder, explicitStations) {
       ) {
         fail(`locations.${id} has an invalid station slot`);
       }
+      if (!ingredientFitsSlot(instances[id], location.slotId)) {
+        fail(`locations.${id} is assigned across workbench regions`);
+      }
       locations[id] = Object.freeze({ kind: "bin", slotId: location.slotId });
       return;
     }
@@ -171,14 +212,16 @@ function cloneIngredientRecord(value, label, normalizeValue) {
   ]));
 }
 
-function cloneBinSources(value, instances, locations, { wire }) {
+function cloneBinSources(value, instances, locations, { wire, explicitStations }) {
   return cloneIngredientRecord(value, "binSources", (rawValue, label, ingredientId) => {
     const sourceId = wire && rawValue === null ? undefined : rawValue;
     if (sourceId === undefined) return undefined;
     requireSafeId(sourceId, label);
     if (!Object.hasOwn(instances, sourceId)) fail(`${label} references a missing instance`);
     if (instances[sourceId] !== ingredientId) fail(`${label} references the wrong ingredient`);
-    if (locations[sourceId].kind !== "bin") fail(`${label} must reference a bin instance`);
+    if (explicitStations && locations[sourceId].kind !== "bin") {
+      fail(`${label} must reference a bin instance`);
+    }
     return sourceId;
   });
 }
@@ -236,6 +279,9 @@ function cloneInstanceHomes(value, instances, locations) {
   instanceIds.forEach((id) => {
     const slotId = record[id];
     if (!INGREDIENT_SLOT_ID_SET.has(slotId)) fail(`instanceHomes.${id} is invalid`);
+    if (!ingredientFitsSlot(instances[id], slotId)) {
+      fail(`instanceHomes.${id} is assigned across workbench regions`);
+    }
     if (locations[id].kind === "bin" && locations[id].slotId !== slotId) {
       fail(`instanceHomes.${id} conflicts with its bin location`);
     }
@@ -325,13 +371,18 @@ function validateSnapshot(value, { wire = false } = {}) {
   if (!hasStations && hasPartialStations) fail("station records must be saved together");
   const locations = cloneLocations(saved.locations, instances, assembledOrder, hasStations);
   const rotations = cloneRotations(saved.rotations, instances);
-  const binSources = cloneBinSources(saved.binSources, instances, locations, { wire });
+  const binSources = cloneBinSources(saved.binSources, instances, locations, {
+    wire,
+    explicitStations: hasStations,
+  });
   const inventory = cloneInventory(saved.inventory);
   const nextInstanceSequence = requireInteger(
     saved.nextInstanceSequence,
     "nextInstanceSequence",
     2,
+    MAX_NEXT_INSTANCE_SEQUENCE,
   );
+  validateInstanceSequences(instances, nextInstanceSequence);
   const strokes = cloneStrokes(saved.strokes, instances);
   const referenceRecipeId = cloneReferenceRecipeId(saved.referenceRecipeId);
   if (typeof saved.finished !== "boolean") fail("finished must be boolean");
@@ -414,7 +465,11 @@ export function serializeSoloSave(state) {
 
 export function decodeSoloSave(serialized) {
   try {
-    if (typeof serialized !== "string" || serialized.length === 0) return null;
+    if (
+      typeof serialized !== "string"
+      || serialized.length === 0
+      || serialized.length > MAX_SERIALIZED_SAVE_CHARS
+    ) return null;
     const payload = JSON.parse(serialized);
     if (!isRecord(payload) || payload.version !== SAVE_VERSION) return null;
     return Object.freeze({
