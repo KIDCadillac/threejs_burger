@@ -147,6 +147,29 @@ test("normalizes partial old configs in canonical order and falls back per inval
   }
 });
 
+test("normalization keeps stored content when Object.hasOwn is unavailable", () => {
+  const originalHasOwn = Object.hasOwn;
+  try {
+    Object.hasOwn = undefined;
+    const normalized = normalizeWorkbenchLoadout({ "filling-back-1": "onion" });
+    assert.equal(normalized["filling-back-1"], "onion");
+  } finally {
+    Object.hasOwn = originalHasOwn;
+  }
+});
+
+test("normalization falls back when inspecting the input shape throws", () => {
+  const revocable = Proxy.revocable({}, {});
+  revocable.revoke();
+  let normalized;
+
+  assert.doesNotThrow(() => {
+    normalized = normalizeWorkbenchLoadout(revocable.proxy);
+  });
+  assert.deepEqual(normalized, EXPECTED_DEFAULT_LOADOUT);
+  assertFrozenLoadout(normalized);
+});
+
 test("loads and normalizes persisted configs and falls back for missing or malformed JSON", () => {
   const storage = createMemoryStorage({
     [WORKBENCH_LOADOUT_STORAGE_KEY]: JSON.stringify({
@@ -213,6 +236,23 @@ test("saving writes canonical JSON and returns the frozen config even when write
   assertFrozenLoadout(unsaved);
   assert.doesNotThrow(() => saveWorkbenchLoadout({}, null));
   assert.doesNotThrow(() => saveWorkbenchLoadout({}));
+});
+
+test("saving falls back when inspecting the input shape throws", () => {
+  const revocable = Proxy.revocable({}, {});
+  revocable.revoke();
+  const storage = createMemoryStorage();
+  let saved;
+
+  assert.doesNotThrow(() => {
+    saved = saveWorkbenchLoadout(revocable.proxy, storage);
+  });
+  assert.deepEqual(saved, EXPECTED_DEFAULT_LOADOUT);
+  assert.equal(
+    storage.values.get(WORKBENCH_LOADOUT_STORAGE_KEY),
+    JSON.stringify(EXPECTED_DEFAULT_LOADOUT),
+  );
+  assertFrozenLoadout(saved);
 });
 
 test("reset removes the persisted config and returns defaults despite removal errors", () => {

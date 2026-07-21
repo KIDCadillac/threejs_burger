@@ -37,11 +37,13 @@ function freezeLoadout(entries) {
 }
 
 function readStoredContent(value, slotId) {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    return undefined;
-  }
   try {
-    return Object.hasOwn(value, slotId) ? value[slotId] : undefined;
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+      return undefined;
+    }
+    return Object.prototype.hasOwnProperty.call(value, slotId)
+      ? value[slotId]
+      : undefined;
   } catch {
     return undefined;
   }
