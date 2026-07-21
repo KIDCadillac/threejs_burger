@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "../app/static/vendor/three.module.min.js";
+import { SOLO_COOKING_SAUCE_IDS } from "../app/static/burger-recipes.mjs";
 import { SAUCE_KEYS } from "../app/static/cooking-state.mjs";
 import { createCookingWorkbench3D } from "../app/static/cooking-workbench-3d.mjs";
 import { createCondimentTools3D } from "../app/static/condiment-tools-3d.mjs";
@@ -46,6 +47,79 @@ test("builds four real low-poly condiment bottles on their workbench docks", () 
   assert.ok(meshes.every(({ material }) => !material.map), "tools use no bitmap textures");
   tools.dispose();
   workbench.dispose();
+});
+
+test("builds the three injected solo cooking sauces on their exact matching docks", () => {
+  const workbench = createCookingWorkbench3D(THREE, {
+    toolIds: SOLO_COOKING_SAUCE_IDS,
+  });
+  const tools = createCondimentTools3D(THREE, {
+    toolDocks: workbench.toolDocks,
+    sauceIds: SOLO_COOKING_SAUCE_IDS,
+  });
+  workbench.root.add(tools.root);
+  workbench.root.updateMatrixWorld(true);
+
+  assert.deepEqual([...tools.bottles.keys()], SOLO_COOKING_SAUCE_IDS);
+  assert.equal(tools.selectableSurfaces.length, SOLO_COOKING_SAUCE_IDS.length * 3);
+  assert.deepEqual(
+    SOLO_COOKING_SAUCE_IDS.map((sauce) => tools.get(sauce).body.material.color.getHex()),
+    [0xd9472f, 0xe5ad2c, 0xf2b76b],
+  );
+  for (const sauce of SOLO_COOKING_SAUCE_IDS) {
+    const bottle = tools.get(sauce);
+    const dock = workbench.getStation("tool", sauce);
+    assert.deepEqual(bottle.metadata, { kind: "condiment-bottle", sauce, id: sauce });
+    closeVector(
+      bottle.root.getWorldPosition(new THREE.Vector3()),
+      dock.pickupAnchor.getWorldPosition(new THREE.Vector3()),
+    );
+  }
+  assert.throws(() => tools.setActive("chili"), /unknown condiment/i);
+
+  tools.dispose();
+  workbench.dispose();
+});
+
+test("validates injected sauce ids before requiring their exact matching docks", () => {
+  const soloWorkbench = createCookingWorkbench3D(THREE, {
+    toolIds: SOLO_COOKING_SAUCE_IDS,
+  });
+  const unknownWorkbench = createCookingWorkbench3D(THREE, {
+    toolIds: ["ketchup", "mystery-sauce", "house-sauce"],
+  });
+
+  assert.throws(
+    () => createCondimentTools3D(THREE, {
+      toolDocks: soloWorkbench.toolDocks,
+      sauceIds: "ketchup",
+    }),
+    /sauceIds must be an array/i,
+  );
+  assert.throws(
+    () => createCondimentTools3D(THREE, {
+      toolDocks: soloWorkbench.toolDocks,
+      sauceIds: ["ketchup", "ketchup", "house-sauce"],
+    }),
+    /duplicate sauce ids/i,
+  );
+  assert.throws(
+    () => createCondimentTools3D(THREE, {
+      toolDocks: unknownWorkbench.toolDocks,
+      sauceIds: ["ketchup", "mystery-sauce", "house-sauce"],
+    }),
+    /unsupported sauce id/i,
+  );
+  assert.throws(
+    () => createCondimentTools3D(THREE, {
+      toolDocks: soloWorkbench.toolDocks,
+      sauceIds: SAUCE_KEYS,
+    }),
+    /exactly match sauce keys/i,
+  );
+
+  soloWorkbench.dispose();
+  unknownWorkbench.dispose();
 });
 
 test("only explicit bottle solids raycast while decoration and preview do not", () => {

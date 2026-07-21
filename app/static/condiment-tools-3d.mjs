@@ -1,14 +1,20 @@
 import { SAUCE_KEYS } from "./cooking-state.mjs";
+import { SOLO_COOKING_SAUCE_IDS } from "./burger-recipes.mjs";
 
 const NO_RAYCAST = () => {};
 const MAX_TILT = Math.PI / 3;
 const ACTIVE_SCALE = 1.08;
 const SAUCE_COLORS = Object.freeze({
   chili: 0xc73a28,
+  ketchup: 0xd9472f,
   mustard: 0xe5ad2c,
+  "house-sauce": 0xf2b76b,
   sour: 0x79ad44,
   sticky: 0x70402f,
 });
+const SUPPORTED_SAUCE_IDS = Object.freeze([
+  ...new Set([...SAUCE_KEYS, ...SOLO_COOKING_SAUCE_IDS]),
+]);
 
 function requireThree(THREE) {
   if (!THREE?.Group || !THREE?.Mesh || !THREE?.CylinderGeometry) {
@@ -16,8 +22,27 @@ function requireThree(THREE) {
   }
 }
 
-function validateDocks(toolDocks) {
-  if (!Array.isArray(toolDocks) || toolDocks.length !== SAUCE_KEYS.length) {
+function normalizeSauceIds(sauceIds) {
+  if (!Array.isArray(sauceIds)) {
+    throw new TypeError("sauceIds must be an array");
+  }
+  if (sauceIds.length === 0) {
+    throw new TypeError("sauceIds must contain at least one sauce id");
+  }
+  const normalized = sauceIds.map((sauce) => {
+    if (typeof sauce !== "string" || !SUPPORTED_SAUCE_IDS.includes(sauce)) {
+      throw new TypeError(`Unsupported sauce id: ${String(sauce)}`);
+    }
+    return sauce;
+  });
+  if (new Set(normalized).size !== normalized.length) {
+    throw new TypeError("sauceIds contain duplicate sauce ids");
+  }
+  return Object.freeze(normalized);
+}
+
+function validateDocks(toolDocks, sauceIds) {
+  if (!Array.isArray(toolDocks) || toolDocks.length !== sauceIds.length) {
     throw new TypeError("toolDocks must exactly match sauce keys");
   }
   const ids = toolDocks.map((dock) => {
@@ -38,8 +63,8 @@ function validateDocks(toolDocks) {
   if (new Set(ids).size !== ids.length) {
     throw new TypeError("Condiment docks contain duplicate ids");
   }
-  if (ids.some((id) => !SAUCE_KEYS.includes(id))
-    || SAUCE_KEYS.some((id) => !ids.includes(id))) {
+  if (ids.some((id) => !sauceIds.includes(id))
+    || sauceIds.some((id) => !ids.includes(id))) {
     throw new TypeError("toolDocks must exactly match sauce keys");
   }
   const parents = new Set(toolDocks.map(({ dock }) => dock.parent));
@@ -88,9 +113,13 @@ function restorePose(object, pose) {
   object.scale.set(pose.scale.x, pose.scale.y, pose.scale.z);
 }
 
-export function createCondimentTools3D(THREE, { toolDocks } = {}) {
+export function createCondimentTools3D(THREE, {
+  toolDocks,
+  sauceIds = SAUCE_KEYS,
+} = {}) {
   requireThree(THREE);
-  const docks = validateDocks(toolDocks);
+  const activeSauceIds = normalizeSauceIds(sauceIds);
+  const docks = validateDocks(toolDocks, activeSauceIds);
   const dockById = new Map(docks.map((dock) => [dock.id, dock]));
   const commonParent = docks[0].dock.parent;
   const root = new THREE.Group();
@@ -127,7 +156,7 @@ export function createCondimentTools3D(THREE, { toolDocks } = {}) {
       flatShading: true,
     }),
   };
-  const bodyMaterials = new Map(SAUCE_KEYS.map((sauce) => [sauce,
+  const bodyMaterials = new Map(activeSauceIds.map((sauce) => [sauce,
     new THREE.MeshStandardMaterial({
       color: SAUCE_COLORS[sauce],
       roughness: 0.56,
@@ -158,7 +187,7 @@ export function createCondimentTools3D(THREE, { toolDocks } = {}) {
   const homeQuaternionScratch = new THREE.Quaternion();
   const deltaQuaternionScratch = new THREE.Quaternion();
 
-  for (const sauce of SAUCE_KEYS) {
+  for (const sauce of activeSauceIds) {
     const dock = dockById.get(sauce);
     const bottleRoot = new THREE.Group();
     bottleRoot.name = `condiment:${sauce}`;
@@ -215,7 +244,7 @@ export function createCondimentTools3D(THREE, { toolDocks } = {}) {
 
   let disposed = false;
   const requireBottle = (sauce) => {
-    if (!SAUCE_KEYS.includes(sauce) || !bottles.has(sauce)) {
+    if (!activeSauceIds.includes(sauce) || !bottles.has(sauce)) {
       throw new TypeError(`Unknown condiment: ${String(sauce)}`);
     }
     return bottles.get(sauce);
