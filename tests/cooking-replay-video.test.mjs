@@ -125,6 +125,21 @@ function createFakeTimers() {
   };
 }
 
+function createMonotonicClock(start = 0) {
+  let current = start;
+  const waits = [];
+  return {
+    now: () => current,
+    sleep: async (delay) => {
+      waits.push(delay);
+      current += delay;
+    },
+    advance(delay) { current += delay; },
+    value: () => current,
+    waits,
+  };
+}
+
 async function waitFor(check) {
   for (let attempt = 0; attempt < 30; attempt += 1) {
     if (check()) return;
@@ -284,12 +299,13 @@ test("video exporter preserves exact source timestamp intervals instead of delay
   const supported = ["video/webm;codecs=vp8"];
   const MediaRecorderImpl = createMediaRecorderClass({ supported });
   const harness = createCanvasHarness();
-  const waits = [];
+  const clock = createMonotonicClock();
   const progress = [];
   const exporter = createReplayVideoExporter({
     documentTarget: harness.documentTarget,
     MediaRecorderImpl,
-    sleepImpl: async (delay) => { waits.push(delay); },
+    sleepImpl: clock.sleep,
+    nowImpl: clock.now,
     timeoutMs: 5_000,
   });
   const sourceA = { id: "a", videoWidth: 640, videoHeight: 320, width: 1, height: 1 };
@@ -316,8 +332,9 @@ test("video exporter preserves exact source timestamp intervals instead of delay
   assert.equal(result.fps, 12);
   assert.ok(Math.abs(result.durationMs - (200 + (1000 / 12))) < 1e-8);
   assert.deepEqual(harness.draws.map(({ source }) => source.id), ["a", "b", "c"]);
-  assert.deepEqual(waits.slice(0, 2), [100, 100]);
-  assert.ok(Math.abs(waits[2] - (1000 / 12)) < 1e-8);
+  assert.deepEqual(clock.waits.slice(0, 2), [100, 100]);
+  assert.ok(Math.abs(clock.waits[2] - (1000 / 12)) < 1e-8);
+  assert.ok(Math.abs(clock.value() - result.durationMs) < 1e-8);
   assert.deepEqual(progress.at(-1), { completed: 3, total: 3, ratio: 1 });
   assert.equal(harness.streams[0].fps, 12);
   assert.equal(harness.streams[0].track.requestFrameCalls, 3);
@@ -326,6 +343,66 @@ test("video exporter preserves exact source timestamp intervals instead of delay
     mimeType: "video/webm;codecs=vp8",
     videoBitsPerSecond: 800_000,
   });
+  exporter.dispose();
+});
+
+test("video exporter anchors playback to source-time deadlines despite expensive draws", async () => {
+  const clock = createMonotonicClock();
+  const drawStarts = [];
+  const drawn = [];
+  const exporter = createReplayVideoExporter({
+    documentTarget: createCanvasHarness().documentTarget,
+    MediaRecorderImpl: createMediaRecorderClass({ supported: ["video/webm;codecs=vp8"] }),
+    sleepImpl: clock.sleep,
+    nowImpl: clock.now,
+    drawFrameImpl: async ({ frame }) => {
+      drawStarts.push(clock.value());
+      drawn.push(frame.source.id);
+      clock.advance(30);
+    },
+  });
+
+  const result = await exporter.exportFrames([
+    { frame: { source: { id: "c", width: 4, height: 2 } }, timestamp: 20 },
+    { frame: { source: { id: "a", width: 4, height: 2 } }, timestamp: 0 },
+    { frame: { source: { id: "b", width: 4, height: 2 } }, timestamp: 10 },
+  ]);
+
+  assert.deepEqual(drawn, ["a", "b", "c"]);
+  assert.deepEqual(drawStarts, [0, 30, 60]);
+  assert.equal(clock.waits.length, 1);
+  assert.ok(Math.abs(clock.waits[0] - ((20 + (1000 / 12)) - 90)) < 1e-8);
+  assert.ok(Math.abs(clock.value() - result.durationMs) < 1e-8);
+  exporter.dispose();
+});
+
+test("video exporter preserves duplicate and irregular timestamp deadlines", async () => {
+  const clock = createMonotonicClock();
+  const drawStarts = [];
+  const drawn = [];
+  const exporter = createReplayVideoExporter({
+    documentTarget: createCanvasHarness().documentTarget,
+    MediaRecorderImpl: createMediaRecorderClass({ supported: ["video/webm;codecs=vp8"] }),
+    sleepImpl: clock.sleep,
+    nowImpl: clock.now,
+    drawFrameImpl: async ({ frame }) => {
+      drawStarts.push(clock.value());
+      drawn.push(frame.source.id);
+    },
+  });
+
+  const result = await exporter.exportFrames([
+    { frame: { source: { id: "d", width: 4, height: 2 } }, timestamp: 37 },
+    { frame: { source: { id: "b", width: 4, height: 2 } }, timestamp: 10 },
+    { frame: { source: { id: "a", width: 4, height: 2 } }, timestamp: 0 },
+    { frame: { source: { id: "c", width: 4, height: 2 } }, timestamp: 10 },
+  ]);
+
+  assert.deepEqual(drawn, ["a", "b", "c", "d"]);
+  assert.deepEqual(drawStarts, [0, 10, 10, 37]);
+  assert.deepEqual(clock.waits.slice(0, 2), [10, 27]);
+  assert.ok(Math.abs(clock.waits[2] - (1000 / 12)) < 1e-8);
+  assert.ok(Math.abs(clock.value() - result.durationMs) < 1e-8);
   exporter.dispose();
 });
 
@@ -382,6 +459,8 @@ test("export owns a frozen buffer snapshot until completion and then releases re
   const frozen = buffer.snapshot();
 
   buffer.push({ width: 8, height: 4, snapshotValue: "after" }, 200);
+  assert.equal(Object.isFrozen(frozen), true);
+  assert.throws(() => frozen.pop(), TypeError);
   assert.deepEqual(
     frozen.map(({ frame }) => [frame.source.width, frame.source.height]),
     [[4, 2], [4, 2]],
@@ -403,6 +482,27 @@ test("export owns a frozen buffer snapshot until completion and then releases re
   );
   assert.equal(frozen.release(), false);
   buffer.dispose();
+  exporter.dispose();
+});
+
+test("video exporter synchronously captures a mutable frame array before promise deferral", async () => {
+  const harness = createCanvasHarness();
+  const exporter = createReplayVideoExporter({
+    documentTarget: harness.documentTarget,
+    MediaRecorderImpl: createMediaRecorderClass({ supported: ["video/webm;codecs=vp8"] }),
+    sleepImpl: async () => {},
+  });
+  const values = [
+    { frame: { source: { id: "a", width: 4, height: 2 } }, timestamp: 0 },
+    { frame: { source: { id: "b", width: 4, height: 2 } }, timestamp: 10 },
+  ];
+
+  const pending = exporter.exportFrames(values);
+  values.length = 0;
+  values.push({ frame: { source: { id: "late", width: 1, height: 1 } }, timestamp: 0 });
+  await pending;
+
+  assert.deepEqual(harness.draws.map(({ source }) => source.id), ["a", "b"]);
   exporter.dispose();
 });
 

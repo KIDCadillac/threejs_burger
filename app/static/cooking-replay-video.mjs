@@ -246,7 +246,7 @@ export function createReplayFrameBuffer({
           return true;
         },
       });
-      return snapshot;
+      return Object.freeze(snapshot);
     },
     size: () => entries.length,
     durationMs() {
@@ -314,6 +314,7 @@ export function createReplayVideoExporter({
   setTimeoutImpl = globalThis.setTimeout?.bind(globalThis),
   clearTimeoutImpl = globalThis.clearTimeout?.bind(globalThis),
   sleepImpl,
+  nowImpl = globalThis.performance?.now?.bind(globalThis.performance) ?? Date.now,
   drawFrameImpl,
 } = {}) {
   const targetWidth = Math.max(2, Math.round(positiveNumber(outputWidth, 480, "outputWidth")));
@@ -331,6 +332,7 @@ export function createReplayVideoExporter({
   const sleep = typeof sleepImpl === "function"
     ? sleepImpl
     : (delay) => new Promise((resolve) => setTimeoutImpl(resolve, delay));
+  const now = typeof nowImpl === "function" ? nowImpl : Date.now;
   let activeJob = null;
   let disposed = false;
 
@@ -528,11 +530,27 @@ export function createReplayVideoExporter({
 
       const startPlayback = () => {
         Promise.resolve().then(async () => {
+          const startedAt = Number(now());
+          if (!Number.isFinite(startedAt)) {
+            throw codedError(
+              "VIDEO_REPLAY_ENCODING_FAILED",
+              "The replay video clock returned an invalid time.",
+            );
+          }
+          const waitUntil = async (offset) => {
+            const currentTime = Number(now());
+            if (!Number.isFinite(currentTime)) {
+              throw codedError(
+                "VIDEO_REPLAY_ENCODING_FAILED",
+                "The replay video clock returned an invalid time.",
+              );
+            }
+            const remaining = (startedAt + offset) - currentTime;
+            if (remaining > 0) await sleep(remaining);
+          };
           for (let index = 0; index < playback.frames.length; index += 1) {
             if (settled) return;
-            if (index > 0) {
-              await sleep(playback.frames[index].offset - playback.frames[index - 1].offset);
-            }
+            await waitUntil(playback.frames[index].offset);
             if (settled) return;
             await drawFrame(playback.frames[index].frame);
             if (settled) return;
@@ -543,7 +561,7 @@ export function createReplayVideoExporter({
               ratio: (index + 1) / playback.frames.length,
             });
           }
-          if (playback.tailDelayMs > 0) await sleep(playback.tailDelayMs);
+          await waitUntil(playback.durationMs);
           if (!settled) stopRecorder();
         }).catch((cause) => {
           if (settled) return;
@@ -632,11 +650,17 @@ export function createReplayVideoExporter({
     });
   };
 
-  const exportFrames = (values, options) => Promise.resolve()
-    .then(() => beginExport(values, options))
-    .finally(() => {
-      try { values?.release?.(); } catch { /* transferred snapshots release best effort */ }
-    });
+  const exportFrames = (values, options) => {
+    const capturedValues = Array.isArray(values) ? [...values] : values;
+    const releaseValues = typeof values?.release === "function"
+      ? values.release.bind(values)
+      : null;
+    return Promise.resolve()
+      .then(() => beginExport(capturedValues, options))
+      .finally(() => {
+        try { releaseValues?.(); } catch { /* transferred snapshots release best effort */ }
+      });
+  };
 
   return Object.freeze({
     format: () => preferredFormat,
