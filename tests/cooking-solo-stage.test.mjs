@@ -1462,6 +1462,100 @@ test("replenishes bins, stacks sixty repeated portions in contact, and expands t
   stage.dispose();
 });
 
+test("a real sixty-first bin drag is rejected at resolution and returns fully home", () => {
+  const updates = [];
+  const vibrations = [];
+  const { stage, canvas } = harness({
+    reducedMotion: true,
+    onChange: (detail) => updates.push(detail),
+    vibrate: (pattern) => vibrations.push(pattern),
+  });
+  for (let index = 0; index < MAX_SOLO_STACK_LAYERS; index += 1) {
+    assert.equal(stage.dropLayer(stage.getState().binSources.patty, { kind: "prep" }), true);
+    stage.tick((index + 1) * 500);
+  }
+
+  const stateBefore = stage.getState();
+  const stateSnapshot = {
+    assembledOrder: [...stateBefore.assembledOrder],
+    history: [...stateBefore.history],
+    inventory: { ...stateBefore.inventory },
+  };
+  const cameraBefore = stage.controller.getCameraView();
+  const sourceId = stateBefore.binSources.patty;
+  const source = stage.burger.getLayer(sourceId);
+  const sourceTransform = readLayerTransform(source);
+  const sourceHome = stage.workbench.getStation("ingredient", "patty")
+    .pickupAnchor.getWorldPosition(new THREE.Vector3());
+  const sourceSurface = source.userData.selectableSurface
+    .getWorldPosition(new THREE.Vector3());
+  updates.length = 0;
+
+  stage.controller.pointerDown(pointerAtWorld(stage, canvas, 61, sourceSurface));
+  assert.equal(stage.controller.getState(), "dragging-layer");
+  const prepWorld = stage.workbench.root.localToWorld(new THREE.Vector3(0, 0.42, 0));
+  stage.controller.pointerMove(pointerAtWorld(stage, canvas, 61, prepWorld));
+  assert.equal(updates.at(-1).dropIntent?.kind, "prep");
+  stage.controller.pointerUp(pointerAtWorld(stage, canvas, 61, prepWorld));
+
+  assert.equal(stage.controller.getState(), "idle");
+  assert.strictEqual(stage.getState(), stateBefore);
+  assert.deepEqual(stage.getState().assembledOrder, stateSnapshot.assembledOrder);
+  assert.deepEqual(stage.getState().history, stateSnapshot.history);
+  assert.deepEqual(stage.getState().inventory, stateSnapshot.inventory);
+  assert.deepEqual(stage.controller.getCameraView(), cameraBefore);
+  assert.deepEqual(readLayerTransform(source), sourceTransform);
+  assert.ok(source.getWorldPosition(new THREE.Vector3()).distanceTo(sourceHome) < 1e-9);
+  assert.equal(stage.burger.dropPreview.visible, false);
+  assert.equal(stage.workbench.dropCue.visible, false);
+  assert.equal(stage.burger.selectionFeedback.visible, false);
+  assert.equal(updates.at(-1).reason, "invalid-drop");
+  assert.equal(updates.at(-1).dropIntent, null);
+  assert.match(updates.at(-1).message, /最多.*60.*层/);
+  assert.deepEqual(vibrations, [28]);
+
+  stage.tick(40_000);
+  assert.deepEqual(readLayerTransform(source), sourceTransform);
+  assert.ok(source.getWorldPosition(new THREE.Vector3()).distanceTo(sourceHome) < 1e-9);
+  stage.dispose();
+});
+
+test("an assembled layer can still be reordered by real drag when all sixty slots are full", () => {
+  const { stage, canvas } = harness({ reducedMotion: true });
+  for (let index = 0; index < MAX_SOLO_STACK_LAYERS; index += 1) {
+    assert.equal(stage.dropLayer(stage.getState().binSources.patty, { kind: "prep" }), true);
+    stage.tick((index + 1) * 500);
+  }
+
+  const before = stage.getState();
+  const inventoryBefore = { ...before.inventory };
+  const requestedSurface = stage.burger.getLayer(before.assembledOrder[0]).userData.selectableSurface
+    .getWorldPosition(new THREE.Vector3());
+  stage.controller.pointerDown(pointerAtWorld(stage, canvas, 62, requestedSurface));
+  assert.equal(stage.controller.getState(), "dragging-layer");
+  const movingId = stage.controller.getSelectedId();
+  const movingIndex = before.assembledOrder.indexOf(movingId);
+  assert.ok(movingIndex >= 0, "the real hit is an already assembled layer");
+  const targetEdge = movingIndex < MAX_SOLO_STACK_LAYERS / 2 ? "top" : "bottom";
+  const intentPoint = prepIntentPoints(stage)[targetEdge];
+  const targetPoint = stage.workbench.root.localToWorld(
+    new THREE.Vector3(intentPoint.x, 0.42, intentPoint.z),
+  );
+  stage.controller.pointerMove(pointerAtWorld(stage, canvas, 62, targetPoint));
+  assert.equal(stage.burger.dropPreview.visible, true);
+  const targetIndex = stage.workbench.dropCue.userData.targetIndex;
+  assert.notEqual(targetIndex, movingIndex);
+  stage.controller.pointerUp(pointerAtWorld(stage, canvas, 62, targetPoint));
+
+  const after = stage.getState();
+  assert.equal(stage.controller.getState(), "idle");
+  assert.equal(after.assembledOrder.length, MAX_SOLO_STACK_LAYERS);
+  assert.equal(after.assembledOrder[targetIndex], movingId);
+  assert.notDeepEqual(after.assembledOrder, before.assembledOrder);
+  assert.deepEqual(after.inventory, inventoryBefore);
+  stage.dispose();
+});
+
 test("sixty maximum-tuned layers fit portrait and landscape at both pitch extremes", () => {
   const { stage } = harness();
   const initialView = stage.controller.getCameraView();

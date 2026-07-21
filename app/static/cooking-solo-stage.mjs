@@ -486,6 +486,13 @@ export function createSoloCookingStage({
   const resolveDrop = ({ id, point }) => {
     const intent = resolveDropIntent(id, point);
     if (intent.kind === "prep") {
+      if (!state.assembledOrder.includes(id)
+        && state.assembledOrder.length >= MAX_SOLO_STACK_LAYERS) {
+        return {
+          valid: false,
+          reason: `汉堡最多只能叠 ${MAX_SOLO_STACK_LAYERS} 层`,
+        };
+      }
       return {
         valid: true,
         anchor: workbench.prep.dropAnchor,
