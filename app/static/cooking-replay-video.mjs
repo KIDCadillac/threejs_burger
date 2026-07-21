@@ -1,8 +1,21 @@
+function replayFormat(recorderMimeType) {
+  const mimeType = String(recorderMimeType).toLowerCase().startsWith("video/webm")
+    ? "video/webm"
+    : "video/mp4";
+  const extension = mimeType === "video/webm" ? "webm" : "mp4";
+  return Object.freeze({
+    recorderMimeType,
+    mimeType,
+    containerMimeType: mimeType,
+    extension,
+  });
+}
+
 export const REPLAY_VIDEO_CANDIDATES = Object.freeze([
-  Object.freeze({ mimeType: "video/webm;codecs=vp9", extension: "webm" }),
-  Object.freeze({ mimeType: "video/webm;codecs=vp8", extension: "webm" }),
-  Object.freeze({ mimeType: "video/mp4;codecs=avc1.42E01E", extension: "mp4" }),
-  Object.freeze({ mimeType: "video/mp4", extension: "mp4" }),
+  replayFormat("video/webm;codecs=vp9"),
+  replayFormat("video/webm;codecs=vp8"),
+  replayFormat("video/mp4;codecs=avc1.42E01E"),
+  replayFormat("video/mp4"),
 ]);
 
 function codedError(code, message, properties = {}) {
@@ -19,17 +32,20 @@ export function extensionForReplayMimeType(mimeType) {
   return null;
 }
 
-export function selectReplayVideoFormat({ MediaRecorderImpl = globalThis.MediaRecorder } = {}) {
-  if (typeof MediaRecorderImpl !== "function") return null;
-  if (typeof MediaRecorderImpl.isTypeSupported !== "function") return null;
-  for (const candidate of REPLAY_VIDEO_CANDIDATES) {
+function supportedReplayVideoFormats(MediaRecorderImpl) {
+  if (typeof MediaRecorderImpl !== "function") return [];
+  if (typeof MediaRecorderImpl.isTypeSupported !== "function") return [];
+  return REPLAY_VIDEO_CANDIDATES.filter((candidate) => {
     try {
-      if (MediaRecorderImpl.isTypeSupported(candidate.mimeType)) return candidate;
+      return Boolean(MediaRecorderImpl.isTypeSupported(candidate.recorderMimeType));
     } catch {
-      // A broken candidate probe must not prevent probing the remaining formats.
+      return false;
     }
-  }
-  return null;
+  });
+}
+
+export function selectReplayVideoFormat({ MediaRecorderImpl = globalThis.MediaRecorder } = {}) {
+  return supportedReplayVideoFormats(MediaRecorderImpl)[0] ?? null;
 }
 
 function positiveNumber(value, fallback, label) {
@@ -40,23 +56,137 @@ function positiveNumber(value, fallback, label) {
   return number;
 }
 
+function firstPositiveDimension(values) {
+  for (const value of values) {
+    const number = Number(value);
+    if (Number.isFinite(number) && number > 0) return number;
+  }
+  return null;
+}
+
+function frameDimensions(frame) {
+  const source = frame?.source ?? frame;
+  const isRgbaFrame = Boolean(frame?.rgba);
+  const width = isRgbaFrame
+    ? firstPositiveDimension([frame?.width])
+    : firstPositiveDimension([
+      source?.videoWidth,
+      source?.naturalWidth,
+      source?.width,
+      source === frame ? null : frame?.width,
+    ]);
+  const height = isRgbaFrame
+    ? firstPositiveDimension([frame?.height])
+    : firstPositiveDimension([
+      source?.videoHeight,
+      source?.naturalHeight,
+      source?.height,
+      source === frame ? null : frame?.height,
+    ]);
+  if (!width || !height) {
+    throw codedError("VIDEO_REPLAY_INVALID_FRAME", "Replay frame dimensions are invalid.");
+  }
+  return { width, height };
+}
+
+function scaledFrameHeight(targetWidth, sourceSize) {
+  return Math.max(
+    2,
+    Math.round((targetWidth * sourceSize.height / sourceSize.width) / 2) * 2,
+  );
+}
+
+function releaseSnapshot(frame) {
+  const resource = frame?.source;
+  if (!resource) return;
+  try { resource.close?.(); } catch { /* best effort */ }
+  try { resource.width = 0; } catch { /* best effort */ }
+  try { resource.height = 0; } catch { /* best effort */ }
+}
+
+function createFrameSnapshot(frame, { documentTarget, outputWidth }) {
+  const sourceSize = frameDimensions(frame);
+  const width = outputWidth;
+  const height = scaledFrameHeight(width, sourceSize);
+  const canvas = documentTarget?.createElement?.("canvas");
+  const context = canvas?.getContext?.("2d", { alpha: false });
+  if (!canvas || !context?.drawImage) {
+    throw codedError(
+      "VIDEO_REPLAY_SNAPSHOT_UNSUPPORTED",
+      "This browser cannot create replay frame snapshots.",
+    );
+  }
+  canvas.width = width;
+  canvas.height = height;
+
+  let scratchCanvas = null;
+  try {
+    if (frame?.rgba) {
+      scratchCanvas = documentTarget.createElement("canvas");
+      const scratchContext = scratchCanvas?.getContext?.("2d");
+      if (!scratchCanvas || !scratchContext?.createImageData || !scratchContext?.putImageData) {
+        throw codedError("VIDEO_REPLAY_INVALID_FRAME", "RGBA replay frames are unsupported.");
+      }
+      scratchCanvas.width = sourceSize.width;
+      scratchCanvas.height = sourceSize.height;
+      const image = scratchContext.createImageData(sourceSize.width, sourceSize.height);
+      image.data.set(new Uint8ClampedArray(frame.rgba));
+      scratchContext.putImageData(image, 0, 0);
+      context.drawImage(scratchCanvas, 0, 0, width, height);
+    } else {
+      context.drawImage(frame?.source ?? frame, 0, 0, width, height);
+    }
+  } catch (cause) {
+    releaseSnapshot({ source: canvas });
+    if (cause?.code) throw cause;
+    throw codedError(
+      "VIDEO_REPLAY_INVALID_FRAME",
+      "A replay frame could not be copied.",
+      { cause },
+    );
+  } finally {
+    if (scratchCanvas) releaseSnapshot({ source: scratchCanvas });
+  }
+
+  return Object.freeze({ source: canvas, width, height });
+}
+
 export function createReplayFrameBuffer({
   maxDurationMs = 8_000,
   maxFrames = 96,
+  outputWidth = 480,
+  documentTarget = globalThis.document,
 } = {}) {
   const durationLimit = positiveNumber(maxDurationMs, 8_000, "maxDurationMs");
   const frameLimit = Math.max(1, Math.floor(positiveNumber(maxFrames, 96, "maxFrames")));
+  const targetWidth = Math.max(2, Math.round(positiveNumber(outputWidth, 480, "outputWidth")));
   let entries = [];
   let nextSequence = 0;
   let disposed = false;
 
+  const replaceEntries = (nextEntries) => {
+    const retained = new Set(nextEntries);
+    for (const entry of entries) {
+      if (!retained.has(entry)) releaseSnapshot(entry.frame);
+    }
+    entries = nextEntries;
+  };
+
   const prune = () => {
     if (!entries.length) return;
-    entries.sort((left, right) => left.timestamp - right.timestamp || left.sequence - right.sequence);
-    const newestTimestamp = entries.at(-1).timestamp;
+    const ordered = [...entries]
+      .sort((left, right) => left.timestamp - right.timestamp || left.sequence - right.sequence);
+    const newestTimestamp = ordered.at(-1).timestamp;
     const oldestAllowed = newestTimestamp - durationLimit;
-    entries = entries.filter(({ timestamp }) => timestamp >= oldestAllowed);
-    if (entries.length > frameLimit) entries = entries.slice(-frameLimit);
+    let retained = ordered.filter(({ timestamp }) => timestamp >= oldestAllowed);
+    if (retained.length > frameLimit) retained = retained.slice(-frameLimit);
+    replaceEntries(retained);
+  };
+
+  const releaseAll = () => {
+    const removed = entries.length;
+    replaceEntries([]);
+    return removed;
   };
 
   return Object.freeze({
@@ -66,9 +196,17 @@ export function createReplayFrameBuffer({
       if (!frame || !Number.isFinite(frameTimestamp)) {
         throw new TypeError("frame and a finite timestamp are required");
       }
-      entries.push({ frame, timestamp: frameTimestamp, sequence: nextSequence++ });
+      const entry = {
+        frame: createFrameSnapshot(frame, {
+          documentTarget,
+          outputWidth: targetWidth,
+        }),
+        timestamp: frameTimestamp,
+        sequence: nextSequence++,
+      };
+      entries.push(entry);
       prune();
-      return entries.some((entry) => entry.frame === frame && entry.timestamp === frameTimestamp);
+      return entries.includes(entry);
     },
     snapshot({
       fromTimestamp = Number.NEGATIVE_INFINITY,
@@ -84,36 +222,65 @@ export function createReplayFrameBuffer({
     durationMs() {
       return entries.length > 1 ? entries.at(-1).timestamp - entries[0].timestamp : 0;
     },
-    clear() {
-      const removed = entries.length;
-      entries = [];
-      return removed;
-    },
+    clear: releaseAll,
     dispose() {
       if (disposed) return false;
       disposed = true;
-      entries = [];
+      releaseAll();
       return true;
     },
   });
 }
 
-function replayEntry(value, index) {
+function replayEntry(value, index, frameDelay) {
   const hasEnvelope = value && typeof value === "object" && "frame" in value;
   const frame = hasEnvelope ? value.frame : value;
   const proposedTimestamp = hasEnvelope ? value.timestamp : value?.timestamp;
-  const timestamp = Number.isFinite(Number(proposedTimestamp)) ? Number(proposedTimestamp) : index;
+  const timestamp = Number.isFinite(Number(proposedTimestamp))
+    ? Number(proposedTimestamp)
+    : index * frameDelay;
   return { frame, timestamp, sequence: index };
 }
 
-function frameDimensions(frame) {
-  const source = frame?.source ?? frame;
-  const width = Number(frame?.width ?? source?.videoWidth ?? source?.naturalWidth ?? source?.width);
-  const height = Number(frame?.height ?? source?.videoHeight ?? source?.naturalHeight ?? source?.height);
-  if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) {
-    throw codedError("VIDEO_REPLAY_INVALID_FRAME", "Replay frame dimensions are invalid.");
+function createPlaybackTimeline(entries, frameDelay) {
+  const firstTimestamp = entries[0].timestamp;
+  const normalized = entries.map((entry) => ({
+    ...entry,
+    offset: Math.max(0, entry.timestamp - firstTimestamp),
+  }));
+  const rawDuration = normalized.at(-1).offset;
+
+  if (normalized.length === 1 || rawDuration <= 0) {
+    return {
+      durationMs: frameDelay,
+      tailDelayMs: frameDelay,
+      frames: [{ frame: normalized.at(-1).frame, offset: 0 }],
+    };
   }
-  return { width, height };
+
+  const durationMs = Math.max(frameDelay, rawDuration);
+  const offsets = [0];
+  const epsilon = frameDelay / 1_000_000;
+  for (let offset = frameDelay; offset < rawDuration - epsilon; offset += frameDelay) {
+    offsets.push(offset);
+  }
+  offsets.push(rawDuration);
+
+  let sourceIndex = 0;
+  const frames = offsets.map((offset) => {
+    while (
+      sourceIndex + 1 < normalized.length
+      && normalized[sourceIndex + 1].offset <= offset + epsilon
+    ) {
+      sourceIndex += 1;
+    }
+    return { frame: normalized[sourceIndex].frame, offset };
+  });
+  return {
+    durationMs,
+    tailDelayMs: Math.max(0, durationMs - rawDuration),
+    frames,
+  };
 }
 
 function stopStream(stream) {
@@ -146,7 +313,8 @@ export function createReplayVideoExporter({
     "videoBitsPerSecond",
   ));
   const defaultTimeout = positiveNumber(timeoutMs, 20_000, "timeoutMs");
-  const format = selectReplayVideoFormat({ MediaRecorderImpl });
+  const formats = supportedReplayVideoFormats(MediaRecorderImpl);
+  const preferredFormat = formats[0] ?? null;
   const managedUrls = new Set();
   const sleep = typeof sleepImpl === "function"
     ? sleepImpl
@@ -164,67 +332,78 @@ export function createReplayVideoExporter({
     { fallback: "gif" },
   );
 
-  const exportFrames = (values, {
+  const beginExport = (values, {
     onProgress = () => {},
     timeoutMs: exportTimeoutMs = defaultTimeout,
   } = {}) => {
-    try {
-      assertUsable();
-    } catch (error) {
-      return Promise.reject(error);
-    }
-    if (!format) return Promise.reject(unsupportedError());
+    assertUsable();
+    if (!formats.length) throw unsupportedError();
     if (activeJob) {
-      return Promise.reject(codedError(
-        "VIDEO_REPLAY_BUSY",
-        "A replay video export is already running.",
-      ));
+      throw codedError("VIDEO_REPLAY_BUSY", "A replay video export is already running.");
     }
     if (!Array.isArray(values) || !values.length) {
-      return Promise.reject(codedError("NO_REPLAY_FRAMES", "There are no replay frames to encode."));
+      throw codedError("NO_REPLAY_FRAMES", "There are no replay frames to encode.");
     }
 
+    const frameDelay = 1000 / targetFps;
     const entries = values
-      .map(replayEntry)
+      .map((value, index) => replayEntry(value, index, frameDelay))
       .sort((left, right) => left.timestamp - right.timestamp || left.sequence - right.sequence);
     const sourceSize = frameDimensions(entries[0].frame);
-    const targetHeight = Math.max(
-      2,
-      Math.round((targetWidth * sourceSize.height / sourceSize.width) / 2) * 2,
-    );
-    const frameDelay = 1000 / targetFps;
+    const targetHeight = scaledFrameHeight(targetWidth, sourceSize);
+    const playback = createPlaybackTimeline(entries, frameDelay);
     const canvas = documentTarget?.createElement?.("canvas");
     const context = canvas?.getContext?.("2d", { alpha: false });
     if (!canvas || !context || typeof canvas.captureStream !== "function") {
-      return Promise.reject(unsupportedError());
+      throw unsupportedError();
     }
     canvas.width = targetWidth;
     canvas.height = targetHeight;
+    const normalizedTimeout = positiveNumber(exportTimeoutMs, defaultTimeout, "timeoutMs");
 
     return new Promise((resolve, reject) => {
       let recorder = null;
       let stream = null;
+      let activeFormat = null;
       let timeoutId = null;
       let settled = false;
       let terminalError = null;
       let scratchCanvas = null;
       let scratchContext = null;
       const chunks = [];
+      const attemptedRecorderMimeTypes = [];
+      const attemptErrors = [];
+
+      const detachRecorder = (targetRecorder) => {
+        if (!targetRecorder) return;
+        targetRecorder.ondataavailable = null;
+        targetRecorder.onerror = null;
+        targetRecorder.onstop = null;
+      };
+
+      const releaseAttempt = ({ stopRecorder = true } = {}) => {
+        const targetRecorder = recorder;
+        const targetStream = stream;
+        recorder = null;
+        stream = null;
+        detachRecorder(targetRecorder);
+        if (stopRecorder && targetRecorder) {
+          try {
+            if (targetRecorder.state !== "inactive") targetRecorder.stop?.();
+          } catch {
+            // Stream release below is authoritative even when stop fails.
+          }
+        }
+        stopStream(targetStream);
+      };
 
       const cleanup = () => {
         if (timeoutId !== null) clearTimeoutImpl?.(timeoutId);
         timeoutId = null;
-        if (recorder) {
-          recorder.ondataavailable = null;
-          recorder.onerror = null;
-          recorder.onstop = null;
-          try {
-            if (recorder.state !== "inactive") recorder.stop?.();
-          } catch {
-            // The stream is still released below when recorder.stop() fails.
-          }
-        }
-        stopStream(stream);
+        releaseAttempt();
+        if (scratchCanvas) releaseSnapshot({ source: scratchCanvas });
+        scratchCanvas = null;
+        scratchContext = null;
         if (activeJob === job) activeJob = null;
       };
 
@@ -241,7 +420,7 @@ export function createReplayVideoExporter({
         if (terminalError) return finishError(terminalError);
         let blob;
         try {
-          blob = new BlobImpl(chunks, { type: format.mimeType });
+          blob = new BlobImpl(chunks, { type: activeFormat.mimeType });
         } catch (cause) {
           return finishError(codedError(
             "VIDEO_REPLAY_ENCODING_FAILED",
@@ -255,25 +434,35 @@ export function createReplayVideoExporter({
             "The replay video encoder returned no data.",
           ));
         }
-        settled = true;
-        cleanup();
-        resolve(Object.freeze({
+        const result = Object.freeze({
           blob,
-          mimeType: format.mimeType,
-          extension: format.extension,
+          mimeType: activeFormat.mimeType,
+          containerMimeType: activeFormat.containerMimeType,
+          recorderMimeType: activeFormat.recorderMimeType,
+          extension: activeFormat.extension,
+          fileName: `replay.${activeFormat.extension}`,
           width: targetWidth,
           height: targetHeight,
           fps: targetFps,
-          durationMs: entries.length * frameDelay,
-        }));
+          durationMs: playback.durationMs,
+        });
+        settled = true;
+        cleanup();
+        resolve(result);
         return true;
       };
 
       const stopRecorder = () => {
         try {
           if (recorder?.state !== "inactive") recorder?.stop?.();
-        } catch {
-          // finishError below remains the authoritative terminal result.
+          return true;
+        } catch (cause) {
+          finishError(codedError(
+            "VIDEO_REPLAY_ENCODING_FAILED",
+            "The replay video encoder could not stop.",
+            { cause },
+          ));
+          return false;
         }
       };
 
@@ -281,7 +470,11 @@ export function createReplayVideoExporter({
         cancel(error) {
           if (settled) return false;
           terminalError = error;
-          stopRecorder();
+          try {
+            if (recorder?.state !== "inactive") recorder?.stop?.();
+          } catch {
+            // finishError below remains the authoritative terminal result.
+          }
           finishError(error);
           return true;
         },
@@ -291,13 +484,7 @@ export function createReplayVideoExporter({
       const drawFrame = async (frame) => {
         context.clearRect?.(0, 0, targetWidth, targetHeight);
         if (typeof drawFrameImpl === "function") {
-          await drawFrameImpl({
-            frame,
-            canvas,
-            context,
-            width: targetWidth,
-            height: targetHeight,
-          });
+          await drawFrameImpl({ frame, canvas, context, width: targetWidth, height: targetHeight });
           return;
         }
         if (frame?.rgba) {
@@ -320,71 +507,98 @@ export function createReplayVideoExporter({
         context.drawImage(frame?.source ?? frame, 0, 0, targetWidth, targetHeight);
       };
 
-      try {
-        stream = canvas.captureStream(targetFps);
-        recorder = new MediaRecorderImpl(stream, {
-          mimeType: format.mimeType,
-          videoBitsPerSecond: targetBitrate,
+      const startPlayback = () => {
+        Promise.resolve().then(async () => {
+          for (let index = 0; index < playback.frames.length; index += 1) {
+            if (settled) return;
+            if (index > 0) {
+              await sleep(playback.frames[index].offset - playback.frames[index - 1].offset);
+            }
+            if (settled) return;
+            await drawFrame(playback.frames[index].frame);
+            if (settled) return;
+            for (const track of stream?.getTracks?.() ?? []) track.requestFrame?.();
+            onProgress({
+              completed: index + 1,
+              total: playback.frames.length,
+              ratio: (index + 1) / playback.frames.length,
+            });
+          }
+          if (playback.tailDelayMs > 0) await sleep(playback.tailDelayMs);
+          if (!settled) stopRecorder();
+        }).catch((cause) => {
+          if (settled) return;
+          const error = cause?.code
+            ? cause
+            : codedError(
+              "VIDEO_REPLAY_ENCODING_FAILED",
+              "A replay frame could not be rendered.",
+              { cause },
+            );
+          terminalError = error;
+          try {
+            if (recorder?.state !== "inactive") recorder?.stop?.();
+          } catch {
+            // finishError below is authoritative.
+          }
+          finishError(error);
         });
-        recorder.ondataavailable = ({ data }) => {
-          if (data?.size) chunks.push(data);
-        };
-        recorder.onerror = (event) => {
-          const cause = event?.error ?? event;
-          finishError(codedError(
-            "VIDEO_REPLAY_ENCODING_FAILED",
-            "The replay video encoder failed.",
-            { cause },
-          ));
-        };
-        recorder.onstop = () => finishSuccess();
-        recorder.start();
-        timeoutId = setTimeoutImpl?.(() => job.cancel(codedError(
-          "VIDEO_REPLAY_TIMEOUT",
-          "Replay video encoding timed out.",
-        )), positiveNumber(exportTimeoutMs, defaultTimeout, "timeoutMs")) ?? null;
-      } catch (cause) {
+      };
+
+      const startFirstWorkingRecorder = () => {
+        for (const candidate of formats) {
+          attemptedRecorderMimeTypes.push(candidate.recorderMimeType);
+          activeFormat = candidate;
+          try {
+            stream = canvas.captureStream(targetFps);
+            recorder = new MediaRecorderImpl(stream, {
+              mimeType: candidate.recorderMimeType,
+              videoBitsPerSecond: targetBitrate,
+            });
+            recorder.ondataavailable = ({ data }) => {
+              if (data?.size) chunks.push(data);
+            };
+            recorder.onerror = (event) => {
+              const cause = event?.error ?? event;
+              finishError(codedError(
+                "VIDEO_REPLAY_ENCODING_FAILED",
+                "The replay video encoder failed.",
+                { cause, recorderMimeType: activeFormat?.recorderMimeType },
+              ));
+            };
+            recorder.onstop = () => finishSuccess();
+            recorder.start();
+            timeoutId = setTimeoutImpl?.(() => job.cancel(codedError(
+              "VIDEO_REPLAY_TIMEOUT",
+              "Replay video encoding timed out.",
+            )), normalizedTimeout) ?? null;
+            startPlayback();
+            return;
+          } catch (cause) {
+            attemptErrors.push(Object.freeze({
+              recorderMimeType: candidate.recorderMimeType,
+              cause,
+            }));
+            releaseAttempt();
+          }
+        }
         finishError(codedError(
           "VIDEO_REPLAY_ENCODING_FAILED",
-          "The replay video encoder could not start.",
-          { cause },
+          "No supported replay video encoder could be started.",
+          { attemptedRecorderMimeTypes, attemptErrors },
         ));
-        return;
-      }
+      };
 
-      Promise.resolve().then(async () => {
-        for (let index = 0; index < entries.length; index += 1) {
-          if (settled) return;
-          await drawFrame(entries[index].frame);
-          if (settled) return;
-          for (const track of stream?.getTracks?.() ?? []) track.requestFrame?.();
-          onProgress({
-            completed: index + 1,
-            total: entries.length,
-            ratio: (index + 1) / entries.length,
-          });
-          await sleep(frameDelay);
-        }
-        if (!settled) stopRecorder();
-      }).catch((cause) => {
-        if (settled) return;
-        const error = cause?.code
-          ? cause
-          : codedError(
-            "VIDEO_REPLAY_ENCODING_FAILED",
-            "A replay frame could not be rendered.",
-            { cause },
-          );
-        terminalError = error;
-        stopRecorder();
-        finishError(error);
-      });
+      startFirstWorkingRecorder();
     });
   };
 
+  const exportFrames = (values, options) => Promise.resolve()
+    .then(() => beginExport(values, options));
+
   return Object.freeze({
-    format: () => format,
-    supported: () => Boolean(format),
+    format: () => preferredFormat,
+    supported: () => Boolean(preferredFormat),
     exportFrames,
     stop() {
       return activeJob?.cancel(codedError(
