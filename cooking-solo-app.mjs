@@ -6,6 +6,8 @@ import {
 } from "./cooking-solo-lifecycle.mjs";
 import { createFinishFocusManager } from "./cooking-solo-focus.mjs";
 import { createCookingFeedbackReporter } from "./cooking-feedback.mjs";
+import { createCookingTuningPanel } from "./cooking-tuning-panel.mjs";
+import { loadBurgerTuning, saveBurgerTuning } from "./burger-tuning.mjs";
 
 const LAYER_NAMES = Object.freeze({
   "bottom-bun": "下层面包",
@@ -51,6 +53,7 @@ export function bootSoloCookingPage(
     windowTarget = globalThis,
     stageFactory = createSoloCookingStage,
     feedbackFactory = createCookingFeedbackReporter,
+    tuningPanelFactory = createCookingTuningPanel,
     manageLoading = true,
   } = {},
 ) {
@@ -78,6 +81,7 @@ export function bootSoloCookingPage(
     feedbackPreview: documentTarget.querySelector("#feedback-preview"),
     feedbackMessage: documentTarget.querySelector("#feedback-message"),
     feedbackStatus: documentTarget.querySelector("#feedback-status"),
+    tuningSheet: documentTarget.querySelector("#tuning-sheet"),
   };
   const focusManager = createFinishFocusManager({
     dialog: elements.finishSheet,
@@ -86,6 +90,7 @@ export function bootSoloCookingPage(
 
   let stage = null;
   let feedback = null;
+  let tuningPanel = null;
   let latest = null;
   const render = (detail) => {
     latest = detail;
@@ -161,15 +166,35 @@ export function bootSoloCookingPage(
   };
 
   try {
+    const tuning = loadBurgerTuning({ globalTarget: windowTarget });
     stage = stageFactory({
       THREE,
       canvas,
+      tuning,
       reducedMotion: windowTarget.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches,
       onChange: render,
       onError: (error) => {
         elements.error.hidden = false;
         elements.status.textContent = error?.message ?? "WebGL 运行异常";
       },
+    });
+    const closeTuning = () => {
+      try {
+        return tuningPanel?.close?.() ?? false;
+      } finally {
+        stage.setInteractionPaused(false);
+      }
+    };
+    tuningPanel = tuningPanelFactory({
+      root: elements.tuningSheet,
+      documentTarget,
+      navigatorTarget: windowTarget.navigator,
+      initialTuning: stage.getTuning(),
+      onChange(next) {
+        const applied = stage.setTuning(next);
+        saveBurgerTuning(applied, { globalTarget: windowTarget });
+      },
+      onRequestClose: closeTuning,
     });
     if (manageLoading) elements.loading.hidden = true;
     render(latest ?? {
@@ -195,6 +220,16 @@ export function bootSoloCookingPage(
         expanded: stage.isExpanded?.() ?? false,
       }),
     });
+    const openTuning = () => {
+      stage.setInteractionPaused(true);
+      let opened = false;
+      try {
+        opened = tuningPanel.open();
+        return opened;
+      } finally {
+        if (!opened) stage.setInteractionPaused(false);
+      }
+    };
     const actionHandlers = {
       "rotate-left": () => stage.rotateSelected(-Math.PI / 8),
       "rotate-right": () => stage.rotateSelected(Math.PI / 8),
@@ -211,29 +246,48 @@ export function bootSoloCookingPage(
       "feedback-open": () => feedback.open(),
       "feedback-close": () => feedback.close(),
       "feedback-submit": () => feedback.submit(),
+      "tuning-open": openTuning,
+      "tuning-close": closeTuning,
     };
     const handleClick = (event) => {
       const action = event.target.closest?.("[data-action]")?.dataset.action;
       actionHandlers[action]?.();
+    };
+    const disposeIntegrations = () => {
+      let firstError = null;
+      for (const task of [
+        () => tuningPanel?.dispose?.(),
+        () => stage?.setInteractionPaused?.(false),
+        () => feedback?.dispose?.(),
+      ]) {
+        try {
+          task();
+        } catch (error) {
+          if (!firstError) firstError = error;
+        }
+      }
+      if (firstError) throw firstError;
     };
     mountSoloCookingLifecycle({
       documentTarget,
       windowTarget,
       stage,
       onClick: handleClick,
-      onDispose: () => feedback?.dispose?.(),
+      onDispose: disposeIntegrations,
     });
     return stage;
   } catch (error) {
-    try {
-      feedback?.dispose?.();
-    } catch {
-      // Preserve the boot error after best-effort feedback recorder cleanup.
-    }
-    try {
-      stage?.dispose?.();
-    } catch {
-      // Preserve and display the boot error after best-effort stage cleanup.
+    for (const task of [
+      () => tuningPanel?.dispose?.(),
+      () => stage?.setInteractionPaused?.(false),
+      () => feedback?.dispose?.(),
+      () => stage?.dispose?.(),
+    ]) {
+      try {
+        task();
+      } catch {
+        // Preserve the boot error while completing the remaining cleanup.
+      }
     }
     elements.loading.hidden = true;
     elements.error.hidden = false;

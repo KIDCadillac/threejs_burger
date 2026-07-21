@@ -30,11 +30,17 @@ import {
   replayCookingTutorial,
   reconcileCookingTutorial,
 } from "./cooking-tutorial-state.mjs";
+import {
+  DEFAULT_BURGER_TUNING,
+  normalizeBurgerTuning,
+} from "./burger-tuning.mjs";
 
-const LAYER_PRESENTATION_SCALE = 0.72;
 const STACK_OVERLAP = 0.025;
 const EXPLODED_GAP = 0.42;
 const SNAP_DURATION = 190;
+const MAX_STACK_CAMERA_DISTANCE = 180;
+const STACK_CAMERA_DEPTH_PADDING = 25;
+const MAX_BOTTOM_LAYER_SINK = 0.03;
 
 const layerStackMinY = (layer) => (
   Number.isFinite(layer?.userData?.stackMinY)
@@ -113,6 +119,7 @@ export function createSoloCookingStage({
   onChange = () => {},
   onError = () => {},
   reducedMotion = false,
+  tuning = DEFAULT_BURGER_TUNING,
   vibrate,
   resourceDisposeObserver = () => {},
 } = {}) {
@@ -186,7 +193,10 @@ export function createSoloCookingStage({
   const cameraView = workbench.getLayout().camera;
   host.camera.fov = cameraView.fov;
   host.camera.near = cameraView.near;
-  host.camera.far = cameraView.far;
+  host.camera.far = Math.max(
+    cameraView.far,
+    MAX_STACK_CAMERA_DISTANCE + STACK_CAMERA_DEPTH_PADDING,
+  );
   // The generic workbench camera includes editor margins. The phone composition
   // intentionally crops only decorative counter edges while retaining every control.
   host.camera.position.set(
@@ -199,6 +209,7 @@ export function createSoloCookingStage({
   host.camera.updateMatrixWorld?.(true);
 
   let state = createSoloCookingState();
+  let activeTuning = normalizeBurgerTuning(tuning);
   let tutorial = createCookingTutorial({ storage });
   let selectedLayerId = null;
   let dropIntent = null;
@@ -207,6 +218,8 @@ export function createSoloCookingStage({
   let focusCameraView = null;
   let focusWorkbenchVisible = true;
   let disposed = false;
+  let externallyPaused = false;
+  let suppressInvalidFeedback = false;
   let lastFrameTime = 0;
   const transitions = new Map();
   let activeMotion = null;
@@ -235,26 +248,37 @@ export function createSoloCookingStage({
     if (tutorial !== previous) emit("tutorial");
   };
 
+  const ingredientForInstance = (instanceId) => state.instances[instanceId];
+  const tuningFor = (instanceId) => activeTuning.ingredients[ingredientForInstance(instanceId)];
+  const targetScale = (instanceId) => {
+    const config = tuningFor(instanceId);
+    const presentationScale = activeTuning.global.presentationScale;
+    return new THREE.Vector3(
+      presentationScale * config.scaleX,
+      presentationScale * config.scaleY,
+      presentationScale * config.scaleZ,
+    );
+  };
+
   const targetTransforms = (assembledOrder = state.assembledOrder) => {
     workbench.root.updateMatrixWorld?.(true);
     burger.root.updateMatrixWorld?.(true);
     const result = new Map();
-    let cursorY = workbench.prep.dropAnchor.position.y;
+    let cursorY = workbench.prep.supportY;
     assembledOrder.forEach((layerId, index) => {
       const layer = burger.getLayer(layerId);
-      const scaledMinY = layerStackMinY(layer) * LAYER_PRESENTATION_SCALE;
-      const scaledMaxY = layerStackMaxY(layer) * LAYER_PRESENTATION_SCALE;
-      const y = cursorY - scaledMinY + (expanded ? index * EXPLODED_GAP : 0);
+      const config = tuningFor(layerId);
+      const scale = targetScale(layerId);
+      const sinkY = index === 0
+        ? Math.min(config.sinkY, MAX_BOTTOM_LAYER_SINK)
+        : config.sinkY;
+      const y = cursorY - layerStackMinY(layer) * scale.y - sinkY;
       result.set(layerId, {
-        position: new THREE.Vector3(0, y, 0),
-        scale: new THREE.Vector3(
-          LAYER_PRESENTATION_SCALE,
-          LAYER_PRESENTATION_SCALE,
-          LAYER_PRESENTATION_SCALE,
-        ),
+        position: new THREE.Vector3(0, y + (expanded ? index * EXPLODED_GAP : 0), 0),
+        scale,
         yaw: state.rotations[layerId],
       });
-      cursorY += scaledMaxY - scaledMinY - STACK_OVERLAP;
+      cursorY = y + layerStackMaxY(layer) * scale.y - STACK_OVERLAP;
     });
     for (const layerId of Object.keys(state.instances)) {
       if (result.has(layerId)) continue;
@@ -263,11 +287,7 @@ export function createSoloCookingStage({
       const local = burger.root.worldToLocal(world.clone());
       result.set(layerId, {
         position: local,
-        scale: new THREE.Vector3(
-          LAYER_PRESENTATION_SCALE,
-          LAYER_PRESENTATION_SCALE,
-          LAYER_PRESENTATION_SCALE,
-        ),
+        scale: targetScale(layerId),
         yaw: state.rotations[layerId],
       });
     }
@@ -367,12 +387,12 @@ export function createSoloCookingStage({
     };
     const previewOrder = state.assembledOrder.filter((id) => id !== intent.id);
     const targets = targetTransforms(previewOrder);
-    const thickness = layerStackThickness(selected) * LAYER_PRESENTATION_SCALE;
     const targetIndex = Math.max(0, Math.min(intent.targetIndex, previewOrder.length));
     const upperIds = new Set(previewOrder.slice(targetIndex));
     const finalOrder = [...previewOrder];
     finalOrder.splice(targetIndex, 0, intent.id);
     const selectedTarget = targetTransforms(finalOrder).get(intent.id);
+    const thickness = layerStackThickness(selected) * selectedTarget.scale.y;
 
     for (const [layerId, target] of targets) {
       if (layerId === intent.id) continue;
@@ -386,17 +406,20 @@ export function createSoloCookingStage({
     selected.rotation.set(0, draggedPose.yaw, 0);
     selected.scale.copy(draggedPose.scale);
 
-    const baseY = workbench.prep.dropAnchor.position.y;
     const lowerId = previewOrder[targetIndex - 1];
-    const gapY = lowerId
+    const cueTargetY = lowerId
       ? targets.get(lowerId).position.y
-        + layerStackMaxY(burger.getLayer(lowerId)) * LAYER_PRESENTATION_SCALE
-        - baseY + 0.015
-      : 0.015;
+        + layerStackMaxY(burger.getLayer(lowerId)) * targets.get(lowerId).scale.y
+        + (expanded ? EXPLODED_GAP : 0)
+        + 0.015
+      : workbench.prep.supportY + 0.015;
+    const cueWorld = burger.root.localToWorld(new THREE.Vector3(0, cueTargetY, 0));
+    const cueLocal = workbench.prep.dropAnchor.worldToLocal(cueWorld);
     workbench.setDropCue({
       targetIndex,
-      y: gapY,
-      radius: selected.userData.surfaceRadius * LAYER_PRESENTATION_SCALE,
+      y: cueLocal.y,
+      radius: selected.userData.surfaceRadius
+        * Math.max(selectedTarget.scale.x, selectedTarget.scale.z),
     });
     burger.setLayerDropPreview(intent.id, {
       position: selectedTarget.position,
@@ -473,7 +496,7 @@ export function createSoloCookingStage({
       motion: createCookingMotion({
         kind,
         startedAt: lastFrameTime,
-        thickness: layerStackThickness(layer) * LAYER_PRESENTATION_SCALE,
+        thickness: layerStackThickness(layer) * targetScale(layerId).y,
         reducedMotion,
       }),
       selectedId: layerId,
@@ -486,7 +509,7 @@ export function createSoloCookingStage({
       targets: targetTransforms(),
       impacted: false,
     };
-    if (reducedMotion) applyActiveMotion(lastFrameTime);
+    applyActiveMotion(lastFrameTime);
   };
 
   const adaptCameraToStack = () => {
@@ -604,29 +627,26 @@ export function createSoloCookingStage({
     return true;
   };
 
-  const selectLayer = (layerId) => {
+  const selectLayer = (layerId, draggedPose = null) => {
     if (disposed) return false;
     if (!state.instances[layerId]) throw new TypeError(`Unknown burger layer: ${layerId}`);
-    const layer = burger.getLayer(layerId);
-    const draggedPose = {
-      position: layer.position.clone(),
-      scale: layer.scale.clone(),
-      yaw: layer.rotation.y,
-    };
     clearTransientVisuals();
-    layer.position.copy(draggedPose.position);
-    layer.rotation.set(0, draggedPose.yaw, 0);
-    layer.scale.copy(draggedPose.scale);
+    const layer = burger.getLayer(layerId);
+    if (draggedPose) {
+      layer.position.copy(draggedPose.position);
+      layer.rotation.set(0, draggedPose.yaw, 0);
+    }
+    const authoritativeScale = layer.scale.clone();
     selectedLayerId = layerId;
     highlightedLayerId = layerId;
     burger.setLayerHighlighted(layerId, true);
     pickMotion = {
       selectedId: layerId,
-      baseScale: draggedPose.scale,
+      baseScale: authoritativeScale,
       motion: createCookingMotion({
         kind: "pick",
         startedAt: lastFrameTime,
-        thickness: layerStackThickness(layer) * LAYER_PRESENTATION_SCALE,
+        thickness: layerStackThickness(layer) * targetScale(layerId).y,
         reducedMotion,
       }),
     };
@@ -693,13 +713,18 @@ export function createSoloCookingStage({
       minPitch: -1.18,
       maxPitch: 1.56,
       minDistance: 5,
-      maxDistance: 45,
+      maxDistance: MAX_STACK_CAMERA_DISTANCE,
       wrapYaw: true,
     },
     resolveDrop,
-    onPick: ({ id }) => {
+    onPick: ({ id, object }) => {
       dropIntent = null;
-      return selectLayer(id);
+      // The controller applies its drag lift before onPick. Carry that pose
+      // across the authoritative resync, but keep the restored target scale.
+      const draggedPose = object
+        ? { position: object.position.clone(), yaw: object.rotation.y }
+        : null;
+      return selectLayer(id, draggedPose);
     },
     onSelection: ({ id, selected }) => {
       if (selected) selectedLayerId = id;
@@ -757,6 +782,7 @@ export function createSoloCookingStage({
       else dropLayer(id, { kind: "bin" });
     },
     onInvalid: ({ reason } = {}) => {
+      if (disposed || suppressInvalidFeedback) return;
       dropIntent = null;
       clearTransientVisuals({ resync: false });
       syncTransforms({ animate: true });
@@ -824,6 +850,7 @@ export function createSoloCookingStage({
       if (focusCameraView) controller.setCameraView?.(focusCameraView, "burger-focus-return");
       focusCameraView = null;
       focused = false;
+      adaptCameraToStack();
     }
     if (notify) emit("focus");
     return focused;
@@ -964,6 +991,49 @@ export function createSoloCookingStage({
   host.start();
   emit("ready");
 
+  const pauseInteractionsSilently = () => {
+    suppressInvalidFeedback = true;
+    try {
+      controller.pause();
+    } finally {
+      suppressInvalidFeedback = false;
+      dropIntent = null;
+      clearTransientVisuals();
+    }
+  };
+
+  const setTuning = (value) => {
+    if (disposed) return activeTuning;
+    let hasPrimaryError = false;
+    try {
+      pauseInteractionsSilently();
+      activeTuning = normalizeBurgerTuning(value);
+      clearTransientVisuals();
+      adaptCameraToStack();
+      emit("tuning");
+      return activeTuning;
+    } catch (error) {
+      hasPrimaryError = true;
+      throw error;
+    } finally {
+      if (!disposed && !state.finished && !externallyPaused) {
+        try {
+          controller.resume();
+        } catch (error) {
+          if (!hasPrimaryError) throw error;
+        }
+      }
+    }
+  };
+
+  const setInteractionPaused = (value) => {
+    if (disposed) return externallyPaused;
+    externallyPaused = Boolean(value);
+    if (externallyPaused) pauseInteractionsSilently();
+    else if (!state.finished) controller.resume();
+    return externallyPaused;
+  };
+
   const api = {
     host,
     workbench,
@@ -971,9 +1041,12 @@ export function createSoloCookingStage({
     tools,
     controller,
     celebration,
-    layerPresentationScale: LAYER_PRESENTATION_SCALE,
-    binLayerScale: LAYER_PRESENTATION_SCALE,
-    prepLayerScale: LAYER_PRESENTATION_SCALE,
+    get layerPresentationScale() { return activeTuning.global.presentationScale; },
+    get binLayerScale() { return activeTuning.global.presentationScale; },
+    get prepLayerScale() { return activeTuning.global.presentationScale; },
+    getTuning: () => activeTuning,
+    setTuning,
+    setInteractionPaused,
     getState: () => state,
     getTutorial: () => tutorial,
     getSelectedLayerId: () => selectedLayerId,
@@ -1003,7 +1076,11 @@ export function createSoloCookingStage({
     },
     setBurgerFocus(value) { return setFocusMode(value); },
     toggleBurgerFocus() { return setFocusMode(!focused); },
-    resetCamera() { return controller.resetCamera(); },
+    resetCamera() {
+      const reset = controller.resetCamera();
+      if (reset) adaptCameraToStack();
+      return reset;
+    },
     undo() {
       if (disposed || !state.history.length) return false;
       if (focused) setFocusMode(false, { notify: false });
@@ -1012,8 +1089,8 @@ export function createSoloCookingStage({
       state = undoSoloCooking(state);
       reconcileModelInstances();
       tutorial = reconcileCookingTutorial(tutorial, state, { selectedLayerId });
-      if (state.finished) controller.pause();
-      else controller.resume();
+      if (state.finished) pauseInteractionsSilently();
+      else if (!externallyPaused) controller.resume();
       applyVisualState({ animate: true, sauces: true });
       emit("undo");
       return true;
@@ -1028,7 +1105,7 @@ export function createSoloCookingStage({
       selectedLayerId = null;
       expanded = false;
       tutorial = reconcileCookingTutorial(tutorial, state, { reset: true });
-      controller.resume();
+      if (!externallyPaused) controller.resume();
       controller.resetCamera();
       applyVisualState({ sauces: true });
       emit("reset");
@@ -1040,7 +1117,7 @@ export function createSoloCookingStage({
       clearTransientVisuals();
       state = finishSoloCooking(state);
       expanded = false;
-      controller.pause();
+      pauseInteractionsSilently();
       applyVisualState({ animate: true });
       advanceTutorial("finished");
       emit("finish");
@@ -1050,7 +1127,7 @@ export function createSoloCookingStage({
       if (disposed || !state.finished) return false;
       clearTransientVisuals();
       state = continueSoloCooking(state);
-      controller.resume();
+      if (!externallyPaused) controller.resume();
       celebration.visible = false;
       emit("continue");
       return true;
@@ -1068,9 +1145,14 @@ export function createSoloCookingStage({
     dispose() {
       if (disposed) return;
       if (focused) setFocusMode(false, { notify: false });
-      clearTransientVisuals();
+      let cancellationError = null;
+      try {
+        pauseInteractionsSilently();
+      } catch (error) {
+        cancellationError = error;
+      }
       disposed = true;
-      cleanup();
+      cleanup(cancellationError);
     },
   };
   return api;

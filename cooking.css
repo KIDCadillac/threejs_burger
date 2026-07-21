@@ -82,13 +82,19 @@ canvas:focus-visible {
   gap: 8px;
 }
 
-.feedback-button {
+.feedback-button,
+.tuning-button {
   min-width: 58px;
   padding: 0 12px;
   color: #2d1a14;
   font-size: .82rem;
   font-weight: 900;
   background: linear-gradient(180deg, #ffd969, #efa933);
+}
+
+.tuning-button {
+  color: var(--cream);
+  background: linear-gradient(180deg, #744b82, #51355f);
 }
 
 .home-link {
@@ -332,6 +338,156 @@ canvas:focus-visible {
 .feedback-status { min-height: 1.4em; margin: 8px 0; color: #a7e6b8; font-size: .8rem; }
 .feedback-submit { width: 100%; color: #2d1a14; font-weight: 900; background: linear-gradient(180deg, #ffd969, #efa933); }
 
+.tuning-sheet {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: grid;
+  align-items: end;
+  padding: max(12px, env(safe-area-inset-top)) 0 0;
+  background: rgba(22, 11, 13, .78);
+  backdrop-filter: blur(12px);
+}
+
+.tuning-sheet[hidden] { display: none; }
+
+.tuning-card {
+  width: 100%;
+  max-width: 100%;
+  max-height: min(86dvh, 48rem);
+  padding: 18px 16px max(18px, env(safe-area-inset-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid rgba(255, 210, 126, .38);
+  border-radius: 24px 24px 0 0;
+  background: linear-gradient(165deg, #4c2c24, #2a1918);
+  box-shadow: 0 -18px 64px rgba(8, 3, 4, .58);
+}
+
+.tuning-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tuning-heading p { margin: 0 0 3px; color: #f1b981; font-size: .75rem; letter-spacing: .1em; }
+.tuning-heading h2 { margin: 0; font-size: 1.25rem; }
+.tuning-heading button { font-size: 1.4rem; }
+
+.tuning-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 16px -2px 12px;
+  padding: 2px 2px 7px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.tuning-tab {
+  flex: 0 0 auto;
+  padding: 0 14px;
+  white-space: nowrap;
+}
+
+.tuning-tab[aria-selected="true"] {
+  border-color: rgba(255, 217, 105, .72);
+  color: #2d1a14;
+  font-weight: 900;
+  background: linear-gradient(180deg, #ffd969, #efa933);
+}
+
+.tuning-fields { display: grid; gap: 10px; }
+
+.tuning-section {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(255, 241, 211, .14);
+  border-radius: 16px;
+  background: rgba(15, 8, 8, .2);
+}
+
+.tuning-section h3 { margin: 0 0 10px; color: #ffd98a; font-size: .85rem; }
+
+.tuning-field {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.tuning-field:first-of-type { margin-top: 0; }
+.tuning-field > span { color: #e6d0ba; font-size: .78rem; font-weight: 800; }
+
+.tuning-inputs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(72px, 5.5rem);
+  gap: 8px;
+  min-width: 0;
+}
+
+.tuning-inputs input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+}
+
+.tuning-inputs input[type="range"] { margin: 0; accent-color: var(--gold); }
+
+.tuning-inputs input[type="number"] {
+  padding: 8px;
+  border: 1px solid rgba(255, 241, 211, .22);
+  border-radius: 12px;
+  color: var(--cream);
+  background: rgba(15, 8, 8, .38);
+  font-size: 16px;
+}
+
+.tuning-card button,
+.tuning-tab,
+.tuning-inputs input { min-height: 44px; }
+
+.tuning-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.tuning-actions button { padding: 8px 10px; }
+.tuning-actions .tuning-copy { grid-column: 1 / -1; color: #2d1a14; font-weight: 900; background: linear-gradient(180deg, #ffd969, #efa933); }
+.tuning-status { min-height: 1.4em; margin: 9px 2px; color: #a7e6b8; font-size: .82rem; }
+
+.tuning-copy-fallback {
+  width: 100%;
+  min-height: 144px;
+  padding: 12px;
+  resize: vertical;
+  border: 1px solid rgba(255, 241, 211, .22);
+  border-radius: 14px;
+  color: var(--cream);
+  background: rgba(15, 8, 8, .38);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 16px;
+}
+
+.tuning-copy-fallback[hidden] { display: none; }
+
+@media (min-width: 720px) {
+  .tuning-sheet {
+    align-items: center;
+    justify-items: end;
+    padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom));
+  }
+
+  .tuning-card {
+    width: clamp(420px, 42vw, 460px);
+    border-radius: 24px;
+    box-shadow: 0 26px 80px rgba(8, 3, 4, .58);
+  }
+}
+
 .cooking-controls {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -409,6 +565,13 @@ canvas:focus-visible {
   .rotate-controls { grid-template-columns: 52px 1fr 52px; }
   .finish-button { margin-top: 0; }
   .cooking-status { grid-column: 2; }
+  .tuning-sheet { padding: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom)); }
+  .tuning-card { max-height: 100%; overflow-y: auto; }
+}
+
+@media (max-width: 420px) {
+  .cooking-header { align-items: flex-start; flex-wrap: wrap; }
+  .header-actions { margin-left: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

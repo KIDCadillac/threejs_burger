@@ -21,6 +21,7 @@
           </div>
         </div>
         <div class="header-actions">
+          <button class="tuning-button" type="button" data-action="tuning-open" aria-haspopup="dialog" aria-controls="tuning-sheet">参数</button>
           <button class="feedback-button" type="button" data-action="feedback-open">反馈</button>
           <button class="icon-button" type="button" data-action="tutorial-replay" aria-label="重新播放新手教程">?</button>
         </div>
@@ -90,6 +91,81 @@
           <p class="feedback-note">系统会自动附上截图、最近 6 秒 GIF 操作回放、层数、库存和设备信息，并上传到测试反馈云盘。</p>
           <p class="feedback-status" id="feedback-status" role="status" aria-live="polite"></p>
           <button class="feedback-submit" type="button" data-action="feedback-submit">自动上传反馈</button>
+        </section>
+      </div>
+
+      <div class="tuning-sheet" id="tuning-sheet" role="dialog" aria-modal="true" aria-labelledby="tuning-title" aria-hidden="true" hidden>
+        <section class="tuning-card">
+          <div class="tuning-heading">
+            <div>
+              <p>实时外观调试</p>
+              <h2 id="tuning-title">汉堡参数</h2>
+            </div>
+            <button type="button" data-action="tuning-close" aria-label="关闭参数面板">×</button>
+          </div>
+
+          <div class="tuning-tabs" role="tablist" aria-label="选择食材">
+            <button class="tuning-tab" type="button" role="tab" data-ingredient-id="bottom-bun" aria-selected="true">下层面包</button>
+            <button class="tuning-tab" type="button" role="tab" data-ingredient-id="patty" aria-selected="false">牛肉饼</button>
+            <button class="tuning-tab" type="button" role="tab" data-ingredient-id="cheese" aria-selected="false">芝士</button>
+            <button class="tuning-tab" type="button" role="tab" data-ingredient-id="tomato" aria-selected="false">番茄</button>
+            <button class="tuning-tab" type="button" role="tab" data-ingredient-id="lettuce" aria-selected="false">生菜</button>
+            <button class="tuning-tab" type="button" role="tab" data-ingredient-id="pickle" aria-selected="false">酸黄瓜</button>
+            <button class="tuning-tab" type="button" role="tab" data-ingredient-id="top-bun" aria-selected="false">上层面包</button>
+          </div>
+
+          <div class="tuning-fields">
+            <section class="tuning-section" aria-labelledby="tuning-global-title">
+              <h3 id="tuning-global-title">整体</h3>
+              <div class="tuning-field">
+                <span id="tuning-presentation-label">展示比例</span>
+                <div class="tuning-inputs">
+                  <input type="range" data-tuning-key="presentationScale" min="0.55" max="0.9" step="0.01" value="0.72" aria-labelledby="tuning-presentation-label">
+                  <input type="number" data-tuning-key="presentationScale" min="0.55" max="0.9" step="0.01" value="0.72" aria-label="展示比例数值">
+                </div>
+              </div>
+            </section>
+
+            <section class="tuning-section" aria-labelledby="tuning-ingredient-title">
+              <h3 id="tuning-ingredient-title">当前食材</h3>
+              <div class="tuning-field">
+                <span id="tuning-scale-x-label">横向比例 X</span>
+                <div class="tuning-inputs">
+                  <input type="range" data-tuning-key="scaleX" min="0.6" max="1.6" step="0.01" value="1" aria-labelledby="tuning-scale-x-label">
+                  <input type="number" data-tuning-key="scaleX" min="0.6" max="1.6" step="0.01" value="1" aria-label="横向比例 X 数值">
+                </div>
+              </div>
+              <div class="tuning-field">
+                <span id="tuning-scale-y-label">厚度比例 Y</span>
+                <div class="tuning-inputs">
+                  <input type="range" data-tuning-key="scaleY" min="0.4" max="2.5" step="0.01" value="1" aria-labelledby="tuning-scale-y-label">
+                  <input type="number" data-tuning-key="scaleY" min="0.4" max="2.5" step="0.01" value="1" aria-label="厚度比例 Y 数值">
+                </div>
+              </div>
+              <div class="tuning-field">
+                <span id="tuning-scale-z-label">纵向比例 Z</span>
+                <div class="tuning-inputs">
+                  <input type="range" data-tuning-key="scaleZ" min="0.6" max="1.6" step="0.01" value="1" aria-labelledby="tuning-scale-z-label">
+                  <input type="number" data-tuning-key="scaleZ" min="0.6" max="1.6" step="0.01" value="1" aria-label="纵向比例 Z 数值">
+                </div>
+              </div>
+              <div class="tuning-field">
+                <span id="tuning-sink-y-label">贴合量</span>
+                <div class="tuning-inputs">
+                  <input type="range" data-tuning-key="sinkY" min="0" max="0.18" step="0.001" value="0" aria-labelledby="tuning-sink-y-label">
+                  <input type="number" data-tuning-key="sinkY" min="0" max="0.18" step="0.001" value="0" aria-label="贴合量数值">
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div class="tuning-actions">
+            <button class="tuning-copy" type="button" data-action="tuning-copy">复制参数</button>
+            <button type="button" data-action="tuning-reset-current">恢复当前</button>
+            <button type="button" data-action="tuning-reset-all">全部恢复默认</button>
+          </div>
+          <p class="tuning-status" data-tuning-status="" role="status" aria-live="polite"></p>
+          <textarea class="tuning-copy-fallback" data-tuning-copy-fallback="" rows="8" aria-label="可手动复制的参数 JSON" readonly hidden></textarea>
         </section>
       </div>
 

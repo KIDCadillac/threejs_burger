@@ -74,30 +74,35 @@ export function sampleCookingMotion(motion, now) {
   }
 
   if (motion.kind === "insert") {
-    if (progress < 0.24) {
-      const phaseProgress = progress / 0.24;
+    if (progress < 0.28) {
+      const phaseProgress = progress / 0.28;
       result.phase = "open";
-      result.arrival = easeInOutCubic(phaseProgress) * 0.18;
-      result.upperOffsetY = (motion.thickness + 0.08) * easeOutCubic(phaseProgress);
+      result.arrival = easeOutCubic(phaseProgress) * 0.55;
+      result.selectedScaleXz = 0.64 + easeOutCubic(phaseProgress) * 0.18;
+      result.selectedScaleY = result.selectedScaleXz;
+      result.selectedOffsetY = motion.thickness * 0.025 * Math.sin(Math.PI * phaseProgress);
     } else if (progress < 0.58) {
-      const phaseProgress = (progress - 0.24) / 0.34;
-      result.phase = "insert";
-      result.arrival = 0.18 + easeInOutCubic(phaseProgress) * 0.65;
-      result.upperOffsetY = motion.thickness + 0.08;
-      result.selectedOffsetY = motion.thickness * (0.45 - phaseProgress * 0.9);
+      const phaseProgress = (progress - 0.28) / 0.3;
+      result.phase = "pop";
+      result.arrival = 0.55 + easeOutCubic(phaseProgress) * 0.3;
+      result.selectedScaleXz = 0.82 + easeOutCubic(phaseProgress) * 0.265;
+      result.selectedScaleY = result.selectedScaleXz;
+      result.selectedOffsetY = motion.thickness * 0.02 * Math.sin(Math.PI * phaseProgress);
     } else if (progress < 0.82) {
       const phaseProgress = (progress - 0.58) / 0.24;
-      result.phase = "close";
-      result.arrival = 0.83 + easeInOutCubic(phaseProgress) * 0.17;
-      result.upperOffsetY = (motion.thickness + 0.08) * (1 - easeOutCubic(phaseProgress));
-      result.selectedOffsetY = -motion.thickness * 0.12
-        * Math.sin(Math.PI * (0.5 + phaseProgress * 0.5));
-      result.impact = phaseProgress >= 0.55;
+      result.phase = "settle";
+      result.arrival = 0.85 + easeOutCubic(phaseProgress) * 0.15;
+      result.selectedScaleXz = 1.085 - easeInOutCubic(phaseProgress) * 0.113;
+      result.selectedScaleY = result.selectedScaleXz;
+      result.selectedOffsetY = motion.thickness * 0.035 * Math.sin(Math.PI * phaseProgress);
+      result.impact = phaseProgress >= 0.25;
     } else {
       const phaseProgress = (progress - 0.82) / 0.18;
       result.phase = "rebound";
       result.arrival = 1;
-      result.selectedOffsetY = motion.thickness * 0.055 * Math.sin(Math.PI * phaseProgress);
+      result.selectedScaleXz = 0.972 + easeOutCubic(phaseProgress) * 0.028;
+      result.selectedScaleY = result.selectedScaleXz;
+      result.selectedOffsetY = motion.thickness * 0.018 * Math.sin(Math.PI * phaseProgress);
     }
     return Object.freeze(result);
   }
