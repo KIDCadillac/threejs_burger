@@ -81,6 +81,7 @@ export function bootSoloCookingPage(
     feedbackPreview: documentTarget.querySelector("#feedback-preview"),
     feedbackMessage: documentTarget.querySelector("#feedback-message"),
     feedbackStatus: documentTarget.querySelector("#feedback-status"),
+    feedbackSubmitButton: documentTarget.querySelector('[data-action="feedback-submit"]'),
     tuningSheet: documentTarget.querySelector("#tuning-sheet"),
   };
   const focusManager = createFinishFocusManager({
@@ -210,6 +211,7 @@ export function bootSoloCookingPage(
       preview: elements.feedbackPreview,
       message: elements.feedbackMessage,
       status: elements.feedbackStatus,
+      submitButton: elements.feedbackSubmitButton,
       documentTarget,
       windowTarget,
       subscribeFrame: stage.host?.onAfterFrame?.bind(stage.host),

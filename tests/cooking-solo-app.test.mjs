@@ -573,6 +573,7 @@ test("feedback actions open, submit, and close the injected reporter", () => {
     stageFactory: stages.factory,
     feedbackFactory(configuration) {
       assert.equal(configuration.canvas, page.elements.canvas);
+      assert.equal(configuration.submitButton, page.elements.feedbackSubmitButton);
       assert.equal(typeof configuration.subscribeFrame, "function");
       assert.equal(typeof configuration.readFramePixels, "function");
       assert.deepEqual(configuration.getContext().state.assembledOrder, []);
