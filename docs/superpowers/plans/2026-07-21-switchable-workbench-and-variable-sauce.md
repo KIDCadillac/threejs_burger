@@ -277,7 +277,7 @@ Commit: `feat: add in-game workbench slot picker`
 
 - [ ] **Step 2: 实现直径联动与真实接触压缩**
 
-开启“锁定直径”时修改 X 同步 Z，修改 Z 同步 X。装盘实例的可见厚度按 `scaleY * (1 - contactCompression)` 计算，接触高度也使用压缩后边界；预备区材料保持未受压形态。测试底层面包、肉饼、芝士及 20 层堆叠均无额外空气层。
+开启“锁定直径”时修改 X 同步 Z，修改 Z 同步 X。装盘实例的可见厚度按 `scaleY * (1 - contactCompression)` 计算，接触高度也使用压缩后边界；预备区材料保持未受压形态。测试底层面包、肉饼、芝士及 60 层堆叠均无额外空气层。
 
 - [ ] **Step 3: 调整 DOM 参数面板**
 
@@ -377,7 +377,7 @@ sauce: {
 
 - [ ] **Step 5: 性能与几何测试**
 
-在 20 层、64 条笔划上断言无 NaN、mesh 数不会随指针移动无限增长、三角形和对象数量不超过既有移动端预算。
+在 60 层、64 条笔划上断言无 NaN、mesh 数不会随指针移动无限增长、三角形和对象数量不超过既有移动端预算。
 
 Run:
 `$tests = @('tests/burger-model-3d.test.mjs','tests/burger-tuning.test.mjs','tests/cooking-tuning-panel.test.mjs'); & "C:\Users\KID\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" --test $tests`
@@ -409,7 +409,7 @@ Expected: PASS 且无空白错误。
 
 - [ ] **Step 3: 用真实浏览器验收桌面和手机视口**
 
-依次验证：左侧三面包、后排四配料、右侧三酱料；每槽独立切换且允许重复；切换不改已装盘汉堡；20 层跟随相机；快速/慢速/停留酱料有明显薄厚区别；同处重复涂抹会增厚；边缘会自然滴落；验收调参即时生效；反馈上传仍工作。
+依次验证：左侧三面包、后排四配料、右侧三酱料；每槽独立切换且允许重复；切换不改已装盘汉堡；60 层跟随相机；快速/慢速/停留酱料有明显薄厚区别；同处重复涂抹会增厚；边缘会自然滴落；验收调参即时生效；反馈上传仍工作。
 
 记录 390×844 和 1440×900 截图到临时验收目录，不加入仓库。
 
