@@ -25,6 +25,7 @@ const SLOT_KIND_BY_REGION = Object.freeze({
   filling: "ingredient",
   sauce: "tool",
 });
+const SLOT_REGION_ORDER = Object.freeze(["bread", "filling", "sauce"]);
 const SLOT_INDICES_BY_REGION = Object.freeze({
   bread: Object.freeze([0, 1, 2]),
   filling: Object.freeze([0, 1, 2, 3]),
@@ -74,7 +75,10 @@ function normalizeSlotDescriptors(value) {
   if (!hasFixedTopology) {
     throw new TypeError("slotDescriptors must use the fixed 3/4/3 topology and regional indices");
   }
-  return Object.freeze(descriptors);
+  return Object.freeze([...descriptors].sort((left, right) => (
+    SLOT_REGION_ORDER.indexOf(left.region) - SLOT_REGION_ORDER.indexOf(right.region)
+      || left.index - right.index
+  )));
 }
 
 const NO_RAYCAST = () => {};
@@ -169,7 +173,7 @@ function centeredLinePositions(count, { x, z, spacing, axis }) {
 
 function switchableStationPositions(descriptors) {
   const byRegion = new Map();
-  for (const region of Object.keys(SLOT_KIND_BY_REGION)) {
+  for (const region of SLOT_REGION_ORDER) {
     const regionDescriptors = descriptors.filter((descriptor) => descriptor.region === region);
     let positions;
     if (region === "bread") {

@@ -196,12 +196,34 @@ test("arranges switchable slots into left bread, back filling, and right sauce r
   workbench.dispose();
 });
 
-test("assigns switchable positions by regional index regardless of descriptor order", () => {
+test("canonicalizes switchable station order regardless of descriptor order", () => {
   const descriptors = createSwitchableSlotDescriptors();
   const ordered = createCookingWorkbench3D(THREE, { slotDescriptors: descriptors });
   const shuffled = createCookingWorkbench3D(THREE, {
     slotDescriptors: [...descriptors].reverse(),
   });
+  const ingredientSlotIds = [
+    "bread-left-1",
+    "bread-left-2",
+    "bread-left-3",
+    "filling-back-1",
+    "filling-back-2",
+    "filling-back-3",
+    "filling-back-4",
+  ];
+  const toolDockIds = ["sauce-right-1", "sauce-right-2", "sauce-right-3"];
+  const allSlotIds = [...ingredientSlotIds, ...toolDockIds];
+  const selectableOrder = (workbench) => workbench.selectableSurfaces
+    .slice(1)
+    .map(({ userData: { cookingSelectable } }) => (
+      cookingSelectable.kind === "station-selector"
+        ? `selector:${cookingSelectable.slotId}`
+        : `station:${cookingSelectable.slotId}`
+    ));
+  const expectedSelectableOrder = [
+    ...allSlotIds.map((slotId) => `station:${slotId}`),
+    ...allSlotIds.map((slotId) => `selector:${slotId}`),
+  ];
 
   for (const { slotId } of descriptors) {
     const orderedStation = ordered.getStationBySlot(slotId);
@@ -213,6 +235,21 @@ test("assigns switchable positions by regional index regardless of descriptor or
       orderedGroup.position.toArray(),
       `${slotId} moved when descriptors were reordered`,
     );
+  }
+  for (const workbench of [ordered, shuffled]) {
+    assert.deepEqual(workbench.ingredientSlots.map(({ slotId }) => slotId), ingredientSlotIds);
+    assert.deepEqual(workbench.toolDocks.map(({ slotId }) => slotId), toolDockIds);
+    assert.deepEqual(workbench.layout.ingredients.map(({ slotId }) => slotId), ingredientSlotIds);
+    assert.deepEqual(workbench.layout.tools.map(({ slotId }) => slotId), toolDockIds);
+    assert.deepEqual(selectableOrder(workbench), expectedSelectableOrder);
+    assert.deepEqual(
+      workbench.getStationsByContent("ingredient", "patty").map(({ slotId }) => slotId),
+      ["filling-back-1", "filling-back-2"],
+    );
+    assert.equal(workbench.getStation("ingredient", "patty").slotId, "filling-back-1");
+    assert.equal(workbench.setHighlighted("ingredient", "patty", true), true);
+    assert.equal(workbench.getStationBySlot("filling-back-1").highlight.visible, true);
+    assert.equal(workbench.getStationBySlot("filling-back-2").highlight.visible, false);
   }
 
   ordered.dispose();
