@@ -468,6 +468,8 @@ export function createCookingInteractionController({
     mustard: 0xe8b62d,
     sour: 0x82b848,
     sticky: 0x734231,
+    ketchup: 0xd9472f,
+    "house-sauce": 0xf2b76b,
   });
 
   const pointerPressure = (event) => {

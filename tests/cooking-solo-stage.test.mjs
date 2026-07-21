@@ -2,6 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "../app/static/vendor/three.module.min.js";
 import { BURGER_LAYER_IDS } from "../app/static/cooking-state.mjs";
+import {
+  SOLO_BURGER_INGREDIENT_IDS,
+  SOLO_COOKING_SAUCE_IDS,
+} from "../app/static/burger-recipes.mjs";
 import { createCookingInteractionController } from "../app/static/cooking-interaction-controller.mjs";
 import { createSoloCookingStage } from "../app/static/cooking-solo-stage.mjs";
 import { MAX_SOLO_STACK_LAYERS, SOLO_INGREDIENT_STOCK } from "../app/static/cooking-solo-state.mjs";
@@ -188,7 +192,7 @@ function prepIntentPoints(stage) {
   };
 }
 
-test("integrates one real Three scene, workbench, burger, bottles, and controller", () => {
+test("integrates the complete recipe ingredient and sauce sets into the solo stage", () => {
   const { host, stage, controllerCount } = harness();
 
   assert.equal(controllerCount, 1);
@@ -198,7 +202,16 @@ test("integrates one real Three scene, workbench, burger, bottles, and controlle
   assert.equal(stage.tools.root.parent, stage.workbench.root);
   assert.ok(stage.workbench.root instanceof THREE.Group);
   assert.ok(stage.burger.getLayer("patty") instanceof THREE.Group);
-  assert.ok(stage.tools.get("chili").root instanceof THREE.Group);
+  assert.deepEqual(
+    [...stage.burger.layers.keys()],
+    SOLO_BURGER_INGREDIENT_IDS,
+  );
+  assert.ok(stage.burger.getLayer("onion") instanceof THREE.Group);
+  assert.ok(stage.burger.getLayer("middle-bun") instanceof THREE.Group);
+  assert.deepEqual([...stage.tools.bottles.keys()], SOLO_COOKING_SAUCE_IDS);
+  assert.ok(stage.tools.get("ketchup").root instanceof THREE.Group);
+  assert.equal(stage.workbench.ingredientSlots.length, SOLO_BURGER_INGREDIENT_IDS.length);
+  assert.equal(stage.workbench.toolDocks.length, SOLO_COOKING_SAUCE_IDS.length);
   assert.equal(host.starts, 1);
   stage.dispose();
 });
@@ -341,13 +354,13 @@ test("resolves visible indexed gaps and a forgiving home drop intention", () => 
   stage.dispose();
 });
 
-test("places seven actual independent layer groups into their matching U-shaped bins", () => {
+test("places all recipe ingredients into matching U-shaped bins", () => {
   const { stage } = harness();
 
   assert.equal(stage.layerPresentationScale, 0.72);
   assert.equal(stage.binLayerScale, stage.layerPresentationScale);
   assert.equal(stage.prepLayerScale, stage.layerPresentationScale);
-  for (const layerId of BURGER_LAYER_IDS) {
+  for (const layerId of SOLO_BURGER_INGREDIENT_IDS) {
     const layer = stage.burger.getLayer(layerId);
     const station = stage.workbench.getStation("ingredient", layerId);
     const stationWorld = station.pickupAnchor.getWorldPosition(new THREE.Vector3());
@@ -435,8 +448,8 @@ test("keeps one base food scale while plate snapping starts a temporary local po
 test("rests the default bottom bun visible underside on the prep support", () => {
   const { stage } = harness({
     reducedMotion: true,
-    workbenchFactory: (Three) => {
-      const workbench = createCookingWorkbench3D(Three);
+    workbenchFactory: (Three, options) => {
+      const workbench = createCookingWorkbench3D(Three, options);
       workbench.prep.dropAnchor.position.y = 0.38;
       return workbench;
     },
@@ -546,7 +559,7 @@ test("getTuning and setTuning normalize frozen live targets without mutating coo
   const changes = [];
   const { stage } = harness({ onChange: (detail) => changes.push(detail) });
   stage.dropLayer("bottom-bun", { kind: "prep" });
-  stage.applySauceStroke(sampleStroke("sticky", "bottom-bun"));
+  stage.applySauceStroke(sampleStroke("house-sauce", "bottom-bun"));
   const stateBefore = stage.getState();
   const fieldIdentities = {
     assembledOrder: stateBefore.assembledOrder,
@@ -704,7 +717,7 @@ test("setTuning cancels a real active sauce preview without invalid feedback", (
     vibrate: (pattern) => vibrations.push(pattern),
   });
   stage.dropLayer("patty", { kind: "prep" });
-  const bottle = stage.tools.get("chili");
+  const bottle = stage.tools.get("ketchup");
   const bottleWorld = bottle.body.getWorldPosition(new THREE.Vector3());
   stage.controller.pointerDown(pointerAtWorld(stage, canvas, 43, bottleWorld));
   assert.equal(stage.controller.getState(), "dragging-bottle");
@@ -1048,8 +1061,8 @@ test("indexed preview uses each layer's live nonuniform target scale and prep su
   const { stage, configuration } = stageHarnessWithConfiguration({
     reducedMotion: true,
     tuning,
-    workbenchFactory: (Three) => {
-      const workbench = createCookingWorkbench3D(Three);
+    workbenchFactory: (Three, options) => {
+      const workbench = createCookingWorkbench3D(Three, options);
       workbench.prep.dropAnchor.position.y = workbench.prep.supportY + 0.41;
       return workbench;
     },
@@ -1410,7 +1423,7 @@ test("replenishes bins, stacks twenty repeated portions in contact, and expands 
   const state = stage.getState();
   assert.equal(state.assembledOrder.length, 20);
   assert.equal(state.inventory.patty, SOLO_INGREDIENT_STOCK - 20);
-  assert.equal(stage.burger.layers.size, BURGER_LAYER_IDS.length + 20);
+  assert.equal(stage.burger.layers.size, SOLO_BURGER_INGREDIENT_IDS.length + 20);
   const intervals = state.assembledOrder.map((id) => visibleLayerInterval(stage.burger.getLayer(id)));
   for (let index = 1; index < intervals.length; index += 1) {
     assert.ok(Math.abs(intervals[index].bottom - intervals[index - 1].top) < 0.08);
@@ -1545,15 +1558,15 @@ test("a quick drag cancels an older transition before the next animation frame",
 
 test("repeated mixed sauce callbacks create surface-safe burger ribbons and update composition", () => {
   const { stage } = harness();
-  stage.applySauceStroke(sampleStroke("chili"));
+  stage.applySauceStroke(sampleStroke("ketchup"));
   stage.applySauceStroke(sampleStroke("mustard"));
-  stage.applySauceStroke(sampleStroke("chili"));
+  stage.applySauceStroke(sampleStroke("ketchup"));
 
   assert.deepEqual(stage.getState().strokes.map(({ sauce }) => sauce), [
-    "chili", "mustard", "chili",
+    "ketchup", "mustard", "ketchup",
   ]);
   assert.deepEqual(stage.burger.getSnapshot().strokes.map(({ sauce }) => sauce), [
-    "chili", "mustard", "chili",
+    "ketchup", "mustard", "ketchup",
   ]);
   const sauceMeshes = [];
   stage.burger.root.traverse((object) => {
@@ -1591,7 +1604,7 @@ test("live sauce previews appear before release and promote without a visual dup
   configuration.onSaucePreview({
     gestureId: "sauce-2",
     segmentIndex: 0,
-    stroke: sampleStroke("sour", "cheese"),
+    stroke: sampleStroke("house-sauce", "cheese"),
   });
   configuration.onSauceCancel({ gestureId: "sauce-2", reason: "pointercancel" });
   assert.equal(stage.burger.getLayer("cheese").children.some((child) => (
@@ -1614,7 +1627,7 @@ test("highlight ghost and sauce visuals inherit tuned scale without identity or 
   });
   stage.dropLayer("bottom-bun", { kind: "prep" });
   stage.dropLayer("patty", { kind: "prep" });
-  stage.applySauceStroke(sampleStroke("sticky", "patty"));
+  stage.applySauceStroke(sampleStroke("house-sauce", "patty"));
   const patty = stage.burger.getLayer("patty");
   const sauce = patty.children.find(({ userData }) => userData.sauceStroke);
   const shell = stage.burger.selectionFeedback;
@@ -1780,7 +1793,7 @@ test("undo and reset restore state, scene transforms, sauce geometry, and resour
     controller: stage.controller,
   };
   stage.dropLayer("bottom-bun", { kind: "prep" });
-  stage.applySauceStroke(sampleStroke("sticky", "bottom-bun"));
+  stage.applySauceStroke(sampleStroke("house-sauce", "bottom-bun"));
   assert.equal(stage.undo(), true);
   assert.equal(stage.getState().strokes.length, 0);
   assert.equal(stage.burger.getSnapshot().strokes.length, 0);
@@ -1800,7 +1813,7 @@ test("undo and reset reconcile tutorial guidance with the restored cooking state
   stage.selectLayer("bottom-bun");
   stage.dropLayer("bottom-bun", { kind: "prep" });
   stage.rotateSelected(0.4);
-  stage.applySauceStroke(sampleStroke("chili", "bottom-bun"));
+  stage.applySauceStroke(sampleStroke("ketchup", "bottom-bun"));
   assert.equal(stage.getTutorial().step, "assemble");
 
   assert.equal(stage.undo(), true);
@@ -1811,10 +1824,8 @@ test("undo and reset reconcile tutorial guidance with the restored cooking state
   assert.equal(stage.getTutorial().step, "rotate");
 
   stage.rotateSelected(0.4);
-  stage.applySauceStroke(sampleStroke("chili", "bottom-bun"));
-  for (const layerId of BURGER_LAYER_IDS.slice(1)) {
-    stage.dropLayer(layerId, { kind: "prep" });
-  }
+  stage.applySauceStroke(sampleStroke("ketchup", "bottom-bun"));
+  stage.dropLayer("patty", { kind: "prep" });
   assert.equal(stage.getTutorial().step, "finish");
   assert.equal(stage.undo(), true);
   assert.equal(stage.getState().complete, false);
@@ -1953,8 +1964,8 @@ function constructionFailureHarness(failAt, { cleanupThrowsAt = null } = {}) {
         if (failAt === "host") throw new Error("boom:host");
         return host;
       },
-      workbenchFactory: fail("workbench", (Three) => createCookingWorkbench3D(Three)),
-      burgerFactory: fail("burger", (Three) => createBurgerModel3D(Three)),
+      workbenchFactory: fail("workbench", (Three, options) => createCookingWorkbench3D(Three, options)),
+      burgerFactory: fail("burger", (Three, options) => createBurgerModel3D(Three, options)),
       toolsFactory: fail("tools", (Three, options) => createCondimentTools3D(Three, options)),
       celebrationFactory,
       controllerFactory,
@@ -2020,7 +2031,7 @@ test("tutorial reconciles an already complete burger immediately after the first
   assert.equal(stage.getState().complete, true);
   assert.equal(stage.getTutorial().step, "sauce");
 
-  stage.applySauceStroke(sampleStroke("chili"));
+  stage.applySauceStroke(sampleStroke("ketchup"));
   assert.equal(stage.getTutorial().step, "finish");
   stage.dispose();
 });
