@@ -58,6 +58,17 @@ test("standalone cooking page is accessible, Chinese, and contains the full play
   assert.doesNotMatch(html, /cooking-loading-elapsed|已等待\s*[\d.]+\s*秒/);
 });
 
+test("the public cooking page is connected to the automatic feedback receiver", async () => {
+  const html = await readFile(htmlPath, "utf8");
+
+  assert.ok(html.includes(
+    '<meta name="feedback-endpoint" content="https://script.google.com/macros/s/AKfycbyk3Fl5BUFRuan-SJYZk4n6QIlRQEHlloeXE1JMskpNJhsduV_1UfbhxoFRUj1my7cHhw/exec">',
+  ));
+  assert.ok(html.includes(
+    '<meta name="feedback-upload-key" content="kid-burger-feedback-20260721-v1">',
+  ));
+});
+
 test("the pure-food focus control stays inside the visible 3d stage", async () => {
   const html = await readFile(htmlPath, "utf8");
   const stageStart = html.indexOf('<section class="cooking-stage"');
