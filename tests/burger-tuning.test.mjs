@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  BURGER_TUNING_INGREDIENT_IDS,
+  BURGER_TUNING_INGREDIENT_LABELS,
   BURGER_TUNING_STORAGE_KEY,
   DEFAULT_BURGER_TUNING,
   loadBurgerTuning,
@@ -21,6 +23,8 @@ const EXPECTED_DEFAULTS = {
     tomato: { scaleX: 1, scaleY: 1, scaleZ: 1, sinkY: 0 },
     lettuce: { scaleX: 1, scaleY: 1.55, scaleZ: 1, sinkY: 0.008 },
     pickle: { scaleX: 1, scaleY: 1, scaleZ: 1, sinkY: 0 },
+    onion: { scaleX: 1, scaleY: 1, scaleZ: 1, sinkY: 0.006 },
+    "middle-bun": { scaleX: 1, scaleY: 1, scaleZ: 1, sinkY: 0.012 },
     "top-bun": { scaleX: 1, scaleY: 1, scaleZ: 1, sinkY: 0.008 },
   },
 };
@@ -44,11 +48,29 @@ function memoryStorage(initial = {}) {
   };
 }
 
-test("burger tuning exposes canonical deeply frozen defaults", () => {
+test("burger tuning exposes nine canonical ingredients, Chinese labels, and deeply frozen defaults", () => {
   assert.equal(BURGER_TUNING_STORAGE_KEY, "solo-cooking-burger-tuning:v1");
+  assert.deepEqual(BURGER_TUNING_INGREDIENT_IDS, [
+    "bottom-bun", "patty", "cheese", "tomato", "lettuce", "pickle",
+    "onion", "middle-bun", "top-bun",
+  ]);
+  assert.deepEqual(BURGER_TUNING_INGREDIENT_LABELS, {
+    "bottom-bun": "下层面包",
+    patty: "牛肉饼",
+    cheese: "芝士",
+    tomato: "番茄",
+    lettuce: "生菜",
+    pickle: "酸黄瓜",
+    onion: "洋葱碎",
+    "middle-bun": "中层面包",
+    "top-bun": "上层面包",
+  });
+  assert.equal(Object.isFrozen(BURGER_TUNING_INGREDIENT_IDS), true);
+  assert.equal(Object.isFrozen(BURGER_TUNING_INGREDIENT_LABELS), true);
   assert.deepEqual(DEFAULT_BURGER_TUNING, EXPECTED_DEFAULTS);
   assert.deepEqual(Object.keys(DEFAULT_BURGER_TUNING.ingredients), [
-    "bottom-bun", "patty", "cheese", "tomato", "lettuce", "pickle", "top-bun",
+    "bottom-bun", "patty", "cheese", "tomato", "lettuce", "pickle",
+    "onion", "middle-bun", "top-bun",
   ]);
   assertFrozenTree(DEFAULT_BURGER_TUNING);
   assert.throws(() => {
@@ -84,7 +106,8 @@ test("normalization rebuilds partial input in canonical order and strips obsolet
   assert.deepEqual(Object.keys(normalized), ["version", "global", "ingredients"]);
   assert.deepEqual(Object.keys(normalized.global), ["presentationScale"]);
   assert.deepEqual(Object.keys(normalized.ingredients), [
-    "bottom-bun", "patty", "cheese", "tomato", "lettuce", "pickle", "top-bun",
+    "bottom-bun", "patty", "cheese", "tomato", "lettuce", "pickle",
+    "onion", "middle-bun", "top-bun",
   ]);
   assert.deepEqual(Object.keys(normalized.ingredients.cheese), [
     "scaleX", "scaleY", "scaleZ", "sinkY",

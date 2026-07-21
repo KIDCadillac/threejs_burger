@@ -4,6 +4,18 @@ import * as THREE from "../app/static/vendor/three.module.min.js";
 import { BURGER_LAYER_IDS, SAUCE_KEYS } from "../app/static/cooking-state.mjs";
 import { createBurgerModel3D } from "../app/static/burger-model-3d.mjs";
 
+const SOLO_INGREDIENT_IDS = Object.freeze([
+  "bottom-bun",
+  "patty",
+  "cheese",
+  "tomato",
+  "lettuce",
+  "pickle",
+  "onion",
+  "middle-bun",
+  "top-bun",
+]);
+
 const closeTo = (actual, expected, epsilon = 1e-6) => {
   assert.ok(Math.abs(actual - expected) <= epsilon, `${actual} is not close to ${expected}`);
 };
@@ -11,6 +23,37 @@ const closeTo = (actual, expected, epsilon = 1e-6) => {
 const triangleCount = (geometry) => (
   geometry.index ? geometry.index.count / 3 : geometry.attributes.position.count / 3
 );
+
+function connectedGeometryComponents(geometry) {
+  const vertexCount = geometry.attributes.position.count;
+  const parent = Array.from({ length: vertexCount }, (_, index) => index);
+  const find = (index) => {
+    while (parent[index] !== index) {
+      parent[index] = parent[parent[index]];
+      index = parent[index];
+    }
+    return index;
+  };
+  const union = (left, right) => {
+    const leftRoot = find(left);
+    const rightRoot = find(right);
+    if (leftRoot !== rightRoot) parent[rightRoot] = leftRoot;
+  };
+  const index = geometry.index?.array
+    ?? Array.from({ length: vertexCount }, (_, vertexIndex) => vertexIndex);
+  const used = new Set();
+  for (let triangle = 0; triangle < index.length; triangle += 3) {
+    const a = Number(index[triangle]);
+    const b = Number(index[triangle + 1]);
+    const c = Number(index[triangle + 2]);
+    used.add(a);
+    used.add(b);
+    used.add(c);
+    union(a, b);
+    union(b, c);
+  }
+  return new Set([...used].map(find)).size;
+}
 
 function assertSurfaceRibbonClearance(mesh) {
   const { geometry } = mesh;
@@ -79,6 +122,91 @@ test("builds seven stable, independently transformable Three.js food layers", ()
   closeTo(patty.rotation.y, -0.48);
   closeTo(patty.rotation.z, 0.05);
   assert.deepEqual(tomato.position.toArray(), tomatoBefore.toArray());
+
+  burger.dispose();
+});
+
+test("injects all nine solo ingredients without changing the legacy seven-layer default", () => {
+  const legacy = createBurgerModel3D(THREE);
+  assert.deepEqual(legacy.getLayerOrder(), BURGER_LAYER_IDS);
+  assert.deepEqual([...legacy.layers.keys()], BURGER_LAYER_IDS);
+  legacy.dispose();
+
+  const burger = createBurgerModel3D(THREE, { ingredientIds: SOLO_INGREDIENT_IDS });
+  assert.deepEqual(burger.getLayerOrder(), SOLO_INGREDIENT_IDS);
+  assert.deepEqual([...burger.layers.keys()], SOLO_INGREDIENT_IDS);
+  assert.equal(burger.selectableSurfaces.length, SOLO_INGREDIENT_IDS.length);
+  assert.ok(burger.getLayer("onion") instanceof THREE.Group);
+  assert.ok(burger.getLayer("middle-bun") instanceof THREE.Group);
+
+  const repeatedOnion = burger.createLayerInstance("onion", "onion#2");
+  assert.equal(repeatedOnion.userData.foodLayer.ingredientId, "onion");
+  assert.equal(burger.removeLayerInstance("onion#2"), true);
+  assert.throws(
+    () => createBurgerModel3D(THREE, { ingredientIds: [...SOLO_INGREDIENT_IDS, "onion"] }),
+    /ingredientIds/i,
+  );
+  assert.throws(
+    () => createBurgerModel3D(THREE, { ingredientIds: [...SOLO_INGREDIENT_IDS, "unknown"] }),
+    /ingredientIds/i,
+  );
+  burger.dispose();
+});
+
+test("models onion as disconnected volumetric fragments instead of one round slice", () => {
+  const burger = createBurgerModel3D(THREE, { ingredientIds: SOLO_INGREDIENT_IDS });
+  const onion = burger.getLayer("onion");
+  const geometry = onion.userData.selectableSurface.geometry;
+  geometry.computeBoundingBox();
+  const size = geometry.boundingBox.getSize(new THREE.Vector3());
+
+  assert.equal(geometry.type, "BufferGeometry");
+  assert.equal(geometry instanceof THREE.CylinderGeometry, false);
+  assert.ok(connectedGeometryComponents(geometry) >= 7, "onion has several separate 3D pieces");
+  assert.ok(size.x > 1.4 && size.z > 1.4, "onion fragments cover a burger layer");
+  assert.ok(size.y >= 0.07 && size.y <= 0.2, "onion fragments have thin but visible volume");
+  assert.equal(onion.userData.stackMinY, geometry.boundingBox.min.y);
+  assert.equal(onion.userData.stackMaxY, geometry.boundingBox.max.y);
+
+  burger.dispose();
+});
+
+test("models the middle bun as a flat double-sided toasted layer with reliable contacts", () => {
+  const burger = createBurgerModel3D(THREE, { ingredientIds: SOLO_INGREDIENT_IDS });
+  const middleBun = burger.getLayer("middle-bun");
+  const surface = middleBun.userData.selectableSurface;
+  surface.geometry.computeBoundingBox();
+  const size = surface.geometry.boundingBox.getSize(new THREE.Vector3());
+  const decorations = [];
+  middleBun.traverse((object) => {
+    if (object.userData.foodDecoration) decorations.push(object);
+  });
+
+  assert.ok(surface.geometry instanceof THREE.CylinderGeometry);
+  assert.ok(size.y >= 0.2 && size.y <= 0.38, "middle bun stays flat");
+  assert.ok(size.x >= size.y * 5 && size.z >= size.y * 5, "middle bun is not a dome");
+  assert.equal(middleBun.userData.stackMinY, surface.geometry.boundingBox.min.y);
+  assert.equal(middleBun.userData.stackMaxY, surface.geometry.boundingBox.max.y);
+  assert.deepEqual(
+    decorations
+      .filter(({ userData }) => userData.foodDecoration.kind === "middle-bun-toast")
+      .map(({ userData }) => userData.foodDecoration.face)
+      .sort(),
+    ["bottom", "top"],
+  );
+  assert.equal(
+    decorations.some(({ userData }) => userData.foodDecoration.kind === "sesame"),
+    false,
+  );
+
+  const order = burger.getLayerOrder();
+  for (let index = 1; index < order.length; index += 1) {
+    const lower = burger.getLayer(order[index - 1]);
+    const upper = burger.getLayer(order[index]);
+    const lowerTop = lower.position.y + lower.userData.stackMaxY * lower.scale.y;
+    const upperBottom = upper.position.y + upper.userData.stackMinY * upper.scale.y;
+    closeTo(upperBottom - lowerTop, -0.035);
+  }
 
   burger.dispose();
 });

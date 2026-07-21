@@ -1,6 +1,17 @@
 import { BURGER_LAYER_IDS, SAUCE_KEYS } from "./cooking-state.mjs";
 
 const FOOD_ID = "burger";
+const AVAILABLE_BURGER_INGREDIENT_IDS = Object.freeze([
+  "bottom-bun",
+  "patty",
+  "cheese",
+  "tomato",
+  "lettuce",
+  "pickle",
+  "onion",
+  "middle-bun",
+  "top-bun",
+]);
 const MAX_STROKES = 64;
 const MAX_POINTS = 24;
 const COLLAPSED_OVERLAP = 0.035;
@@ -35,10 +46,26 @@ function assertActive(disposed) {
   if (disposed) throw new Error("Burger model is disposed");
 }
 
-function assertLayerId(layerId) {
-  if (!BURGER_LAYER_IDS.includes(layerId)) {
+function assertLayerId(layerId, ingredientIds = BURGER_LAYER_IDS) {
+  if (!ingredientIds.includes(layerId)) {
     throw new TypeError(`Unknown burger layer: ${String(layerId)}`);
   }
+}
+
+function normalizeIngredientIds(value) {
+  if (value === undefined) return Object.freeze([...BURGER_LAYER_IDS]);
+  if (!Array.isArray(value) || value.length < BURGER_LAYER_IDS.length) {
+    throw new TypeError("options.ingredientIds must contain every legacy burger ingredient");
+  }
+  const uniqueIds = new Set(value);
+  if (
+    uniqueIds.size !== value.length
+    || value.some((id) => !AVAILABLE_BURGER_INGREDIENT_IDS.includes(id))
+    || BURGER_LAYER_IDS.some((id) => !uniqueIds.has(id))
+  ) {
+    throw new TypeError("options.ingredientIds must be unique known burger ingredients");
+  }
+  return Object.freeze([...value]);
 }
 
 function assertFinite(value, label) {
@@ -58,11 +85,11 @@ function setOptionalVector(vector, value, label) {
   }
 }
 
-function assertPermutation(order) {
-  if (!Array.isArray(order) || order.length !== BURGER_LAYER_IDS.length) {
-    throw new TypeError("layerOrder must contain all seven burger layers");
+function assertPermutation(order, ingredientIds = BURGER_LAYER_IDS) {
+  if (!Array.isArray(order) || order.length !== ingredientIds.length) {
+    throw new TypeError(`layerOrder must contain all ${ingredientIds.length} burger layers`);
   }
-  if (new Set(order).size !== order.length || order.some((id) => !BURGER_LAYER_IDS.includes(id))) {
+  if (new Set(order).size !== order.length || order.some((id) => !ingredientIds.includes(id))) {
     throw new TypeError("layerOrder must be an exact burger layer permutation");
   }
 }
@@ -203,6 +230,86 @@ function createLettuceGeometry(THREE) {
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
+  return geometry;
+}
+
+function createOnionGeometry(THREE) {
+  const positions = [];
+  const indices = [];
+
+  const appendFragment = ({
+    x,
+    z,
+    angle,
+    tangentHalf,
+    radialHalf,
+    yOffset = 0,
+  }) => {
+    const tangentX = -Math.sin(angle);
+    const tangentZ = Math.cos(angle);
+    const radialX = Math.cos(angle);
+    const radialZ = Math.sin(angle);
+    const localCorners = [
+      [-tangentHalf * 0.78, -radialHalf],
+      [tangentHalf * 0.78, -radialHalf],
+      [tangentHalf, radialHalf],
+      [-tangentHalf, radialHalf],
+    ];
+    const baseIndex = positions.length / 3;
+    for (const y of [-0.055 + yOffset, 0.055 + yOffset]) {
+      for (const [tangent, radial] of localCorners) {
+        positions.push(
+          x + tangentX * tangent + radialX * radial,
+          y,
+          z + tangentZ * tangent + radialZ * radial,
+        );
+      }
+    }
+    indices.push(
+      baseIndex, baseIndex + 2, baseIndex + 1,
+      baseIndex, baseIndex + 3, baseIndex + 2,
+      baseIndex + 4, baseIndex + 5, baseIndex + 6,
+      baseIndex + 4, baseIndex + 6, baseIndex + 7,
+    );
+    for (let edge = 0; edge < 4; edge += 1) {
+      const next = (edge + 1) % 4;
+      indices.push(
+        baseIndex + edge,
+        baseIndex + next,
+        baseIndex + next + 4,
+        baseIndex + edge,
+        baseIndex + next + 4,
+        baseIndex + edge + 4,
+      );
+    }
+  };
+
+  appendFragment({
+    x: 0,
+    z: 0,
+    angle: Math.PI / 7,
+    tangentHalf: 0.2,
+    radialHalf: 0.14,
+  });
+  for (let index = 0; index < 9; index += 1) {
+    const angle = index / 9 * Math.PI * 2 + 0.14;
+    const radius = index % 2 ? 0.82 : 0.7;
+    appendFragment({
+      x: Math.cos(angle) * radius,
+      z: Math.sin(angle) * radius,
+      angle,
+      tangentHalf: 0.2 + (index % 3) * 0.025,
+      radialHalf: 0.11 + (index % 2) * 0.018,
+      yOffset: ((index % 3) - 1) * 0.006,
+    });
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
   return geometry;
 }
 
@@ -562,6 +669,12 @@ function buildLayerDefinitions(THREE) {
     roughness: 0.66,
     clearcoat: 0.08,
   });
+  const onionMaterial = makeMaterial(THREE, {
+    color: 0xe7d5ee,
+    roughness: 0.5,
+    clearcoat: 0.16,
+    clearcoatRoughness: 0.5,
+  });
   const sesameMaterial = makeMaterial(THREE, {
     color: 0xf3d38a,
     roughness: 0.74,
@@ -572,6 +685,13 @@ function buildLayerDefinitions(THREE) {
   const tomato = displaceCylinder(new THREE.CylinderGeometry(1.02, 1.04, 0.2, 40, 2), 0.01, 6, 0.9);
   const lettuce = createLettuceGeometry(THREE);
   const pickle = displaceCylinder(new THREE.CylinderGeometry(0.84, 0.86, 0.18, 40, 2), 0.014, 5, 1.2);
+  const onion = createOnionGeometry(THREE);
+  const middleBun = displaceCylinder(
+    new THREE.CylinderGeometry(1.13, 1.16, 0.3, 42, 3),
+    0.012,
+    7,
+    0.55,
+  );
   const topBun = createBunGeometry(THREE, true);
   return {
     definitions: [
@@ -603,6 +723,14 @@ function buildLayerDefinitions(THREE) {
         footprint: Object.freeze({ kind: "disc", radius: 0.84, margin: 0.88 }),
       },
       {
+        id: "onion", geometry: onion, material: onionMaterial,
+        footprint: Object.freeze({ kind: "disc", radius: 0.94, margin: 0.86 }),
+      },
+      {
+        id: "middle-bun", geometry: middleBun, material: bunMaterial,
+        footprint: Object.freeze({ kind: "disc", radius: 1.13, margin: 0.88 }),
+      },
+      {
         id: "top-bun", geometry: topBun, material: bunMaterial,
         stackContact: Object.freeze({ minY: -0.14 }),
         footprint: Object.freeze({ kind: "disc", radius: 1.23, margin: 0.88 }),
@@ -632,13 +760,16 @@ export function createBurgerModel3D(THREE, options = {}) {
   if (onSauceGeometry !== undefined && typeof onSauceGeometry !== "function") {
     throw new TypeError("options.onSauceGeometry must be a function");
   }
+  const ingredientIds = normalizeIngredientIds(options.ingredientIds);
 
   const root = new THREE.Group();
   root.name = "food:burger";
   root.userData.foodModel = Object.freeze({ food: FOOD_ID, version: 1 });
   root.userData.biteAmount = 0;
 
-  const { definitions, sesameMaterial } = buildLayerDefinitions(THREE);
+  const { definitions: availableDefinitions, sesameMaterial } = buildLayerDefinitions(THREE);
+  const definitionsById = new Map(availableDefinitions.map((definition) => [definition.id, definition]));
+  const definitions = ingredientIds.map((id) => definitionsById.get(id));
   const layers = new Map();
   const ingredientByLayerId = new Map();
   const surfacesById = new Map();
@@ -651,6 +782,10 @@ export function createBurgerModel3D(THREE, options = {}) {
   const biteThresholdsById = new Map();
   const projectionMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
   ownedMaterials.add(projectionMaterial);
+  for (const definition of availableDefinitions) {
+    ownedGeometries.add(definition.geometry);
+    ownedMaterials.add(definition.material);
+  }
 
   for (const definition of definitions) {
     const group = new THREE.Group();
@@ -717,7 +852,7 @@ export function createBurgerModel3D(THREE, options = {}) {
     biteThresholdsById.set(definition.id, maxRadius * 0.12);
   }
 
-  const feedbackGeometry = surfacesById.get(BURGER_LAYER_IDS[0]).geometry;
+  const feedbackGeometry = surfacesById.get(ingredientIds[0]).geometry;
   const selectionOutlineMaterial = new THREE.MeshBasicMaterial({
     color: 0xffe6a0,
     transparent: true,
@@ -773,6 +908,28 @@ export function createBurgerModel3D(THREE, options = {}) {
     vein: makeMaterial(THREE, { color: 0x3e762d, roughness: 0.78 }),
   };
   Object.values(detailMaterials).forEach((material) => ownedMaterials.add(material));
+
+  if (layers.has("middle-bun")) {
+    const toastFaceGeometry = new THREE.CircleGeometry(0.94, 40);
+    for (const [face, y, rotationX] of [
+      ["top", 0.152, -Math.PI / 2],
+      ["bottom", -0.152, Math.PI / 2],
+    ]) {
+      const toastFace = new THREE.Mesh(toastFaceGeometry, detailMaterials.toast);
+      toastFace.name = `food-detail:middle-bun:toast-${face}`;
+      toastFace.userData.foodDecoration = Object.freeze({
+        kind: "middle-bun-toast",
+        food: FOOD_ID,
+        layerId: "middle-bun",
+        face,
+      });
+      toastFace.position.y = y;
+      toastFace.rotation.x = rotationX;
+      toastFace.raycast = NO_RAYCAST;
+      layers.get("middle-bun").add(toastFace);
+    }
+    ownedGeometries.add(toastFaceGeometry);
+  }
 
   const toastGeometry = new THREE.TorusGeometry(1.105, 0.035, 5, 32);
   const toastBand = new THREE.Mesh(toastGeometry, detailMaterials.toast);
@@ -861,7 +1018,7 @@ export function createBurgerModel3D(THREE, options = {}) {
     return [sauce, material];
   }));
 
-  let order = [...BURGER_LAYER_IDS];
+  let order = [...ingredientIds];
   let expanded = false;
   let disposed = false;
   const sauceEntries = [];
@@ -1249,14 +1406,14 @@ export function createBurgerModel3D(THREE, options = {}) {
     assertActive(disposed);
     assertExactKeys(composition, COMPOSITION_KEYS, "composition");
     if (composition.food !== FOOD_ID) throw new TypeError("composition.food must be burger");
-    assertPermutation(composition.layerOrder);
+    assertPermutation(composition.layerOrder, ingredientIds);
     if (!composition.layerPoses || typeof composition.layerPoses !== "object"
       || Array.isArray(composition.layerPoses)) {
       throw new TypeError("composition.layerPoses must be an object");
     }
     const poseKeys = Object.keys(composition.layerPoses);
-    if (poseKeys.length !== BURGER_LAYER_IDS.length
-      || poseKeys.some((id) => !BURGER_LAYER_IDS.includes(id))) {
+    if (poseKeys.length !== ingredientIds.length
+      || poseKeys.some((id) => !ingredientIds.includes(id))) {
       throw new TypeError("composition.layerPoses must contain every burger layer exactly once");
     }
     if (!Array.isArray(composition.strokes)
@@ -1264,7 +1421,7 @@ export function createBurgerModel3D(THREE, options = {}) {
       || composition.strokes.length > MAX_STROKES) {
       throw new TypeError(`composition.strokes must contain 1 to ${MAX_STROKES} strokes`);
     }
-    const validatedPoses = Object.fromEntries(BURGER_LAYER_IDS.map((id) => {
+    const validatedPoses = Object.fromEntries(ingredientIds.map((id) => {
       const pose = assertExactKeys(
         composition.layerPoses[id], POSE_KEYS, `composition.layerPoses.${id}`,
       );
@@ -1287,7 +1444,7 @@ export function createBurgerModel3D(THREE, options = {}) {
 
     order = [...composition.layerOrder];
     applyStackHeights();
-    for (const id of BURGER_LAYER_IDS) {
+    for (const id of ingredientIds) {
       const layer = layers.get(id);
       const pose = validatedPoses[id];
       layer.position.x = pose.x;
@@ -1299,7 +1456,7 @@ export function createBurgerModel3D(THREE, options = {}) {
   };
 
   const applyBiteGeometry = (normalizedAmount) => {
-    for (const layerId of BURGER_LAYER_IDS) {
+    for (const layerId of ingredientIds) {
       const surface = surfacesById.get(layerId);
       const geometry = surface.geometry;
       const source = biteSources.get(geometry);
@@ -1360,7 +1517,7 @@ export function createBurgerModel3D(THREE, options = {}) {
 
   const createLayerInstance = (ingredientId, instanceId) => {
     assertActive(disposed);
-    assertLayerId(ingredientId);
+    assertLayerId(ingredientId, ingredientIds);
     if (typeof instanceId !== "string" || !instanceId.trim()) {
       throw new TypeError("instanceId must be a non-empty string");
     }
@@ -1401,7 +1558,7 @@ export function createBurgerModel3D(THREE, options = {}) {
 
   const removeLayerInstance = (instanceId) => {
     assertActive(disposed);
-    if (BURGER_LAYER_IDS.includes(instanceId)) {
+    if (ingredientIds.includes(instanceId)) {
       throw new TypeError("Canonical burger layers cannot be removed");
     }
     const layer = layers.get(instanceId);
@@ -1425,7 +1582,7 @@ export function createBurgerModel3D(THREE, options = {}) {
     return true;
   };
 
-  const selectableSurfaces = Object.freeze(BURGER_LAYER_IDS.map((id) => surfacesById.get(id)));
+  const selectableSurfaces = Object.freeze(ingredientIds.map((id) => surfacesById.get(id)));
   const readonlyLayers = createReadonlyMapView(layers);
   const api = {
     root,

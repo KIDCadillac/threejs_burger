@@ -1,19 +1,11 @@
 import {
+  BURGER_TUNING_INGREDIENT_IDS,
+  BURGER_TUNING_INGREDIENT_LABELS,
   DEFAULT_BURGER_TUNING,
   normalizeBurgerTuning,
   resetBurgerIngredient,
   serializeBurgerTuning,
 } from "./burger-tuning.mjs";
-
-const INGREDIENT_IDS = Object.freeze([
-  "bottom-bun",
-  "patty",
-  "cheese",
-  "tomato",
-  "lettuce",
-  "pickle",
-  "top-bun",
-]);
 
 const TUNING_KEYS = Object.freeze([
   "presentationScale",
@@ -60,8 +52,8 @@ export function createCookingTuningPanel({
     }
   }
 
-  requireNode(tabs.length === INGREDIENT_IDS.length, "ingredient tabs");
-  for (const id of INGREDIENT_IDS) {
+  requireNode(tabs.length === BURGER_TUNING_INGREDIENT_IDS.length, "ingredient tabs");
+  for (const id of BURGER_TUNING_INGREDIENT_IDS) {
     requireNode(
       tabs.filter((tab) => tab?.dataset?.ingredientId === id).length === 1,
       `[data-ingredient-id="${id}"]`,
@@ -94,6 +86,9 @@ export function createCookingTuningPanel({
 
   function syncDom() {
     for (const tab of tabs) {
+      const label = BURGER_TUNING_INGREDIENT_LABELS[tab.dataset.ingredientId];
+      tab.textContent = label;
+      tab.setAttribute("aria-label", label);
       const selected = tab.dataset.ingredientId === selectedIngredient;
       tab.setAttribute("aria-selected", String(selected));
       tab.tabIndex = selected ? 0 : -1;

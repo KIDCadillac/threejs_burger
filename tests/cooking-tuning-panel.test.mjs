@@ -3,19 +3,13 @@ import assert from "node:assert/strict";
 
 import { createCookingTuningPanel } from "../app/static/cooking-tuning-panel.mjs";
 import {
+  BURGER_TUNING_INGREDIENT_IDS,
+  BURGER_TUNING_INGREDIENT_LABELS,
   DEFAULT_BURGER_TUNING,
   serializeBurgerTuning,
 } from "../app/static/burger-tuning.mjs";
 
-const INGREDIENT_IDS = [
-  "bottom-bun",
-  "patty",
-  "cheese",
-  "tomato",
-  "lettuce",
-  "pickle",
-  "top-bun",
-];
+const INGREDIENT_IDS = [...BURGER_TUNING_INGREDIENT_IDS];
 
 const TUNING_KEYS = [
   "presentationScale",
@@ -190,13 +184,26 @@ function makeHarness({
   };
 }
 
+test("panel gives all nine ingredient tabs stable Chinese labels", () => {
+  const harness = makeHarness();
+
+  assert.equal(harness.tabs.length, 9);
+  assert.deepEqual(
+    Object.fromEntries(harness.tabs.map((tab) => [tab.dataset.ingredientId, tab.textContent])),
+    BURGER_TUNING_INGREDIENT_LABELS,
+  );
+  assert.ok(harness.tabs.every((tab) => (
+    tab.getAttribute("aria-label") === BURGER_TUNING_INGREDIENT_LABELS[tab.dataset.ingredientId]
+  )));
+});
+
 function assertFrozenTree(value) {
   if (!value || typeof value !== "object") return;
   assert.equal(Object.isFrozen(value), true);
   for (const child of Object.values(value)) assertFrozenTree(child);
 }
 
-test("initialization normalizes tuning and synchronizes all seven ingredient tabs", () => {
+test("initialization normalizes tuning and synchronizes all nine ingredient tabs", () => {
   const harness = makeHarness({
     initialTuning: {
       version: 1,
@@ -212,9 +219,11 @@ test("initialization normalizes tuning and synchronizes all seven ingredient tab
   assert.deepEqual(harness.tabs.map((tab) => tab.dataset.ingredientId), INGREDIENT_IDS);
   assert.deepEqual(
     harness.tabs.map((tab) => tab.getAttribute("aria-selected")),
-    ["true", "false", "false", "false", "false", "false", "false"],
+    INGREDIENT_IDS.map((_, index) => String(index === 0)),
   );
-  assert.deepEqual(harness.tabs.map((tab) => tab.tabIndex), [0, -1, -1, -1, -1, -1, -1]);
+  assert.deepEqual(harness.tabs.map((tab) => tab.tabIndex), INGREDIENT_IDS.map((_, index) => (
+    index === 0 ? 0 : -1
+  )));
   assert.equal(harness.input("presentationScale", "range").value, "0.9");
   assert.equal(harness.input("presentationScale", "number").value, "0.9");
   assert.equal(harness.input("scaleX", "range").value, "0.6");
