@@ -51,11 +51,21 @@ class FakeElement {
     this.listeners.get(type)?.delete(listener);
   }
 
-  dispatch(type) {
-    const event = { type, target: this, currentTarget: this };
+  dispatch(type, init = {}) {
+    const event = {
+      type,
+      target: this,
+      currentTarget: this,
+      defaultPrevented: false,
+      propagationStopped: false,
+      preventDefault() { this.defaultPrevented = true; },
+      stopPropagation() { this.propagationStopped = true; },
+      ...init,
+    };
     for (const listener of [...(this.listeners.get(type) ?? [])]) {
       listener.call(this, event);
     }
+    return event;
   }
 
   listenerCount(type) {
@@ -107,6 +117,10 @@ function makeDomHarness({ omit = [] } = {}) {
   })]));
   const status = new FakeElement({ documentTarget });
   const fallback = new FakeElement({ documentTarget });
+  const closeButton = new FakeElement({
+    documentTarget,
+    dataset: { action: "tuning-close" },
+  });
   fallback.readOnly = true;
   fallback.hidden = true;
 
@@ -123,6 +137,9 @@ function makeDomHarness({ omit = [] } = {}) {
   };
   root.querySelector = (selector) => {
     const action = selector.match(/^\[data-action="([^"]+)"\]$/)?.[1];
+    if (action === "tuning-close") {
+      return omit.includes("action:tuning-close") ? null : closeButton;
+    }
     if (action) return omit.includes(`action:${action}`) ? null : actions[action] ?? null;
     if (selector === "[data-tuning-status]") return omit.includes("status") ? null : status;
     if (selector === "[data-tuning-copy-fallback]") {
@@ -142,12 +159,19 @@ function makeDomHarness({ omit = [] } = {}) {
     inputs,
     input,
     actions,
+    closeButton,
     status,
     fallback,
   };
 }
 
-function makeHarness({ initialTuning, navigatorTarget, onChange, omit } = {}) {
+function makeHarness({
+  initialTuning,
+  navigatorTarget,
+  onChange,
+  onRequestClose,
+  omit,
+} = {}) {
   const dom = makeDomHarness({ omit });
   const changes = [];
   const panel = createCookingTuningPanel({
@@ -156,6 +180,7 @@ function makeHarness({ initialTuning, navigatorTarget, onChange, omit } = {}) {
     navigatorTarget,
     initialTuning,
     onChange: onChange ?? ((value) => changes.push(value)),
+    onRequestClose,
   });
 
   return {
@@ -230,6 +255,72 @@ test("each ingredient tab becomes selected and reflects its values without notif
   });
 
   assert.deepEqual(harness.changes, []);
+});
+
+test("ingredient tabs support wrapped arrow navigation plus Home and End", () => {
+  const harness = makeHarness();
+  harness.panel.open();
+
+  const first = harness.tabs[0];
+  const second = harness.tabs[1];
+  const last = harness.tabs.at(-1);
+  const right = first.dispatch("keydown", { key: "ArrowRight" });
+  assert.equal(right.defaultPrevented, true);
+  assert.equal(second.getAttribute("aria-selected"), "true");
+  assert.strictEqual(harness.documentTarget.activeElement, second);
+
+  const left = second.dispatch("keydown", { key: "ArrowLeft" });
+  assert.equal(left.defaultPrevented, true);
+  assert.equal(first.getAttribute("aria-selected"), "true");
+  assert.strictEqual(harness.documentTarget.activeElement, first);
+
+  first.dispatch("keydown", { key: "ArrowLeft" });
+  assert.equal(last.getAttribute("aria-selected"), "true");
+  assert.strictEqual(harness.documentTarget.activeElement, last);
+
+  last.dispatch("keydown", { key: "Home" });
+  assert.equal(first.getAttribute("aria-selected"), "true");
+  first.dispatch("keydown", { key: "End" });
+  assert.equal(last.getAttribute("aria-selected"), "true");
+  assert.deepEqual(harness.changes, []);
+});
+
+test("open modal traps Tab focus between the selected tab and close button", () => {
+  const harness = makeHarness();
+  harness.panel.open();
+  const first = harness.tabs[0];
+
+  harness.documentTarget.activeElement = harness.closeButton;
+  const forward = harness.root.dispatch("keydown", { key: "Tab", shiftKey: false });
+  assert.equal(forward.defaultPrevented, true);
+  assert.strictEqual(harness.documentTarget.activeElement, first);
+
+  harness.documentTarget.activeElement = first;
+  const backward = harness.root.dispatch("keydown", { key: "Tab", shiftKey: true });
+  assert.equal(backward.defaultPrevented, true);
+  assert.strictEqual(harness.documentTarget.activeElement, harness.closeButton);
+
+  const outside = new FakeElement({ documentTarget: harness.documentTarget });
+  harness.documentTarget.activeElement = outside;
+  const recovered = harness.root.dispatch("keydown", { key: "Tab" });
+  assert.equal(recovered.defaultPrevented, true);
+  assert.strictEqual(harness.documentTarget.activeElement, first);
+});
+
+test("Escape requests app-owned close only while the modal is open", () => {
+  const requests = [];
+  const harness = makeHarness({ onRequestClose: () => requests.push("close") });
+
+  const closedEvent = harness.root.dispatch("keydown", { key: "Escape" });
+  assert.equal(closedEvent.defaultPrevented, false);
+  assert.deepEqual(requests, []);
+
+  harness.panel.open();
+  const openEvent = harness.root.dispatch("keydown", { key: "Escape" });
+  assert.equal(openEvent.defaultPrevented, true);
+  assert.equal(openEvent.propagationStopped, true);
+  assert.deepEqual(requests, ["close"]);
+  assert.equal(harness.root.hidden, false, "the controller must not bypass app closeTuning");
 });
 
 test("range and number inputs synchronize before one normalized ingredient change", () => {
@@ -677,6 +768,7 @@ test("construction rejects every missing required node before adding any listene
     "action:tuning-copy",
     "action:tuning-reset-current",
     "action:tuning-reset-all",
+    "action:tuning-close",
     "status",
     "fallback",
   ];

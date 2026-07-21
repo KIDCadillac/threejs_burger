@@ -178,6 +178,13 @@ export function bootSoloCookingPage(
         elements.status.textContent = error?.message ?? "WebGL 运行异常";
       },
     });
+    const closeTuning = () => {
+      try {
+        return tuningPanel?.close?.() ?? false;
+      } finally {
+        stage.setInteractionPaused(false);
+      }
+    };
     tuningPanel = tuningPanelFactory({
       root: elements.tuningSheet,
       documentTarget,
@@ -187,6 +194,7 @@ export function bootSoloCookingPage(
         const applied = stage.setTuning(next);
         saveBurgerTuning(applied, { globalTarget: windowTarget });
       },
+      onRequestClose: closeTuning,
     });
     if (manageLoading) elements.loading.hidden = true;
     render(latest ?? {
@@ -220,13 +228,6 @@ export function bootSoloCookingPage(
         return opened;
       } finally {
         if (!opened) stage.setInteractionPaused(false);
-      }
-    };
-    const closeTuning = () => {
-      try {
-        return tuningPanel.close();
-      } finally {
-        stage.setInteractionPaused(false);
       }
     };
     const actionHandlers = {

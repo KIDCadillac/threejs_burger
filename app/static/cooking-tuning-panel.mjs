@@ -29,6 +29,7 @@ export function createCookingTuningPanel({
   navigatorTarget = globalThis.navigator,
   initialTuning = DEFAULT_BURGER_TUNING,
   onChange = () => {},
+  onRequestClose = () => {},
 } = {}) {
   if (
     !root
@@ -49,6 +50,7 @@ export function createCookingTuningPanel({
   const resetCurrent = root.querySelector('[data-action="tuning-reset-current"]');
   const resetAll = root.querySelector('[data-action="tuning-reset-all"]');
   const copyButton = root.querySelector('[data-action="tuning-copy"]');
+  const closeButton = root.querySelector('[data-action="tuning-close"]');
   const status = root.querySelector("[data-tuning-status]");
   const copyFallback = root.querySelector("[data-tuning-copy-fallback]");
 
@@ -79,6 +81,7 @@ export function createCookingTuningPanel({
   requireNode(copyButton, '[data-action="tuning-copy"]');
   requireNode(resetCurrent, '[data-action="tuning-reset-current"]');
   requireNode(resetAll, '[data-action="tuning-reset-all"]');
+  requireNode(closeButton, '[data-action="tuning-close"]');
   requireNode(status, "[data-tuning-status]");
   requireNode(copyFallback, "[data-tuning-copy-fallback]");
 
@@ -106,15 +109,70 @@ export function createCookingTuningPanel({
     }
   }
 
+  function selectIngredient(ingredientId, { focus = false } = {}) {
+    selectedIngredient = ingredientId;
+    syncDom();
+    if (focus) {
+      tabs.find((tab) => tab.dataset.ingredientId === selectedIngredient)?.focus?.();
+    }
+  }
+
+  function focusableNodes() {
+    const selectedTab = tabs.find((tab) => tab.dataset.ingredientId === selectedIngredient);
+    return [
+      selectedTab,
+      ...inputs,
+      copyButton,
+      resetCurrent,
+      resetAll,
+      copyFallback.hidden ? null : copyFallback,
+      closeButton,
+    ].filter((node) => node && !node.hidden && !node.disabled && node.tabIndex !== -1);
+  }
+
   root.hidden = true;
   root.setAttribute("aria-hidden", "true");
   syncDom();
   for (const tab of tabs) {
     listen(tab, "click", () => {
-      selectedIngredient = tab.dataset.ingredientId;
-      syncDom();
+      selectIngredient(tab.dataset.ingredientId);
+    });
+    listen(tab, "keydown", (event) => {
+      if (!opened) return;
+      const currentIndex = tabs.indexOf(tab);
+      let nextIndex = null;
+      if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+        nextIndex = (currentIndex + 1) % tabs.length;
+      } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+        nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+      } else if (event.key === "Home") {
+        nextIndex = 0;
+      } else if (event.key === "End") {
+        nextIndex = tabs.length - 1;
+      }
+      if (nextIndex === null) return;
+      event.preventDefault?.();
+      selectIngredient(tabs[nextIndex].dataset.ingredientId, { focus: true });
     });
   }
+  listen(root, "keydown", (event) => {
+    if (!opened) return;
+    if (event.key === "Escape") {
+      event.preventDefault?.();
+      event.stopPropagation?.();
+      onRequestClose();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const focusables = focusableNodes();
+    if (!focusables.length) return;
+    const currentIndex = focusables.indexOf(documentTarget?.activeElement);
+    const moveToStart = currentIndex < 0 || (!event.shiftKey && currentIndex === focusables.length - 1);
+    const moveToEnd = event.shiftKey && (currentIndex <= 0);
+    if (!moveToStart && !moveToEnd) return;
+    event.preventDefault?.();
+    focusables[moveToEnd ? focusables.length - 1 : 0].focus?.();
+  });
   for (const input of inputs) {
     listen(input, "input", () => {
       const key = input.dataset.tuningKey;

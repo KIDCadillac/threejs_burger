@@ -108,6 +108,7 @@ function pageHarness() {
   };
   elements.tuningRoot.querySelector = (selector) => {
     const action = selector.match(/^\[data-action="([^"]+)"\]$/)?.[1];
+    if (action === "tuning-close") return elements.tuningCloseButton;
     if (action) return tuningActions[action] ?? null;
     if (selector === "[data-tuning-status]") return tuningStatus;
     if (selector === "[data-tuning-copy-fallback]") return tuningFallback;
@@ -352,6 +353,24 @@ test("tuning open pauses stage interaction and close always resumes it", () => {
 
   page.documentTarget.emit("click", { target: page.elements.tuningOpenButton });
   page.documentTarget.emit("click", { target: page.elements.tuningCloseButton });
+
+  assert.deepEqual(panels.panels[0].panel.calls, ["open", "close"]);
+  assert.deepEqual(stage.pauseCalls, [true, false]);
+});
+
+test("panel close requests route through closeTuning and resume stage interaction", () => {
+  const page = pageHarness();
+  const stages = stageFactoryHarness();
+  const panels = panelFactoryHarness();
+  const stage = bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: stages.factory,
+    tuningPanelFactory: panels.factory,
+  });
+
+  page.documentTarget.emit("click", { target: page.elements.tuningOpenButton });
+  assert.equal(typeof panels.panels[0].configuration.onRequestClose, "function");
+  panels.panels[0].configuration.onRequestClose();
 
   assert.deepEqual(panels.panels[0].panel.calls, ["open", "close"]);
   assert.deepEqual(stage.pauseCalls, [true, false]);
