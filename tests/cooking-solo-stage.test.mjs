@@ -175,6 +175,32 @@ function assertStackFitsCamera(stage, label, {
   return maximumScreenMagnitude;
 }
 
+function assertWorkbenchFitsCamera(stage, label, { margin = 0.94 } = {}) {
+  stage.host.scene.updateMatrixWorld(true);
+  stage.host.camera.updateProjectionMatrix();
+  stage.host.camera.updateMatrixWorld(true);
+  const { bounds } = stage.workbench.getLayout();
+  for (const y of [-0.48, 2.9]) {
+    for (const x of [bounds.minX, bounds.maxX]) {
+      for (const z of [bounds.minZ, bounds.maxZ]) {
+        const ndc = new THREE.Vector3(x, y, z).project(stage.host.camera);
+        assert.ok(
+          Number.isFinite(ndc.x) && Math.abs(ndc.x) <= margin,
+          `${label} clips workbench width at NDC x=${ndc.x}`,
+        );
+        assert.ok(
+          Number.isFinite(ndc.y) && Math.abs(ndc.y) <= margin,
+          `${label} clips workbench height at NDC y=${ndc.y}`,
+        );
+        assert.ok(
+          Number.isFinite(ndc.z) && Math.abs(ndc.z) <= 1,
+          `${label} clips workbench depth at NDC z=${ndc.z}`,
+        );
+      }
+    }
+  }
+}
+
 function assertControlAnchorsProject(stage, label) {
   stage.host.scene.updateMatrixWorld(true);
   stage.host.camera.updateProjectionMatrix();
@@ -454,6 +480,34 @@ test("fits a restored sixty-layer stack before the first frame without waiting f
   assert.equal(host.starts, 1);
   assert.deepEqual(cameraReasons, ["initial-state-fit"]);
   assertStackFitsCamera(stage, "restored first frame", { requireTight: false });
+  stage.dispose();
+});
+
+test("restored seven-layer portrait build view keeps the complete workbench visible", () => {
+  let saved = createSoloCookingState({ loadout: createDefaultWorkbenchLoadout() });
+  for (let index = 0; index < 7; index += 1) {
+    saved = placeSoloLayer(
+      saved,
+      saved.stationSources["filling-back-1"],
+      index,
+      { replenish: true },
+    );
+  }
+  const canvas = new FakeCanvas();
+  const host = createHostHarness();
+  host.camera.aspect = 390 / 844;
+  host.camera.updateProjectionMatrix();
+  const stage = createSoloCookingStage({
+    THREE,
+    canvas,
+    storage: null,
+    initialState: hydrateSoloCookingState(saved),
+    reducedMotion: true,
+    hostFactory: () => host,
+  });
+
+  assertWorkbenchFitsCamera(stage, "restored seven-layer portrait");
+  assertStackFitsCamera(stage, "restored seven-layer portrait stack", { requireTight: false });
   stage.dispose();
 });
 
