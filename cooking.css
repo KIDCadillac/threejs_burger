@@ -47,11 +47,13 @@ canvas:focus-visible {
 }
 
 .cooking-app {
-  width: min(100%, 720px);
+  width: min(100%, 860px);
   min-height: 100vh;
   margin: 0 auto;
   padding: max(14px, env(safe-area-inset-top)) 14px max(22px, env(safe-area-inset-bottom));
 }
+
+.game-shell { position: relative; }
 
 @supports (min-height: 100dvh) {
   .cooking-app { min-height: 100dvh; }
@@ -969,6 +971,284 @@ canvas:focus-visible {
 @media (max-width: 520px) {
   .recipe-grid { grid-template-columns: 1fr; }
   .recipe-card--free { grid-column: auto; }
+}
+
+@media (max-width: 700px) {
+  body {
+    overflow-x: hidden;
+    overscroll-behavior-y: contain;
+    background:
+      radial-gradient(circle at 50% -8%, rgba(240, 139, 66, .2), transparent 28rem),
+      #171116;
+  }
+
+  .cooking-app {
+    width: 100%;
+    padding: max(6px, env(safe-area-inset-top)) 8px max(12px, env(safe-area-inset-bottom));
+  }
+
+  .cooking-header {
+    position: relative;
+    z-index: 12;
+    min-height: 52px;
+    gap: 6px;
+    padding: 2px 0 6px;
+    flex-wrap: nowrap;
+  }
+
+  .cooking-header__identity {
+    min-width: 0;
+    gap: 7px;
+  }
+
+  .cooking-header__identity > div { min-width: 0; }
+  .cooking-kicker { display: none; }
+  .cooking-header h1 {
+    margin: 0;
+    overflow: hidden;
+    font-size: 1.08rem;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .home-link {
+    min-width: 44px;
+    min-height: 44px;
+    border-color: rgba(255, 225, 165, .24);
+    border-radius: 13px;
+    background: rgba(41, 24, 22, .76);
+    box-shadow: 0 8px 24px rgba(10, 4, 4, .22);
+  }
+
+  .header-actions {
+    flex: 0 0 auto;
+    gap: 4px;
+    margin-left: auto;
+  }
+
+  .header-actions button {
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    overflow: hidden;
+    border-radius: 13px;
+    box-shadow: 0 8px 20px rgba(10, 4, 4, .22);
+    font-size: 0;
+  }
+
+  .header-actions button::after {
+    font-size: .72rem;
+    font-weight: 900;
+    letter-spacing: 0;
+  }
+
+  .header-actions .tuning-button::after { content: "调"; }
+  .header-actions .highlight-button::after { content: "回放"; font-size: .64rem; }
+  .header-actions .feedback-button::after { content: "报错"; font-size: .64rem; }
+  .header-actions .icon-button::after { content: "?"; font-size: 1rem; }
+
+  .game-shell {
+    min-height: calc(100dvh - 68px);
+    margin-top: 2px;
+  }
+
+  .objective-card {
+    position: absolute;
+    z-index: 8;
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    min-height: 50px;
+    padding: 8px 12px;
+    border-color: rgba(255, 225, 165, .3);
+    border-radius: 16px;
+    pointer-events: none;
+    background: rgba(43, 24, 21, .78);
+    box-shadow: 0 12px 30px rgba(9, 4, 4, .26);
+    backdrop-filter: blur(12px);
+  }
+
+  .objective-card p {
+    margin-top: 1px;
+    overflow: hidden;
+    font-size: .86rem;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .objective-label { font-size: .66rem; }
+  #cooking-progress { font-size: 1.18rem; }
+
+  .recipe-reference {
+    position: absolute;
+    z-index: 8;
+    top: 68px;
+    left: 10px;
+    right: 10px;
+    min-height: 46px;
+    margin: 0;
+    padding: 7px 9px 7px 11px;
+    border-color: rgba(255, 225, 165, .22);
+    border-radius: 15px;
+    background: rgba(43, 24, 21, .7);
+    box-shadow: 0 10px 26px rgba(9, 4, 4, .22);
+    backdrop-filter: blur(12px);
+  }
+
+  .recipe-reference__heading span { font-size: .62rem; }
+  .recipe-reference__heading strong { font-size: .82rem; }
+  .recipe-reference__heading button {
+    min-height: 36px;
+    padding: 4px 9px;
+    border-radius: 12px;
+    pointer-events: auto;
+    box-shadow: none;
+    font-size: .7rem;
+  }
+
+  .recipe-reference__steps { display: none; }
+  .inventory-stock { display: none; }
+
+  .cooking-stage {
+    min-height: calc(100dvh - 68px);
+    margin: 0;
+    border-color: rgba(255, 210, 126, .32);
+    border-radius: 22px;
+    background: linear-gradient(180deg, #35201d, #221615 72%);
+    box-shadow: 0 20px 54px rgba(7, 3, 3, .38), inset 0 1px rgba(255,255,255,.1);
+  }
+
+  #cooking-canvas { height: calc(100dvh - 68px); }
+
+  .workbench-slot-controls { --slot-safe-bottom: max(82px, env(safe-area-inset-bottom)); }
+
+  .workbench-slot-control,
+  .workbench-slot-region {
+    min-width: 50px;
+    min-height: 50px;
+    border: 1px solid rgba(255, 236, 184, .42);
+    background: radial-gradient(circle, #ffe18b 0 39%, #9a5727 41% 52%, rgba(28, 15, 13, .5) 54% 61%, transparent 63%);
+    filter: drop-shadow(0 7px 10px rgba(12, 5, 4, .56));
+  }
+
+  .workbench-slot-control[data-active="true"] {
+    filter: drop-shadow(0 0 11px rgba(255, 229, 146, 1));
+  }
+
+  .workbench-slot-controls__hint {
+    bottom: calc(var(--slot-safe-bottom) + 58px);
+    max-width: calc(100% - 24px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .cooking-stage > .focus-button {
+    top: 122px;
+    right: 10px;
+    min-width: 92px;
+    min-height: 44px;
+    padding: 7px 10px;
+    border-radius: 14px;
+    box-shadow: 0 10px 28px rgba(12, 5, 4, .32);
+    font-size: .78rem;
+  }
+
+  .cooking-stage > .focus-layer-hint {
+    top: 126px;
+    left: 10px;
+    max-width: calc(100% - 124px);
+    transform: none;
+    text-align: left;
+  }
+
+  .cooking-stage > .focus-layer-delete { bottom: max(82px, env(safe-area-inset-bottom)); }
+
+  .tutorial-coach {
+    left: 12px;
+    right: auto;
+    bottom: max(78px, env(safe-area-inset-bottom));
+    width: auto;
+    max-width: min(calc(100% - 24px), 330px);
+    min-height: 54px;
+    padding: 9px 9px 9px 12px;
+    border-radius: 16px;
+    background: rgba(255, 241, 211, .94);
+    box-shadow: 0 12px 30px rgba(11, 5, 4, .3);
+    backdrop-filter: blur(10px);
+  }
+
+  .tutorial-coach p {
+    margin-top: 1px;
+    font-size: .74rem;
+    line-height: 1.25;
+  }
+
+  .tutorial-coach strong { font-size: .8rem; }
+  .tutorial-coach button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 4px 7px;
+    border-radius: 12px;
+    box-shadow: none;
+    font-size: .7rem;
+  }
+
+  .tutorial-pointer {
+    top: -22px;
+    width: 18px;
+    height: 18px;
+    border-width: 3px;
+    box-shadow: 0 0 0 5px rgba(255, 196, 77, .16);
+  }
+
+  .cooking-controls {
+    position: absolute;
+    z-index: 9;
+    right: 10px;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    left: 10px;
+    grid-template-columns: minmax(88px, 1.15fr) repeat(3, minmax(0, 1fr));
+    gap: 4px;
+    margin: 0;
+    padding: 6px;
+    border: 1px solid rgba(255, 225, 165, .2);
+    border-radius: 17px;
+    background: rgba(39, 22, 20, .8);
+    box-shadow: 0 12px 32px rgba(8, 3, 3, .32);
+    backdrop-filter: blur(12px);
+  }
+
+  .rotate-controls {
+    grid-column: auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .rotate-controls span { display: none; }
+  .rotate-controls button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    border-radius: 12px;
+    box-shadow: none;
+    font-size: 1.25rem;
+  }
+
+  .cooking-controls > button {
+    min-width: 0;
+    min-height: 44px;
+    padding: 3px 2px;
+    border-radius: 12px;
+    box-shadow: none;
+    font-size: .66rem;
+    line-height: 1.15;
+  }
+
+  .finish-sheet { inset: auto 12px max(78px, env(safe-area-inset-bottom)); }
+  .cooking-summary { margin-top: 10px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
