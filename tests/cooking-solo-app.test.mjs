@@ -64,7 +64,7 @@ class Element extends Events {
   getAttribute(name) { return this.attributes.get(name) ?? null; }
 }
 
-function pageHarness() {
+function pageHarness({ withSlotControls = false } = {}) {
   const documentTarget = new Events();
   const selectors = new Map();
   const add = (selector, action = null) => {
@@ -122,6 +122,9 @@ function pageHarness() {
     recipeChangeButton: add('[data-action="recipe-change"]', "recipe-change"),
     workbenchPicker: add("#workbench-picker"),
   };
+  if (withSlotControls) {
+    elements.slotControlsRoot = add("#workbench-slot-controls");
+  }
   elements.workbenchPicker.hidden = true;
   elements.highlightSheet.hidden = true;
   elements.highlightVideo.hidden = true;
@@ -424,6 +427,38 @@ test("a 3d slot selector opens the physical-slot picker and persists its replace
   assert.deepEqual(stage.getState().assembledOrder, ["bottom-bun", "patty"]);
   assert.equal(page.elements.workbenchPicker.hidden, true);
   assert.deepEqual(stage.pauseCalls, [true, false]);
+});
+
+test("screen-facing slot controls share the picker loadout path and hide only in focus mode", () => {
+  const page = pageHarness({ withSlotControls: true });
+  const stages = stageFactoryHarness();
+  const controlRecords = [];
+  const controls = {
+    hiddenCalls: [],
+    loadoutCalls: [],
+    disposed: 0,
+    setHidden(value) { this.hiddenCalls.push(Boolean(value)); },
+    setLoadout(value) { this.loadoutCalls.push(value); },
+    dispose() { this.disposed += 1; },
+  };
+
+  const stage = bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: stages.factory,
+    slotControlsFactory(configuration) {
+      controlRecords.push(configuration);
+      return controls;
+    },
+  });
+
+  assert.equal(controlRecords.length, 1);
+  controlRecords[0].onCycle({ slotId: "filling-back-2", contentId: "onion" });
+  assert.deepEqual(stage.slotCalls, [["filling-back-2", "onion"]]);
+  assert.equal(controls.loadoutCalls.at(-1)["filling-back-2"], "onion");
+
+  stage.emit({ assembledOrder: ["bottom-bun"], focused: true });
+  stage.emit({ assembledOrder: ["bottom-bun"], focused: false });
+  assert.deepEqual(controls.hiddenCalls.slice(-2), [true, false]);
 });
 
 test("restores a valid autosave before stage construction and saves later state changes", () => {

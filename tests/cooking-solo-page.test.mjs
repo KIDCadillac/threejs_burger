@@ -38,6 +38,12 @@ test("standalone cooking page is accessible, Chinese, and contains the full play
     'data-action="rotate-right"',
     'data-action="camera-reset"',
     'data-action="toggle-focus"',
+    'id="workbench-slot-controls"',
+    'data-slot-lines',
+    'data-slot-buttons',
+    'data-slot-regions',
+    'data-slot-region-menu',
+    'data-slot-hint',
     'data-action="toggle-expanded"',
     'data-action="undo"',
     'data-action="reset"',
@@ -81,6 +87,15 @@ test("standalone cooking page is accessible, Chinese, and contains the full play
   assert.doesNotMatch(html, /装完\s*7\s*层|再装\s*7\s*层/);
   assert.match(html, /rel="icon" href="data:,"/);
   assert.doesNotMatch(html, /cooking-loading-elapsed|已等待\s*[\d.]+\s*秒/);
+});
+
+test("workbench slot controls overlay the canvas with touch-safe, focus-aware controls", async () => {
+  const css = await readFile(cssPath, "utf8");
+  assert.match(css, /\.workbench-slot-controls\s*\{[^}]*pointer-events:\s*none;/s);
+  assert.match(css, /\.workbench-slot-control[\s\S]*min-width:\s*52px;/);
+  assert.match(css, /\.workbench-slot-control[\s\S]*min-height:\s*52px;/);
+  assert.match(css, /\.workbench-slot-controls\[hidden\][^}]*display:\s*none;/s);
+  assert.match(css, /env\(safe-area-inset-bottom\)/);
 });
 
 test("the public page exposes a touch-safe playable highlight replay dialog", async () => {
