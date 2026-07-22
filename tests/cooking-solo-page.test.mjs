@@ -393,7 +393,7 @@ test("page and modules use only relative static imports with no socket dependenc
     readFile(appPath, "utf8"),
     readFile(loaderPath, "utf8"),
   ]);
-  assert.match(html, /href="\.\/cooking\.css"/);
+  assert.match(html, /href="\.\/cooking\.css\?v=20260722-ui1"/);
   assert.match(html, /src="\.\/cooking-loader\.mjs"/);
   assert.match(app, /from "\.\/vendor\/three\.module\.min\.js"/);
   assert.match(app, /from "\.\/cooking-solo-stage\.mjs"/);
