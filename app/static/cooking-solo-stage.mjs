@@ -891,6 +891,16 @@ export function createSoloCookingStage({
     return true;
   };
 
+  const selectFocusedLayer = (layerId) => {
+    if (disposed || !focused || !state.assembledOrder.includes(layerId)) return false;
+    clearTransientVisuals();
+    selectedLayerId = layerId;
+    highlightedLayerId = layerId;
+    burger.setLayerHighlighted(layerId, true);
+    emit("focus-selection");
+    return true;
+  };
+
   let controller = null;
   const registeredLayerIds = new Set();
   const activeModelLayerIds = () => {
@@ -986,6 +996,7 @@ export function createSoloCookingStage({
       else if (selectedLayerId === id) selectedLayerId = null;
       emit("selection");
     },
+    onInspectionSelection: ({ id }) => selectFocusedLayer(id),
     onMove: ({ id, reason, pose, point }) => {
       if (activeMotion) {
         const movedLayer = burger.getLayer(id);
@@ -1077,6 +1088,7 @@ export function createSoloCookingStage({
       onStationSelector(Object.freeze({ slotId, region }));
     },
   });
+  controller.setOrbitEnabled?.(false);
   initialLayerIds.forEach((id) => registeredLayerIds.add(id));
   cleanupTasks.push(() => controller?.dispose?.());
 
@@ -1091,6 +1103,8 @@ export function createSoloCookingStage({
     if (next) {
       focusCameraView = controller.getCameraView?.() ?? null;
       focusWorkbenchVisible = workbench.root.visible;
+      selectedLayerId = null;
+      controller.setOrbitEnabled?.(true);
       controller.setInspectionOnly?.(true);
       workbench.root.updateMatrixWorld?.(true);
       host.scene.attach(burger.root);
@@ -1108,6 +1122,8 @@ export function createSoloCookingStage({
         burger.getLayer(layerId).visible = activeIds.has(layerId);
       }
       controller.setInspectionOnly?.(false);
+      controller.setOrbitEnabled?.(false);
+      selectedLayerId = null;
       if (focusCameraView) controller.setCameraView?.(focusCameraView, "burger-focus-return");
       focusCameraView = null;
       focused = false;
@@ -1297,6 +1313,26 @@ export function createSoloCookingStage({
     return externallyPaused;
   };
 
+  const deleteFocusedLayer = () => {
+    if (disposed || !focused || !selectedLayerId
+      || !state.assembledOrder.includes(selectedLayerId)) return false;
+    const layerId = selectedLayerId;
+    clearTransientVisuals();
+    state = removeSoloLayer(state, layerId, { consolidate: true });
+    syncPhysicalSlot(state.locations[layerId]?.slotId);
+    reconcileModelInstances();
+    selectedLayerId = null;
+    reorderLayers();
+    rebuildSauces();
+    syncTransforms({ animate: true });
+    for (const id of Object.keys(state.instances)) {
+      burger.getLayer(id).visible = state.assembledOrder.includes(id);
+    }
+    adaptCameraToStack({ preserveDistance: false, reason: "focus-layer-deleted" });
+    emit("delete-focused-layer");
+    return true;
+  };
+
   const setSlotContent = (slotId, contentId) => {
     if (disposed) return false;
     const slot = getWorkbenchSlot(slotId);
@@ -1428,6 +1464,8 @@ export function createSoloCookingStage({
     },
     setBurgerFocus(value) { return setFocusMode(value); },
     toggleBurgerFocus() { return setFocusMode(!focused); },
+    selectFocusedLayer,
+    deleteFocusedLayer,
     resetCamera() {
       const reset = controller.resetCamera();
       if (reset) adaptCameraToStack({ preserveDistance: false, reason: "camera-reset-fit" });

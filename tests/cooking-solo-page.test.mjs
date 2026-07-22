@@ -38,6 +38,8 @@ test("standalone cooking page is accessible, Chinese, and contains the full play
     'data-action="rotate-right"',
     'data-action="camera-reset"',
     'data-action="toggle-focus"',
+    'data-action="delete-focused-layer"',
+    'id="focus-layer-hint"',
     'id="workbench-slot-controls"',
     'data-slot-lines',
     'data-slot-buttons',

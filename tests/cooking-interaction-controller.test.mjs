@@ -1173,6 +1173,56 @@ test("inspection-only mode turns food and condiment presses into camera orbit", 
   controller.dispose();
 });
 
+test("locked build camera ignores blank drags and inspection taps select a layer without blocking orbit", () => {
+  const canvas = createCanvas();
+  const camera = new THREE.PerspectiveCamera();
+  camera.position.set(0, 5, 10);
+  camera.lookAt(0, 0, 0);
+  camera.updateMatrixWorld(true);
+  const layer = new THREE.Group();
+  const surface = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+  surface.userData.cookingSelectable = {
+    kind: "food-layer",
+    food: "burger",
+    layerId: "patty",
+  };
+  layer.add(surface);
+  const inspected = [];
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    draggables: [{ id: "patty", object: layer, surfaces: [surface] }],
+    raycast: ({ event }) => event.clientX < 100
+      ? { object: surface, point: new THREE.Vector3() }
+      : null,
+    onInspectionSelection: (detail) => inspected.push(detail),
+  });
+
+  const lockedPosition = camera.position.clone();
+  assert.equal(controller.setOrbitEnabled(false), false);
+  canvas.dispatch("pointerdown", pointer(301, 160, 60));
+  canvas.dispatch("pointermove", pointer(301, 190, 100));
+  canvas.dispatch("pointerup", pointer(301, 190, 100));
+  closeVector(camera.position, lockedPosition);
+  assert.equal(controller.getState(), "idle");
+
+  controller.setOrbitEnabled(true);
+  controller.setInspectionOnly(true);
+  canvas.dispatch("pointerdown", pointer(302, 40, 40));
+  canvas.dispatch("pointerup", pointer(302, 43, 44));
+  assert.equal(inspected.length, 1);
+  assert.equal(inspected[0].id, "patty");
+
+  const beforeOrbit = camera.position.clone();
+  canvas.dispatch("pointerdown", pointer(303, 40, 40));
+  canvas.dispatch("pointermove", pointer(303, 75, 65));
+  canvas.dispatch("pointerup", pointer(303, 75, 65));
+  assert.ok(camera.position.distanceTo(beforeOrbit) > 0.01);
+  assert.equal(inspected.length, 1, "a drag orbits instead of selecting");
+  controller.dispose();
+});
+
 test("applies the final pointer-up projection before resolving a valid drop", () => {
   const canvas = createCanvas();
   const camera = new THREE.PerspectiveCamera();

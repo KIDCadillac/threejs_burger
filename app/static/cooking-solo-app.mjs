@@ -118,6 +118,8 @@ export function bootSoloCookingPage(
     undoButton: documentTarget.querySelector('[data-action="undo"]'),
     inspectButton: documentTarget.querySelector('[data-action="toggle-expanded"]'),
     focusButton: documentTarget.querySelector('[data-action="toggle-focus"]'),
+    focusDeleteButton: documentTarget.querySelector('[data-action="delete-focused-layer"]'),
+    focusLayerHint: documentTarget.querySelector("#focus-layer-hint"),
     feedbackSheet: documentTarget.querySelector("#feedback-sheet"),
     feedbackPreview: documentTarget.querySelector("#feedback-preview"),
     feedbackMessage: documentTarget.querySelector("#feedback-message"),
@@ -213,7 +215,15 @@ export function bootSoloCookingPage(
     latest = detail;
     autosave?.save?.(detail.state);
     if (!stage) return;
-    const { state, tutorial, expanded, focused = false, progress, dropIntent = null } = detail;
+    const {
+      state,
+      tutorial,
+      expanded,
+      focused = false,
+      selectedLayerId = null,
+      progress,
+      dropIntent = null,
+    } = detail;
     highlights?.observe?.({
       layerCount: state.assembledOrder.length,
       finished: state.finished,
@@ -243,6 +253,18 @@ export function bootSoloCookingPage(
     elements.focusButton.textContent = focused ? "返回料理台" : "聚焦食物";
     elements.focusButton.dataset.focused = String(focused);
     elements.focusButton.setAttribute?.("aria-pressed", String(focused));
+    elements.focusLayerHint.hidden = !focused;
+    elements.focusLayerHint.textContent = focused
+      ? "拖动画面自由观察 · 轻触汉堡任意一层可删除"
+      : "";
+    const selectedFocusIndex = selectedLayerId
+      ? state.assembledOrder.indexOf(selectedLayerId)
+      : -1;
+    elements.focusDeleteButton.hidden = !focused || selectedFocusIndex < 0;
+    elements.focusDeleteButton.disabled = selectedFocusIndex < 0;
+    elements.focusDeleteButton.textContent = selectedFocusIndex >= 0
+      ? `删除第 ${selectedFocusIndex + 1} 层`
+      : "轻触一层后删除";
     slotControls?.setHidden?.(focused);
     elements.finishSheet.hidden = !state.finished;
 
@@ -525,6 +547,7 @@ export function bootSoloCookingPage(
       "camera-reset": () => stage.resetCamera(),
       "toggle-expanded": () => stage.toggleExpanded(),
       "toggle-focus": () => stage.toggleBurgerFocus(),
+      "delete-focused-layer": () => stage.deleteFocusedLayer(),
       undo: () => stage.undo(),
       reset: () => stage.reset(),
       finish: () => stage.finish(),

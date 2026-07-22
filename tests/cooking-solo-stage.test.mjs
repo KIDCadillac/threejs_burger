@@ -700,6 +700,37 @@ test("food focus shows only assembled burger layers and restores the full workbe
   stage.dispose();
 });
 
+test("build mode locks camera while focus allows layer selection and deletion without stack gaps", () => {
+  const changes = [];
+  const { stage, configuration } = harness({ onChange: (detail) => changes.push(detail) });
+  stage.dropLayer("bottom-bun", { kind: "prep" });
+  stage.dropLayer("patty", { kind: "prep" });
+  stage.dropLayer("cheese", { kind: "prep" });
+
+  assert.equal(stage.controller.isOrbitEnabled(), false);
+  stage.setBurgerFocus(true);
+  assert.equal(stage.controller.isOrbitEnabled(), true);
+  configuration.onInspectionSelection({ id: "patty" });
+  assert.equal(stage.getSelectedLayerId(), "patty");
+  assert.equal(stage.burger.selectionFeedback.visible, true);
+  assert.equal(changes.at(-1).focused, true);
+
+  const cheeseBefore = visibleLayerInterval(stage.burger.getLayer("cheese"));
+  assert.equal(stage.deleteFocusedLayer(), true);
+  assert.deepEqual(stage.getState().assembledOrder, ["bottom-bun", "cheese"]);
+  stage.tick(10_000);
+  const bottom = visibleLayerInterval(stage.burger.getLayer("bottom-bun"));
+  const cheeseAfter = visibleLayerInterval(stage.burger.getLayer("cheese"));
+  assert.ok(cheeseAfter.bottom < cheeseBefore.bottom);
+  assert.ok(cheeseAfter.bottom <= bottom.top + 0.05, "upper layer settles onto the remaining stack");
+  assert.equal(stage.getSelectedLayerId(), null);
+  assert.equal(stage.burger.selectionFeedback.visible, false);
+
+  stage.setBurgerFocus(false);
+  assert.equal(stage.controller.isOrbitEnabled(), false);
+  stage.dispose();
+});
+
 test("resolves visible indexed gaps and a forgiving home drop intention", () => {
   let configuration;
   const changes = [];
