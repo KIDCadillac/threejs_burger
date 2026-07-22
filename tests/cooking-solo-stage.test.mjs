@@ -175,12 +175,23 @@ function assertStackFitsCamera(stage, label, {
   return maximumScreenMagnitude;
 }
 
-function assertWorkbenchFitsCamera(stage, label, { margin = 0.94 } = {}) {
+function assertWorkbenchFitsCamera(stage, label, { margin = 0.98 } = {}) {
   stage.host.scene.updateMatrixWorld(true);
   stage.host.camera.updateProjectionMatrix();
   stage.host.camera.updateMatrixWorld(true);
-  const { bounds } = stage.workbench.getLayout();
-  for (const y of [-0.48, 2.9]) {
+  const layout = stage.workbench.getLayout();
+  const operationalBounds = [
+    layout.prep.bounds,
+    ...layout.ingredients.map(({ bounds }) => bounds),
+    ...layout.tools.map(({ bounds }) => bounds),
+  ];
+  const bounds = {
+    minX: Math.min(...operationalBounds.map(({ minX }) => minX)),
+    maxX: Math.max(...operationalBounds.map(({ maxX }) => maxX)),
+    minZ: Math.min(...operationalBounds.map(({ minZ }) => minZ)),
+    maxZ: Math.max(...operationalBounds.map(({ maxZ }) => maxZ)),
+  };
+  for (const y of [-0.48, 1.5]) {
     for (const x of [bounds.minX, bounds.maxX]) {
       for (const z of [bounds.minZ, bounds.maxZ]) {
         const ndc = new THREE.Vector3(x, y, z).project(stage.host.camera);

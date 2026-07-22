@@ -96,7 +96,7 @@ git commit -m "test: reproduce narrow build camera framing"
 - Modify: `app/static/cooking-solo-stage.mjs`
 - Test: `tests/cooking-solo-stage.test.mjs`
 
-- [ ] **Step 1: Add stable workbench baseline geometry**
+- [x] **Step 1: Add stable workbench baseline geometry**
 
 Replace the single stack-only framing source with two sources. Build geometry includes the full authored workspace at counter and station heights; focus geometry contains only authoritative stack bounds:
 
@@ -137,7 +137,7 @@ const focusFramingGeometry = () => {
 };
 ```
 
-- [ ] **Step 2: Route adaptation through the active framing mode**
+- [x] **Step 2: Route adaptation through the active framing mode**
 
 Give `adaptCameraToStack` an explicit `mode` defaulting to current stage state. Build mode must fit the workbench plus stack; focus mode must tightly fit only the stack:
 
@@ -159,7 +159,7 @@ const adaptCameraToStack = ({
 
 Entering focus must pass `mode: "focus"`; leaving focus must pass `mode: "build"`. Initial restore, resize, expansion, tuning, deletion, reset, undo, and reset-cooking calls use build policy whenever `focused` is false.
 
-- [ ] **Step 3: Remove the close-range workbench scale**
+- [x] **Step 3: Remove the close-range workbench scale**
 
 Delete `SWITCHABLE_WORKBENCH_CAMERA_SCALE` and initialize the camera from the authored workbench view without multiplying its position. The subsequent build fit may move farther for narrow aspect ratios or tall stacks, but never nearer than the full workbench fit:
 
@@ -171,7 +171,7 @@ host.camera.position.set(
 );
 ```
 
-- [ ] **Step 4: Run the focused stage tests**
+- [x] **Step 4: Run the focused stage tests**
 
 Run:
 
@@ -181,7 +181,7 @@ Run:
 
 Expected: PASS, including the new seven-layer portrait regression and existing focus/delete/60-layer tests.
 
-- [ ] **Step 5: Commit the implementation**
+- [x] **Step 5: Commit the implementation**
 
 ```powershell
 git add app/static/cooking-solo-stage.mjs tests/cooking-solo-stage.test.mjs docs/superpowers/plans/2026-07-22-wide-build-camera-framing.md
