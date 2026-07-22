@@ -53,9 +53,11 @@ const SNAP_DURATION = 190;
 const MAX_STACK_CAMERA_DISTANCE = 320;
 const STACK_CAMERA_DEPTH_PADDING = 25;
 const STACK_CAMERA_SAFE_NDC_MARGIN = 0.86;
+const WORKBENCH_CAMERA_SAFE_NDC_MARGIN = 0.98;
 const STACK_CAMERA_NEAR_PADDING = 0.25;
 const MAX_BOTTOM_LAYER_SINK = 0.03;
-const SWITCHABLE_WORKBENCH_CAMERA_SCALE = 0.59;
+const WORKBENCH_CAMERA_MIN_Y = -0.5;
+const WORKBENCH_CAMERA_MAX_Y = 1.5;
 const SWITCHABLE_SIDE_SELECTOR_OFFSET = 0.55;
 
 const layerStackMinY = (layer) => (
@@ -255,12 +257,10 @@ export function createSoloCookingStage({
     cameraView.far,
     MAX_STACK_CAMERA_DISTANCE + STACK_CAMERA_DEPTH_PADDING,
   );
-  // The generic workbench camera includes editor margins. The phone composition
-  // intentionally crops only decorative counter edges while retaining every control.
   host.camera.position.set(
-    cameraView.position.x * SWITCHABLE_WORKBENCH_CAMERA_SCALE,
-    cameraView.position.y * SWITCHABLE_WORKBENCH_CAMERA_SCALE,
-    cameraView.position.z * SWITCHABLE_WORKBENCH_CAMERA_SCALE,
+    cameraView.position.x,
+    cameraView.position.y,
+    cameraView.position.z,
   );
   host.camera.lookAt(cameraView.target.x, cameraView.target.y, cameraView.target.z);
   host.camera.updateProjectionMatrix?.();
@@ -693,9 +693,41 @@ export function createSoloCookingStage({
     return corners;
   };
 
-  const authoritativeFramingGeometry = () => {
-    const bounds = new THREE.Box3();
-    const points = [];
+  const focusFramingGeometry = () => {
+    const bounds = authoritativeStackBounds();
+    if (!bounds) return null;
+    return {
+      bounds,
+      points: boundsCorners(bounds).map((point) => ({
+        point,
+        margin: STACK_CAMERA_SAFE_NDC_MARGIN,
+      })),
+    };
+  };
+
+  const buildFramingGeometry = () => {
+    const layout = workbench.getLayout();
+    const operationalBounds = [
+      layout.prep.bounds,
+      ...layout.ingredients.map(({ bounds }) => bounds),
+      ...layout.tools.map(({ bounds }) => bounds),
+    ];
+    const bounds = new THREE.Box3(
+      new THREE.Vector3(
+        Math.min(...operationalBounds.map(({ minX }) => minX)),
+        WORKBENCH_CAMERA_MIN_Y,
+        Math.min(...operationalBounds.map(({ minZ }) => minZ)),
+      ),
+      new THREE.Vector3(
+        Math.max(...operationalBounds.map(({ maxX }) => maxX)),
+        WORKBENCH_CAMERA_MAX_Y,
+        Math.max(...operationalBounds.map(({ maxZ }) => maxZ)),
+      ),
+    );
+    const points = boundsCorners(bounds).map((point) => ({
+      point,
+      margin: WORKBENCH_CAMERA_SAFE_NDC_MARGIN,
+    }));
     const stackBounds = authoritativeStackBounds();
     if (stackBounds) {
       bounds.union(stackBounds);
@@ -704,7 +736,7 @@ export function createSoloCookingStage({
         margin: STACK_CAMERA_SAFE_NDC_MARGIN,
       })));
     }
-    return bounds.isEmpty() || !points.length ? null : { bounds, points };
+    return { bounds, points };
   };
 
   const fittedStackCameraView = ({ bounds, points }, view) => {
@@ -752,13 +784,21 @@ export function createSoloCookingStage({
     };
   };
 
-  const adaptCameraToStack = ({ preserveDistance = true, reason = "stack-growth" } = {}) => {
+  const adaptCameraToStack = ({
+    preserveDistance = true,
+    reason = "stack-growth",
+    mode = focused ? "focus" : "build",
+  } = {}) => {
     const view = controller?.getCameraView?.();
     if (!view) return false;
-    const framing = authoritativeFramingGeometry();
+    const framing = mode === "focus"
+      ? focusFramingGeometry()
+      : buildFramingGeometry();
     if (!framing) return false;
     const fit = fittedStackCameraView(framing, view);
-    const distance = preserveDistance ? Math.max(view.distance, fit.distance) : fit.distance;
+    const distance = preserveDistance
+      ? Math.max(view.distance, fit.distance)
+      : fit.distance;
     const requiredFar = distance + fit.farthestForwardOffset + STACK_CAMERA_DEPTH_PADDING;
     if (host.camera.far < requiredFar) {
       host.camera.far = requiredFar;
@@ -1089,6 +1129,7 @@ export function createSoloCookingStage({
     },
   });
   controller.setOrbitEnabled?.(false);
+  controller.setPinchZoomEnabled?.(true);
   initialLayerIds.forEach((id) => registeredLayerIds.add(id));
   cleanupTasks.push(() => controller?.dispose?.());
 
@@ -1105,6 +1146,7 @@ export function createSoloCookingStage({
       focusWorkbenchVisible = workbench.root.visible;
       selectedLayerId = null;
       controller.setOrbitEnabled?.(true);
+      controller.setPinchZoomEnabled?.(true);
       controller.setInspectionOnly?.(true);
       workbench.root.updateMatrixWorld?.(true);
       host.scene.attach(burger.root);
@@ -1112,7 +1154,11 @@ export function createSoloCookingStage({
         burger.getLayer(layerId).visible = state.assembledOrder.includes(layerId);
       }
       workbench.root.visible = false;
-      adaptCameraToStack({ preserveDistance: false, reason: "burger-focus" });
+      adaptCameraToStack({
+        preserveDistance: false,
+        reason: "burger-focus",
+        mode: "focus",
+      });
       focused = true;
     } else {
       workbench.root.visible = focusWorkbenchVisible;
@@ -1123,11 +1169,16 @@ export function createSoloCookingStage({
       }
       controller.setInspectionOnly?.(false);
       controller.setOrbitEnabled?.(false);
+      controller.setPinchZoomEnabled?.(true);
       selectedLayerId = null;
       if (focusCameraView) controller.setCameraView?.(focusCameraView, "burger-focus-return");
       focusCameraView = null;
       focused = false;
-      adaptCameraToStack({ preserveDistance: true, reason: "burger-focus-return-fit" });
+      adaptCameraToStack({
+        preserveDistance: true,
+        reason: "burger-focus-return-fit",
+        mode: "build",
+      });
     }
     if (notify) emit("focus");
     return focused;

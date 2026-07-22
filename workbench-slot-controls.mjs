@@ -5,7 +5,11 @@ import {
   getNextWorkbenchSlotContent,
   normalizeWorkbenchLoadout,
 } from "./workbench-loadout.mjs";
-import { layoutWorkbenchSlotControls } from "./workbench-slot-control-layout.mjs";
+import {
+  SLOT_CONTROL_COMPACT_WIDTH,
+  SLOT_CONTROL_MAX_ANCHOR_DISTANCE,
+  layoutWorkbenchSlotControls,
+} from "./workbench-slot-control-layout.mjs";
 
 export const WORKBENCH_SLOT_CONTROLS_ONBOARDING_KEY = "workbench-slot-controls-onboarded:v1";
 export const WORKBENCH_SLOT_CONTROL_LONG_PRESS_MS = 350;
@@ -307,7 +311,11 @@ export function createWorkbenchSlotControls({
   }
 
   function renderLines(individual) {
-    const lines = individual.map((entry) => {
+    const lines = individual.filter((entry) => (
+      entry.anchorVisible === true
+        && Math.hypot(entry.x - entry.anchorX, entry.y - entry.anchorY)
+          <= SLOT_CONTROL_MAX_ANCHOR_DISTANCE
+    )).map((entry) => {
       const line = typeof documentTarget.createElementNS === "function"
         ? documentTarget.createElementNS("http://www.w3.org/2000/svg", "line")
         : documentTarget.createElement("line");
@@ -368,15 +376,22 @@ export function createWorkbenchSlotControls({
     const rect = canvas.getBoundingClientRect?.() ?? {};
     const viewport = { width: rect.width, height: rect.height };
     let anchors;
+    let projectionFailed = false;
     try {
       anchors = optionalCall(getProjectedAnchors);
       if (!Array.isArray(anchors)) anchors = fallbackAnchors();
     } catch {
       anchors = fallbackAnchors();
+      projectionFailed = true;
     }
     let layout;
     try {
-      layout = layoutWorkbenchSlotControls({ viewport, anchors });
+      layout = layoutWorkbenchSlotControls({
+        viewport: projectionFailed
+          ? { ...viewport, width: Math.min(viewport.width, SLOT_CONTROL_COMPACT_WIDTH - 1) }
+          : viewport,
+        anchors,
+      });
     } catch {
       return false;
     }
