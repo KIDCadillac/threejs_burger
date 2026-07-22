@@ -888,6 +888,47 @@ test("pinches within zoom limits and resumes one-pointer orbit without a jump", 
   controller.dispose();
 });
 
+test("allows pinch zoom while one-pointer orbit stays locked", () => {
+  const canvas = createCanvas();
+  const camera = new THREE.PerspectiveCamera();
+  camera.position.set(0, 5, 10);
+  camera.lookAt(0, 0, 0);
+  camera.updateMatrixWorld(true);
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    raycast: () => null,
+    orbitLimits: {
+      minYaw: -1, maxYaw: 1,
+      minPitch: 0.2, maxPitch: 1.2,
+      minDistance: 6, maxDistance: 16,
+    },
+  });
+
+  assert.equal(controller.setOrbitEnabled(false), false);
+  assert.equal(controller.isPinchZoomEnabled(), false);
+  assert.equal(controller.setPinchZoomEnabled(true), true);
+  const lockedView = controller.getCameraView();
+
+  canvas.dispatch("pointerdown", pointer(41, 50, 100));
+  canvas.dispatch("pointermove", pointer(41, 80, 130));
+  assert.equal(controller.getState(), "camera-locked");
+  assert.deepEqual(controller.getCameraView(), lockedView);
+
+  canvas.dispatch("pointerdown", pointer(42, 100, 100));
+  assert.equal(controller.getState(), "pinching");
+  canvas.dispatch("pointermove", pointer(42, 200, 100));
+  const zoomedView = controller.getCameraView();
+  assert.ok(zoomedView.distance < lockedView.distance);
+  assert.equal(zoomedView.yaw, lockedView.yaw);
+  assert.equal(zoomedView.pitch, lockedView.pitch);
+
+  canvas.dispatch("pointerup", pointer(42, 200, 100));
+  assert.equal(controller.getState(), "camera-locked");
+  controller.dispose();
+});
+
 test("twists the selected layer with two fingers and resumes dragging without a jump", () => {
   const canvas = createCanvas();
   const camera = new THREE.PerspectiveCamera();

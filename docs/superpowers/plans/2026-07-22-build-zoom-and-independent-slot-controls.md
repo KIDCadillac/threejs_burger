@@ -17,7 +17,7 @@
 - Modify: `app/static/cooking-solo-stage.mjs`
 - Modify: `docs/superpowers/plans/2026-07-22-wide-build-camera-framing.md`
 
-- [ ] **Step 1: Run the committed portrait regression and record the expected failure**
+- [x] **Step 1: Run the committed portrait regression and record the expected failure**
 
 Run:
 
@@ -27,7 +27,7 @@ Run:
 
 Expected before the stage fix: FAIL because at least one workbench corner projects outside the portrait safe range.
 
-- [ ] **Step 2: Finish the separate build and focus framing sources**
+- [x] **Step 2: Finish the separate build and focus framing sources**
 
 Keep the build source independent from the burger-only focus source:
 
@@ -76,7 +76,7 @@ const distance = mode === "build" || preserveDistance
 
 Remove the old `SWITCHABLE_WORKBENCH_CAMERA_SCALE` multiplier and start from the authored workbench camera.
 
-- [ ] **Step 3: Run the portrait regression and the complete stage suite**
+- [x] **Step 3: Run the portrait regression and the complete stage suite**
 
 Run:
 
@@ -86,7 +86,7 @@ Run:
 
 Expected: all stage tests PASS, including the portrait workbench fit, useful prep-board size, focus fit, and 60-layer expansion.
 
-- [ ] **Step 4: Commit the baseline**
+- [x] **Step 4: Commit the baseline**
 
 ```powershell
 git add -- tests/cooking-solo-stage.test.mjs app/static/cooking-solo-stage.mjs docs/superpowers/plans/2026-07-22-wide-build-camera-framing.md
@@ -99,7 +99,7 @@ git commit -m "fix: keep the build workbench in view"
 - Modify: `tests/cooking-interaction-controller.test.mjs`
 - Modify: `app/static/cooking-interaction-controller.mjs`
 
-- [ ] **Step 1: Write the failing zoom-only gesture test**
+- [x] **Step 1: Write the failing zoom-only gesture test**
 
 Add a test that locks one-pointer orbit but explicitly enables pinch zoom:
 
@@ -143,7 +143,7 @@ test("zoom-only mode pinches without changing build yaw or pitch", () => {
 
 Also assert that `setOrbitEnabled(false)` alone retains its old fully locked behavior until `setPinchZoomEnabled(true)` is called.
 
-- [ ] **Step 2: Run the controller test and verify the missing API failure**
+- [x] **Step 2: Run the controller test and verify the missing API failure**
 
 Run:
 
@@ -153,7 +153,7 @@ Run:
 
 Expected: FAIL because `setPinchZoomEnabled` does not exist.
 
-- [ ] **Step 3: Implement the independent pinch flag**
+- [x] **Step 3: Implement the independent pinch flag**
 
 Add controller state and preserve the legacy lock semantics:
 
@@ -198,7 +198,7 @@ if (pinchZoomEnabled) {
 
 One-pointer orbit remains guarded only by `orbitEnabled`.
 
-- [ ] **Step 4: Run all controller tests**
+- [x] **Step 4: Run all controller tests**
 
 ```powershell
 & "C:\Users\KID\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" --test tests/cooking-interaction-controller.test.mjs
@@ -206,7 +206,7 @@ One-pointer orbit remains guarded only by `orbitEnabled`.
 
 Expected: PASS, including existing orbit, locked-camera, selected-layer twist, and new zoom-only tests.
 
-- [ ] **Step 5: Commit the controller behavior**
+- [x] **Step 5: Commit the controller behavior**
 
 ```powershell
 git add -- tests/cooking-interaction-controller.test.mjs app/static/cooking-interaction-controller.mjs

@@ -283,6 +283,7 @@ export function createCookingInteractionController({
   let explicitlyPaused = false;
   let inspectionOnly = false;
   let orbitEnabled = true;
+  let pinchZoomEnabled = true;
   let inspectionTapSession = null;
   let mutationEpoch = 0;
 
@@ -927,7 +928,7 @@ export function createCookingInteractionController({
       canvas.setPointerCapture?.(event.pointerId);
       event.preventDefault?.();
       if (activePointers.size === 2) {
-        if (orbitEnabled || dragSession) beginPinch();
+        if (pinchZoomEnabled || dragSession) beginPinch();
         else state = "camera-locked";
         return;
       }
@@ -1087,7 +1088,7 @@ export function createCookingInteractionController({
       const [first, second] = [...activePointers.values()];
       const distance = Math.max(pointerDistance(first, second), 1e-6);
       const angleDelta = normalizedAngle(pointerAngle(first, second) - pinchSession.pointerAngle);
-      if (orbitEnabled) {
+      if (pinchZoomEnabled) {
         applyCameraState({
           yaw: pinchSession.camera.yaw,
           pitch: pinchSession.camera.pitch,
@@ -1536,13 +1537,25 @@ export function createCookingInteractionController({
     setOrbitEnabled(value) {
       if (disposed) return orbitEnabled;
       const next = Boolean(value);
-      if (orbitEnabled === next) return orbitEnabled;
+      if (orbitEnabled === next && pinchZoomEnabled === next) return orbitEnabled;
       cancelGesture("orbit-enabled-changed");
       orbitEnabled = next;
+      pinchZoomEnabled = next;
       return orbitEnabled;
     },
     isOrbitEnabled() {
       return orbitEnabled;
+    },
+    setPinchZoomEnabled(value) {
+      if (disposed) return pinchZoomEnabled;
+      const next = Boolean(value);
+      if (pinchZoomEnabled === next) return pinchZoomEnabled;
+      cancelGesture("pinch-zoom-enabled-changed");
+      pinchZoomEnabled = next;
+      return pinchZoomEnabled;
+    },
+    isPinchZoomEnabled() {
+      return pinchZoomEnabled;
     },
     getSelectableSurfaces() {
       return Object.freeze([
