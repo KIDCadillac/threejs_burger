@@ -3,9 +3,13 @@ import assert from "node:assert/strict";
 
 import {
   WORKBENCH_LOADOUT_STORAGE_KEY,
+  WORKBENCH_CONTENT_PRESENTATION,
   WORKBENCH_REGION_OPTIONS,
+  WORKBENCH_SLOT_PRESENTATION,
   WORKBENCH_SLOTS,
+  cycleWorkbenchSlotContent,
   createDefaultWorkbenchLoadout,
+  getNextWorkbenchSlotContent,
   getWorkbenchSlot,
   loadWorkbenchLoadout,
   normalizeWorkbenchLoadout,
@@ -70,6 +74,61 @@ test("publishes ten unique frozen physical slots and frozen regional options", (
     assert.equal(Object.isFrozen(options), true);
   }
   assert.equal(WORKBENCH_LOADOUT_STORAGE_KEY, "solo-cooking-workbench-loadout:v1");
+});
+
+test("publishes frozen Chinese presentation metadata for every slot and candidate", () => {
+  const contentIds = new Set(Object.values(WORKBENCH_REGION_OPTIONS).flat());
+
+  assert.equal(Object.isFrozen(WORKBENCH_CONTENT_PRESENTATION), true);
+  assert.deepEqual(
+    new Set(Object.keys(WORKBENCH_CONTENT_PRESENTATION)),
+    contentIds,
+  );
+  for (const presentation of Object.values(WORKBENCH_CONTENT_PRESENTATION)) {
+    assert.equal(Object.isFrozen(presentation), true);
+    assert.match(presentation.label, /\S/);
+    assert.match(presentation.icon, /\S/);
+  }
+  assert.deepEqual(WORKBENCH_CONTENT_PRESENTATION.patty, {
+    label: "牛肉饼",
+    icon: "🥩",
+  });
+
+  assert.equal(Object.isFrozen(WORKBENCH_SLOT_PRESENTATION), true);
+  assert.deepEqual(
+    Object.keys(WORKBENCH_SLOT_PRESENTATION),
+    WORKBENCH_SLOTS.map(({ slotId }) => slotId),
+  );
+  for (const presentation of Object.values(WORKBENCH_SLOT_PRESENTATION)) {
+    assert.equal(Object.isFrozen(presentation), true);
+    assert.match(presentation.label, /\S/);
+  }
+  assert.deepEqual(WORKBENCH_SLOT_PRESENTATION["filling-back-1"], {
+    label: "后排配料 1",
+  });
+});
+
+test("cycles slot candidates in both directions without mutating the loadout", () => {
+  const loadout = createDefaultWorkbenchLoadout();
+
+  assert.equal(getNextWorkbenchSlotContent(loadout, "filling-back-1"), "cheese");
+  assert.equal(getNextWorkbenchSlotContent(loadout, "filling-back-1", -1), "onion");
+  assert.equal(getNextWorkbenchSlotContent(loadout, "filling-back-1", 0), "cheese");
+  assert.equal(getNextWorkbenchSlotContent(loadout, "bread-left-3"), "bottom-bun");
+
+  const cycled = cycleWorkbenchSlotContent(loadout, "filling-back-1");
+  assert.equal(cycled["filling-back-1"], "cheese");
+  assert.equal(loadout["filling-back-1"], "patty");
+  assertFrozenLoadout(cycled);
+
+  assert.throws(
+    () => getNextWorkbenchSlotContent(loadout, "missing-slot"),
+    RangeError,
+  );
+  assert.throws(
+    () => cycleWorkbenchSlotContent(loadout, "missing-slot"),
+    RangeError,
+  );
 });
 
 test("creates the complete default workbench layout as a fresh frozen config", () => {
