@@ -393,7 +393,7 @@ test("page and modules use only relative static imports with no socket dependenc
     readFile(appPath, "utf8"),
     readFile(loaderPath, "utf8"),
   ]);
-  assert.match(html, /href="\.\/cooking\.css\?v=20260722-ui1"/);
+  assert.match(html, /href="\.\/cooking\.css\?v=20260722-ui2"/);
   assert.match(html, /src="\.\/cooking-loader\.mjs"/);
   assert.match(app, /from "\.\/vendor\/three\.module\.min\.js"/);
   assert.match(app, /from "\.\/cooking-solo-stage\.mjs"/);
@@ -463,6 +463,9 @@ test("mobile cooking UI keeps the 3D workbench dominant with an in-stage HUD", a
   assert.match(mobile, /\.cooking-stage\s*\{[^}]*min-height:\s*calc\(100dvh\s*-\s*68px\);/);
   assert.match(mobile, /#cooking-canvas\s*\{[^}]*height:\s*calc\(100dvh\s*-\s*68px\);/);
   assert.match(mobile, /\.tutorial-coach\s*\{[^}]*max-width:\s*min\(calc\(100%\s*-\s*24px\),\s*330px\);/);
+  assert.match(mobile, /\.workbench-slot-control\[data-region="filling"\]\s*\{[^}]*top:\s*max\(var\(--slot-y\),\s*148px\);/);
+  assert.match(mobile, /\.workbench-slot-controls__lines\s*\{[^}]*display:\s*none;/);
+  assert.match(mobile, /\.cooking-stage > \.focus-button\s*\{[^}]*top:\s*206px;/);
 });
 
 test("uses only in-world feedback and contains no text drop-intent control", async () => {
