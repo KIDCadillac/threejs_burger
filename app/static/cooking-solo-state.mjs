@@ -104,6 +104,16 @@ function freezeRotations(rotations, instances) {
   return Object.freeze(Object.fromEntries(Object.keys(instances).map((id) => [id, rotations[id]])));
 }
 
+function freezeOffsets(offsets, instances) {
+  return Object.freeze(Object.fromEntries(Object.keys(instances).map((id) => {
+    const offset = offsets?.[id] ?? { x: 0, z: 0 };
+    return [id, Object.freeze({
+      x: finite(offset.x, `offsets.${id}.x`),
+      z: finite(offset.z, `offsets.${id}.z`),
+    })];
+  })));
+}
+
 function freezeInstances(instances) {
   return Object.freeze({ ...instances });
 }
@@ -148,13 +158,15 @@ function selectInstanceRecords(snapshot, referenced) {
   const instances = {};
   const locations = {};
   const rotations = {};
+  const offsets = {};
   Object.keys(snapshot.instances).forEach((id) => {
     if (!referenced.has(id)) return;
     instances[id] = snapshot.instances[id];
     locations[id] = snapshot.locations[id];
     rotations[id] = snapshot.rotations[id];
+    offsets[id] = snapshot.offsets?.[id] ?? { x: 0, z: 0 };
   });
-  return { instances, locations, rotations };
+  return { instances, locations, rotations, offsets };
 }
 
 function stationSession(state, overrides = {}) {
@@ -199,6 +211,10 @@ function reconcileStationSnapshot(snapshot, session) {
     Object.keys(instances).map((id) => [id, { ...snapshot.locations[id] }]),
   );
   const rotations = { ...snapshot.rotations };
+  const offsets = Object.fromEntries(Object.keys(instances).map((id) => [
+    id,
+    snapshot.offsets?.[id] ?? { x: 0, z: 0 },
+  ]));
   // A sauce stroke owns its target just like the assembled stack and the active station do.
   const strokedLayers = new Set(snapshot.strokes.map(({ layerId }) => layerId));
   const stationSources = {};
@@ -231,6 +247,7 @@ function reconcileStationSnapshot(snapshot, session) {
     instances[sourceId] = ingredientId;
     locations[sourceId] = { kind: "bin", slotId };
     if (!Number.isFinite(rotations[sourceId])) rotations[sourceId] = 0;
+    if (!offsets[sourceId]) offsets[sourceId] = { x: 0, z: 0 };
     stationSources[slotId] = sourceId;
     instanceHomes[sourceId] = slotId;
     selectedSources.add(sourceId);
@@ -247,6 +264,7 @@ function reconcileStationSnapshot(snapshot, session) {
       delete instances[id];
       delete locations[id];
       delete rotations[id];
+      delete offsets[id];
     }
   });
 
@@ -256,6 +274,7 @@ function reconcileStationSnapshot(snapshot, session) {
       instances,
       locations,
       rotations,
+      offsets,
       binSources: deriveStationBinSources(stationContents, stationSources),
       nextInstanceSequence,
     },
@@ -265,12 +284,13 @@ function reconcileStationSnapshot(snapshot, session) {
 
 function bareSnapshot(state, { includeStationSession = false } = {}) {
   const referenced = referencedInstanceIds(state, state.stationSources);
-  const { instances, locations, rotations } = selectInstanceRecords(state, referenced);
+  const { instances, locations, rotations, offsets } = selectInstanceRecords(state, referenced);
   return Object.freeze({
     assembledOrder: Object.freeze([...state.assembledOrder]),
     instances: freezeInstances(instances),
     locations: freezeLocations(locations, instances),
     rotations: freezeRotations(rotations, instances),
+    offsets: freezeOffsets(offsets, instances),
     binSources: freezeIngredientRecord(state.binSources),
     inventory: freezeIngredientRecord(state.inventory),
     nextInstanceSequence: state.nextInstanceSequence,
@@ -315,6 +335,7 @@ function buildState(
     instances,
     locations: freezeLocations(resolvedSnapshot.locations, instances),
     rotations: freezeRotations(resolvedSnapshot.rotations, instances),
+    offsets: freezeOffsets(resolvedSnapshot.offsets, instances),
     binSources: freezeIngredientRecord(resolvedSnapshot.binSources),
     inventory: freezeIngredientRecord(resolvedSnapshot.inventory),
     nextInstanceSequence: resolvedSnapshot.nextInstanceSequence,
@@ -369,6 +390,7 @@ export function createSoloCookingState({ referenceRecipeId = null, loadout } = {
     const instances = {};
     const locations = {};
     const rotations = {};
+    const offsets = {};
     const stationSources = {};
     const instanceHomes = {};
     let nextInstanceSequence = 2;
@@ -381,6 +403,7 @@ export function createSoloCookingState({ referenceRecipeId = null, loadout } = {
       instances[instanceId] = ingredientId;
       locations[instanceId] = { kind: "bin", slotId };
       rotations[instanceId] = 0;
+      offsets[instanceId] = { x: 0, z: 0 };
       stationSources[slotId] = instanceId;
       instanceHomes[instanceId] = slotId;
     });
@@ -390,6 +413,7 @@ export function createSoloCookingState({ referenceRecipeId = null, loadout } = {
       instances,
       locations,
       rotations,
+      offsets,
       binSources: deriveStationBinSources(stationContents, stationSources),
       inventory: Object.fromEntries(
         SOLO_BURGER_INGREDIENT_IDS.map((id) => [id, SOLO_INGREDIENT_STOCK]),
@@ -407,6 +431,9 @@ export function createSoloCookingState({ referenceRecipeId = null, loadout } = {
       id, { kind: "bin", index },
     ])),
     rotations: Object.fromEntries(SOLO_BURGER_INGREDIENT_IDS.map((id) => [id, 0])),
+    offsets: Object.fromEntries(SOLO_BURGER_INGREDIENT_IDS.map((id) => [
+      id, { x: 0, z: 0 },
+    ])),
     binSources: Object.fromEntries(SOLO_BURGER_INGREDIENT_IDS.map((id) => [id, id])),
     inventory: Object.fromEntries(
       SOLO_BURGER_INGREDIENT_IDS.map((id) => [id, SOLO_INGREDIENT_STOCK]),
@@ -450,6 +477,7 @@ export function setSoloStationContent(state, slotId, contentId) {
     Object.keys(instances).map((id) => [id, state.locations[id]]),
   );
   const rotations = { ...state.rotations };
+  const offsets = { ...state.offsets };
   const stationSources = { ...session.stationSources };
   const instanceHomes = { ...session.instanceHomes };
   const previousSourceId = stationSources[slotId];
@@ -465,6 +493,7 @@ export function setSoloStationContent(state, slotId, contentId) {
     delete instances[previousSourceId];
     delete locations[previousSourceId];
     delete rotations[previousSourceId];
+    delete offsets[previousSourceId];
   }
 
   const allocated = allocateInstanceId(instances, contentId, state.nextInstanceSequence);
@@ -472,6 +501,7 @@ export function setSoloStationContent(state, slotId, contentId) {
   instances[sourceId] = contentId;
   locations[sourceId] = { kind: "bin", slotId };
   rotations[sourceId] = 0;
+  offsets[sourceId] = { x: 0, z: 0 };
   stationSources[slotId] = sourceId;
   instanceHomes[sourceId] = slotId;
 
@@ -480,6 +510,7 @@ export function setSoloStationContent(state, slotId, contentId) {
     instances,
     locations,
     rotations,
+    offsets,
     binSources: deriveStationBinSources(stationContents, stationSources),
     nextInstanceSequence: allocated.nextInstanceSequence,
   }, history, state.referenceRecipeId, {
@@ -510,6 +541,7 @@ export function placeSoloLayer(
   const instances = { ...state.instances };
   const locations = Object.fromEntries(Object.keys(instances).map((id) => [id, state.locations[id]]));
   const rotations = { ...state.rotations };
+  const offsets = { ...state.offsets };
   let binSources = { ...state.binSources };
   const inventory = { ...state.inventory };
   const session = stationSession(state);
@@ -529,6 +561,7 @@ export function placeSoloLayer(
     instances[replacementId] = ingredientId;
     locations[replacementId] = { kind: "bin", slotId: sourceSlotId };
     rotations[replacementId] = 0;
+    offsets[replacementId] = { x: 0, z: 0 };
     stationSources[sourceSlotId] = replacementId;
     instanceHomes[layerId] = sourceSlotId;
     instanceHomes[replacementId] = sourceSlotId;
@@ -549,6 +582,7 @@ export function placeSoloLayer(
       index: SOLO_BURGER_INGREDIENT_IDS.indexOf(ingredientId),
     };
     rotations[replacementId] = 0;
+    offsets[replacementId] = { x: 0, z: 0 };
     binSources[ingredientId] = replacementId;
     inventory[ingredientId] = Math.max(0, inventory[ingredientId] - 1);
   }
@@ -558,6 +592,7 @@ export function placeSoloLayer(
     instances,
     locations,
     rotations,
+    offsets,
     binSources,
     inventory,
     nextInstanceSequence,
@@ -582,6 +617,7 @@ export function removeSoloLayer(
   const instances = { ...state.instances };
   const locations = Object.fromEntries(Object.keys(instances).map((id) => [id, state.locations[id]]));
   const rotations = { ...state.rotations };
+  const offsets = { ...state.offsets };
   let binSources = { ...state.binSources };
   const inventory = { ...state.inventory };
   const session = stationSession(state);
@@ -624,6 +660,7 @@ export function removeSoloLayer(
       delete instances[previousSourceId];
       delete locations[previousSourceId];
       delete rotations[previousSourceId];
+      delete offsets[previousSourceId];
       strokes = strokes.filter((stroke) => stroke.layerId !== previousSourceId);
     }
     stationContents[returnSlotId] = ingredientId;
@@ -638,11 +675,13 @@ export function removeSoloLayer(
     delete instances[previousSourceId];
     delete locations[previousSourceId];
     delete rotations[previousSourceId];
+    delete offsets[previousSourceId];
     strokes = strokes.filter((stroke) => stroke.layerId !== previousSourceId);
     binSources[ingredientId] = returnedId;
     inventory[ingredientId] = Math.min(SOLO_INGREDIENT_STOCK, inventory[ingredientId] + 1);
   }
   if (instances[returnedId]) {
+    offsets[returnedId] = { x: 0, z: 0 };
     locations[returnedId] = session && typeof returnSlotId === "string"
       ? { kind: "bin", slotId: returnSlotId }
       : {
@@ -656,6 +695,7 @@ export function removeSoloLayer(
     instances,
     locations,
     rotations,
+    offsets,
     binSources,
     inventory,
     strokes,
@@ -674,6 +714,39 @@ export function rotateSoloLayer(state, layerId, yaw) {
   const raw = finite(yaw, "yaw");
   const normalized = Math.atan2(Math.sin(raw), Math.cos(raw));
   return edited(state, { rotations: { ...state.rotations, [layerId]: normalized } });
+}
+
+export function moveSoloLayer(state, layerId, offset, { maxRadius = 1.45 } = {}) {
+  requireEditable(state);
+  requireInstance(state, layerId);
+  if (!state.assembledOrder.includes(layerId)) {
+    throw new TypeError("Only assembled layers can be moved");
+  }
+  const x = finite(offset?.x, "offset.x");
+  const z = finite(offset?.z, "offset.z");
+  const radius = finite(maxRadius, "maxRadius");
+  if (radius <= 0) throw new TypeError("maxRadius must be positive");
+  const length = Math.hypot(x, z);
+  const scale = length > radius ? radius / length : 1;
+  return edited(state, {
+    offsets: {
+      ...state.offsets,
+      [layerId]: { x: x * scale, z: z * scale },
+    },
+  });
+}
+
+export function reorderSoloLayer(state, layerId, direction) {
+  requireEditable(state);
+  requireInstance(state, layerId);
+  if (direction !== -1 && direction !== 1) {
+    throw new TypeError("direction must be -1 or 1");
+  }
+  const from = state.assembledOrder.indexOf(layerId);
+  if (from < 0) throw new TypeError("Only assembled layers can be reordered");
+  const target = from + direction;
+  if (target < 0 || target >= state.assembledOrder.length) return state;
+  return placeSoloLayer(state, layerId, target);
 }
 
 export function addSoloSauceStroke(state, stroke) {
@@ -727,7 +800,11 @@ export function serializeSoloComposition(state) {
     layerOrder: [...state.assembledOrder, ...remaining],
     layerTypes: { ...state.instances },
     layerPoses: Object.fromEntries(Object.keys(state.instances).map((id) => [
-      id, { x: 0, z: 0, yaw: state.rotations[id] },
+      id, {
+        x: state.offsets?.[id]?.x ?? 0,
+        z: state.offsets?.[id]?.z ?? 0,
+        yaw: state.rotations[id],
+      },
     ])),
     strokes: state.strokes.map((stroke) => ({
       ...stroke,

@@ -5,6 +5,7 @@ import {
   addSoloSauceStroke,
   createSoloCookingState,
   finishSoloCooking,
+  moveSoloLayer,
   placeSoloLayer,
   removeSoloLayer,
   rotateSoloLayer,
@@ -23,6 +24,7 @@ const PERSISTED_FIELDS = Object.freeze([
   "instances",
   "locations",
   "rotations",
+  "offsets",
   "binSources",
   "inventory",
   "nextInstanceSequence",
@@ -73,7 +75,7 @@ function roundTrip(state) {
   const serialized = serializeSoloSave(state);
   const decoded = decodeSoloSave(serialized);
   assert.ok(decoded);
-  assert.equal(decoded.version, 1);
+  assert.equal(decoded.version, 2);
   const hydrated = hydrateSoloCookingState(decoded.state);
   assert.ok(hydrated);
   return { serialized, decoded, hydrated };
@@ -89,6 +91,7 @@ function renameInstance(saved, oldId, newId) {
   saved.instances[newId] = saved.instances[oldId];
   saved.locations[newId] = saved.locations[oldId];
   saved.rotations[newId] = saved.rotations[oldId];
+  if (saved.offsets) saved.offsets[newId] = saved.offsets[oldId];
   if (Object.hasOwn(saved.instanceHomes ?? {}, oldId)) {
     saved.instanceHomes[newId] = saved.instanceHomes[oldId];
     delete saved.instanceHomes[oldId];
@@ -106,6 +109,7 @@ function renameInstance(saved, oldId, newId) {
   delete saved.instances[oldId];
   delete saved.locations[oldId];
   delete saved.rotations[oldId];
+  if (saved.offsets) delete saved.offsets[oldId];
 }
 
 function handwrittenLegacyV1() {
@@ -141,7 +145,9 @@ function handwrittenLegacyV1() {
 }
 
 test("round-trips all persisted fields while dropping history and deriving complete", () => {
-  const state = makeDuplicateSlotState({ layers: 6, finished: true });
+  let state = makeDuplicateSlotState({ layers: 6 });
+  state = moveSoloLayer(state, state.assembledOrder[2], { x: 0.36, z: -0.21 });
+  state = finishSoloCooking(state);
   const { serialized, decoded, hydrated } = roundTrip(state);
 
   assert.deepEqual(Object.keys(decoded.state), PERSISTED_FIELDS);
@@ -154,6 +160,26 @@ test("round-trips all persisted fields while dropping history and deriving compl
   assert.equal(Object.hasOwn(JSON.parse(serialized).state, "complete"), false);
   assert.equal(Object.isFrozen(hydrated), true);
   assert.equal(Object.isFrozen(hydrated.strokes[0].points), true);
+});
+
+test("migrates version one saves to zero offsets and rejects malformed version two offsets", () => {
+  const legacy = decodeSoloSave(handwrittenLegacyV1());
+  assert.ok(legacy);
+  assert.equal(legacy.version, 2);
+  Object.keys(legacy.state.instances).forEach((id) => {
+    assert.deepEqual(legacy.state.offsets[id], { x: 0, z: 0 });
+  });
+
+  const serialized = serializeSoloSave(makeDuplicateSlotState({ layers: 3 }));
+  const cases = [
+    ({ state }) => { state.offsets[state.assembledOrder[0]].x = null; },
+    ({ state }) => { state.offsets[state.assembledOrder[0]].z = 2; },
+    ({ state }) => { delete state.offsets[state.assembledOrder[0]]; },
+    ({ state }) => { state.offsets["missing-instance"] = { x: 0, z: 0 }; },
+  ];
+  for (const mutate of cases) {
+    assert.equal(decodeSoloSave(mutateSerialized(serialized, mutate)), null);
+  }
 });
 
 test("preserves duplicate ingredient slots as distinct sources and homes", () => {
@@ -212,14 +238,14 @@ test("round-trips an exact sixty-layer burger and rejects layer sixty-one", () =
   assert.equal(decodeSoloSave(invalid), null);
 });
 
-test("loads a valid small v1 save and ignores future versions", () => {
+test("loads a valid current save and ignores future versions", () => {
   const state = makeDuplicateSlotState({ layers: 2 });
   const serialized = serializeSoloSave(state);
 
   const restored = hydrateSoloCookingState(decodeSoloSave(serialized).state);
   assert.deepEqual(restored.assembledOrder, state.assembledOrder);
 
-  const future = mutateSerialized(serialized, (payload) => { payload.version = 2; });
+  const future = mutateSerialized(serialized, (payload) => { payload.version = 3; });
   assert.equal(decodeSoloSave(future), null);
 });
 

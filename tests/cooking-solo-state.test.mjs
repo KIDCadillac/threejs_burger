@@ -6,6 +6,8 @@ import {
   setSoloStationContent,
   placeSoloLayer,
   removeSoloLayer,
+  moveSoloLayer,
+  reorderSoloLayer,
   rotateSoloLayer,
   addSoloSauceStroke,
   addSoloSauceStrokes,
@@ -83,6 +85,52 @@ test("rotation and repeated mixed sauce strokes are immutable and serializable",
   assert.deepEqual(composition.layerOrder, SOLO_BURGER_INGREDIENT_IDS);
   composition.strokes[0].points[0][0] = 1;
   assert.equal(third.strokes[0].points[0][0], -0.4);
+});
+
+test("horizontal focus offsets are bounded, immutable, and composition-safe", () => {
+  let state = createSoloCookingState();
+  state = placeSoloLayer(state, "bottom-bun");
+  const original = state;
+
+  state = moveSoloLayer(state, "bottom-bun", { x: 0.42, z: -0.18 });
+
+  assert.deepEqual(original.offsets["bottom-bun"], { x: 0, z: 0 });
+  assert.deepEqual(state.offsets["bottom-bun"], { x: 0.42, z: -0.18 });
+  assert.equal(Object.hasOwn(state.offsets["bottom-bun"], "y"), false);
+  assert.deepEqual(serializeSoloComposition(state).layerPoses["bottom-bun"], {
+    x: 0.42,
+    z: -0.18,
+    yaw: 0,
+  });
+
+  const clamped = moveSoloLayer(state, "bottom-bun", { x: 3, z: 4 }, { maxRadius: 1 });
+  assert.ok(Math.abs(Math.hypot(
+    clamped.offsets["bottom-bun"].x,
+    clamped.offsets["bottom-bun"].z,
+  ) - 1) < 1e-9);
+  assert.throws(() => moveSoloLayer(state, "bottom-bun", { x: NaN, z: 0 }), TypeError);
+  assert.throws(() => moveSoloLayer(state, "patty", { x: 0, z: 0 }), /assembled/i);
+});
+
+test("adjacent focus reorder moves one layer at a time and respects stack boundaries", () => {
+  let state = createSoloCookingState();
+  state = placeSoloLayer(state, "bottom-bun");
+  state = placeSoloLayer(state, "patty");
+  state = placeSoloLayer(state, "cheese");
+  state = placeSoloLayer(state, "top-bun");
+
+  const originalIndex = state.assembledOrder.indexOf("patty");
+  state = reorderSoloLayer(state, "patty", 1);
+  assert.equal(state.assembledOrder.indexOf("patty"), originalIndex + 1);
+  state = reorderSoloLayer(state, "patty", -1);
+  assert.equal(state.assembledOrder.indexOf("patty"), originalIndex);
+
+  const unchangedBottom = reorderSoloLayer(state, "bottom-bun", -1);
+  const unchangedTop = reorderSoloLayer(state, "top-bun", 1);
+  assert.strictEqual(unchangedBottom, state);
+  assert.strictEqual(unchangedTop, state);
+  assert.throws(() => reorderSoloLayer(state, "patty", 0), TypeError);
+  assert.throws(() => reorderSoloLayer(state, "missing", 1), TypeError);
 });
 
 test("one sauce gesture adds all layer segments as one undoable edit", () => {
