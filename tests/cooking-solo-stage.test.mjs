@@ -175,39 +175,18 @@ function assertStackFitsCamera(stage, label, {
   return maximumScreenMagnitude;
 }
 
-function assertSelectorVerticesFitCamera(stage, label) {
+function assertControlAnchorsProject(stage, label) {
   stage.host.scene.updateMatrixWorld(true);
   stage.host.camera.updateProjectionMatrix();
   stage.host.camera.updateMatrixWorld(true);
-  let vertexCount = 0;
-  for (const station of [
-    ...stage.workbench.ingredientSlots,
-    ...stage.workbench.toolDocks,
-  ]) {
-    const selector = station.selector;
-    assert.ok(selector?.geometry?.attributes?.position, `${station.slotId} has selector vertices`);
-    const positions = selector.geometry.attributes.position;
-    for (let index = 0; index < positions.count; index += 1) {
-      const ndc = new THREE.Vector3()
-        .fromBufferAttribute(positions, index)
-        .applyMatrix4(selector.matrixWorld)
-        .project(stage.host.camera);
-      vertexCount += 1;
-      assert.ok(
-        Number.isFinite(ndc.x) && Math.abs(ndc.x) <= 1 + 1e-9,
-        `${label} ${station.slotId} selector vertex ${index} exceeds width at NDC x=${ndc.x}`,
-      );
-      assert.ok(
-        Number.isFinite(ndc.y) && Math.abs(ndc.y) <= 1 + 1e-9,
-        `${label} ${station.slotId} selector vertex ${index} exceeds height at NDC y=${ndc.y}`,
-      );
-      assert.ok(
-        Number.isFinite(ndc.z) && Math.abs(ndc.z) <= 1 + 1e-9,
-        `${label} ${station.slotId} selector vertex ${index} exceeds depth at NDC z=${ndc.z}`,
-      );
-    }
+  const anchors = stage.getSlotControlAnchors();
+  assert.equal(anchors.length, 10, `${label} exposes every physical slot anchor`);
+  for (const { slotId, anchor } of anchors) {
+    const ndc = anchor.getWorldPosition(new THREE.Vector3()).project(stage.host.camera);
+    assert.ok(Number.isFinite(ndc.x), `${label} ${slotId} anchor x is finite`);
+    assert.ok(Number.isFinite(ndc.y), `${label} ${slotId} anchor y is finite`);
+    assert.ok(Number.isFinite(ndc.z), `${label} ${slotId} anchor z is finite`);
   }
-  assert.ok(vertexCount > 0, `${label} projected selector vertices`);
 }
 
 function pointerAtWorld(stage, canvas, pointerId, worldPoint) {
@@ -402,7 +381,7 @@ test("starts from a verified saved state and lets its station contents override 
   assert.strictEqual(stage.getState().history, initialState.history);
   assert.strictEqual(ready.at(-1).state, initialState);
   assertStackFitsCamera(stage, "saved initial stack", { requireTight: false });
-  assertSelectorVerticesFitCamera(stage, "saved initial workbench");
+  assertControlAnchorsProject(stage, "saved initial workbench");
   stage.dispose();
 
   const fallback = harness({
@@ -570,6 +549,39 @@ test("switches one ingredient slot without clearing the plated burger, history, 
     contentId: "onion",
   });
   assert.equal(stage.setSlotContent("filling-back-2", "onion"), false);
+  stage.dispose();
+});
+
+test("previews one translucent slot candidate without mutating cooking state or loadout", () => {
+  const { stage } = harness({ loadout: createDefaultWorkbenchLoadout() });
+  const before = stage.getState();
+
+  assert.equal(stage.previewSlotContent("filling-back-1", "cheese"), true);
+  assert.strictEqual(stage.getState(), before);
+  assert.equal(stage.workbench.previewRoot.children.length, 1);
+  const ingredientPreview = stage.workbench.previewRoot.children[0];
+  const ingredientMaterials = [];
+  ingredientPreview.traverse((object) => {
+    if (object.material) ingredientMaterials.push(
+      ...(Array.isArray(object.material) ? object.material : [object.material]),
+    );
+  });
+  assert.ok(ingredientMaterials.length > 0);
+  assert.ok(ingredientMaterials.every((material) => (
+    material.transparent === true
+      && Math.abs(material.opacity - 0.32) < 1e-9
+      && material.depthWrite === false
+  )));
+
+  assert.equal(stage.previewSlotContent("sauce-right-1", "mustard"), true);
+  assert.strictEqual(stage.getState(), before);
+  assert.equal(stage.workbench.previewRoot.children.length, 0, "switching region clears food preview");
+  assert.equal(stage.tools.previewRoot.children.length, 1);
+
+  assert.equal(stage.clearSlotContentPreview(), true);
+  assert.equal(stage.workbench.previewRoot.children.length, 0);
+  assert.equal(stage.tools.previewRoot.children.length, 0);
+  assert.strictEqual(stage.getState(), before);
   stage.dispose();
 });
 
@@ -947,7 +959,7 @@ test("fits the fixed switchable workbench into a tall phone with a usable prep b
   stage.dispose();
 });
 
-test("keeps every real station-selector vertex on screen for both tall phone viewports", () => {
+test("projects all stable slot-control anchors for both tall phone viewports", () => {
   for (const [label, width, height] of [
     ["390x608", 390, 608],
     ["390x844", 390, 844],
@@ -965,7 +977,7 @@ test("keeps every real station-selector vertex on screen for both tall phone vie
     });
 
     assert.equal(host.resizes, 0, `${label} does not depend on a resize event`);
-    assertSelectorVerticesFitCamera(stage, label);
+    assertControlAnchorsProject(stage, label);
     stage.dispose();
   }
 });

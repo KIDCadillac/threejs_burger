@@ -215,15 +215,8 @@ test("canonicalizes switchable station order regardless of descriptor order", ()
   const allSlotIds = [...ingredientSlotIds, ...toolDockIds];
   const selectableOrder = (workbench) => workbench.selectableSurfaces
     .slice(1)
-    .map(({ userData: { cookingSelectable } }) => (
-      cookingSelectable.kind === "station-selector"
-        ? `selector:${cookingSelectable.slotId}`
-        : `station:${cookingSelectable.slotId}`
-    ));
-  const expectedSelectableOrder = [
-    ...allSlotIds.map((slotId) => `station:${slotId}`),
-    ...allSlotIds.map((slotId) => `selector:${slotId}`),
-  ];
+    .map(({ userData: { cookingSelectable } }) => `station:${cookingSelectable.slotId}`);
+  const expectedSelectableOrder = allSlotIds.map((slotId) => `station:${slotId}`);
 
   for (const { slotId } of descriptors) {
     const orderedStation = ordered.getStationBySlot(slotId);
@@ -262,14 +255,14 @@ test("keeps switchable station identity stable while changing its region-valid c
   });
   const station = workbench.getStationBySlot("filling-back-2");
   const originalPosition = station.bin.position.clone();
-  const originalSelectorMetadata = station.selector.userData.cookingSelectable;
+  const originalControlMetadata = station.controlAnchor.userData.workbenchSlotControl;
   const identities = {
     station,
     bin: station.bin,
     surface: station.surface,
     pickupAnchor: station.pickupAnchor,
     dropAnchor: station.dropAnchor,
-    selector: station.selector,
+    controlAnchor: station.controlAnchor,
   };
 
   assert.equal(Object.isFrozen(station), true);
@@ -292,8 +285,8 @@ test("keeps switchable station identity stable while changing its region-valid c
   assert.equal(station.surface, identities.surface);
   assert.equal(station.pickupAnchor, identities.pickupAnchor);
   assert.equal(station.dropAnchor, identities.dropAnchor);
-  assert.equal(station.selector, identities.selector);
-  assert.equal(station.selector.userData.cookingSelectable, originalSelectorMetadata);
+  assert.equal(station.controlAnchor, identities.controlAnchor);
+  assert.equal(station.controlAnchor.userData.workbenchSlotControl, originalControlMetadata);
 
   for (const metadata of [
     station.bin.userData.cookingStation,
@@ -397,55 +390,45 @@ test("requires each switchable region index exactly once without gaps", () => {
   }
 });
 
-test("adds one independent frozen selector target per switchable slot", () => {
+test("adds one stable non-raycast control anchor per switchable slot", () => {
   const workbench = createCookingWorkbench3D(THREE, {
     slotDescriptors: createSwitchableSlotDescriptors(),
   });
   workbench.root.updateMatrixWorld(true);
   const stations = [...workbench.ingredientSlots, ...workbench.toolDocks];
-  const selectors = stations.map(({ selector }) => selector);
-  const { bounds } = workbench.getLayout();
+  const anchors = stations.map(({ controlAnchor }) => controlAnchor);
+  const exposed = workbench.getSlotControlAnchors();
 
-  assert.equal(new Set(selectors).size, stations.length);
-  assert.equal(workbench.selectableSurfaces.length, 1 + stations.length * 2);
-  for (const station of stations) {
-    assert.ok(station.selector instanceof THREE.Mesh);
-    assert.equal(station.selector.parent, station.bin ?? station.dock);
-    assert.ok(workbench.selectableSurfaces.includes(station.selector));
-    assert.deepEqual(station.selector.userData.cookingSelectable, {
-      kind: "station-selector",
+  assert.equal(new Set(anchors).size, stations.length);
+  assert.equal(workbench.selectableSurfaces.length, 1 + stations.length);
+  assert.equal(Object.isFrozen(exposed), true);
+  assert.deepEqual(exposed.map(({ slotId }) => slotId), stations.map(({ slotId }) => slotId));
+  for (const [index, station] of stations.entries()) {
+    assert.ok(station.controlAnchor instanceof THREE.Object3D);
+    assert.equal(station.controlAnchor.parent, station.bin ?? station.dock);
+    assert.ok(!workbench.selectableSurfaces.includes(station.controlAnchor));
+    assert.deepEqual(station.controlAnchor.userData.workbenchSlotControl, {
       slotId: station.slotId,
       region: station.region,
     });
-    assert.equal(Object.isFrozen(station.selector.userData.cookingSelectable), true);
-    assert.equal(Object.hasOwn(station.selector.userData.cookingSelectable, "contentId"), false);
+    assert.equal(Object.isFrozen(station.controlAnchor.userData.workbenchSlotControl), true);
+    assert.equal(Object.hasOwn(station.controlAnchor.userData.workbenchSlotControl, "contentId"), false);
+    assert.equal(exposed[index].anchor, station.controlAnchor);
+    assert.equal(Object.isFrozen(exposed[index]), true);
     assert.ok(
-      Math.hypot(station.selector.position.x, station.selector.position.z) > 0.5,
-      "selector is offset from the material surface",
+      Math.hypot(station.controlAnchor.position.x, station.controlAnchor.position.z) > 0.5,
+      "control anchor is offset from the material surface",
     );
     assert.ok(
-      Math.hypot(station.selector.position.x, station.selector.position.z) < 1.5,
-      "selector remains close to its slot",
+      Math.hypot(station.controlAnchor.position.x, station.controlAnchor.position.z) < 1.5,
+      "control anchor remains close to its slot",
     );
-    const selectorBounds = new THREE.Box3().setFromObject(station.selector);
-    assert.ok(selectorBounds.min.x >= bounds.minX && selectorBounds.max.x <= bounds.maxX);
-    assert.ok(selectorBounds.min.z >= bounds.minZ && selectorBounds.max.z <= bounds.maxZ);
+    assert.equal(station.controlAnchor.children.length, 0);
   }
 
-  const selectorGeometry = selectors[0].geometry;
-  const selectorMaterial = selectors[0].material;
-  let geometryDisposeCount = 0;
-  let materialDisposeCount = 0;
-  const disposeGeometry = selectorGeometry.dispose.bind(selectorGeometry);
-  const disposeMaterial = selectorMaterial.dispose.bind(selectorMaterial);
-  selectorGeometry.dispose = () => { geometryDisposeCount += 1; disposeGeometry(); };
-  selectorMaterial.dispose = () => { materialDisposeCount += 1; disposeMaterial(); };
-
   workbench.dispose();
   workbench.dispose();
 
-  assert.equal(geometryDisposeCount, 1);
-  assert.equal(materialDisposeCount, 1);
   assert.equal(workbench.setSlotHighlighted("bread-left-1", true), false);
   assert.equal(workbench.setStationContent("bread-left-1", "top-bun"), false);
 });

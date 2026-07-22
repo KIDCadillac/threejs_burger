@@ -138,6 +138,44 @@ test("addresses duplicate sauce bottles by physical slot and switches one bottle
   workbench.dispose();
 });
 
+test("shows one translucent sauce candidate beside its physical dock and clears it", () => {
+  const workbench = createCookingWorkbench3D(THREE, {
+    slotDescriptors: slotDescriptors(createDefaultWorkbenchLoadout()),
+  });
+  const tools = createCondimentTools3D(THREE, {
+    toolDocks: workbench.toolDocks,
+    sauceIds: SOLO_COOKING_SAUCE_IDS,
+  });
+
+  assert.equal(tools.previewSlotContent("sauce-right-1", "mustard"), true);
+  assert.equal(tools.previewRoot.children.length, 1);
+  const preview = tools.previewRoot.children[0];
+  assert.equal(preview.userData.slotId, "sauce-right-1");
+  assert.equal(preview.userData.sauce, "mustard");
+  const materials = [];
+  preview.traverse((object) => {
+    if (object.material) materials.push(
+      ...(Array.isArray(object.material) ? object.material : [object.material]),
+    );
+    assert.equal(object.raycast, tools.noRaycast);
+  });
+  assert.ok(materials.length > 0);
+  assert.ok(materials.every((material) => (
+    material.transparent === true
+      && Math.abs(material.opacity - 0.32) < 1e-9
+      && material.depthWrite === false
+  )));
+
+  assert.equal(tools.previewSlotContent("sauce-right-2", "house-sauce"), true);
+  assert.equal(tools.previewRoot.children.length, 1, "new preview replaces the old one");
+  assert.equal(tools.clearSlotContentPreview(), true);
+  assert.equal(tools.previewRoot.children.length, 0);
+  assert.equal(tools.clearSlotContentPreview(), false);
+
+  tools.dispose();
+  workbench.dispose();
+});
+
 test("validates injected sauce ids before requiring their exact matching docks", () => {
   const soloWorkbench = createCookingWorkbench3D(THREE, {
     toolIds: SOLO_COOKING_SAUCE_IDS,

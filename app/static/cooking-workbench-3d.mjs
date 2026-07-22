@@ -218,20 +218,19 @@ function addStationAnchors(THREE, group, id, kind, dropHeight, pickupHeight) {
   return { dropAnchor, pickupAnchor };
 }
 
-function createStationSelector(THREE, resources, { slotId, region }) {
-  const selector = new THREE.Mesh(resources.selectorGeometry, resources.selectorMaterial);
-  selector.name = `station:${slotId}:selector`;
-  selector.rotation.x = -Math.PI / 3;
-  selector.position.y = 0.42;
-  if (region === "bread") selector.position.x = -1.08;
-  if (region === "filling") selector.position.z = -0.98;
-  if (region === "sauce") selector.position.x = 1.08;
-  selector.userData.cookingSelectable = Object.freeze({
-    kind: "station-selector",
+function createStationControlAnchor(THREE, { slotId, region }) {
+  const controlAnchor = new THREE.Object3D();
+  controlAnchor.name = `station:${slotId}:control-anchor`;
+  controlAnchor.position.y = 0.64;
+  if (region === "bread") controlAnchor.position.x = -1.08;
+  if (region === "filling") controlAnchor.position.z = -0.98;
+  if (region === "sauce") controlAnchor.position.x = 1.08;
+  controlAnchor.raycast = NO_RAYCAST;
+  controlAnchor.userData.workbenchSlotControl = Object.freeze({
     slotId,
     region,
   });
-  return selector;
+  return controlAnchor;
 }
 
 function updateSwitchableStationMetadata({
@@ -334,8 +333,8 @@ function createIngredientStation(THREE, resources, id, index, position, descript
     0.42,
     0.74,
   );
-  const selector = descriptor ? createStationSelector(THREE, resources, descriptor) : null;
-  if (selector) group.add(selector);
+  const controlAnchor = descriptor ? createStationControlAnchor(THREE, descriptor) : null;
+  if (controlAnchor) group.add(controlAnchor);
   const station = descriptor ? Object.freeze({
     get id() { return contentId; },
     get contentId() { return contentId; },
@@ -348,7 +347,7 @@ function createIngredientStation(THREE, resources, id, index, position, descript
     highlight,
     pickupAnchor,
     dropAnchor,
-    selector,
+    controlAnchor,
   }) : Object.freeze({
     id: contentId,
     bin: group,
@@ -407,8 +406,8 @@ function createToolStation(THREE, resources, id, index, position, descriptor = n
     0.31,
     0.76,
   );
-  const selector = descriptor ? createStationSelector(THREE, resources, descriptor) : null;
-  if (selector) group.add(selector);
+  const controlAnchor = descriptor ? createStationControlAnchor(THREE, descriptor) : null;
+  if (controlAnchor) group.add(controlAnchor);
   const station = descriptor ? Object.freeze({
     get id() { return contentId; },
     get contentId() { return contentId; },
@@ -421,7 +420,7 @@ function createToolStation(THREE, resources, id, index, position, descriptor = n
     highlight,
     pickupAnchor,
     dropAnchor,
-    selector,
+    controlAnchor,
   }) : Object.freeze({ id: contentId, dock: group, surface, highlight, pickupAnchor, dropAnchor });
   const updateContent = descriptor ? (nextContentId) => {
     contentId = nextContentId;
@@ -468,6 +467,10 @@ export function createCookingWorkbench3D(THREE, options = {}) {
 
   const root = new THREE.Group();
   root.name = "cooking-workbench";
+  const previewRoot = new THREE.Group();
+  previewRoot.name = "workbench-slot-preview";
+  previewRoot.raycast = NO_RAYCAST;
+  root.add(previewRoot);
 
   const counterGeometry = new THREE.BoxGeometry(10.6, 0.35, 9.8);
   const counterMaterial = new THREE.MeshStandardMaterial({
@@ -577,7 +580,6 @@ export function createCookingWorkbench3D(THREE, options = {}) {
     toolBaseGeometry: new THREE.CylinderGeometry(0.46, 0.52, 0.2, 16),
     toolRimGeometry: new THREE.TorusGeometry(0.45, 0.045, 6, 20),
     toolHighlightGeometry: new THREE.RingGeometry(0.53, 0.61, 24),
-    selectorGeometry: new THREE.BoxGeometry(0.66, 0.07, 0.44),
     toolBaseMaterial: new THREE.MeshStandardMaterial({
       color: 0x654235,
       roughness: 0.7,
@@ -588,12 +590,6 @@ export function createCookingWorkbench3D(THREE, options = {}) {
       color: 0xd6a65b,
       roughness: 0.48,
       metalness: 0.14,
-      flatShading: true,
-    }),
-    selectorMaterial: new THREE.MeshStandardMaterial({
-      color: 0xf0c878,
-      roughness: 0.58,
-      metalness: 0.02,
       flatShading: true,
     }),
     highlightMaterial: new THREE.MeshBasicMaterial({
@@ -665,7 +661,6 @@ export function createCookingWorkbench3D(THREE, options = {}) {
     board,
     ...ingredientSlots.map(({ surface }) => surface),
     ...toolDocks.map(({ surface }) => surface),
-    ...allStations.map(({ selector }) => selector).filter(Boolean),
   ]);
   const layout = Object.freeze({
     bounds: WORKSPACE_BOUNDS,
@@ -712,6 +707,7 @@ export function createCookingWorkbench3D(THREE, options = {}) {
   let disposed = false;
   return {
     root,
+    previewRoot,
     counter,
     dropCue,
     layout,
@@ -726,6 +722,7 @@ export function createCookingWorkbench3D(THREE, options = {}) {
     ingredientSlots,
     toolDocks,
     selectableSurfaces,
+    noRaycast: NO_RAYCAST,
     getStation(kind, id) {
       return findStationsByContent(kind, id)[0] ?? null;
     },
@@ -734,6 +731,15 @@ export function createCookingWorkbench3D(THREE, options = {}) {
     },
     getStationsByContent(kind, contentId) {
       return Object.freeze(findStationsByContent(kind, contentId));
+    },
+    getSlotControlAnchors() {
+      return Object.freeze(allStations
+        .filter(({ controlAnchor }) => controlAnchor?.isObject3D)
+        .map(({ slotId, region, controlAnchor }) => Object.freeze({
+          slotId,
+          region,
+          anchor: controlAnchor,
+        })));
     },
     getLayout() {
       return layout;
