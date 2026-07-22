@@ -369,9 +369,9 @@ git commit -m "fix: keep ingredient selectors independent"
 ### Task 5: Full regression, browser validation, and publication
 
 **Files:**
-- Modify: `docs/handoff/witch-fries-prototype.md`
+- Modify: `docs/游戏创意/女巫的毒药-薯条篇.md`
 
-- [ ] **Step 1: Run all Node tests**
+- [x] **Step 1: Run all Node tests**
 
 ```powershell
 $testFiles = Get-ChildItem -LiteralPath tests -Filter *.test.mjs | ForEach-Object { $_.FullName }
@@ -380,7 +380,7 @@ $testFiles = Get-ChildItem -LiteralPath tests -Filter *.test.mjs | ForEach-Objec
 
 Expected: all tests PASS with no unhandled rejection or warning.
 
-- [ ] **Step 2: Run Python tests and repository checks**
+- [x] **Step 2: Run Python tests and repository checks**
 
 ```powershell
 & .\.venv\Scripts\python.exe -m pytest -q
@@ -390,7 +390,7 @@ git status --short
 
 Expected: Python tests PASS, `git diff --check` prints nothing, and only intentionally untracked `output/` plus server log files remain outside commits.
 
-- [ ] **Step 3: Validate the real browser at desktop and phone sizes**
+- [x] **Step 3: Validate the real browser at desktop and phone sizes**
 
 At 1440×900 and 390×844, verify:
 
@@ -401,9 +401,9 @@ At 1440×900 and 390×844, verify:
 5. At 359px width, three compact region entries remain usable and expose ten separate slot rows.
 6. Browser console contains no exception and no failed static asset request.
 
-- [ ] **Step 4: Record the accepted controls in the handoff**
+- [x] **Step 4: Record the accepted controls in the handoff**
 
-Add these exact user-facing rules to `docs/handoff/witch-fries-prototype.md`:
+Add these exact user-facing rules to `docs/游戏创意/女巫的毒药-薯条篇.md`:
 
 ```text
 搭建：固定角度，单指不转镜头，双指缩放；镜头复位显示完整料理台。
