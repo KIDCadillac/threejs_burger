@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.domain import RuleError
@@ -111,8 +111,8 @@ def create_app(service: GameService | None = None) -> FastAPI:
         return FileResponse(BASE_DIR / "static" / "home.css", media_type="text/css")
 
     @application.get("/cooking.html")
-    def solo_cooking() -> FileResponse:
-        return FileResponse(BASE_DIR / "static" / "cooking.html")
+    def solo_cooking() -> RedirectResponse:
+        return RedirectResponse(url="/static/cooking.html")
 
     @application.websocket("/ws")
     async def websocket_endpoint(

@@ -141,6 +141,13 @@ def test_root_catalog_assets_and_cooking_route_are_served() -> None:
     assert "自由料理台" in cooking.text
 
 
+def test_root_cooking_route_redirects_into_the_static_asset_directory() -> None:
+    response = client.get("/cooking.html", follow_redirects=False)
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "/static/cooking.html"
+
+
 def test_root_is_the_cooking_catalog_while_the_legacy_snack_bundle_is_preserved() -> None:
     page = client.get("/").text
     script = client.get("/static/app.js").text
