@@ -1125,6 +1125,12 @@ canvas:focus-visible {
 
   .workbench-slot-controls { --slot-safe-bottom: max(82px, env(safe-area-inset-bottom)); }
 
+  .workbench-slot-controls__lines { display: none; }
+
+  .workbench-slot-control[data-region="filling"] {
+    top: max(var(--slot-y), 148px);
+  }
+
   .workbench-slot-control,
   .workbench-slot-region {
     min-width: 50px;
@@ -1146,7 +1152,7 @@ canvas:focus-visible {
   }
 
   .cooking-stage > .focus-button {
-    top: 122px;
+    top: 206px;
     right: 10px;
     min-width: 92px;
     min-height: 44px;
@@ -1157,7 +1163,7 @@ canvas:focus-visible {
   }
 
   .cooking-stage > .focus-layer-hint {
-    top: 126px;
+    top: 210px;
     left: 10px;
     max-width: calc(100% - 124px);
     transform: none;
