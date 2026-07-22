@@ -162,6 +162,9 @@ export function createCookingInteractionController({
   onInvalid = () => {},
   onSelection = () => {},
   onInspectionSelection = () => {},
+  onInspectionMove = () => {},
+  onInspectionDrop = () => {},
+  onInspectionCancel = () => {},
   onStationSelector = () => {},
   onCameraChange = () => {},
   onSauceStroke = () => {},
@@ -191,6 +194,9 @@ export function createCookingInteractionController({
   requireFunction(onInvalid, "onInvalid");
   requireFunction(onSelection, "onSelection");
   requireFunction(onInspectionSelection, "onInspectionSelection");
+  requireFunction(onInspectionMove, "onInspectionMove");
+  requireFunction(onInspectionDrop, "onInspectionDrop");
+  requireFunction(onInspectionCancel, "onInspectionCancel");
   requireFunction(onStationSelector, "onStationSelector");
   requireFunction(onCameraChange, "onCameraChange");
   requireFunction(onSauceStroke, "onSauceStroke");
@@ -399,6 +405,29 @@ export function createCookingInteractionController({
     raycaster.setFromCamera(pointerNdc, camera);
     return true;
   };
+
+  const normalizedPointer = (coordinates) => {
+    const bounds = canvas.getBoundingClientRect?.();
+    const width = bounds?.width;
+    const height = bounds?.height;
+    if (!(width > 0) || !(height > 0)) {
+      throw new TypeError("canvas bounds must have positive width and height");
+    }
+    return Object.freeze({
+      x: ((coordinates.x - bounds.left) / width) * 2 - 1,
+      y: -((coordinates.y - bounds.top) / height) * 2 + 1,
+    });
+  };
+
+  const inspectionDetail = (session, coordinates, reason = null) => Object.freeze({
+    id: session.id,
+    layerId: session.id,
+    object: session.object,
+    pointer: normalizedPointer(coordinates),
+    startPointer: normalizedPointer(session.start),
+    hit: session.hit ?? null,
+    ...(reason ? { reason } : {}),
+  });
 
   const defaultHitTest = (event, candidateSurfaces = surfaces) => {
     if (!setPointerRay(event)) return null;
@@ -863,10 +892,26 @@ export function createCookingInteractionController({
     if (canvas.hasPointerCapture?.(pointerId)) canvas.releasePointerCapture?.(pointerId);
   };
 
+  const cancelInspectionSession = (reason, error = null) => {
+    const session = inspectionTapSession;
+    inspectionTapSession = null;
+    if (!session) return false;
+    const coordinates = activePointers.get(session.pointerId) ?? session.start;
+    onInspectionCancel(Object.freeze({
+      ...inspectionDetail(session, coordinates, reason),
+      ...(error ? { error } : {}),
+    }));
+    return true;
+  };
+
   const cancelGesture = (reason, error = null) => {
     const pointerIds = [...activePointers.keys()];
     const cancelledDrag = dragSession;
     const cancelledBottle = bottleSession;
+    const cancelledInspection = inspectionTapSession;
+    const cancelledInspectionCoordinates = cancelledInspection
+      ? activePointers.get(cancelledInspection.pointerId) ?? cancelledInspection.start
+      : null;
     activePointers.clear();
     dragSession = null;
     bottleSession = null;
@@ -904,6 +949,12 @@ export function createCookingInteractionController({
         restoredPose: detachedPose(draggable.object),
       });
     }
+    if (cancelledInspection) {
+      onInspectionCancel(Object.freeze({
+        ...inspectionDetail(cancelledInspection, cancelledInspectionCoordinates, reason),
+        ...(error ? { error } : {}),
+      }));
+    }
     for (const pointerId of pointerIds) releaseCapture(pointerId);
     if (invalidDetail) onInvalid(invalidDetail);
   };
@@ -928,6 +979,7 @@ export function createCookingInteractionController({
       canvas.setPointerCapture?.(event.pointerId);
       event.preventDefault?.();
       if (activePointers.size === 2) {
+        cancelInspectionSession("inspection-pinch");
         if (pinchZoomEnabled || dragSession) beginPinch();
         else state = "camera-locked";
         return;
@@ -940,10 +992,22 @@ export function createCookingInteractionController({
           ? metadata.layerId
           : draggable?.id;
         inspectionTapSession = typeof layerId === "string" && layerId
-          ? { pointerId: event.pointerId, start: point, id: layerId, object: draggable?.object ?? null }
+          ? {
+            pointerId: event.pointerId,
+            start: point,
+            id: layerId,
+            object: draggable?.object ?? null,
+            hit,
+            dragging: false,
+          }
           : null;
-        state = orbitEnabled ? "orbiting" : "camera-locked";
-        orbitSession = orbitEnabled ? { pointerId: event.pointerId, last: point } : null;
+        if (inspectionTapSession) {
+          state = "inspection-pending";
+          orbitSession = null;
+        } else {
+          state = orbitEnabled ? "orbiting" : "camera-locked";
+          orbitSession = orbitEnabled ? { pointerId: event.pointerId, last: point } : null;
+        }
         return;
       }
       const condimentHit = condimentHitTest(event);
@@ -1072,6 +1136,24 @@ export function createCookingInteractionController({
     if (selectorSession?.pointerId === event.pointerId) {
       if (pointerDistance(selectorSession.start, coordinates) > STATION_SELECTOR_TAP_SLOP) {
         cancelGesture("station-selector-moved");
+      }
+      return;
+    }
+    if ((state === "inspection-pending" || state === "inspection-dragging")
+      && inspectionTapSession?.pointerId === event.pointerId) {
+      const session = inspectionTapSession;
+      if (!session.dragging
+        && pointerDistance(session.start, coordinates) > STATION_SELECTOR_TAP_SLOP) {
+        session.dragging = true;
+        state = "inspection-dragging";
+      }
+      if (session.dragging) {
+        try {
+          onInspectionMove(inspectionDetail(session, coordinates));
+        } catch (error) {
+          cancelGesture("inspection-move-error", error);
+          throw error;
+        }
       }
       return;
     }
@@ -1333,19 +1415,33 @@ export function createCookingInteractionController({
       }
       return;
     }
-    if (state === "orbiting" && orbitSession?.pointerId === event.pointerId) {
-      const tap = inspectionTapSession?.pointerId === event.pointerId
-        ? inspectionTapSession
-        : null;
+    if ((state === "inspection-pending" || state === "inspection-dragging")
+      && inspectionTapSession?.pointerId === event.pointerId) {
+      const session = inspectionTapSession;
       const coordinates = pointerCoordinates(event);
-      activePointers.delete(event.pointerId);
+      const wasDragging = session.dragging;
       inspectionTapSession = null;
+      activePointers.delete(event.pointerId);
+      state = "idle";
+      releaseCapture(event.pointerId);
+      if (wasDragging) {
+        onInspectionDrop(inspectionDetail(session, coordinates));
+      } else {
+        onInspectionSelection(Object.freeze({
+          id: session.id,
+          layerId: session.id,
+          object: session.object,
+          hit: session.hit ?? null,
+        }));
+      }
+      return;
+    }
+    if (state === "orbiting" && orbitSession?.pointerId === event.pointerId) {
+      pointerCoordinates(event);
+      activePointers.delete(event.pointerId);
       orbitSession = null;
       state = "idle";
       releaseCapture(event.pointerId);
-      if (tap && pointerDistance(tap.start, coordinates) <= STATION_SELECTOR_TAP_SLOP) {
-        onInspectionSelection(Object.freeze({ id: tap.id, object: tap.object }));
-      }
       return;
     }
     if (state === "camera-locked") {

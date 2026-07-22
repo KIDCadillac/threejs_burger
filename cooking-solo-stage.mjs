@@ -18,6 +18,8 @@ import {
   placeSoloLayer,
   removeSoloLayer,
   rotateSoloLayer,
+  moveSoloLayer,
+  reorderSoloLayer,
   addSoloSauceStroke,
   addSoloSauceStrokes,
   finishSoloCooking,
@@ -274,6 +276,7 @@ export function createSoloCookingStage({
   let focused = false;
   let focusCameraView = null;
   let focusWorkbenchVisible = true;
+  let focusDraft = null;
   let disposed = false;
   let externallyPaused = false;
   let suppressInvalidFeedback = false;
@@ -341,12 +344,17 @@ export function createSoloCookingStage({
       const layer = burger.getLayer(layerId);
       const config = tuningFor(layerId);
       const scale = targetScale(layerId);
+      const offset = state.offsets?.[layerId] ?? { x: 0, z: 0 };
       const sinkY = index === 0
         ? Math.min(config.sinkY, MAX_BOTTOM_LAYER_SINK)
         : config.sinkY;
       const y = cursorY - layerStackMinY(layer) * scale.y - sinkY;
       result.set(layerId, {
-        position: new THREE.Vector3(0, y + (expanded ? index * EXPLODED_GAP : 0), 0),
+        position: new THREE.Vector3(
+          offset.x,
+          y + (expanded ? index * EXPLODED_GAP : 0),
+          offset.z,
+        ),
         scale,
         yaw: state.rotations[layerId],
       });
@@ -410,6 +418,7 @@ export function createSoloCookingStage({
     activeMotion = null;
     pickMotion = null;
     transitions.clear();
+    focusDraft = null;
     clearSlotContentPreview();
     clearGrabVisuals();
     if (resync) restoreAuthoritativeTransforms();
@@ -941,6 +950,149 @@ export function createSoloCookingStage({
     return true;
   };
 
+  const focusRaycaster = new THREE.Raycaster();
+  const focusPointer = new THREE.Vector2();
+  const focusPlane = new THREE.Plane();
+  const focusPlaneNormal = new THREE.Vector3(0, 1, 0);
+  const focusPlanePoint = new THREE.Vector3();
+  const focusIntersection = new THREE.Vector3();
+
+  const focusLocalPoint = (layerId, pointer) => {
+    if (!pointer || ![pointer.x, pointer.y].every(Number.isFinite)) return null;
+    const target = targetTransforms().get(layerId);
+    if (!target) return null;
+    burger.root.updateMatrixWorld?.(true);
+    focusPlanePoint.copy(target.position);
+    burger.root.localToWorld(focusPlanePoint);
+    focusPlane.setFromNormalAndCoplanarPoint(focusPlaneNormal, focusPlanePoint);
+    focusPointer.set(pointer.x, pointer.y);
+    focusRaycaster.setFromCamera(focusPointer, host.camera);
+    if (!focusRaycaster.ray.intersectPlane(focusPlane, focusIntersection)) return null;
+    return burger.root.worldToLocal(focusIntersection.clone());
+  };
+
+  const clampFocusOffset = (offset, maxRadius = 1.45) => {
+    const length = Math.hypot(offset.x, offset.z);
+    const scale = length > maxRadius ? maxRadius / length : 1;
+    return Object.freeze({ x: offset.x * scale, z: offset.z * scale });
+  };
+
+  const moveFocusedLayerDraft = ({ layerId, pointer, startPointer } = {}) => {
+    if (disposed || !focused || !state.assembledOrder.includes(layerId)) return false;
+    if (selectedLayerId !== layerId && !selectFocusedLayer(layerId)) return false;
+    if (!focusDraft || focusDraft.layerId !== layerId) {
+      const startLocal = focusLocalPoint(layerId, startPointer);
+      if (!startLocal) return false;
+      focusDraft = {
+        layerId,
+        startLocal,
+        baseOffset: { ...(state.offsets?.[layerId] ?? { x: 0, z: 0 }) },
+        targetOffset: { ...(state.offsets?.[layerId] ?? { x: 0, z: 0 }) },
+      };
+    }
+    const currentLocal = focusLocalPoint(layerId, pointer);
+    if (!currentLocal) return false;
+    const targetOffset = clampFocusOffset({
+      x: focusDraft.baseOffset.x + currentLocal.x - focusDraft.startLocal.x,
+      z: focusDraft.baseOffset.z + currentLocal.z - focusDraft.startLocal.z,
+    });
+    focusDraft.targetOffset = targetOffset;
+    const target = targetTransforms().get(layerId);
+    target.position.x = targetOffset.x;
+    target.position.z = targetOffset.z;
+    burger.setLayerDropPreview(layerId, {
+      position: target.position,
+      scale: target.scale,
+      yaw: target.yaw,
+      targetIndex: state.assembledOrder.indexOf(layerId),
+    });
+    return true;
+  };
+
+  const commitFocusedLayerDraft = (detail = {}) => {
+    if (disposed || !focused) return false;
+    if (!focusDraft || focusDraft.layerId !== detail.layerId) {
+      if (!moveFocusedLayerDraft(detail)) return false;
+    }
+    const { layerId, targetOffset } = focusDraft;
+    focusDraft = null;
+    burger.clearLayerDropPreview();
+    state = moveSoloLayer(state, layerId, targetOffset);
+    applyVisualState();
+    selectedLayerId = layerId;
+    highlightedLayerId = layerId;
+    burger.setLayerHighlighted(layerId, true);
+    adaptCameraToStack({ preserveDistance: true, reason: "focus-layer-moved" });
+    emit("focus-layer-moved");
+    return true;
+  };
+
+  const cancelFocusedLayerDraft = () => {
+    if (!focusDraft) return false;
+    focusDraft = null;
+    burger.clearLayerDropPreview();
+    restoreAuthoritativeTransforms();
+    if (selectedLayerId && state.assembledOrder.includes(selectedLayerId)) {
+      highlightedLayerId = selectedLayerId;
+      burger.setLayerHighlighted(selectedLayerId, true);
+    }
+    return true;
+  };
+
+  const getFocusedLayerCapabilities = () => {
+    const index = focused && selectedLayerId
+      ? state.assembledOrder.indexOf(selectedLayerId)
+      : -1;
+    if (index < 0) {
+      return Object.freeze({
+        selected: false,
+        layerId: null,
+        canMoveUp: false,
+        canMoveDown: false,
+        canRotate: false,
+        canDelete: false,
+      });
+    }
+    return Object.freeze({
+      selected: true,
+      layerId: selectedLayerId,
+      canMoveUp: index < state.assembledOrder.length - 1,
+      canMoveDown: index > 0,
+      canRotate: true,
+      canDelete: true,
+    });
+  };
+
+  const reorderFocusedLayer = (direction) => {
+    if (disposed || !focused || !selectedLayerId) return false;
+    const nextState = reorderSoloLayer(state, selectedLayerId, direction);
+    if (nextState === state) return false;
+    cancelFocusedLayerDraft();
+    state = nextState;
+    applyVisualState({ animate: !reducedMotion });
+    highlightedLayerId = selectedLayerId;
+    burger.setLayerHighlighted(selectedLayerId, true);
+    adaptCameraToStack({ preserveDistance: true, reason: "focus-layer-reordered" });
+    emit("focus-layer-reordered");
+    return true;
+  };
+
+  const rotateFocusedLayer = (deltaYaw = Math.PI / 12) => {
+    if (disposed || !focused || !selectedLayerId
+      || !Number.isFinite(deltaYaw)) return false;
+    cancelFocusedLayerDraft();
+    state = rotateSoloLayer(
+      state,
+      selectedLayerId,
+      state.rotations[selectedLayerId] + deltaYaw,
+    );
+    applyVisualState();
+    highlightedLayerId = selectedLayerId;
+    burger.setLayerHighlighted(selectedLayerId, true);
+    emit("focus-layer-rotated");
+    return true;
+  };
+
   let controller = null;
   const registeredLayerIds = new Set();
   const activeModelLayerIds = () => {
@@ -985,7 +1137,7 @@ export function createSoloCookingStage({
         registeredLayerIds.add(layerId);
       }
     }
-    controller?.setFoodSurfaces?.([...activeIds].map(
+    controller?.setFoodSurfaces?.(state.assembledOrder.map(
       (layerId) => burger.getLayer(layerId).userData.selectableSurface,
     ));
   };
@@ -1006,7 +1158,7 @@ export function createSoloCookingStage({
     })),
     condimentTools: tools,
     sauceIds: SOLO_COOKING_SAUCE_IDS,
-    foodSurfaces: initialLayerIds.map(
+    foodSurfaces: state.assembledOrder.map(
       (id) => burger.getLayer(id).userData.selectableSurface,
     ),
     prepBounds: workbench.getLayout().bounds,
@@ -1037,6 +1189,9 @@ export function createSoloCookingStage({
       emit("selection");
     },
     onInspectionSelection: ({ id }) => selectFocusedLayer(id),
+    onInspectionMove: moveFocusedLayerDraft,
+    onInspectionDrop: commitFocusedLayerDraft,
+    onInspectionCancel: cancelFocusedLayerDraft,
     onMove: ({ id, reason, pose, point }) => {
       if (activeMotion) {
         const movedLayer = burger.getLayer(id);
@@ -1379,7 +1534,8 @@ export function createSoloCookingStage({
     for (const id of Object.keys(state.instances)) {
       burger.getLayer(id).visible = state.assembledOrder.includes(id);
     }
-    adaptCameraToStack({ preserveDistance: false, reason: "focus-layer-deleted" });
+    if (!state.assembledOrder.length) setFocusMode(false, { notify: false });
+    else adaptCameraToStack({ preserveDistance: false, reason: "focus-layer-deleted" });
     emit("delete-focused-layer");
     return true;
   };
@@ -1475,6 +1631,11 @@ export function createSoloCookingStage({
     getState: () => state,
     getTutorial: () => tutorial,
     getSelectedLayerId: () => selectedLayerId,
+    getFocusDraft: () => focusDraft ? Object.freeze({
+      layerId: focusDraft.layerId,
+      baseOffset: Object.freeze({ ...focusDraft.baseOffset }),
+      targetOffset: Object.freeze({ ...focusDraft.targetOffset }),
+    }) : null,
     isBurgerFocused: () => focused,
     isExpanded: () => expanded,
     getComposition: () => serializeSoloComposition(state),
@@ -1516,6 +1677,12 @@ export function createSoloCookingStage({
     setBurgerFocus(value) { return setFocusMode(value); },
     toggleBurgerFocus() { return setFocusMode(!focused); },
     selectFocusedLayer,
+    moveFocusedLayerDraft,
+    commitFocusedLayerDraft,
+    cancelFocusedLayerDraft,
+    getFocusedLayerCapabilities,
+    reorderFocusedLayer,
+    rotateFocusedLayer,
     deleteFocusedLayer,
     resetCamera() {
       const reset = controller.resetCamera();

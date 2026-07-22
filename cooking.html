@@ -94,11 +94,17 @@
           <div class="workbench-slot-controls__buttons" data-slot-buttons></div>
           <div class="workbench-slot-controls__regions" data-slot-regions></div>
           <div class="workbench-slot-controls__region-menu" data-slot-region-menu hidden></div>
+          <div class="workbench-slot-controls__capsule" data-slot-capsule hidden></div>
           <p class="workbench-slot-controls__hint" data-slot-hint hidden>轻触切换，长按选择全部材料</p>
         </div>
         <button class="focus-button" type="button" data-action="toggle-focus" aria-pressed="false" disabled>聚焦食物</button>
         <p class="focus-layer-hint" id="focus-layer-hint" aria-live="polite" hidden></p>
-        <button class="focus-layer-delete" type="button" data-action="delete-focused-layer" hidden disabled>轻触一层后删除</button>
+        <div class="focus-layer-toolbar" id="focus-layer-toolbar" role="toolbar" aria-label="当前汉堡层操作" hidden>
+          <button type="button" data-action="focus-layer-up" data-focus-layer-action="up" disabled>上移</button>
+          <button type="button" data-action="focus-layer-down" data-focus-layer-action="down" disabled>下移</button>
+          <button type="button" data-action="focus-layer-rotate" data-focus-layer-action="rotate" disabled>旋转</button>
+          <button class="focus-layer-toolbar__delete" type="button" data-action="delete-focused-layer" data-focus-layer-action="delete" disabled>删除</button>
+        </div>
         <div class="cooking-loading" id="cooking-loading" role="status" aria-live="polite">
           <span class="cooking-loading__spinner" aria-hidden="true"></span>
           <strong id="cooking-loading-phase">正在连接料理台</strong>

@@ -1,5 +1,6 @@
 import {
   WORKBENCH_CONTENT_PRESENTATION,
+  WORKBENCH_REGION_OPTIONS,
   WORKBENCH_SLOT_PRESENTATION,
   WORKBENCH_SLOTS,
   getNextWorkbenchSlotContent,
@@ -73,6 +74,7 @@ export function createWorkbenchSlotControls({
   getProjectedAnchors,
   subscribeAfterFrame,
   onCycle,
+  onChoose,
   onPreview,
   onOpenPicker,
   onHighlight,
@@ -93,6 +95,7 @@ export function createWorkbenchSlotControls({
   const buttonsRoot = getRequiredNode(root, "[data-slot-buttons]");
   const regionsRoot = getRequiredNode(root, "[data-slot-regions]");
   const regionMenu = getRequiredNode(root, "[data-slot-region-menu]");
+  const slotCapsule = getRequiredNode(root, "[data-slot-capsule]");
   const hint = getRequiredNode(root, "[data-slot-hint]");
   const slotById = new Map(slots.map((slot) => [slot.slotId, slot]));
   let loadout = normalizeWorkbenchLoadout(initialLoadout);
@@ -101,6 +104,8 @@ export function createWorkbenchSlotControls({
   let activeGesture = null;
   let openRegion = null;
   let openRegionTrigger = null;
+  let openCapsuleSlotId = null;
+  let openCapsuleTrigger = null;
   let buttonSignature = "";
   let regionSignature = "";
   const independentButtons = new Map();
@@ -118,6 +123,54 @@ export function createWorkbenchSlotControls({
   }
   root.hidden = false;
   regionMenu.hidden = true;
+  slotCapsule.hidden = true;
+
+  function closeSlotCapsule({ restoreFocus = true } = {}) {
+    if (!openCapsuleSlotId) return;
+    const trigger = openCapsuleTrigger;
+    openCapsuleSlotId = null;
+    openCapsuleTrigger = null;
+    slotCapsule.hidden = true;
+    slotCapsule.replaceChildren?.();
+    setDataset(slotCapsule, "slotId", undefined);
+    if (restoreFocus) trigger?.focus?.();
+  }
+
+  function openSlotCapsule(slotId, trigger) {
+    const detail = currentDetail(slotId);
+    if (!detail || disposed || hidden) return false;
+    const returnTrigger = openRegion ? openRegionTrigger : trigger;
+    closeRegionMenu({ restoreFocus: false });
+    closeSlotCapsule({ restoreFocus: false });
+    openCapsuleSlotId = slotId;
+    openCapsuleTrigger = returnTrigger;
+    setDataset(slotCapsule, "slotId", slotId);
+    setDataset(slotCapsule, "region", detail.slot.region);
+    slotCapsule.style?.setProperty?.(
+      "--capsule-x",
+      trigger?.style?.getPropertyValue?.("--slot-x") || "50%",
+    );
+    slotCapsule.style?.setProperty?.(
+      "--capsule-y",
+      trigger?.style?.getPropertyValue?.("--slot-y") || "50%",
+    );
+    const candidates = WORKBENCH_REGION_OPTIONS[detail.slot.region].map((contentId, index) => {
+      const button = createButton(documentTarget, "workbench-slot-capsule__item");
+      const presentation = WORKBENCH_CONTENT_PRESENTATION[contentId];
+      setDataset(button, "contentId", contentId);
+      button.textContent = `${presentation?.icon ?? ""} ${presentation?.label ?? contentId}`.trim();
+      button.setAttribute("aria-pressed", String(contentId === detail.contentId));
+      button.tabIndex = contentId === detail.contentId ? 0 : -1;
+      if (index === 0 && !WORKBENCH_REGION_OPTIONS[detail.slot.region].includes(detail.contentId)) {
+        button.tabIndex = 0;
+      }
+      return button;
+    });
+    slotCapsule.replaceChildren?.(...candidates);
+    slotCapsule.hidden = false;
+    candidates.find(({ tabIndex }) => tabIndex === 0)?.focus?.();
+    return true;
+  }
 
   function currentDetail(slotId) {
     const slot = slotById.get(slotId);
@@ -199,7 +252,9 @@ export function createWorkbenchSlotControls({
       if (activeGesture !== gesture || gesture.cancelled || disposed) return;
       gesture.longPressed = true;
       clearTransient(gesture);
-      optionalCall(onOpenPicker, { slotId, region: gesture.region });
+      if (!openSlotCapsule(slotId, button)) {
+        optionalCall(onOpenPicker, { slotId, region: gesture.region });
+      }
     }, WORKBENCH_SLOT_CONTROL_LONG_PRESS_MS);
   }
 
@@ -242,8 +297,10 @@ export function createWorkbenchSlotControls({
         cycleFromKeyboard(slotId);
       } else if (event.key === "ArrowDown") {
         event.preventDefault?.();
-        const slot = slotById.get(slotId);
-        if (slot) optionalCall(onOpenPicker, { slotId, region: slot.region });
+        openSlotCapsule(slotId, button);
+      } else if (event.key === "Escape" && openCapsuleSlotId) {
+        event.preventDefault?.();
+        closeSlotCapsule();
       } else if (event.key === "Escape" && openRegion) {
         event.preventDefault?.();
         closeRegionMenu();
@@ -296,6 +353,7 @@ export function createWorkbenchSlotControls({
   function openRegionMenu(region, slotIds, trigger) {
     if (disposed || hidden || !REGION_PRESENTATION[region]) return false;
     cancelGesture();
+    closeSlotCapsule({ restoreFocus: false });
     openRegion = region;
     openRegionTrigger = trigger;
     const menuButtons = slotIds.map((slotId) => {
@@ -309,6 +367,41 @@ export function createWorkbenchSlotControls({
     menuButtons[0]?.focus?.();
     return true;
   }
+
+  function handleCapsuleClick(event) {
+    const contentId = event?.target?.dataset?.contentId;
+    if (!openCapsuleSlotId || !contentId) return;
+    const slotId = openCapsuleSlotId;
+    const result = optionalCall(onChoose, { slotId, contentId });
+    if (result === false) return;
+    closeSlotCapsule();
+  }
+
+  function handleCapsuleKeyDown(event) {
+    if (!openCapsuleSlotId) return;
+    const candidates = [...(slotCapsule.children ?? [])];
+    if (event.key === "Escape") {
+      event.preventDefault?.();
+      closeSlotCapsule();
+      return;
+    }
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault?.();
+    const current = Math.max(0, candidates.indexOf(event.target));
+    const nextIndex = event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? candidates.length - 1
+        : (current + (event.key === "ArrowLeft" ? -1 : 1) + candidates.length)
+          % candidates.length;
+    candidates.forEach((candidate, index) => { candidate.tabIndex = index === nextIndex ? 0 : -1; });
+    candidates[nextIndex]?.focus?.();
+  }
+
+  slotCapsule.addEventListener("click", handleCapsuleClick);
+  slotCapsule.addEventListener("keydown", handleCapsuleKeyDown);
+  cleanups.push(() => slotCapsule.removeEventListener("click", handleCapsuleClick));
+  cleanups.push(() => slotCapsule.removeEventListener("keydown", handleCapsuleKeyDown));
 
   function renderLines(individual) {
     const lines = individual.filter((entry) => (
@@ -424,6 +517,7 @@ export function createWorkbenchSlotControls({
       if (hidden) {
         cancelGesture();
         closeRegionMenu({ restoreFocus: false });
+        closeSlotCapsule({ restoreFocus: false });
       } else {
         refresh();
       }
@@ -434,6 +528,7 @@ export function createWorkbenchSlotControls({
       disposed = true;
       cancelGesture();
       closeRegionMenu({ restoreFocus: false });
+      closeSlotCapsule({ restoreFocus: false });
       try { unsubscribe?.(); } catch { /* optional frame source */ }
       while (cleanups.length > 0) {
         try { cleanups.pop()(); } catch { /* best effort cleanup */ }

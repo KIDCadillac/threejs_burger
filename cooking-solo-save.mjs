@@ -12,7 +12,9 @@ import {
   WORKBENCH_SLOTS,
 } from "./workbench-loadout.mjs";
 
-const SAVE_VERSION = 1;
+const SAVE_VERSION = 2;
+const LEGACY_SAVE_VERSION = 1;
+const MAX_LAYER_OFFSET_RADIUS = 1.45;
 const MAX_STROKES = 64;
 const MAX_STROKE_POINTS = 24;
 const MIN_STROKE_AMOUNT = 0.01;
@@ -203,6 +205,28 @@ function cloneRotations(value, instances) {
   return rotations;
 }
 
+function cloneOffsets(value, instances, { legacy = false } = {}) {
+  const instanceIds = Object.keys(instances);
+  if (legacy && (value === null || value === undefined)) {
+    return Object.fromEntries(instanceIds.map((id) => [
+      id,
+      Object.freeze({ x: 0, z: 0 }),
+    ]));
+  }
+  const record = requireRecord(value, "offsets");
+  requireExactKeys(record, instanceIds, "offsets");
+  return Object.fromEntries(instanceIds.map((id) => {
+    const offset = requireRecord(record[id], `offsets.${id}`);
+    requireExactKeys(offset, ["x", "z"], `offsets.${id}`);
+    const x = requireFinite(offset.x, `offsets.${id}.x`);
+    const z = requireFinite(offset.z, `offsets.${id}.z`);
+    if (Math.hypot(x, z) > MAX_LAYER_OFFSET_RADIUS) {
+      fail(`offsets.${id} is outside bounds`);
+    }
+    return [id, Object.freeze({ x, z })];
+  }));
+}
+
 function cloneIngredientRecord(value, label, normalizeValue) {
   const record = requireRecord(value, label);
   requireExactKeys(record, SOLO_BURGER_INGREDIENT_IDS, label);
@@ -361,7 +385,7 @@ function freezeRecord(record) {
   return Object.freeze(record);
 }
 
-function validateSnapshot(value, { wire = false } = {}) {
+function validateSnapshot(value, { wire = false, legacy = false } = {}) {
   const saved = requireRecord(value, "state");
   const instances = cloneInstances(saved.instances);
   const assembledOrder = cloneAssembledOrder(saved.assembledOrder, instances);
@@ -371,6 +395,7 @@ function validateSnapshot(value, { wire = false } = {}) {
   if (!hasStations && hasPartialStations) fail("station records must be saved together");
   const locations = cloneLocations(saved.locations, instances, assembledOrder, hasStations);
   const rotations = cloneRotations(saved.rotations, instances);
+  const offsets = cloneOffsets(saved.offsets, instances, { legacy });
   const binSources = cloneBinSources(saved.binSources, instances, locations, {
     wire,
     explicitStations: hasStations,
@@ -408,6 +433,7 @@ function validateSnapshot(value, { wire = false } = {}) {
     instances: freezeRecord(instances),
     locations: freezeRecord(locations),
     rotations: freezeRecord(rotations),
+    offsets: freezeRecord(offsets),
     binSources: freezeRecord(binSources),
     inventory: freezeRecord(inventory),
     nextInstanceSequence,
@@ -429,6 +455,10 @@ function encodeSnapshot(snapshot) {
       { ...location },
     ])),
     rotations: { ...snapshot.rotations },
+    offsets: Object.fromEntries(Object.entries(snapshot.offsets).map(([id, offset]) => [
+      id,
+      { ...offset },
+    ])),
     binSources: Object.fromEntries(SOLO_BURGER_INGREDIENT_IDS.map((ingredientId) => [
       ingredientId,
       snapshot.binSources[ingredientId] ?? null,
@@ -471,10 +501,16 @@ export function decodeSoloSave(serialized) {
       || serialized.length > MAX_SERIALIZED_SAVE_CHARS
     ) return null;
     const payload = JSON.parse(serialized);
-    if (!isRecord(payload) || payload.version !== SAVE_VERSION) return null;
+    if (
+      !isRecord(payload)
+      || (payload.version !== SAVE_VERSION && payload.version !== LEGACY_SAVE_VERSION)
+    ) return null;
     return Object.freeze({
       version: SAVE_VERSION,
-      state: validateSnapshot(payload.state, { wire: true }),
+      state: validateSnapshot(payload.state, {
+        wire: true,
+        legacy: payload.version === LEGACY_SAVE_VERSION,
+      }),
     });
   } catch {
     return null;
@@ -489,6 +525,7 @@ export function hydrateSoloCookingState(snapshot) {
       instances: saved.instances,
       locations: saved.locations,
       rotations: saved.rotations,
+      offsets: saved.offsets,
       binSources: saved.binSources,
       inventory: saved.inventory,
       nextInstanceSequence: saved.nextInstanceSequence,

@@ -118,6 +118,10 @@ export function bootSoloCookingPage(
     undoButton: documentTarget.querySelector('[data-action="undo"]'),
     inspectButton: documentTarget.querySelector('[data-action="toggle-expanded"]'),
     focusButton: documentTarget.querySelector('[data-action="toggle-focus"]'),
+    focusLayerToolbar: documentTarget.querySelector("#focus-layer-toolbar"),
+    focusLayerUpButton: documentTarget.querySelector('[data-action="focus-layer-up"]'),
+    focusLayerDownButton: documentTarget.querySelector('[data-action="focus-layer-down"]'),
+    focusLayerRotateButton: documentTarget.querySelector('[data-action="focus-layer-rotate"]'),
     focusDeleteButton: documentTarget.querySelector('[data-action="delete-focused-layer"]'),
     focusLayerHint: documentTarget.querySelector("#focus-layer-hint"),
     feedbackSheet: documentTarget.querySelector("#feedback-sheet"),
@@ -254,17 +258,34 @@ export function bootSoloCookingPage(
     elements.focusButton.dataset.focused = String(focused);
     elements.focusButton.setAttribute?.("aria-pressed", String(focused));
     elements.focusLayerHint.hidden = !focused;
-    elements.focusLayerHint.textContent = focused
-      ? "拖动画面自由观察 · 轻触汉堡任意一层可删除"
-      : "";
     const selectedFocusIndex = selectedLayerId
       ? state.assembledOrder.indexOf(selectedLayerId)
       : -1;
-    elements.focusDeleteButton.hidden = !focused || selectedFocusIndex < 0;
-    elements.focusDeleteButton.disabled = selectedFocusIndex < 0;
-    elements.focusDeleteButton.textContent = selectedFocusIndex >= 0
-      ? `删除第 ${selectedFocusIndex + 1} 层`
-      : "轻触一层后删除";
+    const fallbackCapabilities = {
+      selected: selectedFocusIndex >= 0,
+      canMoveUp: selectedFocusIndex >= 0 && selectedFocusIndex < state.assembledOrder.length - 1,
+      canMoveDown: selectedFocusIndex > 0,
+      canRotate: selectedFocusIndex >= 0,
+      canDelete: selectedFocusIndex >= 0,
+    };
+    const focusCapabilities = stage.getFocusedLayerCapabilities?.() ?? fallbackCapabilities;
+    const hasFocusedLayer = focused && focusCapabilities.selected;
+    elements.focusLayerHint.textContent = !focused
+      ? ""
+      : hasFocusedLayer
+        ? "拖动这一层调整位置"
+        : "点一下汉堡的一层";
+    if (elements.focusLayerToolbar) elements.focusLayerToolbar.hidden = !hasFocusedLayer;
+    if (elements.focusLayerUpButton) {
+      elements.focusLayerUpButton.disabled = !hasFocusedLayer || !focusCapabilities.canMoveUp;
+    }
+    if (elements.focusLayerDownButton) {
+      elements.focusLayerDownButton.disabled = !hasFocusedLayer || !focusCapabilities.canMoveDown;
+    }
+    if (elements.focusLayerRotateButton) {
+      elements.focusLayerRotateButton.disabled = !hasFocusedLayer || !focusCapabilities.canRotate;
+    }
+    elements.focusDeleteButton.disabled = !hasFocusedLayer || !focusCapabilities.canDelete;
     slotControls?.setHidden?.(focused);
     elements.finishSheet.hidden = !state.finished;
 
@@ -397,6 +418,7 @@ export function bootSoloCookingPage(
         getProjectedAnchors: projectSlotAnchors,
         subscribeAfterFrame: stage.host?.onAfterFrame?.bind(stage.host),
         onCycle: ({ slotId, contentId }) => applyWorkbenchContent(slotId, contentId),
+        onChoose: ({ slotId, contentId }) => applyWorkbenchContent(slotId, contentId),
         onPreview: (detail) => (
           detail
             ? stage.previewSlotContent?.(detail.slotId, detail.contentId)
@@ -547,6 +569,9 @@ export function bootSoloCookingPage(
       "camera-reset": () => stage.resetCamera(),
       "toggle-expanded": () => stage.toggleExpanded(),
       "toggle-focus": () => stage.toggleBurgerFocus(),
+      "focus-layer-up": () => stage.reorderFocusedLayer(1),
+      "focus-layer-down": () => stage.reorderFocusedLayer(-1),
+      "focus-layer-rotate": () => stage.rotateFocusedLayer(Math.PI / 12),
       "delete-focused-layer": () => stage.deleteFocusedLayer(),
       undo: () => stage.undo(),
       reset: () => stage.reset(),
