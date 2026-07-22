@@ -47,9 +47,16 @@ export function createWorkbenchSlotPicker({
 
   let disposed = false;
   let activeSlot = null;
+  let activeOptionIndex = -1;
   let loadout = normalizeWorkbenchLoadout(initialLoadout);
 
-  const render = () => {
+  const visibleOptions = () => optionButtons.filter((option) => !option.hidden);
+  const focusActiveOption = () => {
+    const options = visibleOptions();
+    options[activeOptionIndex]?.focus?.();
+  };
+
+  const render = ({ resetRoving = false } = {}) => {
     if (!activeSlot) return;
     const currentContentId = loadout[activeSlot.slotId];
     root.dataset.slotId = activeSlot.slotId;
@@ -60,7 +67,16 @@ export function createWorkbenchSlotPicker({
       option.hidden = !visible;
       option.dataset.current = String(current);
       option.setAttribute?.("aria-pressed", String(current));
+      option.tabIndex = -1;
     }
+    const options = visibleOptions();
+    const currentIndex = options.findIndex(({ dataset }) => (
+      dataset.workbenchContent === currentContentId
+    ));
+    if (resetRoving || activeOptionIndex < 0 || activeOptionIndex >= options.length) {
+      activeOptionIndex = currentIndex >= 0 ? currentIndex : 0;
+    }
+    if (options[activeOptionIndex]) options[activeOptionIndex].tabIndex = 0;
   };
 
   const close = (reason = "dismissed") => {
@@ -68,6 +84,7 @@ export function createWorkbenchSlotPicker({
     root.hidden = true;
     root.setAttribute?.("aria-hidden", "true");
     activeSlot = null;
+    activeOptionIndex = -1;
     onRequestClose(reason);
     returnTarget?.focus?.();
     return true;
@@ -107,9 +124,37 @@ export function createWorkbenchSlotPicker({
   };
 
   const handleKeyDown = (event) => {
-    if (event?.key !== "Escape" || root.hidden) return;
-    event.preventDefault?.();
-    close("escape");
+    if (root.hidden) return;
+    if (event?.key === "Escape") {
+      event.preventDefault?.();
+      close("escape");
+      return;
+    }
+    const options = visibleOptions();
+    if (!options.length) return;
+    const previousKeys = new Set(["ArrowLeft", "ArrowUp"]);
+    const nextKeys = new Set(["ArrowRight", "ArrowDown"]);
+    if (previousKeys.has(event?.key)) {
+      event.preventDefault?.();
+      activeOptionIndex = (activeOptionIndex - 1 + options.length) % options.length;
+    } else if (nextKeys.has(event?.key)) {
+      event.preventDefault?.();
+      activeOptionIndex = (activeOptionIndex + 1) % options.length;
+    } else if (event?.key === "Home") {
+      event.preventDefault?.();
+      activeOptionIndex = 0;
+    } else if (event?.key === "End") {
+      event.preventDefault?.();
+      activeOptionIndex = options.length - 1;
+    } else if (event?.key === "Enter" || event?.key === " ") {
+      event.preventDefault?.();
+      applyContent(options[activeOptionIndex].dataset.workbenchContent);
+      return;
+    } else {
+      return;
+    }
+    options.forEach((option, index) => { option.tabIndex = index === activeOptionIndex ? 0 : -1; });
+    focusActiveOption();
   };
 
   root.addEventListener("click", handleClick);
@@ -133,10 +178,10 @@ export function createWorkbenchSlotPicker({
       }
       if (detail?.region !== slot.region) return false;
       activeSlot = slot;
-      render();
+      render({ resetRoving: true });
       root.hidden = false;
       root.setAttribute?.("aria-hidden", "false");
-      root.focus?.();
+      focusActiveOption();
       return true;
     },
     close,

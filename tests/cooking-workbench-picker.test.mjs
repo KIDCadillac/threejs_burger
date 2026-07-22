@@ -26,6 +26,7 @@ class Element extends Events {
     this.textContent = "";
     this.attributes = new Map();
     this.focusCalls = 0;
+    this.tabIndex = 0;
   }
   setAttribute(name, value) { this.attributes.set(name, String(value)); }
   getAttribute(name) { return this.attributes.get(name) ?? null; }
@@ -78,13 +79,65 @@ test("opens the exact physical slot and exposes only candidates from its region"
   assert.equal(ui.root.getAttribute("aria-hidden"), "false");
   assert.equal(ui.root.dataset.slotId, "filling-back-2");
   assert.equal(ui.title.textContent, "后排配料 · 2号槽");
-  assert.equal(ui.root.focusCalls, 1);
+  assert.equal(ui.root.focusCalls, 0);
   for (const option of ui.options) {
     assert.equal(option.hidden, option.dataset.workbenchRegion !== "filling");
   }
   const cheese = ui.options.find(({ dataset }) => dataset.workbenchContent === "cheese");
   assert.equal(cheese.getAttribute("aria-pressed"), "true");
   assert.equal(cheese.dataset.current, "true");
+  assert.equal(cheese.tabIndex, 0);
+  assert.equal(cheese.focusCalls, 1);
+  assert.ok(ui.options.filter((option) => !option.hidden && option !== cheese)
+    .every((option) => option.tabIndex === -1));
+});
+
+test("moves one roving tabindex through visible choices with wrapping Home and End", () => {
+  const ui = harness();
+  const picker = createWorkbenchSlotPicker({ root: ui.root });
+  picker.open({ slotId: "filling-back-2", region: "filling" });
+  const visible = ui.options.filter(({ hidden }) => !hidden);
+  const cheese = visible.find(({ dataset }) => dataset.workbenchContent === "cheese");
+  const tomato = visible.find(({ dataset }) => dataset.workbenchContent === "tomato");
+  const onion = visible.at(-1);
+  let prevented = 0;
+  const press = (key) => ui.root.emit("keydown", {
+    key,
+    preventDefault() { prevented += 1; },
+  });
+
+  press("ArrowRight");
+  assert.equal(cheese.tabIndex, -1);
+  assert.equal(tomato.tabIndex, 0);
+  assert.equal(tomato.focusCalls, 1);
+  press("ArrowLeft");
+  assert.equal(cheese.tabIndex, 0);
+  press("Home");
+  assert.equal(visible[0].tabIndex, 0);
+  press("ArrowLeft");
+  assert.equal(onion.tabIndex, 0, "previous wraps from first to last");
+  press("ArrowRight");
+  assert.equal(visible[0].tabIndex, 0, "next wraps from last to first");
+  press("End");
+  assert.equal(onion.tabIndex, 0);
+  assert.equal(prevented, 6);
+});
+
+test("Enter and Space choose the roving option while Escape only closes", () => {
+  for (const key of ["Enter", " "]) {
+    const ui = harness();
+    const changes = [];
+    const picker = createWorkbenchSlotPicker({
+      root: ui.root,
+      onChange: (loadout, detail) => changes.push([loadout, detail]),
+    });
+    picker.open({ slotId: "bread-left-1", region: "bread" });
+    ui.root.emit("keydown", { key: "End", preventDefault() {} });
+    ui.root.emit("keydown", { key, preventDefault() {} });
+    assert.equal(changes.length, 1, key);
+    assert.equal(changes[0][1].contentId, "top-bun", key);
+    assert.equal(ui.root.hidden, true, key);
+  }
 });
 
 test("selecting a candidate updates only that slot, emits once, and closes", () => {
