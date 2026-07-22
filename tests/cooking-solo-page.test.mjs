@@ -430,6 +430,41 @@ test("mobile CSS protects touch targets, safe areas, WebGL states, and reduced m
   assert.doesNotMatch(css, /background-image\s*:\s*url\(/i);
 });
 
+test("mobile cooking UI keeps the 3D workbench dominant with an in-stage HUD", async () => {
+  const [html, css] = await Promise.all([
+    readFile(htmlPath, "utf8"),
+    readFile(cssPath, "utf8"),
+  ]);
+
+  const shellStart = html.indexOf('<section class="game-shell"');
+  const objectiveStart = html.indexOf('<section class="objective-card"');
+  const stageStart = html.indexOf('<section class="cooking-stage"');
+  const shellEnd = html.indexOf('</section>', stageStart) + '</section>'.length;
+  assert.ok(shellStart >= 0, "game shell should exist");
+  assert.ok(shellStart < objectiveStart, "objective belongs to the game shell");
+  assert.ok(objectiveStart < stageStart, "HUD precedes the 3D stage");
+  assert.ok(shellEnd > stageStart, "3D stage belongs to the game shell");
+
+  const mobileStart = css.indexOf("@media (max-width: 700px)");
+  const mobileEnd = css.indexOf("@media (prefers-reduced-motion: reduce)", mobileStart);
+  const mobile = css.slice(mobileStart, mobileEnd);
+  for (const marker of [
+    ".game-shell",
+    ".objective-card",
+    ".recipe-reference",
+    ".inventory-stock",
+    ".cooking-stage",
+    "#cooking-canvas",
+    ".tutorial-coach",
+  ]) assert.ok(mobile.includes(marker), marker);
+  assert.match(mobile, /\.inventory-stock\s*\{[^}]*display:\s*none;/);
+  assert.match(mobile, /\.objective-card\s*\{[^}]*position:\s*absolute;/);
+  assert.match(mobile, /\.recipe-reference\s*\{[^}]*position:\s*absolute;/);
+  assert.match(mobile, /\.cooking-stage\s*\{[^}]*min-height:\s*calc\(100dvh\s*-\s*68px\);/);
+  assert.match(mobile, /#cooking-canvas\s*\{[^}]*height:\s*calc\(100dvh\s*-\s*68px\);/);
+  assert.match(mobile, /\.tutorial-coach\s*\{[^}]*max-width:\s*min\(calc\(100%\s*-\s*24px\),\s*330px\);/);
+});
+
 test("uses only in-world feedback and contains no text drop-intent control", async () => {
   const [html, css, app] = await Promise.all([
     readFile(htmlPath, "utf8"),
