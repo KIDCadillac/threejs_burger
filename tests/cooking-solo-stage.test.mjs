@@ -836,6 +836,102 @@ test("build mode locks camera while focus allows layer selection and deletion wi
   stage.dispose();
 });
 
+test("focus draft previews and commits horizontal layer movement while stack Y stays authoritative", () => {
+  const changes = [];
+  const { stage, configuration } = harness({
+    reducedMotion: true,
+    onChange: (detail) => changes.push(detail),
+  });
+  stage.dropLayer("bottom-bun", { kind: "prep" });
+  stage.dropLayer("patty", { kind: "prep" });
+  stage.dropLayer("cheese", { kind: "prep" });
+  stage.setBurgerFocus(true);
+  configuration.onInspectionSelection({ id: "patty" });
+
+  const layer = stage.burger.getLayer("patty");
+  const originalY = layer.position.y;
+  const originalOffset = { ...stage.getState().offsets.patty };
+  const gesture = {
+    layerId: "patty",
+    startPointer: { x: 0, y: 0 },
+    pointer: { x: 0.32, y: 0.18 },
+  };
+
+  configuration.onInspectionMove(gesture);
+  assert.deepEqual(stage.getState().offsets.patty, originalOffset, "draft does not mutate saved state");
+  assert.equal(stage.getFocusDraft().layerId, "patty");
+  assert.equal(stage.burger.dropPreview.visible, true);
+  assert.equal(stage.burger.dropPreview.userData.layerId, "patty");
+  assert.ok(Math.abs(stage.burger.dropPreview.position.y - originalY) < 1e-9);
+
+  configuration.onInspectionDrop(gesture);
+  const committedOffset = stage.getState().offsets.patty;
+  assert.ok(Math.hypot(committedOffset.x, committedOffset.z) > 0.05);
+  assert.equal(stage.getFocusDraft(), null);
+  assert.equal(stage.burger.dropPreview.visible, false);
+  assert.ok(Math.abs(layer.position.x - committedOffset.x) < 1e-9);
+  assert.ok(Math.abs(layer.position.z - committedOffset.z) < 1e-9);
+  assert.ok(Math.abs(layer.position.y - originalY) < 1e-9, "focus movement never owns stack height");
+  assert.equal(stage.getSelectedLayerId(), "patty");
+  assert.equal(stage.burger.selectionFeedback.visible, true);
+  assert.equal(changes.at(-1).reason, "focus-layer-moved");
+
+  const beforeCancel = { ...committedOffset };
+  configuration.onInspectionMove({
+    ...gesture,
+    pointer: { x: -0.4, y: -0.28 },
+  });
+  assert.equal(stage.burger.dropPreview.visible, true);
+  configuration.onInspectionCancel({ layerId: "patty", reason: "pointer-cancel" });
+  assert.deepEqual(stage.getState().offsets.patty, beforeCancel);
+  assert.equal(stage.getFocusDraft(), null);
+  assert.equal(stage.burger.dropPreview.visible, false);
+  assert.ok(Math.abs(layer.position.x - beforeCancel.x) < 1e-9);
+  assert.ok(Math.abs(layer.position.z - beforeCancel.z) < 1e-9);
+  assert.ok(Math.abs(layer.position.y - originalY) < 1e-9);
+  stage.dispose();
+});
+
+test("focus layer capabilities support adjacent reorder, rotation, and deleting the final layer", () => {
+  const { stage, configuration } = harness({ reducedMotion: true });
+  stage.dropLayer("bottom-bun", { kind: "prep" });
+  stage.dropLayer("patty", { kind: "prep" });
+  stage.dropLayer("cheese", { kind: "prep" });
+  stage.setBurgerFocus(true);
+  configuration.onInspectionSelection({ id: "patty" });
+
+  assert.deepEqual(stage.getFocusedLayerCapabilities(), {
+    selected: true,
+    layerId: "patty",
+    canMoveUp: true,
+    canMoveDown: true,
+    canRotate: true,
+    canDelete: true,
+  });
+  assert.equal(stage.reorderFocusedLayer(1), true);
+  assert.deepEqual(stage.getState().assembledOrder, ["bottom-bun", "cheese", "patty"]);
+  assert.equal(stage.getFocusedLayerCapabilities().canMoveUp, false);
+  assert.equal(stage.reorderFocusedLayer(1), false, "top boundary is a no-op");
+  assert.equal(stage.reorderFocusedLayer(-1), true);
+  assert.deepEqual(stage.getState().assembledOrder, ["bottom-bun", "patty", "cheese"]);
+
+  const priorYaw = stage.getState().rotations.patty;
+  assert.equal(stage.rotateFocusedLayer(Math.PI / 12), true);
+  assert.ok(Math.abs(stage.getState().rotations.patty - (priorYaw + Math.PI / 12)) < 1e-9);
+  assert.equal(stage.getSelectedLayerId(), "patty");
+  stage.dispose();
+
+  const single = harness({ reducedMotion: true });
+  single.stage.dropLayer("bottom-bun", { kind: "prep" });
+  single.stage.setBurgerFocus(true);
+  single.configuration.onInspectionSelection({ id: "bottom-bun" });
+  assert.equal(single.stage.deleteFocusedLayer(), true);
+  assert.deepEqual(single.stage.getState().assembledOrder, []);
+  assert.equal(single.stage.isBurgerFocused(), false, "deleting the final layer exits focus");
+  assert.equal(single.stage.workbench.root.visible, true);
+  single.stage.dispose();
+});
+
 test("build stack adaptation preserves a player-selected pinch distance until more room is required", () => {
   const { stage } = harness({ reducedMotion: true });
   const baseline = stage.controller.getCameraView();
