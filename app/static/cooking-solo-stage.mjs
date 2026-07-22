@@ -985,7 +985,7 @@ export function createSoloCookingStage({
         registeredLayerIds.add(layerId);
       }
     }
-    controller?.setFoodSurfaces?.([...activeIds].map(
+    controller?.setFoodSurfaces?.(state.assembledOrder.map(
       (layerId) => burger.getLayer(layerId).userData.selectableSurface,
     ));
   };
@@ -1006,7 +1006,7 @@ export function createSoloCookingStage({
     })),
     condimentTools: tools,
     sauceIds: SOLO_COOKING_SAUCE_IDS,
-    foodSurfaces: initialLayerIds.map(
+    foodSurfaces: state.assembledOrder.map(
       (id) => burger.getLayer(id).userData.selectableSurface,
     ),
     prepBounds: workbench.getLayout().bounds,

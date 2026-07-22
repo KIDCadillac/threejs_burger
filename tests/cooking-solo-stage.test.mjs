@@ -320,6 +320,43 @@ test("integrates the complete recipe ingredient and sauce sets into the solo sta
   stage.dispose();
 });
 
+test("sauce ray targets include only layers already assembled on the burger", () => {
+  let configuration;
+  const edibleSurfaceUpdates = [];
+  const controller = {
+    resetCamera: () => true,
+    pause() {},
+    resume() {},
+    dispose() {},
+    setFoodSurfaces(surfaces) { edibleSurfaceUpdates.push([...surfaces]); },
+  };
+  const stage = createSoloCookingStage({
+    THREE,
+    canvas: new FakeCanvas(),
+    storage: null,
+    hostFactory: createHostHarness,
+    controllerFactory: (value) => { configuration = value; return controller; },
+  });
+
+  assert.equal(configuration.foodSurfaces.length, 0, "料盒里的备用食材不能接住酱料");
+  const bottomId = stage.getState().stationSources["bread-left-1"];
+  const stationOnlyId = stage.getState().stationSources["filling-back-1"];
+  assert.equal(stage.dropLayer(bottomId, { kind: "prep" }), true);
+
+  assert.equal(edibleSurfaceUpdates.at(-1).length, 1);
+  assert.strictEqual(
+    edibleSurfaceUpdates.at(-1)[0],
+    stage.burger.getLayer(bottomId).userData.selectableSurface,
+  );
+  assert.equal(
+    edibleSurfaceUpdates.at(-1).includes(
+      stage.burger.getLayer(stationOnlyId).userData.selectableSurface,
+    ),
+    false,
+  );
+  stage.dispose();
+});
+
 test("builds the fixed workbench and solo state from one normalized loadout", () => {
   const requestedLoadout = {
     ...createDefaultWorkbenchLoadout(),
