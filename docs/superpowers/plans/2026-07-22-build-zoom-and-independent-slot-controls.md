@@ -219,7 +219,7 @@ git commit -m "feat: support zoom-only build gestures"
 - Modify: `tests/cooking-solo-stage.test.mjs`
 - Modify: `app/static/cooking-solo-stage.mjs`
 
-- [ ] **Step 1: Write failing stage gesture-policy tests**
+- [x] **Step 1: Write failing stage gesture-policy tests**
 
 Extend the existing build/focus test to assert the controller modes:
 
@@ -238,7 +238,7 @@ assert.equal(stage.controller.isPinchZoomEnabled(), true);
 
 Add a separate test that records a player-selected build distance, adds a layer that still fits, and asserts that the distance is preserved; then build beyond the safe height and assert that only distance increases while yaw and pitch remain unchanged.
 
-- [ ] **Step 2: Run the stage tests and verify failure**
+- [x] **Step 2: Run the stage tests and verify failure**
 
 ```powershell
 & "C:\Users\KID\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" --test --test-name-pattern "build mode|player-selected build distance" tests/cooking-solo-stage.test.mjs
@@ -246,7 +246,7 @@ Add a separate test that records a player-selected build distance, adds a layer 
 
 Expected: FAIL because the stage currently disables pinch zoom with orbit.
 
-- [ ] **Step 3: Enable zoom-only build mode and preserve player distance**
+- [x] **Step 3: Enable zoom-only build mode and preserve player distance**
 
 Immediately after creating the controller and whenever returning from focus:
 
@@ -264,7 +264,7 @@ controller.setPinchZoomEnabled?.(true);
 
 Build-mode automatic adaptation keeps `Math.max(currentDistance, requiredFitDistance)`. `resetCamera()` is the only build action that deliberately returns to the current full-workbench baseline by calling `adaptCameraToStack({ preserveDistance: false, mode: "build", reason: "camera-reset-fit" })` after the controller reset.
 
-- [ ] **Step 4: Run stage and controller suites**
+- [x] **Step 4: Run stage and controller suites**
 
 ```powershell
 $tests = @('tests/cooking-interaction-controller.test.mjs','tests/cooking-solo-stage.test.mjs')
@@ -273,7 +273,7 @@ $tests = @('tests/cooking-interaction-controller.test.mjs','tests/cooking-solo-s
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit stage wiring**
+- [x] **Step 5: Commit stage wiring**
 
 ```powershell
 git add -- tests/cooking-solo-stage.test.mjs app/static/cooking-solo-stage.mjs

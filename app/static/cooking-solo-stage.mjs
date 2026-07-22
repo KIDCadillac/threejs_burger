@@ -1129,6 +1129,7 @@ export function createSoloCookingStage({
     },
   });
   controller.setOrbitEnabled?.(false);
+  controller.setPinchZoomEnabled?.(true);
   initialLayerIds.forEach((id) => registeredLayerIds.add(id));
   cleanupTasks.push(() => controller?.dispose?.());
 
@@ -1145,6 +1146,7 @@ export function createSoloCookingStage({
       focusWorkbenchVisible = workbench.root.visible;
       selectedLayerId = null;
       controller.setOrbitEnabled?.(true);
+      controller.setPinchZoomEnabled?.(true);
       controller.setInspectionOnly?.(true);
       workbench.root.updateMatrixWorld?.(true);
       host.scene.attach(burger.root);
@@ -1167,6 +1169,7 @@ export function createSoloCookingStage({
       }
       controller.setInspectionOnly?.(false);
       controller.setOrbitEnabled?.(false);
+      controller.setPinchZoomEnabled?.(true);
       selectedLayerId = null;
       if (focusCameraView) controller.setCameraView?.(focusCameraView, "burger-focus-return");
       focusCameraView = null;

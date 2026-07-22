@@ -773,8 +773,10 @@ test("build mode locks camera while focus allows layer selection and deletion wi
   stage.dropLayer("cheese", { kind: "prep" });
 
   assert.equal(stage.controller.isOrbitEnabled(), false);
+  assert.equal(stage.controller.isPinchZoomEnabled(), true);
   stage.setBurgerFocus(true);
   assert.equal(stage.controller.isOrbitEnabled(), true);
+  assert.equal(stage.controller.isPinchZoomEnabled(), true);
   configuration.onInspectionSelection({ id: "patty" });
   assert.equal(stage.getSelectedLayerId(), "patty");
   assert.equal(stage.burger.selectionFeedback.visible, true);
@@ -793,6 +795,27 @@ test("build mode locks camera while focus allows layer selection and deletion wi
 
   stage.setBurgerFocus(false);
   assert.equal(stage.controller.isOrbitEnabled(), false);
+  assert.equal(stage.controller.isPinchZoomEnabled(), true);
+  stage.dispose();
+});
+
+test("build stack adaptation preserves a player-selected pinch distance until more room is required", () => {
+  const { stage } = harness({ reducedMotion: true });
+  const baseline = stage.controller.getCameraView();
+  const playerDistance = baseline.distance + 1;
+  stage.controller.setCameraView({
+    target: baseline.target,
+    yaw: baseline.yaw,
+    pitch: baseline.pitch,
+    distance: playerDistance,
+  }, "test-player-pinch");
+
+  stage.dropLayer("bottom-bun", { kind: "prep" });
+  stage.dropLayer("patty", { kind: "prep" });
+  const afterOrdinaryStacking = stage.controller.getCameraView();
+  assert.ok(Math.abs(afterOrdinaryStacking.distance - playerDistance) < 1e-9);
+  assert.equal(afterOrdinaryStacking.yaw, baseline.yaw);
+  assert.equal(afterOrdinaryStacking.pitch, baseline.pitch);
   stage.dispose();
 });
 
