@@ -96,6 +96,7 @@ def test_standalone_solo_cooking_page_and_modules_are_served() -> None:
     animation = client.get("/static/cooking-insertion-animation.mjs")
 
     assert page.status_code == 200
+    assert 'data-slot-capsule' in page.text
     assert "自由料理台" in page.text
     assert 'src="./cooking-loader.mjs"' in page.text
     for response in (loader, stage, state, tutorial, drop_intent, animation):

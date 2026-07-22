@@ -397,6 +397,7 @@ export function bootSoloCookingPage(
         getProjectedAnchors: projectSlotAnchors,
         subscribeAfterFrame: stage.host?.onAfterFrame?.bind(stage.host),
         onCycle: ({ slotId, contentId }) => applyWorkbenchContent(slotId, contentId),
+        onChoose: ({ slotId, contentId }) => applyWorkbenchContent(slotId, contentId),
         onPreview: (detail) => (
           detail
             ? stage.previewSlotContent?.(detail.slotId, detail.contentId)

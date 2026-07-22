@@ -124,12 +124,14 @@ function harness({ width = 390, anchors = projectedAnchors(), reducedMotion = fa
   const buttons = new Element();
   const regions = new Element();
   const menu = new Element();
+  const capsule = new Element();
   const hint = new Element("p");
   root.querySelector = (selector) => ({
     "[data-slot-lines]": lines,
     "[data-slot-buttons]": buttons,
     "[data-slot-regions]": regions,
     "[data-slot-region-menu]": menu,
+    "[data-slot-capsule]": capsule,
     "[data-slot-hint]": hint,
   })[selector] ?? null;
   const canvas = new Element("canvas");
@@ -141,7 +143,7 @@ function harness({ width = 390, anchors = projectedAnchors(), reducedMotion = fa
     getItem: (key) => storageValues.get(key) ?? null,
     setItem: (key, value) => storageValues.set(key, String(value)),
   };
-  const calls = { cycle: [], preview: [], picker: [], highlight: [] };
+  const calls = { cycle: [], choose: [], preview: [], picker: [], highlight: [] };
   const controls = createWorkbenchSlotControls({
     root,
     canvas,
@@ -149,6 +151,7 @@ function harness({ width = 390, anchors = projectedAnchors(), reducedMotion = fa
     getProjectedAnchors: () => anchors,
     subscribeAfterFrame(callback) { afterFrame.push(callback); return () => afterFrame.pop(); },
     onCycle: (detail) => calls.cycle.push(detail),
+    onChoose: (detail) => calls.choose.push(detail),
     onPreview: (detail) => calls.preview.push(detail),
     onOpenPicker: (detail) => calls.picker.push(detail),
     onHighlight: (...detail) => calls.highlight.push(detail),
@@ -157,7 +160,7 @@ function harness({ width = 390, anchors = projectedAnchors(), reducedMotion = fa
     matchMedia: () => ({ matches: reducedMotion }),
   });
   return {
-    controls, root, canvas, lines, buttons, regions, menu, hint,
+    controls, root, canvas, lines, buttons, regions, menu, capsule, hint,
     timers, calls, afterFrame, storageValues,
   };
 }
@@ -209,16 +212,31 @@ test("a short press previews then cycles once and clears every transient effect"
   assert.deepEqual(ui.calls.picker, []);
 });
 
-test("a 350ms hold opens the full picker and never cycles on release", () => {
+test("a 350ms hold opens a slot-local capsule and choosing affects only that slot", () => {
   const ui = harness();
   const button = ui.buttons.children.find(({ dataset }) => dataset.slotId === "sauce-right-2");
 
   button.dispatch("pointerdown", { pointerId: 8, clientX: 12, clientY: 14, isPrimary: true });
   ui.timers.advance(350);
-  assert.deepEqual(ui.calls.picker, [{ slotId: "sauce-right-2", region: "sauce" }]);
+  assert.equal(ui.capsule.hidden, false);
+  assert.equal(ui.capsule.dataset.slotId, "sauce-right-2");
+  assert.deepEqual(
+    ui.capsule.children.map(({ dataset }) => dataset.contentId),
+    ["ketchup", "mustard", "house-sauce"],
+  );
+  assert.equal(
+    ui.capsule.children.filter((candidate) => candidate.getAttribute("aria-pressed") === "true").length,
+    1,
+  );
+  assert.deepEqual(ui.calls.picker, []);
   assert.deepEqual(ui.calls.preview.at(-1), null);
   button.dispatch("pointerup", { pointerId: 8, clientX: 12, clientY: 14, isPrimary: true });
   assert.deepEqual(ui.calls.cycle, []);
+
+  ui.capsule.dispatch("click", { target: ui.capsule.children[0] });
+  assert.deepEqual(ui.calls.choose, [{ slotId: "sauce-right-2", contentId: "ketchup" }]);
+  assert.equal(ui.capsule.hidden, true);
+  assert.equal(button.focusCalls, 1);
 });
 
 test("drag slop, a second pointer, cancellation, and dispose abort the armed gesture", () => {
@@ -238,7 +256,7 @@ test("drag slop, a second pointer, cancellation, and dispose abort the armed ges
   }
 });
 
-test("keyboard controls cycle, open the picker, and expose compact region menus", () => {
+test("keyboard controls cycle, open the slot capsule, and expose compact region menus", () => {
   const ui = harness({ width: 320 });
   assert.equal(ui.buttons.children.length, 0);
   assert.equal(ui.regions.children.length, 3);
@@ -251,7 +269,10 @@ test("keyboard controls cycle, open the picker, and expose compact region menus"
   slotButton.dispatch("keydown", { key: "Enter" });
   assert.deepEqual(ui.calls.cycle.at(-1), { slotId: "filling-back-1", contentId: "cheese" });
   slotButton.dispatch("keydown", { key: "ArrowDown" });
-  assert.deepEqual(ui.calls.picker.at(-1), { slotId: "filling-back-1", region: "filling" });
+  assert.equal(ui.capsule.hidden, false);
+  assert.equal(ui.capsule.dataset.slotId, "filling-back-1");
+  ui.capsule.dispatch("keydown", { key: "Escape" });
+  assert.equal(ui.capsule.hidden, true);
   slotButton.dispatch("keydown", { key: "Escape" });
   assert.equal(ui.menu.hidden, true);
   assert.equal(ui.regions.children[1].focusCalls, 1);
@@ -279,7 +300,7 @@ test("projection failure degrades to three usable region entrances", () => {
   const root = new Element();
   root.ownerDocument = document;
   const nodes = Object.fromEntries([
-    "lines", "buttons", "regions", "region-menu", "hint",
+    "lines", "buttons", "regions", "region-menu", "capsule", "hint",
   ].map((name) => [name, new Element()]));
   root.querySelector = (selector) => {
     const key = selector.match(/data-slot-([^\]]+)/)?.[1];
