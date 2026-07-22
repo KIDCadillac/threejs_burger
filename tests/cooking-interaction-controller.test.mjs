@@ -1189,7 +1189,7 @@ test("captures, applies, and restores a detached camera view for food focus", ()
   assert.equal(controller.setCameraView(initial), false);
 });
 
-test("inspection-only mode turns food and condiment presses into camera orbit", () => {
+test("focus layer tap stays pending and selects without orbiting", () => {
   const canvas = createCanvas();
   const camera = new THREE.PerspectiveCamera();
   camera.position.set(0, 5, 10);
@@ -1197,24 +1197,30 @@ test("inspection-only mode turns food and condiment presses into camera orbit", 
   const layer = new THREE.Group();
   const surface = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
   layer.add(surface);
+  const inspected = [];
   const controller = createCookingInteractionController({
     THREE,
     canvas,
     camera,
     draggables: [{ id: "patty", object: layer, surfaces: [surface] }],
     raycast: () => ({ object: surface, point: new THREE.Vector3() }),
+    onInspectionSelection: (detail) => inspected.push(detail),
   });
 
   assert.equal(controller.setInspectionOnly(true), true);
+  const beforeTap = camera.position.clone();
   canvas.dispatch("pointerdown", pointer(201, 40, 40));
-  assert.equal(controller.getState(), "orbiting");
+  assert.equal(controller.getState(), "inspection-pending");
   assert.equal(controller.getSelectedId(), null);
   canvas.dispatch("pointerup", pointer(201, 40, 40));
+  closeVector(camera.position, beforeTap);
+  assert.equal(inspected.length, 1);
+  assert.equal(inspected[0].layerId, "patty");
   assert.equal(controller.setInspectionOnly(false), false);
   controller.dispose();
 });
 
-test("locked build camera ignores blank drags and inspection taps select a layer without blocking orbit", () => {
+test("focus layer drag moves the layer while focus background drag orbits", () => {
   const canvas = createCanvas();
   const camera = new THREE.PerspectiveCamera();
   camera.position.set(0, 5, 10);
@@ -1229,6 +1235,8 @@ test("locked build camera ignores blank drags and inspection taps select a layer
   };
   layer.add(surface);
   const inspected = [];
+  const inspectionMoves = [];
+  const inspectionDrops = [];
   const controller = createCookingInteractionController({
     THREE,
     canvas,
@@ -1238,6 +1246,8 @@ test("locked build camera ignores blank drags and inspection taps select a layer
       ? { object: surface, point: new THREE.Vector3() }
       : null,
     onInspectionSelection: (detail) => inspected.push(detail),
+    onInspectionMove: (detail) => inspectionMoves.push(detail),
+    onInspectionDrop: (detail) => inspectionDrops.push(detail),
   });
 
   const lockedPosition = camera.position.clone();
@@ -1259,9 +1269,74 @@ test("locked build camera ignores blank drags and inspection taps select a layer
   canvas.dispatch("pointerdown", pointer(303, 40, 40));
   canvas.dispatch("pointermove", pointer(303, 75, 65));
   canvas.dispatch("pointerup", pointer(303, 75, 65));
+  closeVector(camera.position, beforeOrbit);
+  assert.equal(inspectionMoves.length, 1);
+  assert.equal(inspectionDrops.length, 1);
+  assert.equal(inspectionDrops[0].layerId, "patty");
+  assert.deepEqual(inspectionDrops[0].startPointer, { x: -0.6, y: 0.6 });
+  assert.deepEqual(inspectionDrops[0].pointer, { x: -0.25, y: 0.35 });
+  assert.equal(inspected.length, 1, "a layer drag edits instead of selecting again");
+
+  canvas.dispatch("pointerdown", pointer(304, 160, 40));
+  canvas.dispatch("pointermove", pointer(304, 190, 65));
+  canvas.dispatch("pointerup", pointer(304, 190, 65));
   assert.ok(camera.position.distanceTo(beforeOrbit) > 0.01);
-  assert.equal(inspected.length, 1, "a drag orbits instead of selecting");
+  assert.equal(inspectionMoves.length, 1, "background orbit does not move a layer");
+  assert.equal(inspectionDrops.length, 1, "background orbit does not drop a layer");
   controller.dispose();
+});
+
+test("focus layer drafts cancel once on interruption before they can commit", () => {
+  for (const interruption of ["pointercancel", "lostpointercapture", "document-hidden", "second-pointer"]) {
+    const canvas = createCanvas();
+    const documentTarget = new FakeEventTarget();
+    documentTarget.hidden = false;
+    const camera = new THREE.PerspectiveCamera();
+    camera.position.set(0, 5, 10);
+    camera.lookAt(0, 0, 0);
+    const layer = new THREE.Group();
+    const surface = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+    surface.userData.cookingSelectable = {
+      kind: "food-layer",
+      food: "burger",
+      layerId: "patty",
+    };
+    layer.add(surface);
+    const cancelled = [];
+    const dropped = [];
+    const controller = createCookingInteractionController({
+      THREE,
+      canvas,
+      camera,
+      documentTarget,
+      draggables: [{ id: "patty", object: layer, surfaces: [surface] }],
+      raycast: () => ({ object: surface, point: new THREE.Vector3() }),
+      onInspectionCancel: (detail) => cancelled.push(detail),
+      onInspectionDrop: (detail) => dropped.push(detail),
+    });
+
+    controller.setInspectionOnly(true);
+    canvas.dispatch("pointerdown", pointer(401, 40, 40));
+    canvas.dispatch("pointermove", pointer(401, 70, 55));
+    assert.equal(controller.getState(), "inspection-dragging", interruption);
+    if (interruption === "pointercancel") {
+      canvas.dispatch("pointercancel", pointer(401, 70, 55));
+    } else if (interruption === "lostpointercapture") {
+      canvas.dispatch("lostpointercapture", pointer(401, 70, 55));
+    } else if (interruption === "document-hidden") {
+      documentTarget.hidden = true;
+      documentTarget.dispatch("visibilitychange");
+    } else {
+      canvas.dispatch("pointerdown", pointer(402, 120, 120));
+      assert.equal(controller.getState(), "pinching");
+    }
+
+    assert.equal(cancelled.length, 1, interruption);
+    assert.equal(cancelled[0].layerId, "patty");
+    assert.equal(dropped.length, 0, interruption);
+    controller.dispose();
+    assert.equal(cancelled.length, 1, `${interruption} remains single-fire after dispose`);
+  }
 });
 
 test("applies the final pointer-up projection before resolving a valid drop", () => {
