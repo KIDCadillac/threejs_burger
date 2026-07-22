@@ -97,6 +97,13 @@ def test_standalone_solo_cooking_page_and_modules_are_served() -> None:
 
     assert page.status_code == 200
     assert 'data-slot-capsule' in page.text
+    assert 'id="focus-layer-toolbar"' in page.text
+    assert 'data-action="focus-layer-up"' in page.text
+    assert 'data-action="focus-layer-down"' in page.text
+    assert 'data-action="focus-layer-rotate"' in page.text
+    assert "上移" in page.text
+    assert "下移" in page.text
+    assert "旋转" in page.text
     assert "自由料理台" in page.text
     assert 'src="./cooking-loader.mjs"' in page.text
     for response in (loader, stage, state, tutorial, drop_intent, animation):
