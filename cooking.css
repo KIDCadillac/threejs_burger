@@ -754,6 +754,109 @@ canvas:focus-visible {
 .rotate-controls button { font-size: 1.65rem; color: var(--gold); }
 .cooking-controls > button { padding: 8px; font-size: .82rem; }
 
+.workbench-slot-controls {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  --slot-safe-bottom: max(10px, env(safe-area-inset-bottom));
+}
+
+.workbench-slot-controls[hidden],
+.workbench-slot-controls.is-focus-mode { display: none; }
+
+.workbench-slot-controls__lines,
+.workbench-slot-controls__buttons,
+.workbench-slot-controls__regions {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.workbench-slot-controls__lines line {
+  stroke: rgba(255, 215, 116, .78);
+  stroke-width: 2;
+  stroke-linecap: round;
+  filter: drop-shadow(0 2px 3px rgba(19, 8, 4, .65));
+}
+
+.workbench-slot-control,
+.workbench-slot-region {
+  position: absolute;
+  left: var(--slot-x);
+  top: var(--slot-y);
+  display: grid;
+  min-width: 52px;
+  min-height: 52px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, #ffd76b 0 41%, #9c5a23 43% 53%, transparent 55%);
+  filter: drop-shadow(0 6px 8px rgba(17, 7, 4, .52));
+  font-size: 1.15rem;
+  line-height: 1;
+  transition: transform .15s ease, filter .15s ease;
+}
+
+.workbench-slot-control[data-active="true"] {
+  transform: translate(-50%, -50%) scale(1.14);
+  filter: drop-shadow(0 0 9px rgba(255, 222, 116, .95));
+}
+
+.workbench-slot-region {
+  border-radius: 18px;
+  color: #291713;
+  background: linear-gradient(180deg, #ffe18b, #eaa039);
+  font-size: .75rem;
+  font-weight: 900;
+}
+
+.workbench-slot-controls__region-menu {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: var(--slot-safe-bottom);
+  display: flex;
+  max-width: calc(100% - 24px);
+  gap: 6px;
+  padding: 8px;
+  overflow-x: auto;
+  border: 1px solid rgba(255, 218, 132, .45);
+  border-radius: 18px;
+  pointer-events: auto;
+  transform: translateX(-50%);
+  background: rgba(53, 28, 22, .94);
+  box-shadow: 0 12px 28px rgba(16, 7, 5, .5);
+}
+
+.workbench-slot-controls__region-menu[hidden] { display: none; }
+.workbench-slot-region__item { flex: 0 0 52px; min-width: 52px; min-height: 52px; padding: 0; }
+
+.workbench-slot-controls__hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--slot-safe-bottom) + 60px);
+  margin: 0;
+  padding: 7px 11px;
+  border-radius: 999px;
+  color: #2c1914;
+  pointer-events: none;
+  transform: translateX(-50%);
+  background: rgba(255, 235, 180, .94);
+  font-size: .72rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.workbench-slot-controls__hint[hidden] { display: none; }
+.workbench-slot-controls.is-onboarding .workbench-slot-control { animation: coach-pulse 1.15s ease-in-out 2; }
+
 .cooking-stage > .focus-button {
   position: absolute;
   z-index: 5;
@@ -774,6 +877,49 @@ canvas:focus-visible {
   color: var(--cream);
   background: linear-gradient(180deg, #4f3029, #38201c);
 }
+
+.cooking-stage > .focus-layer-hint {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  top: 18px;
+  max-width: calc(100% - 156px);
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 221, 151, .36);
+  border-radius: 999px;
+  color: #fff0cc;
+  pointer-events: none;
+  transform: translateX(-50%);
+  background: rgba(47, 24, 20, .78);
+  box-shadow: 0 8px 22px rgba(18, 6, 5, .3);
+  font-size: .74rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.focus-layer-hint[hidden] { display: none; }
+
+.cooking-stage > .focus-layer-delete {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  min-width: 148px;
+  min-height: 52px;
+  padding: 10px 18px;
+  border-color: rgba(255, 154, 125, .62);
+  border-radius: 18px;
+  color: #fff5e4;
+  font-weight: 900;
+  pointer-events: auto;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, #cf5c43, #91382e);
+  box-shadow: 0 10px 28px rgba(25, 7, 5, .45);
+}
+
+.focus-layer-delete[hidden] { display: none; }
 
 .cooking-summary { padding: 14px; }
 .summary-heading h2 { margin: 0; font-size: 1rem; }
@@ -827,4 +973,6 @@ canvas:focus-visible {
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+  .workbench-slot-control,
+  .workbench-slot-controls__lines line { animation: none !important; transition: none !important; }
 }

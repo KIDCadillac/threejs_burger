@@ -15,9 +15,11 @@ import { loadBurgerTuning, saveBurgerTuning } from "./burger-tuning.mjs";
 import { BURGER_RECIPES } from "./burger-recipes.mjs";
 import { MAX_SOLO_STACK_LAYERS } from "./cooking-solo-state.mjs";
 import { createWorkbenchSlotPicker } from "./cooking-workbench-picker.mjs";
+import { createWorkbenchSlotControls } from "./workbench-slot-controls.mjs";
 import {
   loadWorkbenchLoadout,
   saveWorkbenchLoadout,
+  setWorkbenchSlotContent,
 } from "./workbench-loadout.mjs";
 import { createSoloAutosave } from "./cooking-solo-autosave.mjs";
 
@@ -91,6 +93,7 @@ export function bootSoloCookingPage(
     highlightFactory = createCookingHighlightReplayCoordinator,
     tuningPanelFactory = createCookingTuningPanel,
     workbenchPickerFactory = createWorkbenchSlotPicker,
+    slotControlsFactory = createWorkbenchSlotControls,
     autosaveFactory = createSoloAutosave,
     manageLoading = true,
   } = {},
@@ -115,6 +118,8 @@ export function bootSoloCookingPage(
     undoButton: documentTarget.querySelector('[data-action="undo"]'),
     inspectButton: documentTarget.querySelector('[data-action="toggle-expanded"]'),
     focusButton: documentTarget.querySelector('[data-action="toggle-focus"]'),
+    focusDeleteButton: documentTarget.querySelector('[data-action="delete-focused-layer"]'),
+    focusLayerHint: documentTarget.querySelector("#focus-layer-hint"),
     feedbackSheet: documentTarget.querySelector("#feedback-sheet"),
     feedbackPreview: documentTarget.querySelector("#feedback-preview"),
     feedbackMessage: documentTarget.querySelector("#feedback-message"),
@@ -136,6 +141,7 @@ export function bootSoloCookingPage(
     recipeReferenceSteps: documentTarget.querySelector("#recipe-reference-steps"),
     recipeCards: [...(documentTarget.querySelectorAll?.('[data-action="recipe-select"]') ?? [])],
     workbenchPicker: documentTarget.querySelector("#workbench-picker"),
+    slotControlsRoot: documentTarget.querySelector("#workbench-slot-controls"),
   };
   const focusManager = createFinishFocusManager({
     dialog: elements.finishSheet,
@@ -149,6 +155,7 @@ export function bootSoloCookingPage(
   let highlightIndex = 0;
   let tuningPanel = null;
   let workbenchPicker = null;
+  let slotControls = null;
   let autosave = null;
   let openWorkbenchPicker = () => false;
   let latest = null;
@@ -208,7 +215,15 @@ export function bootSoloCookingPage(
     latest = detail;
     autosave?.save?.(detail.state);
     if (!stage) return;
-    const { state, tutorial, expanded, focused = false, progress, dropIntent = null } = detail;
+    const {
+      state,
+      tutorial,
+      expanded,
+      focused = false,
+      selectedLayerId = null,
+      progress,
+      dropIntent = null,
+    } = detail;
     highlights?.observe?.({
       layerCount: state.assembledOrder.length,
       finished: state.finished,
@@ -238,6 +253,19 @@ export function bootSoloCookingPage(
     elements.focusButton.textContent = focused ? "返回料理台" : "聚焦食物";
     elements.focusButton.dataset.focused = String(focused);
     elements.focusButton.setAttribute?.("aria-pressed", String(focused));
+    elements.focusLayerHint.hidden = !focused;
+    elements.focusLayerHint.textContent = focused
+      ? "拖动画面自由观察 · 轻触汉堡任意一层可删除"
+      : "";
+    const selectedFocusIndex = selectedLayerId
+      ? state.assembledOrder.indexOf(selectedLayerId)
+      : -1;
+    elements.focusDeleteButton.hidden = !focused || selectedFocusIndex < 0;
+    elements.focusDeleteButton.disabled = selectedFocusIndex < 0;
+    elements.focusDeleteButton.textContent = selectedFocusIndex >= 0
+      ? `删除第 ${selectedFocusIndex + 1} 层`
+      : "轻触一层后删除";
+    slotControls?.setHidden?.(focused);
     elements.finishSheet.hidden = !state.finished;
 
     const order = state.assembledOrder.map((id, index) => (
@@ -309,14 +337,22 @@ export function bootSoloCookingPage(
         elements.status.textContent = error?.message ?? "WebGL 运行异常";
       },
     });
+    const applyWorkbenchContent = (slotId, contentId) => {
+      stage.setSlotContent(slotId, contentId);
+      loadout = saveWorkbenchLoadout(
+        setWorkbenchSlotContent(loadout, slotId, contentId),
+        pageStorage,
+      );
+      slotControls?.setLoadout?.(loadout);
+      workbenchPicker?.setLoadout?.(loadout);
+      return loadout;
+    };
     workbenchPicker = workbenchPickerFactory({
       root: elements.workbenchPicker,
       returnTarget: canvas,
       initialLoadout: loadout,
-      onChange(nextLoadout, { slotId, contentId }) {
-        stage.setSlotContent(slotId, contentId);
-        loadout = saveWorkbenchLoadout(nextLoadout, pageStorage);
-        return loadout;
+      onChange(_nextLoadout, { slotId, contentId }) {
+        return applyWorkbenchContent(slotId, contentId);
       },
       onRequestClose() {
         stage.setInteractionPaused(false);
@@ -332,6 +368,50 @@ export function bootSoloCookingPage(
         if (!opened) stage.setInteractionPaused(false);
       }
     };
+    if (elements.slotControlsRoot) {
+      const projectSlotAnchors = () => {
+        const rect = canvas.getBoundingClientRect?.() ?? {};
+        const width = Number(rect.width) || Number(canvas.clientWidth) || Number(canvas.width) || 1;
+        const height = Number(rect.height) || Number(canvas.clientHeight) || Number(canvas.height) || 1;
+        const camera = stage.host?.camera;
+        if (!camera) return [];
+        return stage.getSlotControlAnchors().map(({ slotId, region, anchor }) => {
+          const point = anchor.getWorldPosition(new THREE.Vector3()).project(camera);
+          const x = (point.x + 1) * 0.5 * width;
+          const y = (1 - point.y) * 0.5 * height;
+          return {
+            slotId,
+            region,
+            x,
+            y,
+            visible: Number.isFinite(x) && Number.isFinite(y)
+              && point.z >= -1 && point.z <= 1
+              && x >= 0 && x <= width && y >= 0 && y <= height,
+          };
+        });
+      };
+      slotControls = slotControlsFactory({
+        root: elements.slotControlsRoot,
+        canvas,
+        initialLoadout: loadout,
+        getProjectedAnchors: projectSlotAnchors,
+        subscribeAfterFrame: stage.host?.onAfterFrame?.bind(stage.host),
+        onCycle: ({ slotId, contentId }) => applyWorkbenchContent(slotId, contentId),
+        onPreview: (detail) => (
+          detail
+            ? stage.previewSlotContent?.(detail.slotId, detail.contentId)
+            : stage.clearSlotContentPreview?.()
+        ),
+        onOpenPicker: (detail) => {
+          stage.clearSlotContentPreview?.();
+          return openWorkbenchPicker(detail);
+        },
+        onHighlight: (slotId, value) => stage.workbench?.setSlotHighlighted?.(slotId, value),
+        storage: pageStorage,
+        timers: windowTarget,
+        matchMedia: windowTarget.matchMedia?.bind(windowTarget),
+      });
+    }
     const closeTuning = () => {
       try {
         return tuningPanel?.close?.() ?? false;
@@ -467,6 +547,7 @@ export function bootSoloCookingPage(
       "camera-reset": () => stage.resetCamera(),
       "toggle-expanded": () => stage.toggleExpanded(),
       "toggle-focus": () => stage.toggleBurgerFocus(),
+      "delete-focused-layer": () => stage.deleteFocusedLayer(),
       undo: () => stage.undo(),
       reset: () => stage.reset(),
       finish: () => stage.finish(),
@@ -511,6 +592,7 @@ export function bootSoloCookingPage(
       let firstError = null;
       for (const task of [
         () => tuningPanel?.dispose?.(),
+        () => slotControls?.dispose?.(),
         () => workbenchPicker?.dispose?.(),
         () => stage?.setInteractionPaused?.(false),
         () => {
@@ -542,6 +624,7 @@ export function bootSoloCookingPage(
   } catch (error) {
     for (const task of [
       () => tuningPanel?.dispose?.(),
+      () => slotControls?.dispose?.(),
       () => workbenchPicker?.dispose?.(),
       () => stage?.setInteractionPaused?.(false),
       () => highlights?.dispose?.(),

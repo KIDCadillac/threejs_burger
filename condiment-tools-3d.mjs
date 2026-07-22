@@ -192,6 +192,7 @@ export function createCondimentTools3D(THREE, {
   const selectableSurfaces = [];
   const homePoses = new Map();
   const updateBottleContent = new Map();
+  let activePreview = null;
   const directionScratch = new THREE.Vector3();
   const homeDirectionScratch = new THREE.Vector3();
   const axisScratch = new THREE.Vector3();
@@ -292,6 +293,52 @@ export function createCondimentTools3D(THREE, {
     bottle.root.userData.active = false;
     return true;
   };
+  const clearSlotContentPreview = () => {
+    if (!activePreview) return false;
+    activePreview.root.removeFromParent();
+    for (const material of activePreview.materials) material.dispose?.();
+    activePreview = null;
+    return true;
+  };
+  const previewSlotContent = (slotId, sauce) => {
+    if (disposed) return false;
+    if (!descriptorMode) {
+      throw new TypeError("Physical sauce previews require slot-addressed docks");
+    }
+    if (!activeSauceIds.includes(sauce)) {
+      throw new TypeError(`Unsupported sauce id: ${String(sauce)}`);
+    }
+    const source = bottles.get(slotId);
+    if (!source) throw new TypeError(`Unknown condiment slot: ${String(slotId)}`);
+    clearSlotContentPreview();
+
+    const preview = source.root.clone(true);
+    const materials = new Set();
+    preview.traverse((object) => {
+      object.raycast = NO_RAYCAST;
+      if (!object.material) return;
+      const sourceMaterials = Array.isArray(object.material)
+        ? object.material
+        : [object.material];
+      const previewMaterials = sourceMaterials.map((material) => {
+        const clone = material.clone();
+        clone.transparent = true;
+        clone.opacity = 0.32;
+        clone.depthWrite = false;
+        materials.add(clone);
+        return clone;
+      });
+      object.material = Array.isArray(object.material) ? previewMaterials : previewMaterials[0];
+      if (/:body$/u.test(object.name)) object.material.color?.setHex?.(SAUCE_COLORS[sauce]);
+    });
+    restorePose(preview, homePoses.get(source.id));
+    preview.userData.slotId = slotId;
+    preview.userData.sauce = sauce;
+    preview.userData.active = false;
+    previewRoot.add(preview);
+    activePreview = { root: preview, materials };
+    return true;
+  };
 
   return {
     root,
@@ -305,6 +352,8 @@ export function createCondimentTools3D(THREE, {
     getBySlot(slotId) {
       return descriptorMode ? bottles.get(slotId) ?? null : null;
     },
+    previewSlotContent,
+    clearSlotContentPreview,
     dock: dockBottle,
     setTilt(id, tilt = {}) {
       if (disposed) return false;
@@ -412,6 +461,7 @@ export function createCondimentTools3D(THREE, {
     },
     dispose() {
       if (disposed) return;
+      clearSlotContentPreview();
       disposed = true;
       root.removeFromParent();
       for (const geometry of ownedGeometries) geometry.dispose();
