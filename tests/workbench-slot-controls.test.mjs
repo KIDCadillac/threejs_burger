@@ -181,6 +181,16 @@ test("renders ten readable controls and refreshes positions and guide lines ever
   assert.equal(ui.lines.children.length, 10);
 });
 
+test("keeps ten rail controls but omits guide lines when projected anchors are hidden", () => {
+  const anchors = projectedAnchors().map((anchor) => ({ ...anchor, visible: false }));
+  const ui = harness({ anchors });
+
+  assert.equal(ui.buttons.children.length, 10);
+  assert.equal(ui.regions.children.length, 0);
+  assert.equal(ui.lines.children.length, 0);
+  ui.controls.dispose();
+});
+
 test("a short press previews then cycles once and clears every transient effect", () => {
   const ui = harness();
   const button = ui.buttons.children.find(({ dataset }) => dataset.slotId === "filling-back-1");

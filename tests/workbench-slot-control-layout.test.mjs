@@ -61,7 +61,7 @@ function assertWithinViewport(result, viewport, safeInset = 8) {
 }
 
 function assertWithinAnchorDistance(result) {
-  for (const control of result.individual) {
+  for (const control of result.individual.filter(({ anchorVisible }) => anchorVisible)) {
     const distance = Math.hypot(
       control.x - control.anchorX,
       control.y - control.anchorY,
@@ -107,7 +107,7 @@ test("lays bread, filling, and sauce controls on deterministic screen rails", ()
   assert.ok(first.individual.every(Object.isFrozen));
 });
 
-test("moves an offscreen slot into its region fallback without losing visible siblings", () => {
+test("keeps an offscreen slot independently switchable on its stable rail", () => {
   const anchors = BASE_ANCHORS.map((anchor) => (
     anchor.slotId === "filling-back-3"
       ? Object.freeze({ ...anchor, visible: false })
@@ -115,35 +115,50 @@ test("moves an offscreen slot into its region fallback without losing visible si
   ));
   const result = layoutWorkbenchSlotControls({ viewport: VIEWPORT, anchors });
 
-  assert.equal(result.individual.some(({ slotId }) => slotId === "filling-back-3"), false);
+  assert.equal(result.individual.some(({ slotId }) => slotId === "filling-back-3"), true);
   assert.equal(result.individual.some(({ slotId }) => slotId === "filling-back-2"), true);
-  assert.deepEqual(result.regionFallbacks, [{
-    region: "filling",
-    slotIds: ["filling-back-3"],
-    x: 195,
-    y: 810,
-  }]);
+  assert.equal(
+    result.individual.find(({ slotId }) => slotId === "filling-back-3").anchorVisible,
+    false,
+  );
+  assert.deepEqual(result.regionFallbacks, []);
   assertNoOverlap(result);
+  assertWithinViewport(result, VIEWPORT);
   assertAllSlotsAccountedFor(result);
 });
 
-test("falls an entire region back when its rail would exceed the anchor-distance limit", () => {
+test("keeps distant slots independent instead of collapsing their region", () => {
   const anchors = BASE_ANCHORS.map((anchor) => (
     anchor.region === "bread"
       ? Object.freeze({ ...anchor, x: 260 })
       : anchor
   ));
   const result = layoutWorkbenchSlotControls({ viewport: VIEWPORT, anchors });
-  const breadFallback = result.regionFallbacks.find(({ region }) => region === "bread");
-
-  assert.deepEqual(breadFallback?.slotIds, [
-    "bread-left-1",
-    "bread-left-2",
-    "bread-left-3",
-  ]);
-  assert.equal(result.individual.some(({ region }) => region === "bread"), false);
+  assert.equal(result.regionFallbacks.length, 0);
+  assert.equal(result.individual.filter(({ region }) => region === "bread").length, 3);
   assertNoOverlap(result);
+  assertWithinViewport(result, VIEWPORT);
   assertAllSlotsAccountedFor(result);
+});
+
+test("keeps ten independent controls when every projected anchor is hidden or distant", () => {
+  const anchors = BASE_ANCHORS.map((anchor, index) => Object.freeze({
+    ...anchor,
+    x: index % 2 === 0 ? -400 : 900,
+    y: index % 3 === 0 ? -300 : 1200,
+    visible: false,
+  }));
+  const result = layoutWorkbenchSlotControls({ viewport: VIEWPORT, anchors });
+
+  assert.equal(result.individual.length, 10);
+  assert.equal(result.regionFallbacks.length, 0);
+  assert.deepEqual(
+    result.individual.map(({ slotId }) => slotId),
+    WORKBENCH_SLOTS.map(({ slotId }) => slotId),
+  );
+  assert.ok(result.individual.every(({ anchorVisible }) => anchorVisible === false));
+  assertNoOverlap(result);
+  assertWithinViewport(result, VIEWPORT);
 });
 
 test("compact viewports expose exactly three region controls", () => {
@@ -171,6 +186,8 @@ test("keeps all controls safe across eight yaw and three pitch projections", () 
       }));
       const result = layoutWorkbenchSlotControls({ viewport: VIEWPORT, anchors });
 
+      assert.equal(result.individual.length, 10);
+      assert.equal(result.regionFallbacks.length, 0);
       assertNoOverlap(result);
       assertWithinViewport(result, VIEWPORT);
       assertWithinAnchorDistance(result);

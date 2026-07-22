@@ -286,7 +286,7 @@ git commit -m "feat: enable pinch zoom while building"
 - Modify: `tests/workbench-slot-control-layout.test.mjs`
 - Modify: `app/static/workbench-slot-control-layout.mjs`
 
-- [ ] **Step 1: Replace old region-fallback expectations with failing per-slot expectations**
+- [x] **Step 1: Replace old region-fallback expectations with failing per-slot expectations**
 
 For a 390×844 viewport, an offscreen anchor must still produce its independent slot control:
 
@@ -313,7 +313,7 @@ test("keeps ten independent controls when projected anchors are hidden or distan
 
 Update the 8-yaw × 3-pitch test to assert `individual.length === 10` and `regionFallbacks.length === 0` for every sample. Keep the width-359 compact test expecting three region entry points.
 
-- [ ] **Step 2: Run the layout test and verify the old fallback failure**
+- [x] **Step 2: Run the layout test and verify the old fallback failure**
 
 ```powershell
 & "C:\Users\KID\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" --test tests/workbench-slot-control-layout.test.mjs
@@ -321,7 +321,7 @@ Update the 8-yaw × 3-pitch test to assert `individual.length === 10` and `regio
 
 Expected: FAIL because hidden and distant anchors currently become region fallbacks.
 
-- [ ] **Step 3: Lay out every stable slot on its region rail**
+- [x] **Step 3: Lay out every stable slot on its region rail**
 
 For widths at least `SLOT_CONTROL_COMPACT_WIDTH`, build each region from all declared slots. Use the real anchor when finite and a deterministic rail seed when absent:
 
@@ -350,7 +350,7 @@ individualBySlot.set(slot.slotId, {
 
 Only the existing width-below-360 branch returns `regionFallbacks`.
 
-- [ ] **Step 4: Run layout and DOM control suites**
+- [x] **Step 4: Run layout and DOM control suites**
 
 ```powershell
 $tests = @('tests/workbench-slot-control-layout.test.mjs','tests/workbench-slot-controls.test.mjs','tests/cooking-solo-app.test.mjs')
@@ -359,7 +359,7 @@ $tests = @('tests/workbench-slot-control-layout.test.mjs','tests/workbench-slot-
 
 Expected: PASS; the 390×844 layout always exposes 10 independent buttons, while 359px compact mode still exposes three region menus containing all ten `slotId` values.
 
-- [ ] **Step 5: Commit independent layout behavior**
+- [x] **Step 5: Commit independent layout behavior**
 
 ```powershell
 git add -- tests/workbench-slot-control-layout.test.mjs app/static/workbench-slot-control-layout.mjs

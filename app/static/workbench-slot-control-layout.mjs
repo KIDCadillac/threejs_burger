@@ -46,6 +46,23 @@ function fallbackPosition(region, viewport, safeInset) {
   return { x: viewport.width / 2, y };
 }
 
+function fallbackRailAnchor(region, order, count, viewport, safeInset) {
+  const half = SLOT_CONTROL_HIT_SIZE / 2;
+  const centeredOffset = (order - (count - 1) / 2) * STEP;
+  if (region === "filling") {
+    return Object.freeze({
+      x: viewport.width / 2 + centeredOffset,
+      y: safeInset + half,
+      visible: false,
+    });
+  }
+  return Object.freeze({
+    x: region === "bread" ? safeInset + half : viewport.width - safeInset - half,
+    y: viewport.height / 2 + centeredOffset,
+    visible: false,
+  });
+}
+
 function placeAlongAxis(items, axis, minimum, maximum) {
   if (items.length === 0) return [];
   if (maximum < minimum || maximum - minimum < STEP * (items.length - 1)) return null;
@@ -105,9 +122,6 @@ function tryRegionLayout(region, items, viewport, safeInset) {
     }));
   }
 
-  if (placed.some(({ anchor, x, y }) => (
-    Math.hypot(x - anchor.x, y - anchor.y) > SLOT_CONTROL_MAX_ANCHOR_DISTANCE
-  ))) return null;
   return placed;
 }
 
@@ -137,24 +151,22 @@ export function layoutWorkbenchSlotControls({ viewport, anchors, safeInset = 8 }
   }
 
   const individualBySlot = new Map();
-  const fallbackByRegion = new Map();
   for (const region of REGION_ORDER) {
     const regionSlots = WORKBENCH_SLOTS.filter((slot) => slot.region === region);
-    const visible = [];
-    const hiddenSlotIds = [];
-    for (const [order, slot] of regionSlots.entries()) {
+    const regionItems = regionSlots.map((slot, order) => {
       const anchor = anchorBySlot.get(slot.slotId);
-      if (!anchor?.visible) {
-        hiddenSlotIds.push(slot.slotId);
-        continue;
-      }
-      visible.push({ slot, anchor, order });
-    }
+      return {
+        slot,
+        order,
+        anchor: anchor?.visible
+          ? anchor
+          : fallbackRailAnchor(region, order, regionSlots.length, { width, height }, safeInset),
+      };
+    });
 
-    const placed = tryRegionLayout(region, visible, { width, height }, safeInset);
+    const placed = tryRegionLayout(region, regionItems, { width, height }, safeInset);
     if (!placed) {
-      fallbackByRegion.set(region, regionSlots.map(({ slotId }) => slotId));
-      continue;
+      throw new RangeError(`The slot-control viewport cannot fit the ${region} rail`);
     }
     for (const { slot, anchor, x, y } of placed) {
       individualBySlot.set(slot.slotId, {
@@ -164,20 +176,13 @@ export function layoutWorkbenchSlotControls({ viewport, anchors, safeInset = 8 }
         y,
         anchorX: anchor.x,
         anchorY: anchor.y,
+        anchorVisible: anchor.visible === true,
       });
     }
-    if (hiddenSlotIds.length > 0) fallbackByRegion.set(region, hiddenSlotIds);
   }
 
   const individual = WORKBENCH_SLOTS
     .map(({ slotId }) => individualBySlot.get(slotId))
     .filter(Boolean);
-  const regionFallbacks = REGION_ORDER
-    .filter((region) => fallbackByRegion.has(region))
-    .map((region) => ({
-      region,
-      slotIds: fallbackByRegion.get(region),
-      ...fallbackPosition(region, { width, height }, safeInset),
-    }));
-  return freezeResult(individual, regionFallbacks);
+  return freezeResult(individual, []);
 }
