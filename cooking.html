@@ -89,6 +89,43 @@
         <canvas id="cooking-canvas" tabindex="0" aria-label="三维汉堡料理台，可拖动食材和调料瓶" aria-describedby="cooking-objective">
           你的浏览器需要支持 WebGL 才能使用三维料理台。
         </canvas>
+        <div class="burger-shop-ui" id="burger-shop-ui" role="region" aria-label="汉堡店订单挑战" hidden>
+          <header class="shop-hud">
+            <div class="shop-customer" id="shop-customer" aria-live="polite">
+              <span class="shop-customer__portrait" aria-hidden="true">☺</span>
+              <span>
+                <small>第 <b data-shop-order-number>1</b>/3 位顾客</small>
+                <strong data-shop-customer-name>等待顾客入店</strong>
+              </span>
+            </div>
+            <button class="shop-order-ticket" id="shop-order-ticket" type="button" aria-expanded="false" aria-controls="shop-ticket-panel">
+              <span aria-hidden="true">🧾</span>
+              <span>查看订单</span>
+            </button>
+            <strong class="shop-order-timer" id="shop-order-timer" aria-label="订单剩余时间">45</strong>
+          </header>
+
+          <aside class="shop-ticket-panel" id="shop-ticket-panel" aria-label="当前顾客订单" hidden>
+            <header>
+              <span>订单 <b data-shop-ticket-number>#01</b></span>
+              <strong data-shop-ticket-name>经典牛肉堡</strong>
+            </header>
+            <ol data-shop-ticket-layers aria-label="从下到上的食材顺序"></ol>
+            <p data-shop-ticket-sauces hidden></p>
+          </aside>
+
+          <div class="shop-tasting" id="shop-tasting" aria-live="polite" hidden></div>
+          <div class="shop-order-result" id="shop-order-result" role="dialog" aria-modal="true" aria-label="本单得分" hidden></div>
+          <div class="shop-run-result" id="shop-run-result" role="dialog" aria-modal="true" aria-label="今日营业结果" hidden></div>
+
+          <nav class="shop-actions" aria-label="订单操作">
+            <button type="button" data-shop-action="undo"><span aria-hidden="true">↶</span>撤销</button>
+            <button type="button" data-shop-action="focus"><span aria-hidden="true">◎</span>聚焦</button>
+            <button class="shop-serve-button" id="shop-serve-button" type="button" data-shop-action="serve">
+              <span aria-hidden="true">🔔</span>按铃交付
+            </button>
+          </nav>
+        </div>
         <div class="workbench-slot-controls" id="workbench-slot-controls" aria-label="料理台材料切换">
           <svg class="workbench-slot-controls__lines" data-slot-lines aria-hidden="true"></svg>
           <div class="workbench-slot-controls__buttons" data-slot-buttons></div>
