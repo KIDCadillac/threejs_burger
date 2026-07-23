@@ -122,13 +122,14 @@ def test_vendored_three_integrity_check_rejects_a_mutated_byte() -> None:
         assert_vendored_sha256(bytes(mutated), "three.LICENSE.txt")
 
 
-def test_home_page_contains_cooking_map_catalog() -> None:
+def test_home_page_contains_the_playable_cooking_lobby() -> None:
     response = client.get("/")
 
     assert response.status_code == 200
     assert "开饭啦" in response.text
-    assert 'data-map="burger"' in response.text
-    assert 'data-map="sushi"' in response.text
+    assert 'class="lobby-shell"' in response.text
+    assert 'href="./cooking.html?mode=orders"' in response.text
+    assert 'data-home-action="sushi"' in response.text
 
 
 def test_root_catalog_assets_and_cooking_route_are_served() -> None:
@@ -174,16 +175,18 @@ def test_replica_duel_page_and_modules_are_served_from_static_and_root() -> None
     assert root.headers["location"] == "/static/replica-duel.html"
 
 
-def test_root_is_the_cooking_catalog_while_the_legacy_snack_bundle_is_preserved() -> None:
+def test_root_is_the_game_lobby_while_the_legacy_snack_bundle_is_preserved() -> None:
     page = client.get("/").text
     script = client.get("/static/app.js").text
 
     assert "今日营业" in page
     assert 'href="./cooking.html?mode=orders"' in page
-    assert "开门接单" in page
+    assert "开门营业" in page
+    assert "每日签到" in page
+    assert "汉堡图鉴" in page
     assert 'href="./cooking.html?mode=practice"' in page
     assert "自由练习" in page
-    assert "深夜寿司店" in page
+    assert "寿司店筹备中" in page
     assert "零食乱斗篇" not in page
     assert "零食乱斗篇" in script
     assert "同一盘公共零食，各自秘密埋伏。" in script
@@ -688,13 +691,13 @@ def test_first_run_tutorial_finishes_after_confirming_food() -> None:
     assert 'localStorage.setItem("witch-food-tutorial", "done")' in confirm_source
 
 
-def test_home_page_defines_an_inline_favicon() -> None:
+def test_home_page_uses_a_branded_theme_without_inline_image_payloads() -> None:
     page = client.get("/").text
 
-    assert 'rel="icon"' in page
-    assert 'href="data:image/svg+xml,' in page
-    assert "餐盘" in page or "%E9%A4%90%E7%9B%98" in page
-    assert "M13 37 32 8l19 29" not in page
+    assert 'name="theme-color"' in page
+    assert 'content="#f8c948"' in page
+    assert "data:image" not in page
+    assert 'src="./home-lobby-app.mjs' in page
 
 
 def test_realistic_food_assets_are_served_and_rendered() -> None:

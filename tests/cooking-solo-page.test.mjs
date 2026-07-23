@@ -105,29 +105,23 @@ test("workbench slot controls overlay the canvas with touch-safe, focus-aware co
   assert.match(css, /env\(safe-area-inset-bottom\)/);
 });
 
-test("home page presents the replica duel like a touch-first mini-game mode", async () => {
+test("home page presents replica duel as a clear secondary game action", async () => {
   const [html, css] = await Promise.all([
     readFile(homePath, "utf8"),
     readFile(homeCssPath, "utf8"),
   ]);
 
   for (const marker of [
-    'class="mode-panel__tag"',
-    'class="mode-panel__steps"',
-    'class="mode-panel__cta"',
+    'class="lobby-action lobby-action--duel"',
+    'href="./replica-duel.html"',
+    'class="bottom-nav"',
     "双人轮换",
-    "看一遍",
-    "凭记忆",
-    "比还原",
-    "立即开练",
+    "复刻对决",
   ]) assert.ok(html.includes(marker), marker);
 
-  assert.match(css, /\.mode-panel__steps\s*\{[\s\S]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
-  assert.match(css, /\.mode-panel__cta\s*\{[\s\S]*min-height:\s*52px/);
-  assert.match(
-    css,
-    /@media\s*\(max-width:\s*640px\)[\s\S]*?\.map-card__action\s*\{[^}]*min-height:\s*52px/s,
-  );
+  assert.match(css, /\.lobby-actions\s*\{[\s\S]*grid-template-columns:\s*5rem 5rem/);
+  assert.match(css, /\.lobby-action\s*\{[\s\S]*min-height:\s*5rem/);
+  assert.match(css, /\.bottom-nav\s*\{[\s\S]*grid-template-columns:\s*repeat\(4,\s*1fr\)/);
 });
 
 test("the public page exposes a touch-safe playable highlight replay dialog", async () => {
@@ -346,52 +340,56 @@ test("the pure-food focus control is a persistent stage overlay", async () => {
   assert.match(rule, /min-height:\s*(?:4[8-9]|[5-9]\d)px/);
 });
 
-test("root page makes the three-order shop run primary while practice and duel stay secondary", async () => {
+test("root page is a one-screen game lobby with shop mode primary", async () => {
   const [html, css] = await Promise.all([
     readFile(homePath, "utf8"),
     readFile(homeCssPath, "utf8"),
   ]);
   for (const marker of [
     'lang="zh-CN"',
-    'class="home-shell"',
+    'class="lobby-shell"',
+    'class="lobby-hud"',
+    'id="daily-checkin"',
+    'id="cookbook-sheet"',
+    'data-home-action="daily-checkin"',
+    'data-home-action="cookbook"',
     'href="./cooking.html?mode=orders"',
     'href="./cooking.html?mode=practice"',
-    'data-map="burger"',
-    'data-map="sushi"',
-    'data-mode="replica-duel"',
     'href="./replica-duel.html"',
-    'aria-disabled="true"',
     "今日营业",
+    "开门营业",
+    "每日签到",
+    "汉堡图鉴",
     "自由练习",
     "复刻对决",
-    "本地练习",
-    "深夜寿司店",
-    "下一张地图",
+    "寿司店筹备中",
   ]) assert.ok(html.includes(marker), marker);
-  assert.match(html, /自由做菜/);
+  assert.match(html, /今天也要好好做汉堡/);
   assert.ok(
     html.indexOf('href="./cooking.html?mode=orders"') < html.indexOf('href="./replica-duel.html"'),
     "三单营业入口保持首要",
   );
   assert.match(css, /@media \(max-width: 640px\)/);
-  assert.match(css, /min-height:\s*44px/);
+  assert.match(css, /min-height:\s*(?:44|48|52|56)px/);
+  assert.match(css, /env\(safe-area-inset-top\)/);
+  assert.match(css, /env\(safe-area-inset-bottom\)/);
   assert.doesNotMatch(css, /background-image\s*:\s*url\(/i);
   assert.doesNotMatch(html, /Papa|老爹|pizzeria|burgeria/i);
 });
 
-test("root page offers accessible burger recipe quick starts with original public names", async () => {
+test("burger cookbook keeps recipe quick starts accessible without crowding the lobby", async () => {
   const [html, css] = await Promise.all([
     readFile(homePath, "utf8"),
     readFile(homeCssPath, "utf8"),
   ]);
-  const sectionTag = tagWithAttribute(html, "section", "id", "burger-quick-starts");
+  const sectionTag = tagWithAttribute(html, "section", "id", "cookbook-sheet");
   const sectionMatch = html.match(
-    /<section\b[^>]*id="burger-quick-starts"[^>]*>[\s\S]*?<\/section>/,
+    /<section\b[^>]*id="cookbook-sheet"[^>]*>[\s\S]*?<\/section>/,
   );
 
-  assert.ok(sectionMatch, "burger recipe quick-start section");
-  assert.equal(attribute(sectionTag, "aria-labelledby"), "burger-quick-starts-title");
-  assert.match(sectionMatch[0], /id="burger-quick-starts-title"/);
+  assert.ok(sectionMatch, "burger cookbook sheet");
+  assert.equal(attribute(sectionTag, "aria-labelledby"), "cookbook-title");
+  assert.match(sectionMatch[0], /id="cookbook-title"/);
 
   const links = [...sectionMatch[0].matchAll(/<a\b[^>]*>[\s\S]*?<\/a>/g)]
     .map((match) => ({
@@ -412,19 +410,11 @@ test("root page offers accessible burger recipe quick starts with original publi
     assert.ok(link?.html.includes(publicName), `${href} uses ${publicName}`);
   }
 
-  const burgerCardStart = html.indexOf('<a class="map-card map-card--burger"');
-  const burgerCardEnd = html.indexOf("</a>", burgerCardStart);
-  const quickStartsAt = html.indexOf('id="burger-quick-starts"');
-  assert.ok(burgerCardStart >= 0 && burgerCardEnd > burgerCardStart);
-  assert.ok(quickStartsAt > burgerCardEnd, "quick starts are not nested in the map-card anchor");
   assert.doesNotMatch(html, /麦当劳|巨无霸|吉士汉堡包/u);
 
-  const touchRule = css.match(/\.burger-quick-start\s*\{([^}]+)\}/)?.[1] ?? "";
-  assert.match(touchRule, /min-height:\s*44px/);
-  assert.match(
-    css,
-    /@media\s*\(max-width:\s*640px\)[\s\S]*?\.burger-quick-starts__grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s,
-  );
+  const touchRule = css.match(/\.recipe-button\s*\{([^}]+)\}/)?.[1] ?? "";
+  assert.match(touchRule, /min-height:\s*(?:44|48|52|56)px/);
+  assert.match(css, /\.lobby-sheet\[data-open="true"\]/);
 });
 
 test("page and modules use only relative static imports with no socket dependency", async () => {
