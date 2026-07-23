@@ -1659,6 +1659,42 @@ test("setTuning does not resume after its observer externally pauses interaction
   stage.dispose();
 });
 
+test("competition replacement is isolated and read-only observation keeps camera orbit", () => {
+  const updates = [];
+  const { stage } = harness({ onChange: (detail) => updates.push(detail) });
+  let replacement = createSoloCookingState({ loadout: createDefaultWorkbenchLoadout() });
+  replacement = placeSoloLayer(
+    replacement,
+    replacement.stationSources["bread-left-1"],
+    0,
+    { replenish: true },
+  );
+  replacement = placeSoloLayer(
+    replacement,
+    replacement.stationSources["filling-back-1"],
+    1,
+    { replenish: true },
+  );
+
+  assert.equal(stage.setCompetitionReadOnly(true), true);
+  assert.equal(stage.controller.isOrbitEnabled(), true);
+  assert.equal(stage.applySauceStroke(sampleStroke("ketchup", replacement.assembledOrder[1])), false);
+  assert.equal(stage.setSlotContent("filling-back-1", "cheese"), false);
+
+  assert.equal(stage.replaceCompetitionState(replacement), true);
+  assert.deepEqual(stage.getState().assembledOrder, replacement.assembledOrder);
+  assert.equal(updates.at(-1).reason, "competition-replace");
+  assert.equal(updates.at(-1).competition, true);
+  assert.equal(updates.at(-1).competitionReadOnly, true);
+
+  assert.equal(stage.clearCompetitionScene(), true);
+  assert.deepEqual(stage.getState().assembledOrder, []);
+  assert.equal(stage.getSelectedLayerId(), null);
+  assert.equal(updates.at(-1).reason, "competition-clear");
+  assert.equal(stage.setCompetitionReadOnly(false), false);
+  stage.dispose();
+});
+
 test("setTuning preserves falsy observer throws when resume also fails", () => {
   const resumeError = new Error("resume failed");
   let observerValue = null;

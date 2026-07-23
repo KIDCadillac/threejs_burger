@@ -279,6 +279,8 @@ export function createSoloCookingStage({
   let focusDraft = null;
   let disposed = false;
   let externallyPaused = false;
+  let competitionMode = false;
+  let competitionReadOnly = false;
   let suppressInvalidFeedback = false;
   let lastFrameTime = 0;
   const transitions = new Map();
@@ -297,6 +299,8 @@ export function createSoloCookingStage({
       dropIntent,
       expanded,
       focused,
+      competition: competitionMode,
+      competitionReadOnly,
       progress: `${state.assembledOrder.length}/${MAX_SOLO_STACK_LAYERS}`,
       composition: serializeSoloComposition(state),
       ...extra,
@@ -823,7 +827,7 @@ export function createSoloCookingStage({
   };
 
   const dropLayer = (layerId, destination = {}) => {
-    if (disposed) return false;
+    if (disposed || competitionReadOnly) return false;
     if (activeMotion) {
       activeMotion = null;
       restoreAuthoritativeTransforms();
@@ -875,7 +879,7 @@ export function createSoloCookingStage({
   };
 
   const applySauceStroke = (stroke) => {
-    if (disposed) return false;
+    if (disposed || competitionReadOnly) return false;
     state = addSoloSauceStroke(state, stroke);
     burger.addSauceStroke(stroke);
     advanceTutorial("created-sauce-stroke");
@@ -885,13 +889,13 @@ export function createSoloCookingStage({
   };
 
   const previewSauceGesture = ({ gestureId, segmentIndex, stroke }) => {
-    if (disposed) return false;
+    if (disposed || competitionReadOnly) return false;
     burger.previewSauceStroke(`${gestureId}:${segmentIndex}`, stroke);
     return true;
   };
 
   const commitSauceGesture = ({ gestureId, strokes }) => {
-    if (disposed) return false;
+    if (disposed || competitionReadOnly) return false;
     try {
       const nextState = addSoloSauceStrokes(state, strokes);
       burger.commitSaucePreviews(gestureId);
@@ -913,7 +917,7 @@ export function createSoloCookingStage({
   };
 
   const selectLayer = (layerId, draggedPose = null) => {
-    if (disposed) return false;
+    if (disposed || competitionReadOnly) return false;
     if (!state.instances[layerId]) throw new TypeError(`Unknown burger layer: ${layerId}`);
     clearTransientVisuals();
     const layer = burger.getLayer(layerId);
@@ -941,7 +945,8 @@ export function createSoloCookingStage({
   };
 
   const selectFocusedLayer = (layerId) => {
-    if (disposed || !focused || !state.assembledOrder.includes(layerId)) return false;
+    if (disposed || competitionReadOnly || !focused
+      || !state.assembledOrder.includes(layerId)) return false;
     clearTransientVisuals();
     selectedLayerId = layerId;
     highlightedLayerId = layerId;
@@ -978,7 +983,8 @@ export function createSoloCookingStage({
   };
 
   const moveFocusedLayerDraft = ({ layerId, pointer, startPointer } = {}) => {
-    if (disposed || !focused || !state.assembledOrder.includes(layerId)) return false;
+    if (disposed || competitionReadOnly || !focused
+      || !state.assembledOrder.includes(layerId)) return false;
     if (selectedLayerId !== layerId && !selectFocusedLayer(layerId)) return false;
     if (!focusDraft || focusDraft.layerId !== layerId) {
       const startLocal = focusLocalPoint(layerId, startPointer);
@@ -1010,7 +1016,7 @@ export function createSoloCookingStage({
   };
 
   const commitFocusedLayerDraft = (detail = {}) => {
-    if (disposed || !focused) return false;
+    if (disposed || competitionReadOnly || !focused) return false;
     if (!focusDraft || focusDraft.layerId !== detail.layerId) {
       if (!moveFocusedLayerDraft(detail)) return false;
     }
@@ -1064,7 +1070,7 @@ export function createSoloCookingStage({
   };
 
   const reorderFocusedLayer = (direction) => {
-    if (disposed || !focused || !selectedLayerId) return false;
+    if (disposed || competitionReadOnly || !focused || !selectedLayerId) return false;
     const nextState = reorderSoloLayer(state, selectedLayerId, direction);
     if (nextState === state) return false;
     cancelFocusedLayerDraft();
@@ -1078,7 +1084,7 @@ export function createSoloCookingStage({
   };
 
   const rotateFocusedLayer = (deltaYaw = Math.PI / 12) => {
-    if (disposed || !focused || !selectedLayerId
+    if (disposed || competitionReadOnly || !focused || !selectedLayerId
       || !Number.isFinite(deltaYaw)) return false;
     cancelFocusedLayerDraft();
     state = rotateSoloLayer(
@@ -1488,7 +1494,7 @@ export function createSoloCookingStage({
   };
 
   const setTuning = (value) => {
-    if (disposed) return activeTuning;
+    if (disposed || competitionReadOnly) return activeTuning;
     let hasPrimaryError = false;
     try {
       pauseInteractionsSilently();
@@ -1519,8 +1525,65 @@ export function createSoloCookingStage({
     return externallyPaused;
   };
 
+  const setCompetitionReadOnly = (value) => {
+    if (disposed) return competitionReadOnly;
+    competitionMode = true;
+    const next = Boolean(value);
+    if (competitionReadOnly === next) return competitionReadOnly;
+    competitionReadOnly = next;
+    clearTransientVisuals();
+    controller.setInspectionOnly?.(competitionReadOnly || focused);
+    controller.setOrbitEnabled?.(competitionReadOnly || focused);
+    if (externallyPaused) pauseInteractionsSilently();
+    else controller.resume();
+    emit("competition-readonly");
+    return competitionReadOnly;
+  };
+
+  const replaceCompetitionState = (nextState) => {
+    if (disposed) return false;
+    const hydrated = hydrateSoloCookingState(nextState);
+    if (!hydrated) throw new TypeError("competition state must be a valid solo cooking state");
+    clearTransientVisuals();
+    if (focused) setFocusMode(false, { notify: false });
+    competitionMode = true;
+    state = hydrated;
+    selectedLayerId = null;
+    dropIntent = null;
+    expanded = false;
+    syncPhysicalStations();
+    reconcileModelInstances();
+    applyVisualState({ sauces: true });
+    adaptCameraToStack({ preserveDistance: false, reason: "competition-state-fit" });
+    controller.setInspectionOnly?.(competitionReadOnly);
+    controller.setOrbitEnabled?.(competitionReadOnly);
+    emit("competition-replace");
+    return true;
+  };
+
+  const clearCompetitionScene = () => {
+    if (disposed) return false;
+    clearTransientVisuals();
+    if (focused) setFocusMode(false, { notify: false });
+    competitionMode = true;
+    state = createSoloCookingState({
+      loadout: state.stationContents ?? activeLoadout,
+    });
+    selectedLayerId = null;
+    dropIntent = null;
+    expanded = false;
+    syncPhysicalStations();
+    reconcileModelInstances();
+    applyVisualState({ sauces: true });
+    adaptCameraToStack({ preserveDistance: false, reason: "competition-clear-fit" });
+    controller.setInspectionOnly?.(competitionReadOnly);
+    controller.setOrbitEnabled?.(competitionReadOnly);
+    emit("competition-clear");
+    return true;
+  };
+
   const deleteFocusedLayer = () => {
-    if (disposed || !focused || !selectedLayerId
+    if (disposed || competitionReadOnly || !focused || !selectedLayerId
       || !state.assembledOrder.includes(selectedLayerId)) return false;
     const layerId = selectedLayerId;
     clearTransientVisuals();
@@ -1541,7 +1604,7 @@ export function createSoloCookingStage({
   };
 
   const setSlotContent = (slotId, contentId) => {
-    if (disposed) return false;
+    if (disposed || competitionReadOnly) return false;
     const slot = getWorkbenchSlot(slotId);
     const nextState = setSoloStationContent(state, slotId, contentId);
     if (nextState === state) return false;
@@ -1560,7 +1623,7 @@ export function createSoloCookingStage({
   };
 
   const previewSlotContent = (slotId, contentId) => {
-    if (disposed) return false;
+    if (disposed || competitionReadOnly) return false;
     const slot = getWorkbenchSlot(slotId);
     if (!WORKBENCH_REGION_OPTIONS[slot.region].includes(contentId)) {
       throw new TypeError(`Content ${String(contentId)} is not valid for ${slot.region} slot ${slotId}`);
@@ -1627,6 +1690,9 @@ export function createSoloCookingStage({
     previewSlotContent,
     clearSlotContentPreview,
     setInteractionPaused,
+    setCompetitionReadOnly,
+    replaceCompetitionState,
+    clearCompetitionScene,
     getSlotControlAnchors: () => workbench.getSlotControlAnchors(),
     getState: () => state,
     getTutorial: () => tutorial,
@@ -1640,7 +1706,7 @@ export function createSoloCookingStage({
     isExpanded: () => expanded,
     getComposition: () => serializeSoloComposition(state),
     selectReferenceRecipe(referenceRecipeId) {
-      if (disposed) return false;
+      if (disposed || competitionReadOnly) return false;
       const nextState = selectSoloReferenceRecipe(state, referenceRecipeId);
       if (nextState === state) return false;
       state = nextState;
@@ -1657,7 +1723,7 @@ export function createSoloCookingStage({
     dropLayer,
     applySauceStroke,
     rotateSelected(deltaYaw) {
-      if (disposed || focused || !selectedLayerId) return false;
+      if (disposed || competitionReadOnly || focused || !selectedLayerId) return false;
       clearTransientVisuals();
       state = rotateSoloLayer(state, selectedLayerId, state.rotations[selectedLayerId] + deltaYaw);
       burger.getLayer(selectedLayerId).rotation.y = state.rotations[selectedLayerId];
@@ -1666,7 +1732,7 @@ export function createSoloCookingStage({
       return true;
     },
     toggleExpanded() {
-      if (disposed || focused || state.finished) return expanded;
+      if (disposed || competitionReadOnly || focused || state.finished) return expanded;
       clearTransientVisuals();
       expanded = !expanded;
       syncTransforms({ animate: true });
@@ -1674,8 +1740,8 @@ export function createSoloCookingStage({
       emit("inspect");
       return expanded;
     },
-    setBurgerFocus(value) { return setFocusMode(value); },
-    toggleBurgerFocus() { return setFocusMode(!focused); },
+    setBurgerFocus(value) { return competitionReadOnly ? focused : setFocusMode(value); },
+    toggleBurgerFocus() { return competitionReadOnly ? focused : setFocusMode(!focused); },
     selectFocusedLayer,
     moveFocusedLayerDraft,
     commitFocusedLayerDraft,
@@ -1690,7 +1756,7 @@ export function createSoloCookingStage({
       return reset;
     },
     undo() {
-      if (disposed || !state.history.length) return false;
+      if (disposed || competitionReadOnly || !state.history.length) return false;
       if (focused) setFocusMode(false, { notify: false });
       clearTransientVisuals();
       dropIntent = null;
@@ -1705,7 +1771,7 @@ export function createSoloCookingStage({
       return true;
     },
     reset() {
-      if (disposed) return false;
+      if (disposed || competitionReadOnly) return false;
       if (focused) setFocusMode(false, { notify: false });
       clearTransientVisuals();
       dropIntent = null;
@@ -1721,7 +1787,7 @@ export function createSoloCookingStage({
       return true;
     },
     finish() {
-      if (disposed || !state.complete || state.finished) return false;
+      if (disposed || competitionReadOnly || !state.complete || state.finished) return false;
       if (focused) setFocusMode(false, { notify: false });
       clearTransientVisuals();
       state = finishSoloCooking(state);
@@ -1733,7 +1799,7 @@ export function createSoloCookingStage({
       return true;
     },
     continueEditing() {
-      if (disposed || !state.finished) return false;
+      if (disposed || competitionReadOnly || !state.finished) return false;
       clearTransientVisuals();
       state = continueSoloCooking(state);
       if (!externallyPaused) controller.resume();
