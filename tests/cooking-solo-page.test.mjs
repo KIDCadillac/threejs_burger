@@ -327,12 +327,20 @@ test("root page is an original cooking map catalog with burger playable and sush
     'href="./cooking.html"',
     'data-map="burger"',
     'data-map="sushi"',
+    'data-mode="replica-duel"',
+    'href="./replica-duel.html"',
     'aria-disabled="true"',
     "自由汉堡店",
+    "复刻对决",
+    "本地练习",
     "深夜寿司店",
     "下一张地图",
   ]) assert.ok(html.includes(marker), marker);
   assert.match(html, /自由做菜/);
+  assert.ok(
+    html.indexOf('href="./cooking.html"') < html.indexOf('href="./replica-duel.html"'),
+    "自由料理入口保持首要",
+  );
   assert.match(css, /@media \(max-width: 640px\)/);
   assert.match(css, /min-height:\s*44px/);
   assert.doesNotMatch(css, /background-image\s*:\s*url\(/i);

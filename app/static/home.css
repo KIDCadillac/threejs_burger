@@ -249,7 +249,10 @@ a.map-card:focus-visible { outline: 4px solid #2e82ce; outline-offset: 5px; }
 .burger-quick-start:focus-visible { outline: 4px solid #2e82ce; outline-offset: 3px; }
 .burger-quick-start--free { grid-column: 1 / -1; background: #f8d77c; }
 
-.mode-panel { gap: 2rem; margin-top: 2rem; padding: clamp(1.3rem, 4vw, 2.2rem); border: 2px solid var(--ink); border-radius: 2rem; background: #3d7550; box-shadow: 0 7px 0 var(--ink); color: var(--cream); }
+.mode-panel { gap: 2rem; margin-top: 2rem; padding: clamp(1.3rem, 4vw, 2.2rem); border: 2px solid var(--ink); border-radius: 2rem; background: #3d7550; box-shadow: 0 7px 0 var(--ink); color: var(--cream); text-decoration: none; }
+.mode-panel--playable { transition: transform 170ms ease, box-shadow 170ms ease; }
+.mode-panel--playable:hover { transform: translateY(-3px); box-shadow: 0 10px 0 var(--ink); }
+.mode-panel--playable:focus-visible { outline: 4px solid #2e82ce; outline-offset: 5px; }
 .mode-panel__eyebrow { margin: 0 0 0.3rem; color: #f8d77c; font-size: 0.75rem; font-weight: 900; letter-spacing: 0.16em; }
 .mode-panel h2 { margin: 0; font-size: clamp(1.45rem, 4vw, 2.2rem); }
 .mode-panel > div > p:last-child { max-width: 42rem; margin: 0.75rem 0 0; color: rgba(255, 247, 223, 0.78); line-height: 1.7; }

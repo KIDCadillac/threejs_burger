@@ -148,6 +148,32 @@ def test_root_cooking_route_redirects_into_the_static_asset_directory() -> None:
     assert response.headers["location"] == "/static/cooking.html"
 
 
+def test_replica_duel_page_and_modules_are_served_from_static_and_root() -> None:
+    resources = [
+        "replica-duel.html",
+        "replica-duel.css",
+        "replica-duel-app.mjs",
+        "replica-duel-local-channel.mjs",
+        "replica-duel-protocol.mjs",
+        "replica-duel-reveal.mjs",
+        "replica-duel-rules.mjs",
+        "replica-duel-score.mjs",
+        "replica-duel-stage-adapter.mjs",
+        "replica-duel-state.mjs",
+    ]
+    for resource in resources:
+        response = client.get(f"/static/{resource}")
+        assert response.status_code == 200, resource
+
+    page = client.get("/static/replica-duel.html").text
+    assert "本地双视角练习" in page
+    assert "在线匹配" not in page
+
+    root = client.get("/replica-duel.html", follow_redirects=False)
+    assert root.status_code == 307
+    assert root.headers["location"] == "/static/replica-duel.html"
+
+
 def test_root_is_the_cooking_catalog_while_the_legacy_snack_bundle_is_preserved() -> None:
     page = client.get("/").text
     script = client.get("/static/app.js").text

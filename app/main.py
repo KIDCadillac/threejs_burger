@@ -114,6 +114,10 @@ def create_app(service: GameService | None = None) -> FastAPI:
     def solo_cooking() -> RedirectResponse:
         return RedirectResponse(url="/static/cooking.html")
 
+    @application.get("/replica-duel.html")
+    def replica_duel() -> RedirectResponse:
+        return RedirectResponse(url="/static/replica-duel.html")
+
     @application.websocket("/ws")
     async def websocket_endpoint(
         socket: WebSocket, player: str = "", credential: str = ""
