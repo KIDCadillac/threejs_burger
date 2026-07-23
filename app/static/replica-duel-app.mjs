@@ -1,6 +1,7 @@
 import * as THREE from "./vendor/three.module.min.js";
 import { createSoloCookingStage } from "./cooking-solo-stage.mjs";
 import { createReplicaDuelStageAdapter } from "./replica-duel-stage-adapter.mjs";
+import { createReplicaDuelReveal } from "./replica-duel-reveal.mjs";
 import {
   createReplicaDuelLocalHost,
   joinReplicaDuelLocalPractice,
@@ -75,6 +76,7 @@ export function bootReplicaDuelPage(
     now = () => Date.now(),
     stageFactory = createSoloCookingStage,
     adapterFactory = createReplicaDuelStageAdapter,
+    revealFactory = createReplicaDuelReveal,
     hostFactory = createReplicaDuelLocalHost,
     guestFactory = joinReplicaDuelLocalPractice,
   } = {},
@@ -86,16 +88,34 @@ export function bootReplicaDuelPage(
     phase: requiredElement(documentTarget, "#duel-phase"),
     countdown: requiredElement(documentTarget, "#duel-countdown"),
     status: requiredElement(documentTarget, "#duel-status"),
+    revealRoot: requiredElement(documentTarget, "#duel-reveal"),
+    replicaCanvas: requiredElement(documentTarget, "#replica-duel-replica-canvas"),
+    scoreTotal: requiredElement(documentTarget, "#duel-score-total"),
+    scoreIssues: requiredElement(documentTarget, "#duel-score-issues"),
+    finalRoot: requiredElement(documentTarget, "#duel-final-result"),
+    finalWinner: requiredElement(documentTarget, "#duel-final-winner"),
+    finalRounds: requiredElement(documentTarget, "#duel-final-rounds"),
     ready: requiredElement(documentTarget, '[data-action="ready"]'),
     finish: requiredElement(documentTarget, '[data-action="finish"]'),
+    revealReady: requiredElement(documentTarget, '[data-action="reveal-ready"]'),
     openSecond: requiredElement(documentTarget, '[data-action="open-second-view"]'),
     exit: requiredElement(documentTarget, '[data-action="exit"]'),
     panels: [...(documentTarget.querySelectorAll?.("[data-phase-panel]") ?? [])],
+    scoreNodes: new Map(
+      [...(documentTarget.querySelectorAll?.("[data-score]") ?? [])]
+        .map((node) => [node.dataset.score, node]),
+    ),
   };
+  for (const key of ["ingredients", "order", "sauce", "placement", "speed"]) {
+    if (!elements.scoreNodes.has(key)) {
+      throw new Error(`Missing required replica duel score element: ${key}`);
+    }
+  }
   const route = parseReplicaDuelRoute(windowTarget.location);
   let connection = null;
   let stage = null;
   let adapter = null;
+  let reveal = null;
   let unsubscribe = () => {};
   let disposed = false;
   let ended = false;
@@ -105,6 +125,7 @@ export function bootReplicaDuelPage(
   function disableActions() {
     elements.ready.disabled = true;
     elements.finish.disabled = true;
+    elements.revealReady.disabled = true;
   }
 
   function renderCountdown() {
@@ -127,6 +148,11 @@ export function bootReplicaDuelPage(
     elements.ready.disabled = ended || view.status !== "lobby" || Boolean(view.ready?.[view.playerId]);
     elements.finish.disabled = ended || !view.controlsEnabled
       || !["creating", "replicating"].includes(view.phase);
+    elements.revealReady.disabled = ended || view.phase !== "reveal"
+      || Boolean(view.revealReady?.[view.playerId]);
+    elements.ready.hidden = view.status !== "lobby";
+    elements.finish.hidden = !["creating", "replicating"].includes(view.phase);
+    elements.revealReady.hidden = view.phase !== "reveal";
     elements.status.textContent = view.status === "lobby"
       ? "请打开另一视角，双方准备后开始"
       : view.status === "finished"
@@ -135,6 +161,7 @@ export function bootReplicaDuelPage(
     if (view.scoringError) elements.status.textContent = `评分暂未完成：${view.scoringError}`;
     renderCountdown();
     adapter?.applyView(view);
+    reveal?.applyView(view);
   }
 
   function renderEnded(message = "本地练习已结束") {
@@ -143,7 +170,9 @@ export function bootReplicaDuelPage(
     elements.phase.textContent = "练习结束";
     elements.countdown.textContent = "--";
     disableActions();
-    adapter?.applyView({ ...currentView, controlsEnabled: false, visibleSnapshot: null });
+    if (currentView) {
+      adapter?.applyView({ ...currentView, controlsEnabled: false, visibleSnapshot: null });
+    }
   }
 
   function onConnectionEvent(event) {
@@ -163,6 +192,7 @@ export function bootReplicaDuelPage(
     windowTarget.removeEventListener?.("resize", onResize);
     windowTarget.removeEventListener?.("beforeunload", dispose);
     unsubscribe();
+    reveal?.dispose?.();
     adapter?.dispose?.();
     stage?.dispose?.();
     connection?.close?.();
@@ -178,6 +208,7 @@ export function bootReplicaDuelPage(
     const action = button.dataset.action;
     if (action === "ready" && !button.disabled) connection?.send?.("ready");
     if (action === "finish" && !button.disabled) adapter?.requestFinish?.();
+    if (action === "reveal-ready" && !button.disabled) connection?.send?.("reveal-ready");
     if (action === "open-second-view" && connection?.invite) {
       windowTarget.open?.(
         secondViewUrl(windowTarget.location, connection.invite),
@@ -228,6 +259,31 @@ export function bootReplicaDuelPage(
       },
     });
     pendingAdapter = adapter;
+    reveal = revealFactory({
+      root: elements.revealRoot,
+      originalCanvas: elements.canvas,
+      replicaCanvas: elements.replicaCanvas,
+      originalStage: stage,
+      createReplicaStage: ({ canvas }) => stageFactory({
+        THREE,
+        canvas,
+        documentTarget,
+        storage: null,
+        competitionMode: true,
+        competitionReadOnly: true,
+        reducedMotion: Boolean(
+          windowTarget.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches,
+        ),
+        onChange: () => {},
+        onError: (message) => { elements.status.textContent = String(message); },
+      }),
+      total: elements.scoreTotal,
+      issues: elements.scoreIssues,
+      finalRoot: elements.finalRoot,
+      finalWinner: elements.finalWinner,
+      finalRounds: elements.finalRounds,
+      scoreNodes: elements.scoreNodes,
+    });
     unsubscribe = connection.subscribe(onConnectionEvent);
     const initialView = connection.getView?.();
     if (initialView && currentView !== initialView) renderView(initialView);
@@ -241,6 +297,8 @@ export function bootReplicaDuelPage(
     stage?.dispose?.();
     stage = null;
     adapter = null;
+    reveal?.dispose?.();
+    reveal = null;
     elements.status.textContent = "此浏览器暂不支持本地双视角练习";
     elements.phase.textContent = "无法开始练习";
     disableActions();

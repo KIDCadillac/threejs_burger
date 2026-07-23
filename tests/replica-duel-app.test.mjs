@@ -51,16 +51,28 @@ function createPageHarness(href = "https://example.test/replica-duel.html") {
     phase: add("#duel-phase"),
     countdown: add("#duel-countdown"),
     status: add("#duel-status"),
+    revealRoot: add("#duel-reveal"),
+    replicaCanvas: add("#replica-duel-replica-canvas"),
+    scoreTotal: add("#duel-score-total"),
+    scoreIssues: add("#duel-score-issues"),
+    finalRoot: add("#duel-final-result"),
+    finalWinner: add("#duel-final-winner"),
+    finalRounds: add("#duel-final-rounds"),
     ready: add('[data-action="ready"]', "ready"),
     finish: add('[data-action="finish"]', "finish"),
+    revealReady: add('[data-action="reveal-ready"]', "reveal-ready"),
     openSecond: add('[data-action="open-second-view"]', "open-second-view"),
     exit: add('[data-action="exit"]', "exit"),
   };
+  const scoreNodes = ["ingredients", "order", "sauce", "placement", "speed"]
+    .map((score) => new Element(null, { score }));
   const panels = ["creating", "observer", "memorize", "replicating", "reveal"]
     .map((phasePanel) => new Element(null, { phasePanel }));
   documentTarget.querySelector = (selector) => selectors.get(selector) ?? null;
   documentTarget.querySelectorAll = (selector) => (
-    selector === "[data-phase-panel]" ? panels : []
+    selector === "[data-phase-panel]" ? panels
+      : selector === "[data-score]" ? scoreNodes
+        : []
   );
 
   const windowTarget = new Events();
@@ -77,7 +89,7 @@ function createPageHarness(href = "https://example.test/replica-duel.html") {
     return 72;
   };
   windowTarget.clearInterval = () => { windowTarget.interval = null; };
-  return { documentTarget, windowTarget, elements, panels };
+  return { documentTarget, windowTarget, elements, panels, scoreNodes };
 }
 
 function view(overrides = {}) {
@@ -129,6 +141,7 @@ function appFactories(initialView, options = {}) {
   const guest = connectionHarness({ ...initialView, playerId: "B" });
   const stageCalls = [];
   const adapters = [];
+  const reveals = [];
   return {
     host,
     guest,
@@ -164,6 +177,18 @@ function appFactories(initialView, options = {}) {
       adapters.push(adapter);
       return adapter;
     },
+    revealFactory(configuration) {
+      const reveal = {
+        configuration,
+        views: [],
+        disposeCalls: 0,
+        applyView(nextView) { this.views.push(nextView); return true; },
+        dispose() { this.disposeCalls += 1; },
+      };
+      reveals.push(reveal);
+      return reveal;
+    },
+    reveals,
     ...options,
   };
 }
@@ -194,6 +219,7 @@ test("host page locks player A, opens a B tab, renders phases, and routes contro
   assert.equal(page.elements.player.textContent, "玩家 A");
   assert.equal(page.elements.ready.disabled, false);
   assert.equal(page.elements.finish.disabled, true);
+  assert.equal(page.elements.revealReady.disabled, true);
   assert.equal(page.windowTarget.interval.delay, 250);
 
   page.documentTarget.emit("click", { target: page.elements.openSecond });
@@ -222,6 +248,26 @@ test("host page locks player A, opens a B tab, renders phases, and routes contro
   page.documentTarget.emit("click", { target: page.elements.finish });
   assert.equal(factories.adapters[0].finishCalls, 1);
   assert.deepEqual(factories.host.sent.at(-1), ["finish", undefined]);
+
+  const reveal = view({
+    status: "active",
+    round: 1,
+    phase: "reveal",
+    phaseRevision: 5,
+    phaseDeadlineAt: 54_000,
+    role: "observer",
+    revealReady: { A: false, B: false },
+    comparison: {
+      original: { food: "burger", layers: [], strokes: [] },
+      replica: { food: "burger", layers: [], strokes: [] },
+      score: { displayScore: 88, breakdown: { display: {} }, alignment: { matches: [] } },
+    },
+  });
+  factories.host.emit({ type: "view", view: reveal, serverRevision: 5 });
+  assert.equal(page.elements.revealReady.disabled, false);
+  assert.strictEqual(factories.reveals[0].views.at(-1), reveal);
+  page.documentTarget.emit("click", { target: page.elements.revealReady });
+  assert.deepEqual(factories.host.sent.at(-1), ["reveal-ready", undefined]);
 
   page.documentTarget.emit("click", { target: page.elements.exit });
   assert.equal(factories.host.closeCalls, 1);
@@ -269,6 +315,7 @@ test("guest page joins B, shows observer/replicator UI, and degrades honestly on
   assert.equal(page.elements.status.textContent, "本地练习已结束");
   assert.equal(page.elements.ready.disabled, true);
   assert.equal(page.elements.finish.disabled, true);
+  assert.equal(page.elements.revealReady.disabled, true);
 });
 
 test("boot failure reports unsupported local practice without inventing reconnect", () => {

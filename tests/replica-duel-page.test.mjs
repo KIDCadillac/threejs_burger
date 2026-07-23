@@ -19,7 +19,7 @@ test("replica duel page is an honest mobile-first local two-view practice", asyn
     assert.doesNotMatch(html, new RegExp(forbidden));
   }
 
-  for (const action of ["ready", "finish", "open-second-view", "exit"]) {
+  for (const action of ["ready", "finish", "reveal-ready", "open-second-view", "exit"]) {
     assert.match(html, new RegExp(`data-action=["']${action}["']`));
   }
   for (const panel of ["creating", "observer", "memorize", "replicating", "reveal"]) {
@@ -27,6 +27,15 @@ test("replica duel page is an honest mobile-first local two-view practice", asyn
   }
 
   assert.match(html, /id=["']replica-duel-canvas["']/);
+  assert.match(html, /id=["']replica-duel-replica-canvas["']/);
+  assert.match(html, /id=["']duel-score-total["']/);
+  assert.match(html, /id=["']duel-final-result["']/);
+  assert.match(html, /id=["']duel-final-winner["']/);
+  assert.match(html, /id=["']duel-final-rounds["']/);
+  for (const score of ["ingredients", "order", "sauce", "placement", "speed"]) {
+    assert.match(html, new RegExp(`data-score=["']${score}["']`));
+  }
+  assert.match(html, /回放稍后开放/);
   assert.match(html, /\.\/replica-duel\.css/);
   assert.match(html, /\.\/replica-duel-app\.mjs/);
   assert.doesNotMatch(html, /tuning-open|feedback-open|highlight-open|存档/);
@@ -35,4 +44,3 @@ test("replica duel page is an honest mobile-first local two-view practice", asyn
   assert.match(css, /@media\s*\(max-width:\s*480px\)[\s\S]*min-width:\s*52px/);
   assert.match(css, /@media\s*\(max-width:\s*480px\)[\s\S]*min-height:\s*52px/);
 });
-

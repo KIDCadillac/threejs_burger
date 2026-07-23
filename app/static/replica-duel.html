@@ -77,11 +77,45 @@
           <strong>正在核对原作与复刻结果</strong>
           <p>结果只按三维结构和操作数据计算，不使用截图评分。</p>
         </aside>
+
+        <section class="duel-reveal" id="duel-reveal" aria-label="原作与复刻三维对比" hidden>
+          <span class="duel-view-label duel-view-label--original">原作</span>
+          <div class="duel-replica-view">
+            <span class="duel-view-label">复刻</span>
+            <canvas
+              id="replica-duel-replica-canvas"
+              tabindex="0"
+              aria-label="复刻结果三维查看台"
+            >
+              你的浏览器需要支持 WebGL 才能查看三维复刻结果。
+            </canvas>
+          </div>
+          <div class="duel-score-board">
+            <div class="duel-score-total">
+              <span>本轮得分</span>
+              <strong id="duel-score-total">0.0</strong>
+            </div>
+            <dl class="duel-score-list">
+              <div><dt>材料</dt><dd data-score="ingredients">0.0</dd></div>
+              <div><dt>顺序</dt><dd data-score="order">0.0</dd></div>
+              <div><dt>酱料</dt><dd data-score="sauce">0.0</dd></div>
+              <div><dt>摆位</dt><dd data-score="placement">0.0</dd></div>
+              <div><dt>速度</dt><dd data-score="speed">0.0</dd></div>
+            </dl>
+            <p id="duel-score-issues">正在核对层序</p>
+            <small>拖动任意一侧，两份汉堡会同步转动。回放稍后开放。</small>
+            <section class="duel-final-result" id="duel-final-result" aria-live="polite" hidden>
+              <strong id="duel-final-winner">正在汇总两轮结果</strong>
+              <span id="duel-final-rounds"></span>
+            </section>
+          </div>
+        </section>
       </section>
 
       <section class="duel-actions" aria-label="本地练习操作">
         <button class="duel-secondary-action" type="button" data-action="ready">我准备好了</button>
         <button class="duel-primary-action" type="button" data-action="finish" disabled>完成当前汉堡</button>
+        <button class="duel-primary-action" type="button" data-action="reveal-ready" hidden disabled>继续下一轮</button>
       </section>
 
       <section class="duel-help" aria-label="玩法说明">
