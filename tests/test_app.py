@@ -178,7 +178,11 @@ def test_root_is_the_cooking_catalog_while_the_legacy_snack_bundle_is_preserved(
     page = client.get("/").text
     script = client.get("/static/app.js").text
 
-    assert "自由料理" in page
+    assert "今日营业" in page
+    assert 'href="./cooking.html?mode=orders"' in page
+    assert "开门接单" in page
+    assert 'href="./cooking.html?mode=practice"' in page
+    assert "自由练习" in page
     assert "深夜寿司店" in page
     assert "零食乱斗篇" not in page
     assert "零食乱斗篇" in script
