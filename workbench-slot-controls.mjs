@@ -232,6 +232,7 @@ export function createWorkbenchSlotControls({
     if (event?.isPrimary === false) return;
     const detail = currentDetail(slotId);
     if (!detail) return;
+    if (openCapsuleSlotId) closeSlotCapsule({ restoreFocus: false });
     const origin = pointerPosition(event);
     const gesture = {
       button,

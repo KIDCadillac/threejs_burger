@@ -1198,6 +1198,14 @@ canvas:focus-visible {
 
   .workbench-slot-controls__lines { display: none; }
 
+  .workbench-slot-controls__capsule {
+    left: 50%;
+    top: clamp(248px, 36%, 320px);
+    bottom: auto;
+    max-width: calc(100% - 24px);
+    transform: translateX(-50%) !important;
+  }
+
   .workbench-slot-control[data-region="filling"] {
     top: max(var(--slot-y), 148px);
   }
