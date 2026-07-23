@@ -498,6 +498,10 @@ test("mobile cooking UI keeps the 3D workbench dominant with an in-stage HUD", a
   assert.match(mobile, /\.tutorial-coach\s*\{[^}]*max-width:\s*min\(calc\(100%\s*-\s*24px\),\s*330px\);/);
   assert.match(mobile, /\.workbench-slot-control\[data-region="filling"\]\s*\{[^}]*top:\s*max\(var\(--slot-y\),\s*148px\);/);
   assert.match(mobile, /\.workbench-slot-controls__lines\s*\{[^}]*display:\s*none;/);
+  assert.match(
+    mobile,
+    /\.workbench-slot-controls__capsule\s*\{[^}]*top:\s*clamp\(248px,\s*36%,\s*320px\);[^}]*transform:\s*translateX\(-50%\)\s*!important;/s,
+  );
   assert.match(mobile, /\.cooking-stage > \.focus-button\s*\{[^}]*top:\s*206px;/);
 });
 

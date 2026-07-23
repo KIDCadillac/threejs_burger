@@ -239,6 +239,23 @@ test("a 350ms hold opens a slot-local capsule and choosing affects only that slo
   assert.equal(button.focusCalls, 1);
 });
 
+test("a short press after a long-press expansion cycles once and collapses the capsule", () => {
+  const ui = harness();
+  const button = ui.buttons.children.find(({ dataset }) => dataset.slotId === "filling-back-1");
+
+  button.dispatch("pointerdown", { pointerId: 18, clientX: 30, clientY: 40, isPrimary: true });
+  ui.timers.advance(350);
+  button.dispatch("pointerup", { pointerId: 18, clientX: 30, clientY: 40, isPrimary: true });
+  assert.equal(ui.capsule.hidden, false);
+
+  button.dispatch("pointerdown", { pointerId: 19, clientX: 30, clientY: 40, isPrimary: true });
+  button.dispatch("pointerup", { pointerId: 19, clientX: 30, clientY: 40, isPrimary: true });
+
+  assert.deepEqual(ui.calls.cycle, [{ slotId: "filling-back-1", contentId: "cheese" }]);
+  assert.equal(ui.capsule.hidden, true);
+  assert.equal(ui.capsule.dataset.slotId, undefined);
+});
+
 test("drag slop, a second pointer, cancellation, and dispose abort the armed gesture", () => {
   for (const mode of ["move", "second", "cancel", "dispose"]) {
     const ui = harness();
