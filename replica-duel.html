@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#2b1713">
+    <title>本地双视角练习 · 汉堡复刻对决</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="./replica-duel.css">
+  </head>
+  <body>
+    <main class="duel-app">
+      <header class="duel-header">
+        <button class="duel-icon-button" type="button" data-action="exit" aria-label="退出本次练习">返回</button>
+        <div class="duel-header__copy">
+          <p>本地双视角练习</p>
+          <h1>汉堡复刻对决</h1>
+        </div>
+        <button class="duel-open-button" type="button" data-action="open-second-view">打开玩家 B</button>
+      </header>
+
+      <section class="duel-status-card" aria-label="比赛状态">
+        <div class="duel-player-card">
+          <span id="duel-player">玩家 A</span>
+          <strong id="duel-role">待准备</strong>
+        </div>
+        <div class="duel-phase-card">
+          <span>当前阶段</span>
+          <strong id="duel-phase">正在建立本地练习</strong>
+        </div>
+        <div class="duel-countdown" aria-label="本阶段剩余时间">
+          <strong id="duel-countdown">45</strong>
+          <span>秒</span>
+        </div>
+      </section>
+
+      <p class="duel-status" id="duel-status" role="status" aria-live="polite">
+        请打开另一视角，双方准备后开始
+      </p>
+
+      <section class="duel-stage" aria-label="三维汉堡复刻操作区">
+        <canvas
+          id="replica-duel-canvas"
+          tabindex="0"
+          aria-label="只读三维汉堡观察台"
+          aria-describedby="duel-status"
+        >
+          你的浏览器需要支持 WebGL 才能使用三维汉堡制作台。
+        </canvas>
+
+        <aside class="duel-phase-panel" data-phase-panel="creating" hidden>
+          <span>制作原作</span>
+          <strong>用 45 秒做出一份可复刻的汉堡</strong>
+          <p>对手会看到你的动作，但不会看到材料名称和配方。</p>
+        </aside>
+
+        <aside class="duel-phase-panel" data-phase-panel="observer" hidden>
+          <span>观察对手</span>
+          <strong>记住每一层的位置和顺序</strong>
+          <p>现在只能观察。轮到你时，舞台会换成空白料理台。</p>
+        </aside>
+
+        <aside class="duel-phase-panel duel-phase-panel--urgent" data-phase-panel="memorize" hidden>
+          <span>最后记忆</span>
+          <strong>原作即将隐藏</strong>
+          <p>记住层序、方向、摆位和酱料轨迹。</p>
+        </aside>
+
+        <aside class="duel-phase-panel" data-phase-panel="replicating" hidden>
+          <span>复刻开始</span>
+          <strong>按记忆重新做出同一份汉堡</strong>
+          <p>结构、顺序、酱料、摆位和速度都会计分。</p>
+        </aside>
+
+        <aside class="duel-phase-panel" data-phase-panel="reveal" hidden>
+          <span>揭晓对比</span>
+          <strong>正在核对原作与复刻结果</strong>
+          <p>结果只按三维结构和操作数据计算，不使用截图评分。</p>
+        </aside>
+
+        <section class="duel-reveal" id="duel-reveal" aria-label="原作与复刻三维对比" hidden>
+          <span class="duel-view-label duel-view-label--original">原作</span>
+          <div class="duel-replica-view">
+            <span class="duel-view-label">复刻</span>
+            <canvas
+              id="replica-duel-replica-canvas"
+              tabindex="0"
+              aria-label="复刻结果三维查看台"
+            >
+              你的浏览器需要支持 WebGL 才能查看三维复刻结果。
+            </canvas>
+          </div>
+          <div class="duel-score-board">
+            <div class="duel-score-total">
+              <span>本轮得分</span>
+              <strong id="duel-score-total">0.0</strong>
+            </div>
+            <dl class="duel-score-list">
+              <div><dt>材料</dt><dd data-score="ingredients">0.0</dd></div>
+              <div><dt>顺序</dt><dd data-score="order">0.0</dd></div>
+              <div><dt>酱料</dt><dd data-score="sauce">0.0</dd></div>
+              <div><dt>摆位</dt><dd data-score="placement">0.0</dd></div>
+              <div><dt>速度</dt><dd data-score="speed">0.0</dd></div>
+            </dl>
+            <p id="duel-score-issues">正在核对层序</p>
+            <small>拖动任意一侧，两份汉堡会同步转动。回放稍后开放。</small>
+            <section class="duel-final-result" id="duel-final-result" aria-live="polite" hidden>
+              <strong id="duel-final-winner">正在汇总两轮结果</strong>
+              <span id="duel-final-rounds"></span>
+            </section>
+          </div>
+        </section>
+      </section>
+
+      <section class="duel-actions" aria-label="本地练习操作">
+        <button class="duel-secondary-action" type="button" data-action="ready">我准备好了</button>
+        <button class="duel-primary-action" type="button" data-action="finish" disabled>完成当前汉堡</button>
+        <button class="duel-primary-action" type="button" data-action="reveal-ready" hidden disabled>继续下一轮</button>
+      </section>
+
+      <section class="duel-help" aria-label="玩法说明">
+        <h2>两轮练习怎么进行</h2>
+        <ol>
+          <li>玩家 A 制作、玩家 B 观察，然后 B 凭记忆复刻。</li>
+          <li>下一轮双方交换身份，再做一次。</li>
+          <li>每次制作和复刻限时 45 秒；两轮结束后比较总分。</li>
+        </ol>
+        <p>这是同一浏览器的双标签页练习，不是联网对战。关闭发起页面会结束本次练习。</p>
+      </section>
+    </main>
+    <script type="module" src="./replica-duel-app.mjs"></script>
+  </body>
+</html>
