@@ -358,7 +358,7 @@ git commit -m "feat: persist burger shop runs"
 - [ ] **Step 1: Write failing adapter tests**
 
 Use a fake stage and verify that `startOrder()` resets the workbench and pauses it
-until cooking begins, `serve()` returns `getComposition()`, `setCooking(false)`
+until cooking begins, `serve()` returns `getState()`, `setCooking(false)`
 blocks interaction, and focus delegates to `setBurgerFocus`.
 
 - [ ] **Step 2: Verify failure**
@@ -392,7 +392,7 @@ export function createBurgerShopStageAdapter(stage) {
     serve() {
       stage.setBurgerFocus(false);
       stage.setInteractionPaused(true);
-      return stage.getComposition();
+      return stage.getState();
     },
     getCookingState() {
       return stage.getState();
