@@ -3,137 +3,145 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#f26c3d">
-    <title>开饭啦 · 料理派对</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctitle%3E%E9%A4%90%E7%9B%98%3C/title%3E%3Crect width='64' height='64' rx='18' fill='%23f26c3d'/%3E%3Cpath d='M16 35h32v7H16zm4-12q12-12 24 0v7H20z' fill='%23fff7df' stroke='%233a1d17' stroke-width='4'/%3E%3C/svg%3E">
-    <link rel="stylesheet" href="./home.css">
+    <meta name="theme-color" content="#f8c948">
+    <title>开饭啦 · 汉堡小馆</title>
+    <link rel="stylesheet" href="./home.css?v=20260724-lobby1">
+    <script type="module" src="./home-lobby-app.mjs?v=20260724-lobby1"></script>
   </head>
   <body>
-    <main class="home-shell">
-      <header class="home-header">
-        <a class="brand" href="./index.html" aria-label="开饭啦主页">
-          <span class="brand__mark" aria-hidden="true"><i></i><b></b></span>
-          <span><strong>开饭啦</strong><small>料理派对</small></span>
-        </a>
-        <div class="player-chip" aria-label="当前为试玩厨房">
-          <span class="player-chip__face" aria-hidden="true">•ᴗ•</span>
-          <span><small>试玩厨房</small><strong>今日开张</strong></span>
+    <main class="lobby-shell">
+      <header class="lobby-hud" aria-label="玩家状态">
+        <button class="round-button" type="button" data-home-action="settings" aria-label="游戏设置">
+          <span aria-hidden="true">⚙</span>
+        </button>
+        <div class="resource-pill resource-pill--energy" aria-label="体力">
+          <span class="heart" aria-hidden="true">♥</span>
+          <strong id="energy-value">5</strong>
+          <small>体力</small>
+          <b aria-hidden="true">＋</b>
         </div>
+        <div class="resource-pill resource-pill--coins" aria-label="金币">
+          <span class="coin" aria-hidden="true">¥</span>
+          <strong id="coin-value">1740</strong>
+        </div>
+        <button class="round-button round-button--notice" type="button" data-home-action="daily-checkin" aria-label="打开每日签到">
+          <span aria-hidden="true">礼</span><i id="daily-dot"></i>
+        </button>
       </header>
 
-      <section class="home-hero" aria-labelledby="home-title">
-        <div class="home-hero__copy">
-          <p class="eyebrow"><span></span> 自由做菜，也能和朋友互坑</p>
-          <h1 id="home-title">今天想做<br><em>哪道料理？</em></h1>
-          <p>挑一家店开工。食材可以拿起、翻转、组合，最后做成只属于你的作品。</p>
+      <section class="lobby-stage" aria-labelledby="lobby-title">
+        <div class="diner-sign">
+          <small>今日营业</small>
+          <h1 id="lobby-title">汉堡小馆</h1>
+          <p>今天也要好好做汉堡</p>
         </div>
-        <div class="hero-ticket" aria-hidden="true">
-          <span>今日菜单</span>
-          <strong>01</strong>
-          <small>家店营业中</small>
-        </div>
-      </section>
 
-      <section class="map-section" aria-labelledby="map-title">
-        <div class="section-heading">
-          <div>
-            <p>选择料理地图</p>
-            <h2 id="map-title">我的小馆</h2>
+        <div class="diner-scene" aria-hidden="true">
+          <div class="awning"><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="order-window">
+            <span class="menu-board menu-board--one"></span>
+            <span class="menu-board menu-board--two"></span>
+            <div class="chef">
+              <i class="chef__hat"></i>
+              <i class="chef__head"></i>
+              <i class="chef__body"></i>
+              <i class="chef__hand chef__hand--left"></i>
+              <i class="chef__hand chef__hand--right"></i>
+            </div>
+            <div class="hero-burger">
+              <i class="hero-burger__top"></i>
+              <i class="hero-burger__leaf"></i>
+              <i class="hero-burger__tomato"></i>
+              <i class="hero-burger__cheese"></i>
+              <i class="hero-burger__patty"></i>
+              <i class="hero-burger__bottom"></i>
+            </div>
+            <span class="steam steam--one">⌁</span>
+            <span class="steam steam--two">⌁</span>
           </div>
-          <span>左右滑动看看</span>
+          <div class="service-counter"><span></span><span></span><span></span></div>
         </div>
 
-        <div class="map-grid">
-          <a class="map-card map-card--burger" data-map="burger" href="./cooking.html?mode=orders">
-            <div class="map-card__art" aria-hidden="true">
-              <span class="sun-glow"></span>
-              <span class="burger-art">
-                <i class="burger-art__bun burger-art__bun--top"></i>
-                <i class="burger-art__leaf"></i>
-                <i class="burger-art__tomato"></i>
-                <i class="burger-art__cheese"></i>
-                <i class="burger-art__patty"></i>
-                <i class="burger-art__bun burger-art__bun--bottom"></i>
-              </span>
-              <span class="counter-line"></span>
-            </div>
-            <div class="map-card__body">
-              <span class="status-pill status-pill--live">现在可玩</span>
-              <p>3 位顾客 · 每单 45 秒 · 连续出餐</p>
-              <h3>今日营业</h3>
-              <span class="map-card__action">开门接单 <b aria-hidden="true">→</b></span>
-            </div>
+        <a class="open-shop-button" href="./cooking.html?mode=orders">
+          <span><small>3 位顾客 · 连续出餐</small><strong>开门营业</strong></span>
+          <b aria-hidden="true">›</b>
+        </a>
+
+        <nav class="lobby-actions" aria-label="游戏功能">
+          <a class="lobby-action lobby-action--practice" href="./cooking.html?mode=practice">
+            <span aria-hidden="true">练</span><strong>自由练习</strong><small>不限时间</small>
           </a>
+          <button class="lobby-action lobby-action--book" type="button" data-home-action="cookbook">
+            <span aria-hidden="true">册</span><strong>汉堡图鉴</strong><small>配方收藏</small>
+          </button>
+          <a class="lobby-action lobby-action--duel" href="./replica-duel.html">
+            <span aria-hidden="true">双</span><strong>复刻对决</strong><small>双人轮换</small>
+          </a>
+          <button class="lobby-action lobby-action--sushi" type="button" data-home-action="sushi">
+            <span aria-hidden="true">鮨</span><strong>寿司店</strong><small>筹备中</small><i class="sr-only">寿司店筹备中</i>
+          </button>
+        </nav>
 
-          <article class="map-card map-card--sushi" data-map="sushi" aria-disabled="true">
-            <div class="map-card__art" aria-hidden="true">
-              <span class="moon-glow"></span>
-              <span class="sushi-board"></span>
-              <span class="sushi-piece sushi-piece--one"><i></i></span>
-              <span class="sushi-piece sushi-piece--two"><i></i></span>
-              <span class="sushi-piece sushi-piece--three"><i></i></span>
-              <span class="lantern">鮨</span>
-            </div>
-            <div class="map-card__body">
-              <span class="status-pill">下一张地图</span>
-              <p>切配 · 卷制 · 摆盘</p>
-              <h3>深夜寿司店</h3>
-              <span class="map-card__action map-card__action--muted">正在备料</span>
-            </div>
-          </article>
-        </div>
-
-        <section class="burger-quick-starts" id="burger-quick-starts" aria-labelledby="burger-quick-starts-title">
-          <div class="burger-quick-starts__heading">
-            <p>练习模式</p>
-            <h3 id="burger-quick-starts-title">自由练习与指定配方</h3>
-          </div>
-          <div class="burger-quick-starts__grid">
-            <a class="burger-quick-start" href="./cooking.html?recipe=classic-beef">
-              <strong>小馆经典牛肉堡</strong><span aria-hidden="true">开始制作 →</span>
-            </a>
-            <a class="burger-quick-start" href="./cooking.html?recipe=melty-cheese">
-              <strong>融金芝士牛肉堡</strong><span aria-hidden="true">开始制作 →</span>
-            </a>
-            <a class="burger-quick-start" href="./cooking.html?recipe=double-melty-cheese">
-              <strong>双层融金芝士堡</strong><span aria-hidden="true">开始制作 →</span>
-            </a>
-            <a class="burger-quick-start" href="./cooking.html?recipe=tower-double-beef">
-              <strong>三层高塔双牛堡</strong><span aria-hidden="true">开始制作 →</span>
-            </a>
-            <a class="burger-quick-start burger-quick-start--free" href="./cooking.html?mode=practice">
-              <strong>自由练习</strong><span>不限时、自由叠放 →</span>
-            </a>
-          </div>
-        </section>
       </section>
 
-      <a
-        class="mode-panel mode-panel--playable"
-        data-mode="replica-duel"
-        href="./replica-duel.html"
-        aria-labelledby="mode-title"
-      >
-        <div class="mode-panel__copy">
-          <div class="mode-panel__heading">
-            <p class="mode-panel__eyebrow">本地练习 · 双视角轮换</p>
-            <span class="mode-panel__tag">双人轮换</span>
-          </div>
-          <h2 id="mode-title">复刻对决</h2>
-          <p class="mode-panel__description">朋友先做，你只看一遍；轮到你时，凭记忆做出同一个汉堡。</p>
-          <ol class="mode-panel__steps" aria-label="复刻对决玩法">
-            <li><span>1</span><strong>看一遍</strong></li>
-            <li><span>2</span><strong>凭记忆</strong></li>
-            <li><span>3</span><strong>比还原</strong></li>
-          </ol>
-          <span class="mode-panel__cta">立即开练 <b aria-hidden="true">→</b></span>
-        </div>
-      </a>
+      <nav class="bottom-nav" aria-label="主页导航">
+        <button class="bottom-nav__item is-active" type="button" aria-current="page"><span aria-hidden="true">⌂</span><strong>小馆</strong></button>
+        <button class="bottom-nav__item" type="button" data-home-action="cookbook"><span aria-hidden="true">▦</span><strong>图鉴</strong></button>
+        <button class="bottom-nav__item" type="button" data-home-action="daily-checkin"><span aria-hidden="true">✓</span><strong>签到</strong></button>
+        <button class="bottom-nav__item" type="button" data-home-action="settings"><span aria-hidden="true">≡</span><strong>更多</strong></button>
+      </nav>
 
-      <footer class="home-footer">
-        <span>开饭啦实验厨房</span>
-        <small>汉堡店 v0.2 · 寿司店筹备中</small>
-      </footer>
+      <p class="health-note">健康游戏忠告：适度游戏益脑，沉迷游戏伤身，合理安排时间。</p>
     </main>
+
+    <div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
+
+    <section class="lobby-sheet daily-sheet" id="daily-checkin" role="dialog" aria-modal="true" aria-labelledby="daily-title" aria-hidden="true" data-open="false" hidden>
+      <div class="sheet-ribbon">每日签到</div>
+      <button class="sheet-close" type="button" data-close-sheet aria-label="关闭">×</button>
+      <p class="sheet-kicker">每天来小馆看看</p>
+      <h2 id="daily-title">领取今天的奖励吧！</h2>
+      <div class="reward-grid" id="reward-grid">
+        <div class="reward-card" data-day="1"><small>第1天</small><span>¥</span><strong>金币 ×100</strong></div>
+        <div class="reward-card" data-day="2"><small>第2天</small><span>♥</span><strong>体力 ×1</strong></div>
+        <div class="reward-card" data-day="3"><small>第3天</small><span>册</span><strong>贴纸 ×1</strong></div>
+        <div class="reward-card" data-day="4"><small>第4天</small><span>¥</span><strong>金币 ×200</strong></div>
+        <div class="reward-card" data-day="5"><small>第5天</small><span>♥</span><strong>体力 ×1</strong></div>
+        <div class="reward-card" data-day="6"><small>第6天</small><span>¥</span><strong>金币 ×300</strong></div>
+        <div class="reward-card reward-card--final" data-day="7"><small>第7天</small><span>★</span><strong>限定招牌</strong></div>
+      </div>
+      <div class="sheet-actions">
+        <button class="secondary-button" type="button" data-home-action="ad-reward">广告接入后 ×3</button>
+        <button class="primary-button" id="claim-daily" type="button">签到领取</button>
+      </div>
+      <p class="sheet-status" id="daily-status" role="status"></p>
+    </section>
+
+    <section class="lobby-sheet" id="cookbook-sheet" role="dialog" aria-modal="true" aria-labelledby="cookbook-title" aria-hidden="true" data-open="false" hidden>
+      <button class="sheet-close" type="button" data-close-sheet aria-label="关闭">×</button>
+      <p class="sheet-kicker">我的拿手菜单</p>
+      <h2 id="cookbook-title">汉堡图鉴</h2>
+      <p class="sheet-intro">选一个配方直接练习，营业模式仍会给你随机订单。</p>
+      <div class="recipe-grid">
+        <a class="recipe-button" href="./cooking.html?recipe=classic-beef"><span>01</span><strong>小馆经典牛肉堡</strong><small>开始制作 ›</small></a>
+        <a class="recipe-button" href="./cooking.html?recipe=melty-cheese"><span>02</span><strong>融金芝士牛肉堡</strong><small>开始制作 ›</small></a>
+        <a class="recipe-button" href="./cooking.html?recipe=double-melty-cheese"><span>03</span><strong>双层融金芝士堡</strong><small>开始制作 ›</small></a>
+        <a class="recipe-button" href="./cooking.html?recipe=tower-double-beef"><span>04</span><strong>三层高塔双牛堡</strong><small>开始制作 ›</small></a>
+        <a class="recipe-button recipe-button--free" href="./cooking.html?mode=practice"><span>∞</span><strong>自由练习</strong><small>随便搭配 ›</small></a>
+      </div>
+    </section>
+
+    <section class="lobby-sheet lobby-sheet--compact" id="settings-sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title" aria-hidden="true" data-open="false" hidden>
+      <button class="sheet-close" type="button" data-close-sheet aria-label="关闭">×</button>
+      <p class="sheet-kicker">小馆选项</p>
+      <h2 id="settings-title">游戏设置</h2>
+      <div class="settings-list">
+        <button type="button" data-setting="sound"><span>声音与反馈</span><strong>开启</strong></button>
+        <button type="button" data-home-action="reset-home"><span>重置主页记录</span><strong>重置</strong></button>
+      </div>
+      <p class="rating-note"><b>8+</b><span>适龄提示<br>测试版不含付费项目</span></p>
+    </section>
+
+    <div class="home-toast" id="home-toast" role="status" aria-live="polite"></div>
   </body>
 </html>
