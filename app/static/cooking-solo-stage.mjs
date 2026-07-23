@@ -1564,13 +1564,17 @@ export function createSoloCookingStage({
     return competitionReadOnly;
   };
 
-  const replaceCompetitionState = (nextState) => {
+  const replaceStageState = (nextState, {
+    competition = false,
+    reason = "replace-state",
+  } = {}) => {
     if (disposed) return false;
     const hydrated = hydrateSoloCookingState(nextState);
-    if (!hydrated) throw new TypeError("competition state must be a valid solo cooking state");
+    if (!hydrated) throw new TypeError("replacement must be a valid solo cooking state");
     clearTransientVisuals();
     if (focused) setFocusMode(false, { notify: false });
-    competitionMode = true;
+    competitionMode = Boolean(competition);
+    if (!competitionMode) competitionReadOnly = false;
     state = hydrated;
     selectedLayerId = null;
     dropIntent = null;
@@ -1578,12 +1582,23 @@ export function createSoloCookingStage({
     syncPhysicalStations();
     reconcileModelInstances();
     applyVisualState({ sauces: true });
-    adaptCameraToStack({ preserveDistance: false, reason: "competition-state-fit" });
-    controller.setInspectionOnly?.(competitionReadOnly);
-    controller.setOrbitEnabled?.(competitionReadOnly);
-    emit("competition-replace");
+    adaptCameraToStack({
+      preserveDistance: false,
+      reason: competitionMode ? "competition-state-fit" : "state-replace-fit",
+    });
+    controller.setInspectionOnly?.(competitionReadOnly || focused);
+    controller.setOrbitEnabled?.(competitionReadOnly || focused);
+    if (state.finished || externallyPaused) pauseInteractionsSilently();
+    else controller.resume();
+    emit(reason);
     return true;
   };
+
+  const replaceState = (nextState) => replaceStageState(nextState);
+  const replaceCompetitionState = (nextState) => replaceStageState(nextState, {
+    competition: true,
+    reason: "competition-replace",
+  });
 
   const clearCompetitionScene = () => {
     if (disposed) return false;
@@ -1715,6 +1730,7 @@ export function createSoloCookingStage({
     clearSlotContentPreview,
     setInteractionPaused,
     setCompetitionReadOnly,
+    replaceState,
     replaceCompetitionState,
     clearCompetitionScene,
     getSlotControlAnchors: () => workbench.getSlotControlAnchors(),

@@ -1715,6 +1715,25 @@ test("competition replacement is isolated and read-only observation keeps camera
   stage.dispose();
 });
 
+test("generic state replacement restores a burger without entering competition mode", () => {
+  const updates = [];
+  const { stage } = harness({ onChange: (detail) => updates.push(detail) });
+  let replacement = createSoloCookingState({ loadout: createDefaultWorkbenchLoadout() });
+  replacement = placeSoloLayer(
+    replacement,
+    replacement.stationSources["bread-left-1"],
+    0,
+    { replenish: true },
+  );
+
+  assert.equal(stage.replaceState(replacement), true);
+  assert.deepEqual(stage.getState().assembledOrder, replacement.assembledOrder);
+  assert.equal(updates.at(-1).reason, "replace-state");
+  assert.equal(updates.at(-1).competition, false);
+  assert.equal(updates.at(-1).competitionReadOnly, false);
+  stage.dispose();
+});
+
 test("setTuning preserves falsy observer throws when resume also fails", () => {
   const resumeError = new Error("resume failed");
   let observerValue = null;
