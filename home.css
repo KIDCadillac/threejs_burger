@@ -249,14 +249,21 @@ a.map-card:focus-visible { outline: 4px solid #2e82ce; outline-offset: 5px; }
 .burger-quick-start:focus-visible { outline: 4px solid #2e82ce; outline-offset: 3px; }
 .burger-quick-start--free { grid-column: 1 / -1; background: #f8d77c; }
 
-.mode-panel { gap: 2rem; margin-top: 2rem; padding: clamp(1.3rem, 4vw, 2.2rem); border: 2px solid var(--ink); border-radius: 2rem; background: #3d7550; box-shadow: 0 7px 0 var(--ink); color: var(--cream); text-decoration: none; }
+.mode-panel { display: block; margin-top: 2rem; padding: clamp(1.3rem, 4vw, 2.2rem); border: 2px solid var(--ink); border-radius: 2rem; background: #3d7550; box-shadow: 0 7px 0 var(--ink); color: var(--cream); text-decoration: none; }
 .mode-panel--playable { transition: transform 170ms ease, box-shadow 170ms ease; }
 .mode-panel--playable:hover { transform: translateY(-3px); box-shadow: 0 10px 0 var(--ink); }
 .mode-panel--playable:focus-visible { outline: 4px solid #2e82ce; outline-offset: 5px; }
+.mode-panel__heading { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
 .mode-panel__eyebrow { margin: 0 0 0.3rem; color: #f8d77c; font-size: 0.75rem; font-weight: 900; letter-spacing: 0.16em; }
+.mode-panel__tag { flex: 0 0 auto; padding: 0.3rem 0.65rem; border: 1px solid rgba(255, 247, 223, 0.55); border-radius: 999px; color: var(--cream); background: rgba(255, 247, 223, 0.1); font-size: 0.7rem; font-weight: 900; }
 .mode-panel h2 { margin: 0; font-size: clamp(1.45rem, 4vw, 2.2rem); }
-.mode-panel > div > p:last-child { max-width: 42rem; margin: 0.75rem 0 0; color: rgba(255, 247, 223, 0.78); line-height: 1.7; }
-.mode-panel__seal { display: grid; flex: 0 0 5rem; width: 5rem; height: 5rem; place-items: center; border: 2px solid var(--cream); border-radius: 50%; color: #3d7550; background: #f8d77c; font-size: 0.8rem; font-weight: 900; line-height: 1.2; text-align: center; transform: rotate(7deg); }
+.mode-panel__description { max-width: 42rem; margin: 0.65rem 0 0; color: rgba(255, 247, 223, 0.82); line-height: 1.55; }
+.mode-panel__steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.55rem; margin: 1rem 0 0; padding: 0; list-style: none; }
+.mode-panel__steps li { display: flex; min-width: 0; align-items: center; gap: 0.5rem; padding: 0.6rem; border-radius: 0.85rem; background: rgba(255, 247, 223, 0.1); }
+.mode-panel__steps span { display: grid; flex: 0 0 1.55rem; width: 1.55rem; height: 1.55rem; place-items: center; border-radius: 50%; color: var(--ink); background: #f8d77c; font-size: 0.72rem; font-weight: 900; }
+.mode-panel__steps strong { overflow: hidden; font-size: 0.78rem; text-overflow: ellipsis; white-space: nowrap; }
+.mode-panel__cta { display: flex; min-height: 52px; align-items: center; justify-content: space-between; margin-top: 0.8rem; padding: 0.72rem 0.9rem 0.72rem 1rem; border: 2px solid var(--ink); border-radius: 1rem; color: var(--ink); background: #f8d77c; box-shadow: 0 4px 0 var(--ink); font-weight: 900; }
+.mode-panel__cta b { display: grid; width: 1.8rem; height: 1.8rem; place-items: center; border-radius: 50%; color: var(--cream); background: var(--ink); }
 
 .home-footer { gap: 1rem; padding: 2rem 0 0.25rem; color: #8c5b47; font-size: 0.75rem; }
 .home-footer span { font-weight: 900; }
@@ -265,20 +272,17 @@ a.map-card:focus-visible { outline: 4px solid #2e82ce; outline-offset: 5px; }
   .home-shell { padding-inline: 0.9rem; }
   .player-chip small { display: none; }
   .player-chip { padding-right: 0.55rem; }
-  .home-hero { align-items: flex-end; min-height: 16rem; padding: 2.7rem 0.2rem 2.2rem; }
-  .home-hero h1 { font-size: clamp(3rem, 15vw, 4.35rem); }
+  .home-hero { align-items: flex-end; min-height: 12rem; padding: 1.8rem 0.2rem 1.6rem; }
+  .home-hero h1 { font-size: clamp(2.55rem, 12vw, 3.55rem); }
   .home-hero__copy > p:last-child { font-size: 0.9rem; line-height: 1.6; }
-  .hero-ticket { flex-basis: 5.2rem; min-height: 8.5rem; border-radius: 1rem; box-shadow: 5px 5px 0 var(--ink); }
-  .hero-ticket strong { font-size: 2.8rem; }
-  .hero-ticket small { max-width: 4rem; margin: auto; font-size: 0.62rem; }
-  .hero-ticket::before, .hero-ticket::after { display: none; }
+  .hero-ticket { display: none; }
   .section-heading > span { display: none; }
   .map-grid { grid-template-columns: minmax(0, 1fr); }
   .map-card__art { height: 16rem; }
+  .map-card__action { min-height: 52px; }
   .burger-quick-starts__grid { grid-template-columns: minmax(0, 1fr); }
   .burger-quick-start--free { grid-column: auto; }
-  .mode-panel { align-items: flex-start; gap: 0.8rem; }
-  .mode-panel__seal { flex-basis: 4rem; width: 4rem; height: 4rem; }
+  .mode-panel { border-radius: 1.5rem; }
   .home-footer { align-items: flex-start; flex-direction: column; gap: 0.2rem; }
 }
 

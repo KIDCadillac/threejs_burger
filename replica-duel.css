@@ -175,10 +175,75 @@ button:disabled {
 
 .duel-status {
   min-height: 21px;
-  margin: 9px 4px;
-  color: #f2c79d;
+  margin: 8px 0 10px;
+  padding: 9px 12px;
+  border: 1px solid rgba(255, 196, 77, 0.2);
+  border-radius: 13px;
+  color: #ffe3ad;
+  background: rgba(255, 196, 77, 0.08);
   font-size: 0.82rem;
   font-weight: 700;
+}
+
+.duel-progress {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 9px;
+  border: 1px solid var(--duel-line);
+  border-radius: 18px;
+  background: rgba(58, 31, 24, 0.78);
+  list-style: none;
+}
+
+.duel-progress__step {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  justify-items: center;
+  gap: 4px;
+  color: rgba(255, 241, 211, 0.48);
+  font-size: 0.65rem;
+}
+
+.duel-progress__step span {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border: 1px solid rgba(255, 241, 211, 0.26);
+  border-radius: 50%;
+  font-weight: 900;
+}
+
+.duel-progress__step strong {
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.duel-progress__step[data-state="done"] {
+  color: #efc88d;
+}
+
+.duel-progress__step[data-state="done"] span {
+  color: var(--duel-ink);
+  border-color: #efc88d;
+  background: #efc88d;
+}
+
+.duel-progress__step[data-state="active"] {
+  color: var(--duel-cream);
+}
+
+.duel-progress__step[data-state="active"] span {
+  color: var(--duel-ink);
+  border-color: var(--duel-gold);
+  background: var(--duel-gold);
+  box-shadow: 0 0 0 4px rgba(255, 196, 77, 0.13);
 }
 
 .duel-stage {
@@ -400,8 +465,17 @@ button:disabled {
 }
 
 .duel-actions {
+  position: sticky;
+  z-index: 5;
+  bottom: max(8px, env(safe-area-inset-bottom));
   gap: 10px;
   margin-top: 10px;
+  padding: 8px;
+  border: 1px solid var(--duel-line);
+  border-radius: 19px;
+  background: rgba(35, 17, 15, 0.91);
+  box-shadow: 0 12px 30px rgba(8, 3, 3, 0.34);
+  backdrop-filter: blur(12px);
 }
 
 .duel-actions button {
@@ -425,13 +499,16 @@ button:disabled {
   background: var(--duel-panel);
 }
 
-.duel-help h2 {
-  margin: 0 0 8px;
+.duel-help summary {
+  min-height: 44px;
+  padding-top: 11px;
+  cursor: pointer;
   font-size: 1rem;
+  font-weight: 900;
 }
 
 .duel-help ol {
-  margin: 0;
+  margin: 8px 0 0;
   padding-left: 1.25rem;
   color: #edd0b2;
   font-size: 0.82rem;
