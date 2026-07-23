@@ -25,6 +25,14 @@ test("replica duel page is an honest mobile-first local two-view practice", asyn
   for (const panel of ["creating", "observer", "memorize", "replicating", "reveal"]) {
     assert.match(html, new RegExp(`data-phase-panel=["']${panel}["']`));
   }
+  assert.match(html, /id=["']duel-progress["']/);
+  for (const step of ["setup", "create", "replicate", "reveal"]) {
+    assert.match(html, new RegExp(`data-duel-step=["']${step}["']`));
+  }
+  for (const label of ["开双视角", "制作", "复刻", "揭晓"]) {
+    assert.match(html, new RegExp(label));
+  }
+  assert.match(html, /先开玩家 B，再让两边都点“我准备好了”/);
 
   assert.match(html, /id=["']replica-duel-canvas["']/);
   assert.match(html, /id=["']replica-duel-replica-canvas["']/);
@@ -43,4 +51,7 @@ test("replica duel page is an honest mobile-first local two-view practice", asyn
   assert.match(css, /env\(safe-area-inset-bottom\)/);
   assert.match(css, /@media\s*\(max-width:\s*480px\)[\s\S]*min-width:\s*52px/);
   assert.match(css, /@media\s*\(max-width:\s*480px\)[\s\S]*min-height:\s*52px/);
+  assert.match(css, /\.duel-progress\s*\{[\s\S]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(css, /\.duel-progress__step\[data-state=["']active["']\]/);
+  assert.match(css, /\.duel-actions\s*\{[\s\S]*position:\s*sticky/);
 });

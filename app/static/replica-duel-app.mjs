@@ -33,6 +33,16 @@ function phaseCopy(view) {
   return { title: "本地双视角练习", panel: null };
 }
 
+const DUEL_PROGRESS_STEPS = Object.freeze(["setup", "create", "replicate", "reveal"]);
+
+function progressStep(view) {
+  if (!view || view.status === "lobby") return "setup";
+  if (view.status === "finished" || ["scoring", "reveal"].includes(view.phase)) return "reveal";
+  if (view.phase === "creating") return "create";
+  if (["memorize", "replicating"].includes(view.phase)) return "replicate";
+  return "setup";
+}
+
 export function parseReplicaDuelRoute(location) {
   try {
     const url = new URL(location?.href);
@@ -101,6 +111,7 @@ export function bootReplicaDuelPage(
     openSecond: requiredElement(documentTarget, '[data-action="open-second-view"]'),
     exit: requiredElement(documentTarget, '[data-action="exit"]'),
     panels: [...(documentTarget.querySelectorAll?.("[data-phase-panel]") ?? [])],
+    steps: [...(documentTarget.querySelectorAll?.("[data-duel-step]") ?? [])],
     scoreNodes: new Map(
       [...(documentTarget.querySelectorAll?.("[data-score]") ?? [])]
         .map((node) => [node.dataset.score, node]),
@@ -145,6 +156,16 @@ export function bootReplicaDuelPage(
     for (const panel of elements.panels) {
       panel.hidden = panel.dataset.phasePanel !== presentation.panel;
     }
+    const activeStep = progressStep(view);
+    const activeStepIndex = DUEL_PROGRESS_STEPS.indexOf(activeStep);
+    for (const step of elements.steps) {
+      const stepIndex = DUEL_PROGRESS_STEPS.indexOf(step.dataset.duelStep);
+      const state = stepIndex < activeStepIndex
+        ? "done"
+        : stepIndex === activeStepIndex ? "active" : "pending";
+      step.setAttribute("data-state", state);
+      step.setAttribute("aria-current", state === "active" ? "step" : "false");
+    }
     elements.ready.disabled = ended || view.status !== "lobby" || Boolean(view.ready?.[view.playerId]);
     elements.finish.disabled = ended || !view.controlsEnabled
       || !["creating", "replicating"].includes(view.phase);
@@ -154,7 +175,7 @@ export function bootReplicaDuelPage(
     elements.finish.hidden = !["creating", "replicating"].includes(view.phase);
     elements.revealReady.hidden = view.phase !== "reveal";
     elements.status.textContent = view.status === "lobby"
-      ? "请打开另一视角，双方准备后开始"
+      ? "先开玩家 B，再让两边都点“我准备好了”"
       : view.status === "finished"
         ? "两轮练习已完成"
         : `第 ${view.round} 轮 · ${presentation.title}`;

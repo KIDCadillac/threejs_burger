@@ -100,6 +100,31 @@ test("workbench slot controls overlay the canvas with touch-safe, focus-aware co
   assert.match(css, /env\(safe-area-inset-bottom\)/);
 });
 
+test("home page presents the replica duel like a touch-first mini-game mode", async () => {
+  const [html, css] = await Promise.all([
+    readFile(homePath, "utf8"),
+    readFile(homeCssPath, "utf8"),
+  ]);
+
+  for (const marker of [
+    'class="mode-panel__tag"',
+    'class="mode-panel__steps"',
+    'class="mode-panel__cta"',
+    "双人轮换",
+    "看一遍",
+    "凭记忆",
+    "比还原",
+    "立即开练",
+  ]) assert.ok(html.includes(marker), marker);
+
+  assert.match(css, /\.mode-panel__steps\s*\{[\s\S]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(css, /\.mode-panel__cta\s*\{[\s\S]*min-height:\s*52px/);
+  assert.match(
+    css,
+    /@media\s*\(max-width:\s*640px\)[\s\S]*?\.map-card__action\s*\{[^}]*min-height:\s*52px/s,
+  );
+});
+
 test("the public page exposes a touch-safe playable highlight replay dialog", async () => {
   const [html, css, app] = await Promise.all([
     readFile(htmlPath, "utf8"),

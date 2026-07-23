@@ -16,7 +16,7 @@
           <p>本地双视角练习</p>
           <h1>汉堡复刻对决</h1>
         </div>
-        <button class="duel-open-button" type="button" data-action="open-second-view">打开玩家 B</button>
+        <button class="duel-open-button" type="button" data-action="open-second-view">① 打开玩家 B</button>
       </header>
 
       <section class="duel-status-card" aria-label="比赛状态">
@@ -34,8 +34,23 @@
         </div>
       </section>
 
+      <ol class="duel-progress" id="duel-progress" aria-label="对决进度">
+        <li class="duel-progress__step" data-duel-step="setup" data-state="active">
+          <span>1</span><strong>开双视角</strong>
+        </li>
+        <li class="duel-progress__step" data-duel-step="create" data-state="pending">
+          <span>2</span><strong>制作</strong>
+        </li>
+        <li class="duel-progress__step" data-duel-step="replicate" data-state="pending">
+          <span>3</span><strong>复刻</strong>
+        </li>
+        <li class="duel-progress__step" data-duel-step="reveal" data-state="pending">
+          <span>4</span><strong>揭晓</strong>
+        </li>
+      </ol>
+
       <p class="duel-status" id="duel-status" role="status" aria-live="polite">
-        请打开另一视角，双方准备后开始
+        先开玩家 B，再让两边都点“我准备好了”
       </p>
 
       <section class="duel-stage" aria-label="三维汉堡复刻操作区">
@@ -118,15 +133,15 @@
         <button class="duel-primary-action" type="button" data-action="reveal-ready" hidden disabled>继续下一轮</button>
       </section>
 
-      <section class="duel-help" aria-label="玩法说明">
-        <h2>两轮练习怎么进行</h2>
+      <details class="duel-help">
+        <summary>玩法说明（30 秒看懂）</summary>
         <ol>
           <li>玩家 A 制作、玩家 B 观察，然后 B 凭记忆复刻。</li>
           <li>下一轮双方交换身份，再做一次。</li>
           <li>每次制作和复刻限时 45 秒；两轮结束后比较总分。</li>
         </ol>
         <p>这是同一浏览器的双标签页练习，不是联网对战。关闭发起页面会结束本次练习。</p>
-      </section>
+      </details>
     </main>
     <script type="module" src="./replica-duel-app.mjs"></script>
   </body>

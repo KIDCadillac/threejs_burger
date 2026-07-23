@@ -68,10 +68,13 @@ function createPageHarness(href = "https://example.test/replica-duel.html") {
     .map((score) => new Element(null, { score }));
   const panels = ["creating", "observer", "memorize", "replicating", "reveal"]
     .map((phasePanel) => new Element(null, { phasePanel }));
+  const steps = ["setup", "create", "replicate", "reveal"]
+    .map((duelStep) => new Element(null, { duelStep }));
   documentTarget.querySelector = (selector) => selectors.get(selector) ?? null;
   documentTarget.querySelectorAll = (selector) => (
     selector === "[data-phase-panel]" ? panels
       : selector === "[data-score]" ? scoreNodes
+        : selector === "[data-duel-step]" ? steps
         : []
   );
 
@@ -89,7 +92,7 @@ function createPageHarness(href = "https://example.test/replica-duel.html") {
     return 72;
   };
   windowTarget.clearInterval = () => { windowTarget.interval = null; };
-  return { documentTarget, windowTarget, elements, panels, scoreNodes };
+  return { documentTarget, windowTarget, elements, panels, steps, scoreNodes };
 }
 
 function view(overrides = {}) {
@@ -221,6 +224,10 @@ test("host page locks player A, opens a B tab, renders phases, and routes contro
   assert.equal(page.elements.finish.disabled, true);
   assert.equal(page.elements.revealReady.disabled, true);
   assert.equal(page.windowTarget.interval.delay, 250);
+  assert.equal(
+    page.steps.find(({ dataset }) => dataset.duelStep === "setup").getAttribute("data-state"),
+    "active",
+  );
 
   page.documentTarget.emit("click", { target: page.elements.openSecond });
   assert.match(page.windowTarget.openCalls[0][0], /match=match-1/);
@@ -244,6 +251,10 @@ test("host page locks player A, opens a B tab, renders phases, and routes contro
   assert.equal(page.elements.role.textContent, "制作人");
   assert.equal(page.elements.finish.disabled, false);
   assert.equal(page.panels.find(({ dataset }) => dataset.phasePanel === "creating").hidden, false);
+  assert.equal(
+    page.steps.find(({ dataset }) => dataset.duelStep === "create").getAttribute("data-state"),
+    "active",
+  );
 
   page.documentTarget.emit("click", { target: page.elements.finish });
   assert.equal(factories.adapters[0].finishCalls, 1);
@@ -266,6 +277,10 @@ test("host page locks player A, opens a B tab, renders phases, and routes contro
   factories.host.emit({ type: "view", view: reveal, serverRevision: 5 });
   assert.equal(page.elements.revealReady.disabled, false);
   assert.strictEqual(factories.reveals[0].views.at(-1), reveal);
+  assert.equal(
+    page.steps.find(({ dataset }) => dataset.duelStep === "reveal").getAttribute("data-state"),
+    "active",
+  );
   page.documentTarget.emit("click", { target: page.elements.revealReady });
   assert.deepEqual(factories.host.sent.at(-1), ["reveal-ready", undefined]);
 
