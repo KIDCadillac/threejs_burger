@@ -8,7 +8,7 @@
     <meta name="feedback-upload-key" content="kid-burger-feedback-20260721-v1">
     <title>自由料理台 · 3D 汉堡</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./cooking.css?v=20260722-ui2">
+    <link rel="stylesheet" href="./cooking.css?v=20260723-ui3">
   </head>
   <body>
     <main class="cooking-app">
@@ -85,7 +85,7 @@
 
       <p class="inventory-stock" id="cooking-stock" aria-live="polite">每种原料库存 ×999</p>
 
-      <section class="cooking-stage" aria-label="三维料理操作区">
+      <section class="cooking-stage" aria-label="三维料理操作区" data-control-grammar="tap-switch hold-choose drag-place pinch-zoom undo">
         <canvas id="cooking-canvas" tabindex="0" aria-label="三维汉堡料理台，可拖动食材和调料瓶" aria-describedby="cooking-objective">
           你的浏览器需要支持 WebGL 才能使用三维料理台。
         </canvas>
@@ -95,7 +95,7 @@
           <div class="workbench-slot-controls__regions" data-slot-regions></div>
           <div class="workbench-slot-controls__region-menu" data-slot-region-menu hidden></div>
           <div class="workbench-slot-controls__capsule" data-slot-capsule hidden></div>
-          <p class="workbench-slot-controls__hint" data-slot-hint hidden>轻触切换，长按选择全部材料</p>
+          <p class="workbench-slot-controls__hint" data-slot-hint hidden>轻触换材料，长按看全部，拖动做料理</p>
         </div>
         <button class="focus-button" type="button" data-action="toggle-focus" aria-pressed="false" disabled>聚焦食物</button>
         <p class="focus-layer-hint" id="focus-layer-hint" aria-live="polite" hidden></p>

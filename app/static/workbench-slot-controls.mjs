@@ -78,6 +78,7 @@ export function createWorkbenchSlotControls({
   onPreview,
   onOpenPicker,
   onHighlight,
+  onFeedback,
   storage = globalThis.localStorage,
   timers = globalThis,
   matchMedia = globalThis.matchMedia,
@@ -110,6 +111,7 @@ export function createWorkbenchSlotControls({
   let regionSignature = "";
   const independentButtons = new Map();
   const regionButtons = new Map();
+  const feedbackTimers = new Map();
   const cleanups = [];
 
   const reducedMotion = safeReducedMotion(matchMedia);
@@ -122,8 +124,22 @@ export function createWorkbenchSlotControls({
     hint.hidden = true;
   }
   root.hidden = false;
+  setDataset(root, "controlGrammar", "tap-switch hold-choose drag-place pinch-zoom undo");
   regionMenu.hidden = true;
   slotCapsule.hidden = true;
+
+  function emitFeedback(kind, button = null) {
+    optionalCall(onFeedback, kind);
+    if (!button || reducedMotion) return;
+    const previous = feedbackTimers.get(button);
+    if (previous !== undefined) timers?.clearTimeout?.(previous);
+    setDataset(button, "feedback", kind);
+    const timerId = timers?.setTimeout?.(() => {
+      setDataset(button, "feedback", undefined);
+      feedbackTimers.delete(button);
+    }, 220);
+    if (timerId !== undefined) feedbackTimers.set(button, timerId);
+  }
 
   function closeSlotCapsule({ restoreFocus = true } = {}) {
     if (!openCapsuleSlotId) return;
@@ -133,6 +149,10 @@ export function createWorkbenchSlotControls({
     slotCapsule.hidden = true;
     slotCapsule.replaceChildren?.();
     setDataset(slotCapsule, "slotId", undefined);
+    setDataset(slotCapsule, "region", undefined);
+    setDataset(root, "pickerOpen", undefined);
+    root.classList?.remove("is-picker-open");
+    trigger?.setAttribute?.("aria-expanded", "false");
     if (restoreFocus) trigger?.focus?.();
   }
 
@@ -158,7 +178,8 @@ export function createWorkbenchSlotControls({
       const button = createButton(documentTarget, "workbench-slot-capsule__item");
       const presentation = WORKBENCH_CONTENT_PRESENTATION[contentId];
       setDataset(button, "contentId", contentId);
-      button.textContent = `${presentation?.icon ?? ""} ${presentation?.label ?? contentId}`.trim();
+      button.textContent = presentation?.label ?? contentId;
+      button.setAttribute("role", "option");
       button.setAttribute("aria-pressed", String(contentId === detail.contentId));
       button.tabIndex = contentId === detail.contentId ? 0 : -1;
       if (index === 0 && !WORKBENCH_REGION_OPTIONS[detail.slot.region].includes(detail.contentId)) {
@@ -167,7 +188,13 @@ export function createWorkbenchSlotControls({
       return button;
     });
     slotCapsule.replaceChildren?.(...candidates);
+    slotCapsule.setAttribute("role", "listbox");
+    slotCapsule.setAttribute("aria-label", `${WORKBENCH_SLOT_PRESENTATION[slotId]?.label ?? "材料槽"}可选材料`);
     slotCapsule.hidden = false;
+    setDataset(root, "pickerOpen", true);
+    root.classList?.add("is-picker-open");
+    trigger?.setAttribute?.("aria-expanded", "true");
+    emitFeedback("open", trigger);
     candidates.find(({ tabIndex }) => tabIndex === 0)?.focus?.();
     return true;
   }
@@ -216,10 +243,13 @@ export function createWorkbenchSlotControls({
     try { gesture.button.releasePointerCapture?.(gesture.pointerId); } catch { /* detached */ }
     if (!disposed && shouldCycle && !gesture.longPressed && !gesture.cancelled) {
       const detail = currentDetail(gesture.slotId);
-      if (detail) optionalCall(onCycle, {
-        slotId: gesture.slotId,
-        contentId: detail.nextContentId,
-      });
+      if (detail) {
+        optionalCall(onCycle, {
+          slotId: gesture.slotId,
+          contentId: detail.nextContentId,
+        });
+        emitFeedback("switch", gesture.button);
+      }
     }
   }
 
@@ -284,6 +314,7 @@ export function createWorkbenchSlotControls({
     const detail = currentDetail(slotId);
     if (!detail) return;
     optionalCall(onCycle, { slotId, contentId: detail.nextContentId });
+    emitFeedback("switch", independentButtons.get(slotId));
   }
 
   function installSlotButton(button, slotId) {
@@ -322,9 +353,23 @@ export function createWorkbenchSlotControls({
     if (!detail) return;
     setDataset(button, "slotId", slotId);
     setDataset(button, "region", detail.slot.region);
+    const current = WORKBENCH_CONTENT_PRESENTATION[detail.contentId]?.label ?? detail.contentId;
+    const next = WORKBENCH_CONTENT_PRESENTATION[detail.nextContentId]?.label ?? detail.nextContentId;
+    setDataset(button, "currentLabel", current);
+    setDataset(button, "nextLabel", next);
     button.setAttribute("aria-label", readableLabel(slotId));
-    const presentation = WORKBENCH_CONTENT_PRESENTATION[detail.contentId];
-    button.textContent = `${presentation?.icon ?? "•"}`;
+    button.setAttribute("aria-haspopup", "listbox");
+    if (button.getAttribute?.("aria-expanded") === null) {
+      button.setAttribute("aria-expanded", "false");
+    }
+    let label = button.children?.[0];
+    if (!label?.classList?.contains?.("workbench-slot-control__label")) {
+      label = documentTarget.createElement("span");
+      label.classList?.add("workbench-slot-control__label");
+      label.setAttribute("aria-hidden", "true");
+      button.replaceChildren?.(label);
+    }
+    label.textContent = "换";
     button.setAttribute("title", readableLabel(slotId));
   }
 
@@ -375,6 +420,7 @@ export function createWorkbenchSlotControls({
     const slotId = openCapsuleSlotId;
     const result = optionalCall(onChoose, { slotId, contentId });
     if (result === false) return;
+    emitFeedback("choose", openCapsuleTrigger);
     closeSlotCapsule();
   }
 
@@ -534,7 +580,10 @@ export function createWorkbenchSlotControls({
       while (cleanups.length > 0) {
         try { cleanups.pop()(); } catch { /* best effort cleanup */ }
       }
+      for (const timerId of feedbackTimers.values()) timers?.clearTimeout?.(timerId);
+      feedbackTimers.clear();
       root.classList?.remove("is-onboarding");
+      root.classList?.remove("is-picker-open");
       root.hidden = true;
       buttonsRoot.replaceChildren?.();
       regionsRoot.replaceChildren?.();

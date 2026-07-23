@@ -485,6 +485,16 @@ test("screen-facing slot controls share the picker loadout path and hide only in
   });
 
   assert.equal(controlRecords.length, 1);
+  assert.equal(typeof controlRecords[0].onFeedback, "function");
+  page.windowTarget.navigator.vibrateCalls = [];
+  page.windowTarget.navigator.vibrate = (pattern) => {
+    page.windowTarget.navigator.vibrateCalls.push(pattern);
+    return true;
+  };
+  controlRecords[0].onFeedback("switch");
+  controlRecords[0].onFeedback("open");
+  controlRecords[0].onFeedback("choose");
+  assert.deepEqual(page.windowTarget.navigator.vibrateCalls, [10, 18, 14]);
   controlRecords[0].onCycle({ slotId: "filling-back-2", contentId: "onion" });
   assert.deepEqual(stage.slotCalls, [["filling-back-2", "onion"]]);
   assert.equal(controls.loadoutCalls.at(-1)["filling-back-2"], "onion");

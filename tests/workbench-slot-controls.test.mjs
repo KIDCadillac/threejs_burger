@@ -143,7 +143,14 @@ function harness({ width = 390, anchors = projectedAnchors(), reducedMotion = fa
     getItem: (key) => storageValues.get(key) ?? null,
     setItem: (key, value) => storageValues.set(key, String(value)),
   };
-  const calls = { cycle: [], choose: [], preview: [], picker: [], highlight: [] };
+  const calls = {
+    cycle: [],
+    choose: [],
+    preview: [],
+    picker: [],
+    highlight: [],
+    feedback: [],
+  };
   const controls = createWorkbenchSlotControls({
     root,
     canvas,
@@ -155,6 +162,7 @@ function harness({ width = 390, anchors = projectedAnchors(), reducedMotion = fa
     onPreview: (detail) => calls.preview.push(detail),
     onOpenPicker: (detail) => calls.picker.push(detail),
     onHighlight: (...detail) => calls.highlight.push(detail),
+    onFeedback: (kind) => calls.feedback.push(kind),
     storage,
     timers,
     matchMedia: () => ({ matches: reducedMotion }),
@@ -210,6 +218,8 @@ test("a short press previews then cycles once and clears every transient effect"
   assert.deepEqual(ui.calls.highlight.at(-1), ["filling-back-1", false]);
   assert.equal(button.dataset.active, undefined);
   assert.deepEqual(ui.calls.picker, []);
+  assert.deepEqual(ui.calls.feedback, ["switch"]);
+  assert.equal(button.dataset.feedback, "switch");
 });
 
 test("a 350ms hold opens a slot-local capsule and choosing affects only that slot", () => {
@@ -220,6 +230,9 @@ test("a 350ms hold opens a slot-local capsule and choosing affects only that slo
   ui.timers.advance(350);
   assert.equal(ui.capsule.hidden, false);
   assert.equal(ui.capsule.dataset.slotId, "sauce-right-2");
+  assert.equal(ui.root.dataset.pickerOpen, "true");
+  assert.equal(button.getAttribute("aria-expanded"), "true");
+  assert.deepEqual(ui.calls.feedback, ["open"]);
   assert.deepEqual(
     ui.capsule.children.map(({ dataset }) => dataset.contentId),
     ["ketchup", "mustard", "house-sauce"],
@@ -236,7 +249,24 @@ test("a 350ms hold opens a slot-local capsule and choosing affects only that slo
   ui.capsule.dispatch("click", { target: ui.capsule.children[0] });
   assert.deepEqual(ui.calls.choose, [{ slotId: "sauce-right-2", contentId: "ketchup" }]);
   assert.equal(ui.capsule.hidden, true);
+  assert.equal(ui.root.dataset.pickerOpen, undefined);
+  assert.equal(button.getAttribute("aria-expanded"), "false");
+  assert.deepEqual(ui.calls.feedback, ["open", "choose"]);
   assert.equal(button.focusCalls, 1);
+});
+
+test("each independent rail control uses a compact text affordance instead of covering food with emoji", () => {
+  const ui = harness();
+  const button = ui.buttons.children.find(({ dataset }) => dataset.slotId === "filling-back-1");
+
+  assert.equal(button.children.length, 1);
+  assert.equal(button.children[0].classList.contains("workbench-slot-control__label"), true);
+  assert.equal(button.children[0].textContent, "换");
+  assert.equal(button.dataset.currentLabel, "牛肉饼");
+  assert.equal(button.dataset.nextLabel, "芝士");
+  assert.equal(button.getAttribute("aria-haspopup"), "listbox");
+  assert.equal(button.getAttribute("aria-expanded"), "false");
+  assert.doesNotMatch(button.textContent, /\p{Extended_Pictographic}/u);
 });
 
 test("a short press after a long-press expansion cycles once and collapses the capsule", () => {

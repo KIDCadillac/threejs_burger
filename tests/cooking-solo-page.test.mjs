@@ -426,7 +426,7 @@ test("page and modules use only relative static imports with no socket dependenc
     readFile(appPath, "utf8"),
     readFile(loaderPath, "utf8"),
   ]);
-  assert.match(html, /href="\.\/cooking\.css\?v=20260722-ui2"/);
+  assert.match(html, /href="\.\/cooking\.css\?v=20260723-ui3"/);
   assert.match(html, /src="\.\/cooking-loader\.mjs"/);
   assert.match(app, /from "\.\/vendor\/three\.module\.min\.js"/);
   assert.match(app, /from "\.\/cooking-solo-stage\.mjs"/);
@@ -500,9 +500,27 @@ test("mobile cooking UI keeps the 3D workbench dominant with an in-stage HUD", a
   assert.match(mobile, /\.workbench-slot-controls__lines\s*\{[^}]*display:\s*none;/);
   assert.match(
     mobile,
+    /\.workbench-slot-control\s*\{[^}]*background:\s*transparent;[^}]*filter:\s*none;/s,
+  );
+  assert.match(
+    mobile,
+    /\.workbench-slot-control__label\s*\{[^}]*width:\s*32px;[^}]*height:\s*32px;/s,
+  );
+  assert.match(
+    mobile,
     /\.workbench-slot-controls__capsule\s*\{[^}]*top:\s*clamp\(248px,\s*36%,\s*320px\);[^}]*transform:\s*translateX\(-50%\)\s*!important;/s,
   );
-  assert.match(mobile, /\.cooking-stage > \.focus-button\s*\{[^}]*top:\s*206px;/);
+  assert.match(mobile, /\.cooking-stage > \.focus-button\s*\{[^}]*top:\s*8px;/);
+  assert.match(mobile, /\.objective-label\s*\{[^}]*display:\s*none;/);
+});
+
+test("the cooking workbench declares one reusable gesture grammar for every game mode", async () => {
+  const html = await readFile(htmlPath, "utf8");
+  assert.match(
+    html,
+    /class="cooking-stage"[^>]*data-control-grammar="tap-switch hold-choose drag-place pinch-zoom undo"/,
+  );
+  assert.match(html, /data-slot-hint[^>]*>轻触换材料，长按看全部，拖动做料理</);
 });
 
 test("uses only in-world feedback and contains no text drop-intent control", async () => {
