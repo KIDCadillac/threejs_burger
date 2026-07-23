@@ -1610,21 +1610,101 @@ body[data-game-mode="orders"] .workbench-slot-controls {
   gap: 9px;
 }
 
-.shop-customer__portrait {
-  display: grid;
+.shop-character {
+  position: relative;
+  display: block;
   flex: 0 0 48px;
   width: 48px;
   height: 48px;
-  place-items: center;
   border: 2px solid #ffd06a;
   border-radius: 50%;
-  color: #3a1f18;
-  background: linear-gradient(145deg, #ffe3a0, #e98a4c);
-  font-size: 1.45rem;
+  overflow: hidden;
+  background: linear-gradient(145deg, #ffe5b7, #f0a066);
   box-shadow: 0 7px 18px rgba(12, 5, 4, .34);
 }
 
-.shop-customer > span:last-child {
+.shop-character__body {
+  position: absolute;
+  right: 8px;
+  bottom: -13px;
+  left: 8px;
+  height: 27px;
+  border-radius: 50% 50% 0 0;
+  background: var(--customer-color, #df8a55);
+}
+
+.shop-character__head {
+  position: absolute;
+  top: 7px;
+  left: 14px;
+  width: 22px;
+  height: 24px;
+  border-radius: 46% 46% 50% 50%;
+  background: #f6bd94;
+  transform-origin: 50% 80%;
+}
+
+.shop-character__hair {
+  position: absolute;
+  top: -3px;
+  left: -2px;
+  width: 25px;
+  height: 10px;
+  border-radius: 60% 60% 20% 20%;
+  background: #4c2b24;
+}
+
+.shop-character__eyes::before,
+.shop-character__eyes::after {
+  position: absolute;
+  top: 10px;
+  width: 3px;
+  height: 4px;
+  border-radius: 50%;
+  background: #45251f;
+  content: "";
+}
+
+.shop-character__eyes::before { left: 5px; }
+.shop-character__eyes::after { right: 5px; }
+
+.shop-character__mouth {
+  position: absolute;
+  top: 17px;
+  left: 8px;
+  width: 7px;
+  height: 3px;
+  border-bottom: 2px solid #9d4435;
+  border-radius: 50%;
+}
+
+.shop-character__arm {
+  position: absolute;
+  right: -2px;
+  bottom: 5px;
+  width: 22px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--customer-color, #df8a55);
+  transform: rotate(-18deg);
+  transform-origin: 0 50%;
+}
+
+.shop-character__burger {
+  position: absolute;
+  top: -8px;
+  right: -2px;
+  font-size: 13px;
+  font-style: normal;
+}
+
+.shop-character__effect {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.shop-customer__copy {
   display: grid;
   min-width: 0;
   gap: 1px;
@@ -1640,6 +1720,90 @@ body[data-game-mode="orders"] .workbench-slot-controls {
   font-size: .82rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.shop-customer[data-customer-state="entering"] .shop-character {
+  animation: shop-customer-enter .42s cubic-bezier(.2, .9, .25, 1.2) both;
+}
+
+.shop-customer[data-customer-state="waiting"] .shop-character__head {
+  animation: shop-customer-idle 1.8s ease-in-out infinite;
+}
+
+.shop-customer[data-customer-state="eating"] .shop-character__arm {
+  animation: shop-customer-bite .45s ease-in-out 2;
+}
+
+.shop-customer[data-customer-state="eating"] .shop-character__mouth {
+  height: 7px;
+  border: 0;
+  border-radius: 50%;
+  background: #87382e;
+}
+
+.shop-customer[data-customer-state="high"] .shop-character {
+  animation: shop-customer-happy .55s ease-in-out 2;
+}
+
+.shop-customer[data-customer-state="high"] .shop-character__effect::after {
+  position: absolute;
+  top: 0;
+  right: 1px;
+  color: #ffde63;
+  content: "★";
+  animation: shop-effect-pop .5s ease-out both;
+}
+
+.shop-customer[data-customer-state="medium"] .shop-character__head {
+  transform: rotate(-6deg);
+}
+
+.shop-customer[data-customer-state="low"] .shop-character {
+  animation: shop-customer-shake .38s linear 2;
+  filter: saturate(.72);
+}
+
+.shop-customer[data-customer-state="low"] .shop-character__effect::after {
+  position: absolute;
+  top: 1px;
+  right: 2px;
+  color: #74ccec;
+  content: "●";
+  text-shadow: -5px 4px #74ccec;
+}
+
+.shop-customer[data-customer-state="leaving"] .shop-character {
+  animation: shop-customer-leave .36s ease-in both;
+}
+
+@keyframes shop-customer-enter {
+  from { opacity: 0; transform: translateX(-34px) scale(.75); }
+}
+
+@keyframes shop-customer-leave {
+  to { opacity: 0; transform: translateX(34px) scale(.78); }
+}
+
+@keyframes shop-customer-idle {
+  50% { transform: translateY(-1px) rotate(2deg); }
+}
+
+@keyframes shop-customer-bite {
+  50% { transform: translate(-11px, -11px) rotate(-48deg); }
+}
+
+@keyframes shop-customer-happy {
+  50% { transform: translateY(-4px) rotate(5deg) scale(1.06); }
+}
+
+@keyframes shop-customer-shake {
+  25% { transform: translateX(-2px) rotate(-3deg); }
+  75% { transform: translateX(2px) rotate(3deg); }
+}
+
+@keyframes shop-effect-pop {
+  from { opacity: 0; transform: scale(.2); }
+  70% { transform: scale(1.35); }
 }
 
 .shop-order-ticket {
