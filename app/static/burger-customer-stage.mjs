@@ -18,6 +18,9 @@ function escapeMarkup(value) {
 function customerMarkup(customer = {}) {
   const name = escapeMarkup(customer.name || "新顾客");
   const color = /^#[\da-f]{6}$/i.test(customer.color ?? "") ? customer.color : "#df8a55";
+  const orderNumber = Number.isInteger(customer.orderNumber)
+    ? Math.max(1, Math.min(3, customer.orderNumber))
+    : 1;
   return `
     <span class="shop-character" aria-hidden="true" style="--customer-color:${color}">
       <span class="shop-character__body"></span>
@@ -30,7 +33,7 @@ function customerMarkup(customer = {}) {
       <span class="shop-character__effect"></span>
     </span>
     <span class="shop-customer__copy">
-      <small>第 <b data-shop-order-number>1</b>/3 位顾客</small>
+      <small>第 <b data-shop-order-number>${orderNumber}</b>/3 位顾客</small>
       <strong data-shop-customer-name>${name}</strong>
     </span>
   `;

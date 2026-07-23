@@ -134,6 +134,7 @@ export function bootBurgerShopPage(
     undoButton: requiredElement(documentTarget, '[data-shop-action="undo"]'),
     focusButton: requiredElement(documentTarget, '[data-shop-action="focus"]'),
   };
+  documentTarget.title = "今日营业 · 3D 汉堡店";
 
   let pageStorage = null;
   try {
@@ -314,7 +315,10 @@ export function bootBurgerShopPage(
     clearPhaseSchedule();
     adapter.setCooking(run.phase === "cooking");
     if (run.phase === "customer-arrival") {
-      customer.enter(customerFor(run.orderNumber));
+      customer.enter({
+        ...customerFor(run.orderNumber),
+        orderNumber: run.orderNumber,
+      });
       audio.play?.("correct");
       schedulePhase(() => dispatch({ type: "customer.arrived" }), 520);
     } else if (run.phase === "order-preview") {

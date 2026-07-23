@@ -1942,6 +1942,79 @@ body[data-game-mode="orders"] .workbench-slot-controls {
   backdrop-filter: blur(8px);
 }
 
+.shop-tasting {
+  color: #fff0cf;
+  font-size: clamp(1.2rem, 5vw, 1.75rem);
+  font-weight: 900;
+  text-align: center;
+}
+
+.shop-result-card {
+  display: grid;
+  width: min(100%, 360px);
+  max-width: 360px;
+  padding: 24px 20px;
+  gap: 12px;
+  border: 2px solid rgba(255, 218, 143, .72);
+  border-radius: 28px;
+  color: #fff5dd;
+  background: linear-gradient(160deg, rgba(97, 47, 31, .98), rgba(48, 23, 20, .98));
+  box-shadow: 0 22px 64px rgba(15, 6, 5, .45);
+  text-align: center;
+}
+
+.shop-result-card small {
+  color: #ffc866;
+  font-size: .78rem;
+  font-weight: 850;
+  letter-spacing: .12em;
+}
+
+.shop-result-card > strong {
+  color: #ffd36e;
+  font-size: clamp(3.2rem, 15vw, 5.2rem);
+  line-height: .95;
+}
+
+.shop-result-card p {
+  min-height: 1.5em;
+  margin: 0;
+  color: rgba(255, 245, 221, .82);
+  font-weight: 750;
+}
+
+.shop-result-card > button,
+.shop-result-card > a {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px;
+  border: 2px solid #ffd36e;
+  border-radius: 17px;
+  color: #2f1913;
+  background: linear-gradient(180deg, #ffdd78, #efa134);
+  box-shadow: 0 6px 0 #8e4e22;
+  font-size: .95rem;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.shop-result-card > a {
+  border-color: rgba(255, 231, 182, .38);
+  color: #fff1d4;
+  background: rgba(255, 255, 255, .08);
+  box-shadow: none;
+}
+
+.shop-result-card[data-reaction="high"] {
+  border-color: #92df7a;
+}
+
+.shop-result-card[data-reaction="low"] {
+  border-color: #ef8c73;
+}
+
 @media (min-width: 720px) {
   body[data-game-mode="orders"] .cooking-stage {
     width: min(100%, 720px);

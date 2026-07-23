@@ -346,7 +346,7 @@ test("the pure-food focus control is a persistent stage overlay", async () => {
   assert.match(rule, /min-height:\s*(?:4[8-9]|[5-9]\d)px/);
 });
 
-test("root page is an original cooking map catalog with burger playable and sushi upcoming", async () => {
+test("root page makes the three-order shop run primary while practice and duel stay secondary", async () => {
   const [html, css] = await Promise.all([
     readFile(homePath, "utf8"),
     readFile(homeCssPath, "utf8"),
@@ -354,13 +354,15 @@ test("root page is an original cooking map catalog with burger playable and sush
   for (const marker of [
     'lang="zh-CN"',
     'class="home-shell"',
-    'href="./cooking.html"',
+    'href="./cooking.html?mode=orders"',
+    'href="./cooking.html?mode=practice"',
     'data-map="burger"',
     'data-map="sushi"',
     'data-mode="replica-duel"',
     'href="./replica-duel.html"',
     'aria-disabled="true"',
-    "自由汉堡店",
+    "今日营业",
+    "自由练习",
     "复刻对决",
     "本地练习",
     "深夜寿司店",
@@ -368,8 +370,8 @@ test("root page is an original cooking map catalog with burger playable and sush
   ]) assert.ok(html.includes(marker), marker);
   assert.match(html, /自由做菜/);
   assert.ok(
-    html.indexOf('href="./cooking.html"') < html.indexOf('href="./replica-duel.html"'),
-    "自由料理入口保持首要",
+    html.indexOf('href="./cooking.html?mode=orders"') < html.indexOf('href="./replica-duel.html"'),
+    "三单营业入口保持首要",
   );
   assert.match(css, /@media \(max-width: 640px\)/);
   assert.match(css, /min-height:\s*44px/);
@@ -401,7 +403,7 @@ test("root page offers accessible burger recipe quick starts with original publi
     ["./cooking.html?recipe=melty-cheese", "融金芝士牛肉堡"],
     ["./cooking.html?recipe=double-melty-cheese", "双层融金芝士堡"],
     ["./cooking.html?recipe=tower-double-beef", "三层高塔双牛堡"],
-    ["./cooking.html", "自由料理"],
+    ["./cooking.html?mode=practice", "自由练习"],
   ];
 
   assert.deepEqual(links.map(({ tag }) => attribute(tag, "href")), expectedLinks.map(([href]) => href));

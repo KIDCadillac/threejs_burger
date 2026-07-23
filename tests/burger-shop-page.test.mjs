@@ -39,4 +39,6 @@ test("order mode is a fixed safe-area game layout rather than a scrolling page",
   assert.match(css, /\.shop-hud\s*\{[^}]*position:\s*absolute;[^}]*top:\s*0;/s);
   assert.match(css, /\.shop-actions\s*\{[^}]*position:\s*absolute;[^}]*bottom:\s*0;/s);
   assert.match(css, /\.shop-hud[^}]*button[^}]*,\s*\.shop-actions[^}]*button\s*\{[^}]*pointer-events:\s*auto;/s);
+  assert.match(css, /\.shop-result-card\s*\{[^}]*max-width:\s*360px;[^}]*border-radius:/s);
+  assert.match(css, /\.shop-result-card\s*>\s*button[^}]*min-height:\s*52px/s);
 });

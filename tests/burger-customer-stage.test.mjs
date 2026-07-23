@@ -30,7 +30,7 @@ function createScheduler() {
   };
 }
 
-test("customer entry renders an original character then settles to waiting", () => {
+test("customer entry renders an original character and current order number then settles to waiting", () => {
   const root = createRoot();
   const scheduler = createScheduler();
   const customer = createBurgerCustomerStage({
@@ -39,10 +39,16 @@ test("customer entry renders an original character then settles to waiting", () 
     cancel: scheduler.cancel,
   });
 
-  customer.enter({ id: "customer-1", name: "阿乐", color: "#e79a57" });
+  customer.enter({
+    id: "customer-1",
+    name: "阿乐",
+    color: "#e79a57",
+    orderNumber: 2,
+  });
   assert.equal(root.dataset.customerState, "entering");
   assert.equal(root.dataset.customerId, "customer-1");
   assert.match(root.innerHTML, /shop-character__head/);
+  assert.match(root.innerHTML, /data-shop-order-number>2</);
   assert.match(root.innerHTML, /阿乐/);
 
   scheduler.flush();
