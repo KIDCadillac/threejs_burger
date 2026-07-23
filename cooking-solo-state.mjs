@@ -749,6 +749,55 @@ export function reorderSoloLayer(state, layerId, direction) {
   return placeSoloLayer(state, layerId, target);
 }
 
+export function replaceSoloLayer(state, layerId, ingredientId) {
+  requireEditable(state);
+  const currentIngredientId = requireInstance(state, layerId);
+  requireLayer(ingredientId);
+  const targetIndex = state.assembledOrder.indexOf(layerId);
+  if (targetIndex < 0) throw new TypeError("Only assembled layers can be replaced");
+  if (currentIngredientId === ingredientId) return state;
+
+  let workingState = state;
+  let replacementSourceId = Object.keys(workingState.instances).find((instanceId) => (
+    workingState.instances[instanceId] === ingredientId
+    && workingState.locations[instanceId]?.kind === "bin"
+  ));
+  if (!replacementSourceId && stationSession(workingState)) {
+    const replacementSlot = INGREDIENT_STATION_SLOTS.find(({ region, slotId }) => (
+      WORKBENCH_REGION_OPTIONS[region].includes(ingredientId)
+      && workingState.locations[workingState.stationSources[slotId]]?.kind === "bin"
+    )) ?? INGREDIENT_STATION_SLOTS.find(({ region }) => (
+      WORKBENCH_REGION_OPTIONS[region].includes(ingredientId)
+    ));
+    if (replacementSlot) {
+      workingState = setSoloStationContent(
+        workingState,
+        replacementSlot.slotId,
+        ingredientId,
+      );
+      replacementSourceId = workingState.stationSources[replacementSlot.slotId];
+    }
+  }
+  if (!replacementSourceId) {
+    throw new Error(`No available ${ingredientId} source can replace this layer`);
+  }
+
+  const placed = placeSoloLayer(
+    workingState,
+    replacementSourceId,
+    targetIndex,
+    { replenish: true },
+  );
+  const replaced = removeSoloLayer(placed, layerId, { consolidate: true });
+
+  // A replacement is one player action. Keep the original snapshot from the
+  // placement step and discard the internal intermediate snapshot.
+  return Object.freeze({
+    ...replaced,
+    history: placed.history,
+  });
+}
+
 export function addSoloSauceStroke(state, stroke) {
   return addSoloSauceStrokes(state, [stroke]);
 }

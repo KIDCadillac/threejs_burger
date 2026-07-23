@@ -20,6 +20,7 @@ import {
   rotateSoloLayer,
   moveSoloLayer,
   reorderSoloLayer,
+  replaceSoloLayer,
   addSoloSauceStroke,
   addSoloSauceStrokes,
   finishSoloCooking,
@@ -1056,6 +1057,7 @@ export function createSoloCookingStage({
         canMoveUp: false,
         canMoveDown: false,
         canRotate: false,
+        canReplace: false,
         canDelete: false,
       });
     }
@@ -1065,6 +1067,7 @@ export function createSoloCookingStage({
       canMoveUp: index < state.assembledOrder.length - 1,
       canMoveDown: index > 0,
       canRotate: true,
+      canReplace: true,
       canDelete: true,
     });
   };
@@ -1096,6 +1099,27 @@ export function createSoloCookingStage({
     highlightedLayerId = selectedLayerId;
     burger.setLayerHighlighted(selectedLayerId, true);
     emit("focus-layer-rotated");
+    return true;
+  };
+
+  const replaceFocusedLayer = (ingredientId) => {
+    if (disposed || competitionReadOnly || !focused || !selectedLayerId
+      || !state.assembledOrder.includes(selectedLayerId)) return false;
+    const selectedIndex = state.assembledOrder.indexOf(selectedLayerId);
+    const previousLayerId = selectedLayerId;
+    const nextState = replaceSoloLayer(state, previousLayerId, ingredientId);
+    if (nextState === state) return false;
+
+    clearTransientVisuals();
+    state = nextState;
+    syncPhysicalStations();
+    reconcileModelInstances();
+    selectedLayerId = state.assembledOrder[selectedIndex];
+    applyVisualState({ animate: !reducedMotion, sauces: true });
+    highlightedLayerId = selectedLayerId;
+    burger.setLayerHighlighted(selectedLayerId, true);
+    adaptCameraToStack({ preserveDistance: true, reason: "focus-layer-replaced" });
+    emit("focus-layer-replaced");
     return true;
   };
 
@@ -1749,6 +1773,7 @@ export function createSoloCookingStage({
     getFocusedLayerCapabilities,
     reorderFocusedLayer,
     rotateFocusedLayer,
+    replaceFocusedLayer,
     deleteFocusedLayer,
     resetCamera() {
       const reset = controller.resetCamera();
