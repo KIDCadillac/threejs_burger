@@ -806,9 +806,45 @@ canvas:focus-visible {
   transition: transform .15s ease, filter .15s ease;
 }
 
+.workbench-slot-control__label {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgba(255, 235, 178, .52);
+  border-radius: 12px;
+  color: #fff1d3;
+  background: rgba(45, 24, 20, .88);
+  box-shadow: 0 5px 14px rgba(14, 6, 4, .42);
+  font-size: .68rem;
+  font-weight: 900;
+  transition: transform .16s ease, color .16s ease, background .16s ease, box-shadow .16s ease;
+}
+
 .workbench-slot-control[data-active="true"] {
   transform: translate(-50%, -50%) scale(1.14);
   filter: drop-shadow(0 0 9px rgba(255, 222, 116, .95));
+}
+
+.workbench-slot-control[data-active="true"] .workbench-slot-control__label,
+.workbench-slot-control[aria-expanded="true"] .workbench-slot-control__label {
+  color: #2a1713;
+  background: linear-gradient(180deg, #ffe292, #eea83d);
+  box-shadow: 0 0 0 4px rgba(255, 210, 104, .2), 0 8px 18px rgba(14, 6, 4, .42);
+}
+
+.workbench-slot-control[data-feedback] .workbench-slot-control__label {
+  animation: slot-control-pop .22s cubic-bezier(.2, .85, .3, 1.35);
+}
+
+.workbench-slot-controls.is-picker-open .workbench-slot-control:not([aria-expanded="true"]) {
+  opacity: .42;
+}
+
+@keyframes slot-control-pop {
+  0% { transform: scale(.82); }
+  70% { transform: scale(1.16); }
+  100% { transform: scale(1); }
 }
 
 .workbench-slot-region {
@@ -1128,11 +1164,11 @@ canvas:focus-visible {
   .objective-card {
     position: absolute;
     z-index: 8;
-    top: 10px;
+    top: 8px;
     left: 10px;
-    right: 10px;
-    min-height: 50px;
-    padding: 8px 12px;
+    right: 112px;
+    min-height: 44px;
+    padding: 7px 11px;
     border-color: rgba(255, 225, 165, .3);
     border-radius: 16px;
     pointer-events: none;
@@ -1150,7 +1186,7 @@ canvas:focus-visible {
     white-space: nowrap;
   }
 
-  .objective-label { font-size: .66rem; }
+  .objective-label { display: none; }
   #cooking-progress { font-size: 1.18rem; }
 
   .recipe-reference {
@@ -1214,13 +1250,25 @@ canvas:focus-visible {
   .workbench-slot-region {
     min-width: 50px;
     min-height: 50px;
-    border: 1px solid rgba(255, 236, 184, .42);
-    background: radial-gradient(circle, #ffe18b 0 39%, #9a5727 41% 52%, rgba(28, 15, 13, .5) 54% 61%, transparent 63%);
-    filter: drop-shadow(0 7px 10px rgba(12, 5, 4, .56));
+  }
+
+  .workbench-slot-control {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    filter: none;
+  }
+
+  .workbench-slot-control__label {
+    width: 32px;
+    height: 32px;
+    border-radius: 11px;
+    background: rgba(45, 24, 20, .82);
+    box-shadow: 0 5px 14px rgba(12, 5, 4, .42);
   }
 
   .workbench-slot-control[data-active="true"] {
-    filter: drop-shadow(0 0 11px rgba(255, 229, 146, 1));
+    filter: none;
   }
 
   .workbench-slot-controls__hint {
@@ -1231,7 +1279,7 @@ canvas:focus-visible {
   }
 
   .cooking-stage > .focus-button {
-    top: 206px;
+    top: 8px;
     right: 10px;
     min-width: 92px;
     min-height: 44px;

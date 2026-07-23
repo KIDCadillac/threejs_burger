@@ -429,6 +429,11 @@ export function bootSoloCookingPage(
           return openWorkbenchPicker(detail);
         },
         onHighlight: (slotId, value) => stage.workbench?.setSlotHighlighted?.(slotId, value),
+        onFeedback: (kind) => {
+          const duration = { switch: 10, open: 18, choose: 14 }[kind];
+          if (!duration) return;
+          try { windowTarget.navigator?.vibrate?.(duration); } catch { /* optional haptic */ }
+        },
         storage: pageStorage,
         timers: windowTarget,
         matchMedia: windowTarget.matchMedia?.bind(windowTarget),
