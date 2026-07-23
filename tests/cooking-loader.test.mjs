@@ -171,3 +171,43 @@ test("stops progress and exposes the existing error layer when module loading fa
   assert.equal(elements.error.hidden, false);
   assert.match(elements.status.textContent, /offline/);
 });
+
+test("order mode boots the solo stage without practice overlays and mounts the shop controller", async () => {
+  const { documentTarget } = loaderHarness();
+  const stage = { id: "order-stage" };
+  const frames = [];
+  const soloCalls = [];
+  const shopCalls = [];
+  const resultPromise = startSoloCookingLoader(documentTarget, {
+    windowTarget: {
+      location: { href: "https://example.test/cooking.html?mode=orders" },
+    },
+    importApp: async () => ({
+      bootSoloCookingPage: (_document, options) => {
+        soloCalls.push(options);
+        return stage;
+      },
+    }),
+    importShopApp: async () => ({
+      bootBurgerShopPage: (_document, options) => {
+        shopCalls.push(options);
+        return { handleStageChange() {} };
+      },
+    }),
+    requestFrame: (callback) => {
+      frames.push(callback);
+      return 1;
+    },
+    setIntervalFn: () => 2,
+    clearIntervalFn() {},
+    now: () => 0,
+  });
+
+  await flushMicrotasks();
+  frames[0]();
+  assert.equal(await resultPromise, stage);
+  assert.equal(soloCalls[0].openRecipePicker, false);
+  assert.equal(soloCalls[0].mountDefaultActions, false);
+  assert.equal(typeof soloCalls[0].onStageChange, "function");
+  assert.equal(shopCalls[0].stage, stage);
+});

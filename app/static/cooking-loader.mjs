@@ -4,11 +4,27 @@ function requiredElement(documentTarget, selector) {
   return element;
 }
 
+function modeFromLocation(locationTarget) {
+  try {
+    const href = typeof locationTarget === "string"
+      ? locationTarget
+      : locationTarget?.href;
+    if (!href) return "practice";
+    const query = String(href).split("?")[1]?.split("#")[0] ?? "";
+    return new URLSearchParams(query).get("mode") === "orders"
+      ? "orders"
+      : "practice";
+  } catch {
+    return "practice";
+  }
+}
+
 export async function startSoloCookingLoader(
   documentTarget = globalThis.document,
   {
     windowTarget = globalThis,
     importApp = () => import("./cooking-solo-app.mjs"),
+    importShopApp = () => import("./burger-shop-app.mjs"),
     requestFrame = windowTarget?.requestAnimationFrame?.bind(windowTarget)
       ?? ((callback) => windowTarget.setTimeout(callback, 16)),
     setTimeoutFn = windowTarget?.setTimeout?.bind(windowTarget)
@@ -21,6 +37,9 @@ export async function startSoloCookingLoader(
   } = {},
 ) {
   if (typeof importApp !== "function") throw new TypeError("importApp must be a function");
+  if (typeof importShopApp !== "function") {
+    throw new TypeError("importShopApp must be a function");
+  }
   if (typeof requestFrame !== "function") throw new TypeError("requestFrame must be a function");
   if (typeof setTimeoutFn !== "function" || typeof clearTimeoutFn !== "function") {
     throw new TypeError("loading timeout functions are required");
@@ -90,15 +109,36 @@ export async function startSoloCookingLoader(
   intervalId = setIntervalFn(updatePassiveProgress, 250);
 
   try {
+    const mode = modeFromLocation(windowTarget?.location);
     const app = await importApp();
     if (typeof app?.bootSoloCookingPage !== "function") {
       throw new TypeError("Cooking page module is missing bootSoloCookingPage");
     }
     update(82, "正在摆放 3D 食材和工具");
+    let shopController = null;
+    let pendingStageChange = null;
     const stage = app.bootSoloCookingPage(documentTarget, {
       windowTarget,
       manageLoading: false,
+      openRecipePicker: mode !== "orders",
+      mountDefaultActions: mode !== "orders",
+      onStageChange: (detail) => {
+        pendingStageChange = detail;
+        shopController?.handleStageChange?.(detail);
+      },
     });
+    if (mode === "orders" && stage) {
+      const shopApp = await importShopApp();
+      if (typeof shopApp?.bootBurgerShopPage !== "function") {
+        throw new TypeError("Cooking shop module is missing bootBurgerShopPage");
+      }
+      shopController = shopApp.bootBurgerShopPage(documentTarget, {
+        windowTarget,
+        stage,
+      });
+      if (!shopController) throw new Error("Unable to start burger shop order mode");
+      if (pendingStageChange) shopController.handleStageChange?.(pendingStageChange);
+    }
     if (!stage) throw new Error(elements.status.textContent || "无法启动三维料理台");
     update(94, "正在完成第一帧");
     await waitForFirstFrame();

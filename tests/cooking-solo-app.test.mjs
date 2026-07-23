@@ -1205,6 +1205,29 @@ test("an external loader can keep the loading overlay until the first rendered f
   assert.equal(page.elements.loading.hidden, false);
 });
 
+test("order mode can suppress the practice picker and receive stage changes", () => {
+  const page = pageHarness();
+  const stages = stageFactoryHarness();
+  const changes = [];
+  page.windowTarget.location.href = "https://example.test/cooking.html?mode=orders";
+  const stage = bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: stages.factory,
+    openRecipePicker: false,
+    mountDefaultActions: false,
+    onStageChange: (detail) => changes.push(detail),
+  });
+
+  assert.ok(stage);
+  assert.equal(page.elements.recipeSelector.hidden, true);
+  assert.deepEqual(stage.referenceCalls, [null]);
+  stage.emit({ assembledOrder: ["bottom-bun"] });
+  assert.equal(changes.at(-1).state.assembledOrder.length, 1);
+
+  page.documentTarget.emit("click", { target: page.elements.undoButton });
+  assert.deepEqual(stage.calls, []);
+});
+
 test("render or lifecycle registration failure cleans the created stage and shows the error layer", () => {
   {
     const page = pageHarness();

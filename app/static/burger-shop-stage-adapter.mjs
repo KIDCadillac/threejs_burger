@@ -42,5 +42,14 @@ export function createBurgerShopStageAdapter(stage) {
     resetCamera() {
       return stage.resetCamera();
     },
+    undo() {
+      return typeof stage.undo === "function" ? stage.undo() : false;
+    },
+    toggleFocus() {
+      if (typeof stage.toggleBurgerFocus === "function") {
+        return stage.toggleBurgerFocus();
+      }
+      return false;
+    },
   });
 }

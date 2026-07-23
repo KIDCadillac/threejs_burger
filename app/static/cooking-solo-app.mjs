@@ -96,8 +96,14 @@ export function bootSoloCookingPage(
     slotControlsFactory = createWorkbenchSlotControls,
     autosaveFactory = createSoloAutosave,
     manageLoading = true,
+    openRecipePicker = true,
+    mountDefaultActions = true,
+    onStageChange = () => {},
   } = {},
 ) {
+  if (typeof onStageChange !== "function") {
+    throw new TypeError("onStageChange must be a function");
+  }
   const canvas = documentTarget?.querySelector?.("#cooking-canvas");
   if (!canvas) throw new Error("Missing #cooking-canvas");
   disposeActiveSoloCookingPage(documentTarget);
@@ -357,6 +363,7 @@ export function bootSoloCookingPage(
     if (statusByReason[detail.reason]) elements.status.textContent = statusByReason[detail.reason];
     if (detail.message) elements.status.textContent = detail.message;
     focusManager.sync(state.finished);
+    onStageChange(detail);
   };
 
   try {
@@ -669,7 +676,9 @@ export function bootSoloCookingPage(
       if (event.key === "Escape") closeHighlightSheet();
     };
     const routedRecipeId = recipeIdFromLocation(windowTarget.location);
-    if (routedRecipeId && RECIPE_BY_ID.has(routedRecipeId)) {
+    if (!openRecipePicker) {
+      chooseRecipe(null, { resume: false });
+    } else if (routedRecipeId && RECIPE_BY_ID.has(routedRecipeId)) {
       chooseRecipe(routedRecipeId, { resume: false });
     } else {
       openRecipeSelector();
@@ -702,7 +711,7 @@ export function bootSoloCookingPage(
       documentTarget,
       windowTarget,
       stage,
-      onClick: handleClick,
+      onClick: mountDefaultActions ? handleClick : () => {},
       onKeyDown: handleKeyDown,
       onDispose: disposeIntegrations,
     });
