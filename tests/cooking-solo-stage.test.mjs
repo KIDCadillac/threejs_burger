@@ -906,6 +906,7 @@ test("focus layer capabilities support adjacent reorder, rotation, and deleting 
     canMoveUp: true,
     canMoveDown: true,
     canRotate: true,
+    canReplace: true,
     canDelete: true,
   });
   assert.equal(stage.reorderFocusedLayer(1), true);
@@ -930,6 +931,25 @@ test("focus layer capabilities support adjacent reorder, rotation, and deleting 
   assert.equal(single.stage.isBurgerFocused(), false, "deleting the final layer exits focus");
   assert.equal(single.stage.workbench.root.visible, true);
   single.stage.dispose();
+});
+
+test("focus layer replacement swaps the selected ingredient in place and keeps it selected", () => {
+  const { stage, configuration } = harness({ reducedMotion: true });
+  stage.dropLayer("bottom-bun", { kind: "prep" });
+  stage.dropLayer("patty", { kind: "prep" });
+  stage.dropLayer("top-bun", { kind: "prep" });
+  stage.setBurgerFocus(true);
+  configuration.onInspectionSelection({ id: "patty" });
+
+  assert.equal(stage.replaceFocusedLayer("cheese"), true);
+  const state = stage.getState();
+  assert.deepEqual(
+    state.assembledOrder.map((id) => state.instances[id]),
+    ["bottom-bun", "cheese", "top-bun"],
+  );
+  assert.equal(state.instances[stage.getSelectedLayerId()], "cheese");
+  assert.equal(stage.getFocusedLayerCapabilities().canReplace, true);
+  stage.dispose();
 });
 
 test("build stack adaptation preserves a player-selected pinch distance until more room is required", () => {

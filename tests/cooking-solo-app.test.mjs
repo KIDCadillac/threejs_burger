@@ -47,6 +47,8 @@ class Element extends Events {
   }
   closest(selector) {
     if (selector === "[data-action]" && this.dataset.action) return this;
+    if (selector === "[data-focus-layer-id]" && this.dataset.focusLayerId) return this;
+    if (selector === "[data-focus-layer-replacement]" && this.dataset.focusLayerReplacement) return this;
     if (selector === "[data-workbench-content]" && this.dataset.workbenchContent) return this;
     if (selector === "[data-workbench-close]" && "workbenchClose" in this.dataset) return this;
     if (selector === "[data-workbench-reset]" && "workbenchReset" in this.dataset) return this;
@@ -94,7 +96,12 @@ function pageHarness({ withSlotControls = false } = {}) {
     undoButton: add('[data-action="undo"]', "undo"),
     inspectButton: add('[data-action="toggle-expanded"]', "toggle-expanded"),
     focusButton: add('[data-action="toggle-focus"]', "toggle-focus"),
+    focusLayerManager: add("#focus-layer-manager"),
+    focusLayerList: add("#focus-layer-list"),
+    focusLayerCount: add("#focus-layer-count"),
+    focusLayerReplacePanel: add("#focus-layer-replace-panel"),
     focusLayerToolbar: add("#focus-layer-toolbar"),
+    focusLayerReplaceButton: add('[data-action="focus-layer-replace"]', "focus-layer-replace"),
     focusLayerUpButton: add('[data-action="focus-layer-up"]', "focus-layer-up"),
     focusLayerDownButton: add('[data-action="focus-layer-down"]', "focus-layer-down"),
     focusLayerRotateButton: add('[data-action="focus-layer-rotate"]', "focus-layer-rotate"),
@@ -293,6 +300,7 @@ function stageFactoryHarness() {
           canMoveUp: index >= 0 && index < state.assembledOrder.length - 1,
           canMoveDown: index > 0,
           canRotate: index >= 0,
+          canReplace: index >= 0,
           canDelete: index >= 0,
         };
       },
@@ -302,6 +310,14 @@ function stageFactoryHarness() {
       },
       rotateFocusedLayer: (delta) => {
         stage.calls.push(["focus-rotate", delta]);
+        return true;
+      },
+      selectFocusedLayer: (layerId) => {
+        stage.calls.push(["focus-select", layerId]);
+        return true;
+      },
+      replaceFocusedLayer: (ingredientId) => {
+        stage.calls.push(["focus-replace", ingredientId]);
         return true;
       },
       deleteFocusedLayer: () => {
@@ -994,6 +1010,41 @@ test("focus control follows stage view state and toggles the isolated burger vie
   stage.emit({ assembledOrder: ["bottom-bun"], focused: false });
   assert.equal(page.elements.focusLayerHint.hidden, true);
   assert.equal(page.elements.focusLayerToolbar.hidden, true);
+});
+
+test("focus mode keeps a visible layer manager for selecting, sorting, replacing, and deleting layers", () => {
+  const page = pageHarness();
+  const stages = stageFactoryHarness();
+  const stage = bootSoloCookingPage(page.documentTarget, {
+    windowTarget: page.windowTarget,
+    stageFactory: stages.factory,
+  });
+
+  stage.emit({
+    assembledOrder: ["bottom-bun", "patty", "top-bun"],
+    selectedLayerId: "patty",
+    focused: true,
+  });
+
+  assert.equal(page.elements.focusLayerManager.hidden, false);
+  assert.equal(page.elements.focusLayerCount.textContent, "3 层");
+  assert.match(page.elements.focusLayerList.innerHTML, /data-focus-layer-id="bottom-bun"/);
+  assert.match(page.elements.focusLayerList.innerHTML, /data-focus-layer-id="patty"/);
+  assert.match(page.elements.focusLayerList.innerHTML, /aria-selected="true"/);
+
+  const layerButton = new Element(null, { dataset: { focusLayerId: "top-bun" } });
+  page.documentTarget.emit("click", { target: layerButton });
+  assert.deepEqual(stage.calls.at(-1), ["focus-select", "top-bun"]);
+
+  page.documentTarget.emit("click", { target: page.elements.focusLayerReplaceButton });
+  assert.equal(page.elements.focusLayerReplacePanel.hidden, false);
+  const replacement = new Element(null, { dataset: { focusLayerReplacement: "cheese" } });
+  page.documentTarget.emit("click", { target: replacement });
+  assert.deepEqual(stage.calls.at(-1), ["focus-replace", "cheese"]);
+  assert.equal(page.elements.focusLayerReplacePanel.hidden, true);
+
+  stage.emit({ assembledOrder: ["bottom-bun"], focused: false });
+  assert.equal(page.elements.focusLayerManager.hidden, true);
 });
 
 test("feedback actions open, submit, and close the injected reporter", () => {

@@ -985,13 +985,127 @@ canvas:focus-visible {
 
 .focus-layer-hint[hidden] { display: none; }
 
+.cooking-stage > .focus-layer-manager {
+  position: absolute;
+  z-index: 6;
+  top: 76px;
+  left: 10px;
+  display: grid;
+  gap: 7px;
+  width: min(148px, 38%);
+  max-height: calc(100% - 160px);
+  padding: 9px;
+  border: 1px solid rgba(255, 221, 151, .38);
+  border-radius: 18px;
+  color: #fff0cc;
+  background: rgba(47, 24, 20, .9);
+  box-shadow: 0 12px 30px rgba(25, 7, 5, .4);
+  backdrop-filter: blur(12px);
+}
+
+.focus-layer-manager[hidden] { display: none; }
+
+.focus-layer-manager > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: .74rem;
+}
+
+.focus-layer-manager > header span {
+  color: #ffc44d;
+  font-weight: 900;
+}
+
+.focus-layer-list {
+  display: grid;
+  gap: 5px;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.focus-layer-list button {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  min-height: 42px;
+  padding: 5px 7px;
+  border: 1px solid rgba(255, 221, 151, .2);
+  border-radius: 13px;
+  color: #fff0cc;
+  background: rgba(94, 55, 46, .82);
+  text-align: left;
+}
+
+.focus-layer-list button span {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: #3b211a;
+  background: #f6c65f;
+  font-size: .7rem;
+  font-weight: 900;
+}
+
+.focus-layer-list button strong {
+  overflow: hidden;
+  font-size: .72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.focus-layer-list button[aria-selected="true"] {
+  border-color: #ffd66f;
+  background: linear-gradient(180deg, #8b563c, #62382f);
+  box-shadow: 0 0 0 2px rgba(255, 196, 77, .22);
+}
+
+.focus-layer-replace-panel {
+  display: grid;
+  gap: 6px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(255, 221, 151, .22);
+}
+
+.focus-layer-replace-panel[hidden] { display: none; }
+
+.focus-layer-replace-panel small {
+  color: #e9cfaa;
+  font-size: .68rem;
+  font-weight: 800;
+}
+
+.focus-layer-replace-panel > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.focus-layer-replace-panel button {
+  min-width: 0;
+  min-height: 36px;
+  padding: 4px 2px;
+  border: 1px solid rgba(255, 221, 151, .24);
+  border-radius: 10px;
+  color: #fff0cc;
+  background: rgba(105, 61, 48, .92);
+  font-size: .64rem;
+  font-weight: 800;
+}
+
 .cooking-stage > .focus-layer-toolbar {
   position: absolute;
   z-index: 5;
   left: 50%;
   bottom: max(14px, env(safe-area-inset-bottom));
   display: grid;
-  grid-template-columns: repeat(4, minmax(58px, 1fr));
+  grid-template-columns: repeat(5, minmax(50px, 1fr));
   gap: 6px;
   width: min(360px, calc(100% - 24px));
   padding: 7px;
@@ -1295,6 +1409,13 @@ canvas:focus-visible {
     max-width: calc(100% - 124px);
     transform: none;
     text-align: left;
+  }
+
+  .cooking-stage > .focus-layer-manager {
+    top: 62px;
+    width: min(140px, 36%);
+    max-height: calc(100% - 150px);
+    border-radius: 16px;
   }
 
   .cooking-stage > .focus-layer-toolbar {

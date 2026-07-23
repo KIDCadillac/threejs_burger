@@ -98,10 +98,32 @@
           <p class="workbench-slot-controls__hint" data-slot-hint hidden>轻触换材料，长按看全部，拖动做料理</p>
         </div>
         <button class="focus-button" type="button" data-action="toggle-focus" aria-pressed="false" disabled>聚焦食物</button>
+        <aside class="focus-layer-manager" id="focus-layer-manager" aria-label="汉堡层次管理" hidden>
+          <header>
+            <strong>汉堡层次</strong>
+            <span id="focus-layer-count">0 层</span>
+          </header>
+          <div class="focus-layer-list" id="focus-layer-list" role="listbox" aria-label="从上到下的汉堡层次"></div>
+          <div class="focus-layer-replace-panel" id="focus-layer-replace-panel" aria-label="替换当前层" hidden>
+            <small>把当前层换成</small>
+            <div>
+              <button type="button" data-focus-layer-replacement="bottom-bun">底包</button>
+              <button type="button" data-focus-layer-replacement="middle-bun">中包</button>
+              <button type="button" data-focus-layer-replacement="top-bun">顶包</button>
+              <button type="button" data-focus-layer-replacement="patty">牛肉</button>
+              <button type="button" data-focus-layer-replacement="cheese">芝士</button>
+              <button type="button" data-focus-layer-replacement="tomato">番茄</button>
+              <button type="button" data-focus-layer-replacement="lettuce">生菜</button>
+              <button type="button" data-focus-layer-replacement="pickle">酸黄瓜</button>
+              <button type="button" data-focus-layer-replacement="onion">洋葱</button>
+            </div>
+          </div>
+        </aside>
         <p class="focus-layer-hint" id="focus-layer-hint" aria-live="polite" hidden></p>
         <div class="focus-layer-toolbar" id="focus-layer-toolbar" role="toolbar" aria-label="当前汉堡层操作" hidden>
           <button type="button" data-action="focus-layer-up" data-focus-layer-action="up" disabled>上移</button>
           <button type="button" data-action="focus-layer-down" data-focus-layer-action="down" disabled>下移</button>
+          <button type="button" data-action="focus-layer-replace" data-focus-layer-action="replace" aria-expanded="false" aria-controls="focus-layer-replace-panel" disabled>替换</button>
           <button type="button" data-action="focus-layer-rotate" data-focus-layer-action="rotate" disabled>旋转</button>
           <button class="focus-layer-toolbar__delete" type="button" data-action="delete-focused-layer" data-focus-layer-action="delete" disabled>删除</button>
         </div>

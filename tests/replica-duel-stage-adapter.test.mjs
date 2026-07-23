@@ -61,6 +61,10 @@ test("adapter applies safe views and only emits controlled local drafts", () => 
   adapter.handleStageChange({ reason: "drop-layer", state: currentState });
   assert.equal(drafts.length, 1, "identical draft snapshots are deduplicated");
   assert.equal(drafts[0].layers.length, 8);
+  const changedState = competitionSnapshotToSoloState(snapshot(0.2));
+  currentState = changedState;
+  adapter.handleStageChange({ reason: "focus-layer-replaced", state: currentState });
+  assert.equal(drafts.length, 2, "focus replacement is synchronized like every other edit");
   assert.equal(adapter.requestFinish(), true);
   assert.equal(finishes.length, 1);
 

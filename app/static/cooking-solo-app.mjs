@@ -118,7 +118,12 @@ export function bootSoloCookingPage(
     undoButton: documentTarget.querySelector('[data-action="undo"]'),
     inspectButton: documentTarget.querySelector('[data-action="toggle-expanded"]'),
     focusButton: documentTarget.querySelector('[data-action="toggle-focus"]'),
+    focusLayerManager: documentTarget.querySelector("#focus-layer-manager"),
+    focusLayerList: documentTarget.querySelector("#focus-layer-list"),
+    focusLayerCount: documentTarget.querySelector("#focus-layer-count"),
+    focusLayerReplacePanel: documentTarget.querySelector("#focus-layer-replace-panel"),
     focusLayerToolbar: documentTarget.querySelector("#focus-layer-toolbar"),
+    focusLayerReplaceButton: documentTarget.querySelector('[data-action="focus-layer-replace"]'),
     focusLayerUpButton: documentTarget.querySelector('[data-action="focus-layer-up"]'),
     focusLayerDownButton: documentTarget.querySelector('[data-action="focus-layer-down"]'),
     focusLayerRotateButton: documentTarget.querySelector('[data-action="focus-layer-rotate"]'),
@@ -163,6 +168,7 @@ export function bootSoloCookingPage(
   let autosave = null;
   let openWorkbenchPicker = () => false;
   let latest = null;
+  let focusLayerReplaceOpen = false;
   const currentHighlightClips = () => highlights?.clips?.() ?? Object.freeze([]);
   const syncHighlightButton = () => {
     const count = currentHighlightClips().length;
@@ -266,10 +272,30 @@ export function bootSoloCookingPage(
       canMoveUp: selectedFocusIndex >= 0 && selectedFocusIndex < state.assembledOrder.length - 1,
       canMoveDown: selectedFocusIndex > 0,
       canRotate: selectedFocusIndex >= 0,
+      canReplace: selectedFocusIndex >= 0,
       canDelete: selectedFocusIndex >= 0,
     };
     const focusCapabilities = stage.getFocusedLayerCapabilities?.() ?? fallbackCapabilities;
     const hasFocusedLayer = focused && focusCapabilities.selected;
+    if (!focused || !hasFocusedLayer) focusLayerReplaceOpen = false;
+    if (elements.focusLayerManager) elements.focusLayerManager.hidden = !focused;
+    if (elements.focusLayerCount) {
+      elements.focusLayerCount.textContent = `${state.assembledOrder.length} 层`;
+    }
+    if (elements.focusLayerList) {
+      elements.focusLayerList.innerHTML = state.assembledOrder.map((id, index) => {
+        const ingredientId = state.instances?.[id] ?? id;
+        const selected = id === selectedLayerId;
+        return `<button type="button" role="option" data-focus-layer-id="${id}" aria-selected="${selected}"><span>${index + 1}</span><strong>${LAYER_NAMES[ingredientId] ?? ingredientId}</strong></button>`;
+      }).reverse().join("");
+    }
+    if (elements.focusLayerReplacePanel) {
+      elements.focusLayerReplacePanel.hidden = !focused || !hasFocusedLayer || !focusLayerReplaceOpen;
+    }
+    if (elements.focusLayerReplaceButton) {
+      elements.focusLayerReplaceButton.disabled = !hasFocusedLayer || !focusCapabilities.canReplace;
+      elements.focusLayerReplaceButton.setAttribute?.("aria-expanded", String(focusLayerReplaceOpen));
+    }
     elements.focusLayerHint.textContent = !focused
       ? ""
       : hasFocusedLayer
@@ -576,6 +602,18 @@ export function bootSoloCookingPage(
       "toggle-focus": () => stage.toggleBurgerFocus(),
       "focus-layer-up": () => stage.reorderFocusedLayer(1),
       "focus-layer-down": () => stage.reorderFocusedLayer(-1),
+      "focus-layer-replace": () => {
+        if (!latest?.focused && !stage.isBurgerFocused?.()) return false;
+        focusLayerReplaceOpen = !focusLayerReplaceOpen;
+        if (elements.focusLayerReplacePanel) {
+          elements.focusLayerReplacePanel.hidden = !focusLayerReplaceOpen;
+        }
+        elements.focusLayerReplaceButton?.setAttribute?.(
+          "aria-expanded",
+          String(focusLayerReplaceOpen),
+        );
+        return true;
+      },
       "focus-layer-rotate": () => stage.rotateFocusedLayer(Math.PI / 12),
       "delete-focused-layer": () => stage.deleteFocusedLayer(),
       undo: () => stage.undo(),
@@ -599,6 +637,24 @@ export function bootSoloCookingPage(
     const handleClick = (event) => {
       if (event.target === elements.highlightSheet) {
         closeHighlightSheet();
+        return;
+      }
+      const focusLayerTarget = event.target.closest?.("[data-focus-layer-id]");
+      if (focusLayerTarget?.dataset.focusLayerId) {
+        focusLayerReplaceOpen = false;
+        stage.selectFocusedLayer(focusLayerTarget.dataset.focusLayerId);
+        return;
+      }
+      const replacementTarget = event.target.closest?.("[data-focus-layer-replacement]");
+      if (replacementTarget?.dataset.focusLayerReplacement) {
+        const changed = stage.replaceFocusedLayer(
+          replacementTarget.dataset.focusLayerReplacement,
+        );
+        if (changed) {
+          focusLayerReplaceOpen = false;
+          if (elements.focusLayerReplacePanel) elements.focusLayerReplacePanel.hidden = true;
+          elements.focusLayerReplaceButton?.setAttribute?.("aria-expanded", "false");
+        }
         return;
       }
       const actionTarget = event.target.closest?.("[data-action]");

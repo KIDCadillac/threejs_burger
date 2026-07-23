@@ -25,6 +25,7 @@ const DRAFT_REASONS = new Set([
   "focus-layer-moved",
   "focus-layer-reordered",
   "focus-layer-rotated",
+  "focus-layer-replaced",
   "delete-focused-layer",
 ]);
 

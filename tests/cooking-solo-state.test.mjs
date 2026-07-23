@@ -8,6 +8,7 @@ import {
   removeSoloLayer,
   moveSoloLayer,
   reorderSoloLayer,
+  replaceSoloLayer,
   rotateSoloLayer,
   addSoloSauceStroke,
   addSoloSauceStrokes,
@@ -49,6 +50,48 @@ test("starts every independent layer in its own bin with no completed stack", ()
   assert.equal(state.referenceRecipeId, null);
   assert.ok(Object.isFrozen(state));
   assert.ok(Object.isFrozen(state.locations));
+});
+
+test("replacing an assembled layer keeps its position and is a single undo step", () => {
+  let state = createSoloCookingState({ loadout: createDefaultWorkbenchLoadout() });
+  state = placeSoloLayer(state, state.stationSources["bread-left-1"], 0, { replenish: true });
+  state = placeSoloLayer(state, state.stationSources["filling-back-1"], 1, { replenish: true });
+  const originalLayerId = state.assembledOrder[1];
+  const originalHistoryLength = state.history.length;
+
+  state = replaceSoloLayer(state, originalLayerId, "cheese");
+
+  assert.deepEqual(
+    state.assembledOrder.map((id) => state.instances[id]),
+    ["bottom-bun", "cheese"],
+  );
+  assert.equal(state.assembledOrder.length, 2);
+  assert.equal(state.history.length, originalHistoryLength + 1);
+
+  const undone = undoSoloCooking(state);
+  assert.deepEqual(
+    undone.assembledOrder.map((id) => undone.instances[id]),
+    ["bottom-bun", "patty"],
+  );
+});
+
+test("replacing a layer can provision an ingredient outside the current station loadout", () => {
+  let state = createSoloCookingState({ loadout: createDefaultWorkbenchLoadout() });
+  state = placeSoloLayer(state, state.stationSources["bread-left-1"], 0, { replenish: true });
+  state = placeSoloLayer(state, state.stationSources["filling-back-1"], 1, { replenish: true });
+  const originalLayerId = state.assembledOrder[1];
+
+  state = replaceSoloLayer(state, originalLayerId, "pickle");
+
+  assert.deepEqual(
+    state.assembledOrder.map((id) => state.instances[id]),
+    ["bottom-bun", "pickle"],
+  );
+  const undone = undoSoloCooking(state);
+  assert.deepEqual(
+    undone.assembledOrder.map((id) => undone.instances[id]),
+    ["bottom-bun", "patty"],
+  );
 });
 
 test("drop order defines stack order and an assembled layer can be reinserted or removed", () => {
