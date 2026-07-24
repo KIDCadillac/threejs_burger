@@ -10,7 +10,6 @@ import {
   HOME_MAPS,
   changeMapIndex,
   normalizeMapIndex,
-  resolveSwipe,
 } from "./home-map-carousel-state.mjs";
 
 const storage = window.localStorage;
@@ -23,7 +22,6 @@ const rewardCards = [...document.querySelectorAll("[data-day]")];
 const backdrop = document.querySelector("#sheet-backdrop");
 const toast = document.querySelector("#home-toast");
 const mapViewport = document.querySelector("#home-map-viewport");
-const mapTrack = document.querySelector("#home-map-track");
 const mapSlides = [...document.querySelectorAll("[data-home-map]")];
 const mapArrows = [...document.querySelectorAll("[data-map-direction]")];
 const mapDots = [...document.querySelectorAll("[data-map-index]")];
@@ -35,10 +33,7 @@ const mapPrimaryAction = document.querySelector("#map-primary-action");
 let openSheet = null;
 let toastTimer = 0;
 let mapIndex = readMapIndex();
-let dragPointerId = null;
-let dragStartX = 0;
-let dragStartedAt = 0;
-let dragOffset = 0;
+let mapScrollFrame = 0;
 
 function readMapIndex() {
   try {
@@ -61,16 +56,17 @@ function mapStep() {
   return measured > 0 ? measured : Math.max(1, mapViewport?.clientWidth || 1);
 }
 
-function setTrackPosition(offset, animated = true) {
-  if (!mapTrack) return;
-  mapTrack.classList.toggle("is-dragging", !animated);
-  mapTrack.style.transform = `translate3d(${offset}px, 0, 0)`;
+function scrollMapIntoView(animated) {
+  mapViewport?.scrollTo({
+    left: mapIndex * mapStep(),
+    behavior: animated ? "smooth" : "auto",
+  });
 }
 
-function renderMap(animated = true) {
-  if (!mapViewport || !mapTrack || !HOME_MAPS.length) return;
+function renderMap(animated = true, moveViewport = true) {
+  if (!mapViewport || !HOME_MAPS.length) return;
   const map = HOME_MAPS[mapIndex];
-  setTrackPosition(-mapIndex * mapStep(), animated);
+  if (moveViewport) scrollMapIntoView(animated);
   mapTitle.textContent = map.title;
   mapSubtitle.textContent = map.subtitle;
   mapStatus.textContent = map.available ? "今日营业" : "新店预告";
@@ -216,48 +212,17 @@ mapDots.forEach((dot) => {
   dot.addEventListener("click", () => selectMap(Number(dot.dataset.mapIndex)));
 });
 
-mapViewport?.addEventListener("pointerdown", (event) => {
-  if (!event.isPrimary || event.button > 0 || event.target.closest("button, a")) return;
-  dragPointerId = event.pointerId;
-  dragStartX = event.clientX;
-  dragStartedAt = performance.now();
-  dragOffset = -mapIndex * mapStep();
-  mapViewport.setPointerCapture?.(event.pointerId);
-  setTrackPosition(dragOffset, false);
-});
-
-mapViewport?.addEventListener("pointermove", (event) => {
-  if (event.pointerId !== dragPointerId) return;
-  let deltaX = event.clientX - dragStartX;
-  const pullingPastStart = mapIndex === 0 && deltaX > 0;
-  const pullingPastEnd = mapIndex === HOME_MAPS.length - 1 && deltaX < 0;
-  if (pullingPastStart || pullingPastEnd) deltaX *= 0.28;
-  setTrackPosition(dragOffset + deltaX, false);
-});
-
-function finishMapDrag(event, cancelled = false) {
-  if (event.pointerId !== dragPointerId) return;
-  const elapsed = Math.max(1, performance.now() - dragStartedAt);
-  const deltaX = event.clientX - dragStartX;
-  dragPointerId = null;
-  if (mapViewport?.hasPointerCapture?.(event.pointerId)) {
-    mapViewport.releasePointerCapture(event.pointerId);
-  }
-  if (cancelled) {
-    renderMap();
-    return;
-  }
-  const direction = resolveSwipe({
-    deltaX,
-    width: mapViewport?.clientWidth || 1,
-    velocityX: deltaX / elapsed,
+mapViewport?.addEventListener("scroll", () => {
+  if (mapScrollFrame) return;
+  mapScrollFrame = requestAnimationFrame(() => {
+    mapScrollFrame = 0;
+    const nextIndex = normalizeMapIndex(Math.round(mapViewport.scrollLeft / mapStep()));
+    if (nextIndex === mapIndex) return;
+    mapIndex = nextIndex;
+    writeMapIndex(mapIndex);
+    renderMap(false, false);
   });
-  if (direction) moveMap(direction);
-  else renderMap();
-}
-
-mapViewport?.addEventListener("pointerup", (event) => finishMapDrag(event));
-mapViewport?.addEventListener("pointercancel", (event) => finishMapDrag(event, true));
+}, { passive: true });
 mapViewport?.addEventListener("keydown", (event) => {
   if (event.key === "ArrowLeft") {
     event.preventDefault();

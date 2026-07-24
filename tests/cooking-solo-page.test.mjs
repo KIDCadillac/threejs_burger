@@ -392,19 +392,23 @@ test("root page is a one-screen game lobby with shop mode primary", async () => 
   assert.doesNotMatch(html, /Papa|老爹|pizzeria|burgeria/i);
 });
 
-test("home lobby binds one persisted map carousel gesture across touch, mouse, and keyboard", async () => {
-  const app = await readFile(homeAppPath, "utf8");
+test("home lobby uses native scroll snapping instead of repainting the map on every pointer move", async () => {
+  const [app, css] = await Promise.all([
+    readFile(homeAppPath, "utf8"),
+    readFile(homeCssPath, "utf8"),
+  ]);
   for (const marker of [
     'from "./home-map-carousel-state.mjs"',
     "HOME_MAP_KEY",
-    "resolveSwipe",
-    '"pointerdown"',
-    '"pointermove"',
-    '"pointerup"',
-    '"pointercancel"',
+    '"scroll"',
+    "scrollTo",
     '"ArrowLeft"',
     '"ArrowRight"',
   ]) assert.ok(app.includes(marker), marker);
+  assert.doesNotMatch(app, /"pointermove"/);
+  assert.match(css, /scroll-snap-type:\s*x\s+mandatory/);
+  assert.match(css, /scroll-snap-align:\s*start/);
+  assert.match(css, /-webkit-overflow-scrolling:\s*touch/);
 });
 
 test("burger cookbook keeps recipe quick starts accessible without crowding the lobby", async () => {
