@@ -6,6 +6,7 @@ const htmlPath = new URL("../app/static/cooking.html", import.meta.url);
 const cssPath = new URL("../app/static/cooking.css", import.meta.url);
 const homePath = new URL("../app/static/index.html", import.meta.url);
 const homeCssPath = new URL("../app/static/home.css", import.meta.url);
+const homeAppPath = new URL("../app/static/home-lobby-app.mjs", import.meta.url);
 const appPath = new URL("../app/static/cooking-solo-app.mjs", import.meta.url);
 const loaderPath = new URL("../app/static/cooking-loader.mjs", import.meta.url);
 const feedbackPath = new URL("../app/static/cooking-feedback.mjs", import.meta.url);
@@ -389,6 +390,21 @@ test("root page is a one-screen game lobby with shop mode primary", async () => 
   assert.match(css, /\.home-map-viewport\s*\{[^}]*touch-action:\s*pan-y/s);
   assert.doesNotMatch(css, /background-image\s*:\s*url\(/i);
   assert.doesNotMatch(html, /Papa|老爹|pizzeria|burgeria/i);
+});
+
+test("home lobby binds one persisted map carousel gesture across touch, mouse, and keyboard", async () => {
+  const app = await readFile(homeAppPath, "utf8");
+  for (const marker of [
+    'from "./home-map-carousel-state.mjs"',
+    "HOME_MAP_KEY",
+    "resolveSwipe",
+    '"pointerdown"',
+    '"pointermove"',
+    '"pointerup"',
+    '"pointercancel"',
+    '"ArrowLeft"',
+    '"ArrowRight"',
+  ]) assert.ok(app.includes(marker), marker);
 });
 
 test("burger cookbook keeps recipe quick starts accessible without crowding the lobby", async () => {
