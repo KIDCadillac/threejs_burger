@@ -412,6 +412,27 @@ test("root page is a one-screen game lobby with shop mode primary", async () => 
   assert.doesNotMatch(html, /Papa|老爹|pizzeria|burgeria/i);
 });
 
+test("daily check-in is centered inside phone safe areas without its ribbon covering content", async () => {
+  const css = await readFile(homeCssPath, "utf8");
+  const sheet = css.match(/\.lobby-sheet\s*\{([^}]+)\}/)?.[1] ?? "";
+  const openSheet = css.match(/\.lobby-sheet\[data-open="true"\]\s*\{([^}]+)\}/)?.[1] ?? "";
+  const daily = css.match(/\.daily-sheet\s*\{([^}]+)\}/)?.[1] ?? "";
+  const ribbon = css.match(/\.daily-sheet\s*>\s*\.sheet-ribbon\s*\{([^}]+)\}/)?.[1] ?? "";
+
+  assert.match(sheet, /top:\s*50%/);
+  assert.match(sheet, /left:\s*50%/);
+  assert.match(sheet, /max-height:\s*calc\(100dvh/);
+  assert.match(sheet, /env\(safe-area-inset-top\)/);
+  assert.match(sheet, /env\(safe-area-inset-bottom\)/);
+  assert.match(sheet, /overflow-y:\s*auto/);
+  assert.match(openSheet, /translate\(-50%,\s*-50%\)/);
+  assert.match(daily, /padding-top:\s*(?:4\.[5-9]|[5-9])rem/);
+  assert.match(ribbon, /position:\s*absolute/);
+  assert.match(ribbon, /top:\s*(?:0?\.)?\d+rem/);
+  assert.match(ribbon, /left:\s*50%/);
+  assert.match(ribbon, /margin:\s*0/);
+});
+
 test("home lobby uses one pointer-driven card wheel for swipes arrows and keyboard", async () => {
   const [html, app, css] = await Promise.all([
     readFile(homePath, "utf8"),
@@ -419,7 +440,7 @@ test("home lobby uses one pointer-driven card wheel for swipes arrows and keyboa
     readFile(homeCssPath, "utf8"),
   ]);
   for (const marker of [
-    'from "./home-map-carousel-state.mjs?v=20260724-mode1"',
+    'from "./home-map-carousel-state.mjs?v=20260724-lobbyfix1"',
     "HOME_MAP_KEY",
     "cardWheelPose",
     "resolveSwipe",

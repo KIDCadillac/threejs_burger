@@ -13,7 +13,7 @@ import {
   mapIndexToPhysicalSlide,
   normalizeMapIndex,
   resolveSwipe,
-} from "./home-map-carousel-state.mjs?v=20260724-mode1";
+} from "./home-map-carousel-state.mjs?v=20260724-lobbyfix1";
 import {
   HOME_BUSINESS_KEY,
   HOME_MODE_KEY,

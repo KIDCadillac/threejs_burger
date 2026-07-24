@@ -47,10 +47,10 @@ export function resolveSwipe({ deltaX, width, velocityX }) {
   const distance = Number.isFinite(deltaX) ? deltaX : 0;
   const viewportWidth = Number.isFinite(width) && width > 0 ? width : 1;
   const velocity = Number.isFinite(velocityX) ? velocityX : 0;
-  if (Math.abs(distance) >= Math.max(48, viewportWidth * 0.18)) {
+  if (Math.abs(distance) >= Math.max(36, viewportWidth * 0.105)) {
     return distance < 0 ? 1 : -1;
   }
-  if (Math.abs(velocity) >= 0.65) {
+  if (Math.abs(velocity) >= 0.45) {
     return velocity < 0 ? 1 : -1;
   }
   return 0;
