@@ -367,11 +367,11 @@ test("root page is a one-screen game lobby with shop mode primary", async () => 
     'id="cookbook-sheet"',
     'id="home-map-viewport"',
     'id="home-map-track"',
+    'data-card-wheel',
     'data-home-map="burger"',
     'data-home-map="sushi"',
     'data-map-direction="-1"',
     'data-map-direction="1"',
-    'id="home-map-dots"',
     'id="home-map-count"',
     'id="map-primary-action"',
     'aria-disabled="true"',
@@ -388,8 +388,9 @@ test("root page is a one-screen game lobby with shop mode primary", async () => 
     "复刻对决",
     "深夜寿司店",
     "寿司店筹备中",
-    "左右滑动切换地图",
   ]) assert.ok(html.includes(marker), marker);
+  assert.doesNotMatch(html, /id="home-map-dots"/);
+  assert.doesNotMatch(html, /<span>左右滑动切换地图<\/span>/);
   assert.match(html, /今天也要好好做汉堡/);
   assert.ok(
     html.indexOf('href="./cooking.html?mode=orders"') < html.indexOf('href="./replica-duel.html"'),
@@ -399,39 +400,45 @@ test("root page is a one-screen game lobby with shop mode primary", async () => 
   assert.match(css, /min-height:\s*(?:44|48|52|56)px/);
   assert.match(css, /env\(safe-area-inset-top\)/);
   assert.match(css, /env\(safe-area-inset-bottom\)/);
-  assert.match(css, /\.home-map-track\s*\{[^}]*display:\s*flex/s);
+  assert.match(css, /\.home-map-viewport\s*\{[^}]*perspective:\s*900px/s);
   assert.match(css, /\.home-map-viewport\s*\{[^}]*touch-action:\s*pan-y/s);
+  assert.match(css, /\.home-map-slide\s*\{[^}]*position:\s*absolute/s);
+  assert.match(css, /rotateY\(var\(--map-rotate-y\)\)/);
+  assert.match(css, /\.home-map-viewport\.is-dragging \.home-map-slide\s*\{[^}]*transition:\s*none/s);
   assert.doesNotMatch(css, /background-image\s*:\s*url\(/i);
   assert.doesNotMatch(html, /Papa|老爹|pizzeria|burgeria/i);
 });
 
-test("home lobby uses native scroll snapping instead of repainting the map on every pointer move", async () => {
+test("home lobby uses one pointer-driven card wheel for swipes arrows and keyboard", async () => {
   const [html, app, css] = await Promise.all([
     readFile(homePath, "utf8"),
     readFile(homeAppPath, "utf8"),
     readFile(homeCssPath, "utf8"),
   ]);
   for (const marker of [
-    'from "./home-map-carousel-state.mjs"',
+    'from "./home-map-carousel-state.mjs?v=20260724-wheel1"',
     "HOME_MAP_KEY",
-    '"scroll"',
-    "scrollTo",
+    "cardWheelPose",
+    "resolveSwipe",
     "cloneNode",
     "data-map-clone",
-    "settleLoopPosition",
-    '"scrollend"',
+    '"pointerdown"',
+    "setPointerCapture",
+    '"pointermove"',
+    '"pointerup"',
+    "renderWheel",
     '"ArrowLeft"',
     '"ArrowRight"',
   ]) assert.ok(app.includes(marker), marker);
-  assert.doesNotMatch(app, /"pointermove"/);
+  assert.doesNotMatch(app, /addEventListener\("scroll"/);
+  assert.doesNotMatch(app, /scrollTo\(/);
   assert.doesNotMatch(app, /arrow\.disabled/);
   assert.doesNotMatch(
     html,
     /data-map-direction="-1"[^>]*\sdisabled(?:\s|>)/,
   );
-  assert.match(css, /scroll-snap-type:\s*x\s+mandatory/);
-  assert.match(css, /scroll-snap-align:\s*start/);
-  assert.match(css, /-webkit-overflow-scrolling:\s*touch/);
+  assert.match(css, /perspective:\s*900px/);
+  assert.match(css, /rotateY\(var\(--map-rotate-y\)\)/);
 });
 
 test("burger cookbook keeps recipe quick starts accessible without crowding the lobby", async () => {
