@@ -13,7 +13,17 @@ import {
   mapIndexToPhysicalSlide,
   normalizeMapIndex,
   resolveSwipe,
-} from "./home-map-carousel-state.mjs?v=20260724-wheel1";
+} from "./home-map-carousel-state.mjs?v=20260724-mode1";
+import {
+  HOME_BUSINESS_KEY,
+  HOME_MODE_KEY,
+  HOME_MODES,
+  changeModeIndex,
+  lockGestureAxis,
+  normalizeBusinessOpen,
+  normalizeModeIndex,
+  resolveModeSwipe,
+} from "./home-mode-switch-state.mjs?v=20260724-mode1";
 
 const storage = window.localStorage;
 const energyValue = document.querySelector("#energy-value");
@@ -33,17 +43,31 @@ const mapCount = document.querySelector("#home-map-count");
 const mapStatus = document.querySelector("#map-status");
 const mapTitle = document.querySelector("#lobby-title");
 const mapSubtitle = document.querySelector("#map-subtitle");
-const mapPrimaryAction = document.querySelector("#map-primary-action");
+const lobbyStage = document.querySelector(".lobby-stage");
+const modeIndicator = document.querySelector("#home-mode-indicator");
+const modeLabel = document.querySelector("#home-mode-label");
+const modeHint = document.querySelector("#home-mode-hint");
+const modeCards = [...document.querySelectorAll("[data-home-mode-index]")];
+const businessToggle = document.querySelector("[data-business-toggle]");
+const businessLabel = document.querySelector("#business-label");
+const businessHint = document.querySelector("#business-hint");
 let openSheet = null;
 let toastTimer = 0;
 let mapIndex = readMapIndex();
+let modeIndex = readModeIndex();
+let businessOpen = readBusinessOpen();
 let wheelPhysicalIndex = mapIndexToPhysicalSlide(mapIndex);
 let wheelTransitioning = false;
 let wheelTimer = 0;
 let dragPointerId = null;
 let dragStartX = 0;
+let dragStartY = 0;
 let dragStartTime = 0;
 let dragDeltaX = 0;
+let dragDeltaY = 0;
+let gestureAxis = null;
+let gestureMoved = false;
+let suppressMapClick = false;
 const WHEEL_TRANSITION_MS = 400;
 
 function cloneMapSlide(slide) {
@@ -76,6 +100,38 @@ function writeMapIndex(index) {
     storage.setItem(HOME_MAP_KEY, String(normalizeMapIndex(index)));
   } catch {
     // The lobby remains playable when private browsing blocks storage.
+  }
+}
+
+function readModeIndex() {
+  try {
+    return normalizeModeIndex(storage.getItem(HOME_MODE_KEY));
+  } catch {
+    return 0;
+  }
+}
+
+function writeModeIndex(index) {
+  try {
+    storage.setItem(HOME_MODE_KEY, String(normalizeModeIndex(index)));
+  } catch {
+    // Mode switching stays available when storage is blocked.
+  }
+}
+
+function readBusinessOpen() {
+  try {
+    return normalizeBusinessOpen(storage.getItem(HOME_BUSINESS_KEY));
+  } catch {
+    return false;
+  }
+}
+
+function writeBusinessOpen(isOpen) {
+  try {
+    storage.setItem(HOME_BUSINESS_KEY, isOpen ? "open" : "closed");
+  } catch {
+    // The physical sign still toggles for this session.
   }
 }
 
@@ -120,23 +176,73 @@ function renderMap() {
   const map = HOME_MAPS[mapIndex];
   mapTitle.textContent = map.title;
   mapSubtitle.textContent = map.subtitle;
-  mapStatus.textContent = map.available ? "今日营业" : "新店预告";
   mapCount.textContent = `${mapIndex + 1}/${HOME_MAPS.length}`;
 
   mapSlides.forEach((slide, index) => {
     slide.setAttribute("aria-hidden", String(index !== mapIndex));
   });
-  const hint = mapPrimaryAction?.querySelector("small");
-  const label = mapPrimaryAction?.querySelector("strong");
-  if (hint) hint.textContent = map.actionHint;
-  if (label) label.textContent = map.actionLabel;
-  mapPrimaryAction?.classList.toggle("is-disabled", !map.available);
-  mapPrimaryAction?.setAttribute("aria-disabled", String(!map.available));
-  if (map.available) {
-    mapPrimaryAction.href = map.href;
-  } else {
-    mapPrimaryAction.removeAttribute("href");
+  renderBusiness();
+}
+
+function resetModePreview() {
+  modeIndicator?.style.setProperty("--mode-drag-y", "0px");
+  modeIndicator?.style.setProperty("--mode-drag-rotate", "0deg");
+}
+
+function renderMode({ animate = false } = {}) {
+  const mode = HOME_MODES[modeIndex];
+  if (!mode) return;
+  if (modeLabel) modeLabel.textContent = mode.label;
+  if (modeHint) modeHint.textContent = mode.hint;
+  modeCards.forEach((card) => {
+    const active = normalizeModeIndex(card.dataset.homeModeIndex) === modeIndex;
+    card.classList.toggle("is-active", active);
+    if (active) card.setAttribute("aria-current", "true");
+    else card.removeAttribute("aria-current");
+  });
+  resetModePreview();
+  if (!animate || !modeIndicator) return;
+  modeIndicator.classList.remove("is-switching");
+  void modeIndicator.offsetWidth;
+  modeIndicator.classList.add("is-switching");
+}
+
+function moveMode(direction, { persist = true, animate = true } = {}) {
+  const step = Math.sign(Number(direction) || 0);
+  if (!step || HOME_MODES.length < 2) return false;
+  modeIndex = changeModeIndex(modeIndex, step);
+  if (persist) writeModeIndex(modeIndex);
+  renderMode({ animate });
+  return true;
+}
+
+function activateMode() {
+  const action = HOME_MODES[modeIndex]?.action;
+  if (action === "practice") window.location.href = "./cooking.html?mode=practice";
+  if (action === "cookbook") showSheet("cookbook-sheet");
+  if (action === "duel") window.location.href = "./replica-duel.html";
+  if (action === "sushi") {
+    selectMap(1);
+    showToast("寿司店还在筹备，先看看新店招牌");
   }
+}
+
+function renderBusiness() {
+  const map = HOME_MAPS[mapIndex];
+  businessToggle?.setAttribute("aria-pressed", String(businessOpen));
+  if (businessLabel) businessLabel.textContent = businessOpen ? "关门打烊" : "开门营业";
+  if (businessHint) businessHint.textContent = businessOpen ? "店铺正在营业" : "店铺当前已打烊";
+  lobbyStage?.classList.toggle("is-open", businessOpen);
+  if (mapStatus) {
+    mapStatus.textContent = map?.available ? (businessOpen ? "营业中" : "已打烊") : "新店预告";
+  }
+}
+
+function toggleBusiness() {
+  businessOpen = !businessOpen;
+  writeBusinessOpen(businessOpen);
+  renderBusiness();
+  showToast(businessOpen ? "挂牌翻到营业中，欢迎光临！" : "挂牌翻到已打烊，今天辛苦了");
 }
 
 function selectMap(nextIndex, { persist = true } = {}) {
@@ -181,8 +287,13 @@ function beginMapDrag(event) {
   if (event.pointerType === "mouse" && event.button !== 0) return;
   dragPointerId = event.pointerId;
   dragStartX = event.clientX;
+  dragStartY = event.clientY;
   dragStartTime = performance.now();
   dragDeltaX = 0;
+  dragDeltaY = 0;
+  gestureAxis = null;
+  gestureMoved = false;
+  suppressMapClick = false;
   mapViewport.classList.add("is-dragging");
   mapViewport.setPointerCapture?.(event.pointerId);
 }
@@ -190,25 +301,57 @@ function beginMapDrag(event) {
 function updateMapDrag(event) {
   if (event.pointerId !== dragPointerId) return;
   dragDeltaX = event.clientX - dragStartX;
-  const width = Math.max(1, mapViewport.clientWidth);
-  const progress = -dragDeltaX / (width * 0.72);
-  renderWheel(progress);
-  if (Math.abs(dragDeltaX) > 8) event.preventDefault();
+  dragDeltaY = event.clientY - dragStartY;
+  if (!gestureAxis) gestureAxis = lockGestureAxis({ deltaX: dragDeltaX, deltaY: dragDeltaY });
+  if (!gestureAxis) return;
+  gestureMoved = true;
+  if (gestureAxis === "horizontal") {
+    const width = Math.max(1, mapViewport.clientWidth);
+    const progress = -dragDeltaX / (width * 0.72);
+    renderWheel(progress);
+  } else {
+    const height = Math.max(1, mapViewport.clientHeight);
+    const progress = Math.max(-1, Math.min(1, dragDeltaY / (height * 0.42)));
+    modeIndicator?.style.setProperty("--mode-drag-y", `${progress * 18}px`);
+    modeIndicator?.style.setProperty("--mode-drag-rotate", `${progress * -10}deg`);
+  }
+  event.preventDefault();
 }
 
 function endMapDrag(event, cancelled = false) {
   if (event.pointerId !== dragPointerId) return;
   const elapsed = Math.max(1, performance.now() - dragStartTime);
-  const direction = cancelled ? 0 : resolveSwipe({
-    deltaX: dragDeltaX,
-    width: mapViewport.clientWidth,
-    velocityX: dragDeltaX / elapsed,
-  });
   mapViewport.releasePointerCapture?.(event.pointerId);
   dragPointerId = null;
   mapViewport.classList.remove("is-dragging");
-  if (direction) moveMap(direction);
-  else snapWheelBack();
+  suppressMapClick = gestureMoved;
+  if (cancelled) {
+    renderWheel();
+    resetModePreview();
+    return;
+  }
+  if (gestureAxis === "horizontal") {
+    const direction = resolveSwipe({
+      deltaX: dragDeltaX,
+      width: mapViewport.clientWidth,
+      velocityX: dragDeltaX / elapsed,
+    });
+    if (direction) moveMap(direction);
+    else snapWheelBack();
+    return;
+  }
+  if (gestureAxis === "vertical") {
+    const direction = resolveModeSwipe({
+      deltaY: dragDeltaY,
+      height: mapViewport.clientHeight,
+      velocityY: dragDeltaY / elapsed,
+    });
+    if (direction) moveMode(direction);
+    else resetModePreview();
+    return;
+  }
+  renderWheel();
+  resetModePreview();
 }
 
 function readProgress() {
@@ -281,6 +424,13 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const modeCard = event.target.closest("[data-home-mode-index]");
+  if (modeCard) {
+    modeIndex = normalizeModeIndex(modeCard.dataset.homeModeIndex);
+    writeModeIndex(modeIndex);
+    renderMode({ animate: true });
+  }
+
   const action = event.target.closest("[data-home-action]")?.dataset.homeAction;
   if (!action) return;
   if (action === "daily-checkin") showSheet("daily-checkin");
@@ -297,11 +447,7 @@ document.addEventListener("click", (event) => {
   }
 });
 
-mapPrimaryAction?.addEventListener("click", (event) => {
-  if (HOME_MAPS[mapIndex]?.available) return;
-  event.preventDefault();
-  showToast("寿司店还在筹备，先去汉堡小馆营业吧");
-});
+businessToggle?.addEventListener("click", toggleBusiness);
 
 mapArrows.forEach((arrow) => {
   arrow.addEventListener("click", () => moveMap(Number(arrow.dataset.mapDirection)));
@@ -311,6 +457,14 @@ mapViewport?.addEventListener("pointerdown", beginMapDrag);
 mapViewport?.addEventListener("pointermove", updateMapDrag);
 mapViewport?.addEventListener("pointerup", (event) => endMapDrag(event));
 mapViewport?.addEventListener("pointercancel", (event) => endMapDrag(event, true));
+mapViewport?.addEventListener("click", (event) => {
+  if (suppressMapClick) {
+    suppressMapClick = false;
+    event.preventDefault();
+    return;
+  }
+  activateMode();
+});
 mapViewport?.addEventListener("keydown", (event) => {
   if (event.key === "ArrowLeft") {
     event.preventDefault();
@@ -319,6 +473,14 @@ mapViewport?.addEventListener("keydown", (event) => {
   if (event.key === "ArrowRight") {
     event.preventDefault();
     moveMap(1);
+  }
+  if (event.key === "ArrowUp") {
+    event.preventDefault();
+    moveMode(1);
+  }
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    moveMode(-1);
   }
 });
 
@@ -345,6 +507,8 @@ renderProgress();
 requestAnimationFrame(() => {
   renderMap();
   renderWheel();
+  renderMode();
+  renderBusiness();
 });
 if (progress.lastClaimDay !== dayStamp()) {
   window.setTimeout(() => showSheet("daily-checkin"), 280);

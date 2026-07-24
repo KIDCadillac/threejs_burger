@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f8c948">
     <title>开饭啦 · 汉堡小馆</title>
-    <link rel="stylesheet" href="./home.css?v=20260724-wheel1">
-    <script type="module" src="./home-lobby-app.mjs?v=20260724-wheel1"></script>
+    <link rel="stylesheet" href="./home.css?v=20260724-mode1">
+    <script type="module" src="./home-lobby-app.mjs?v=20260724-mode1"></script>
   </head>
   <body>
     <main class="lobby-shell">
@@ -100,27 +100,32 @@
             </div>
           </div>
           <button class="home-map-arrow home-map-arrow--right" type="button" data-map-direction="1" aria-label="下一张地图">›</button>
+          <div class="home-mode-indicator" id="home-mode-indicator" aria-live="polite">
+            <small>当前玩法</small>
+            <strong id="home-mode-label">自由练习</strong>
+            <span id="home-mode-hint">不限时间</span>
+          </div>
           <div class="home-map-meta">
             <strong id="home-map-count">1/2</strong>
           </div>
         </div>
 
-        <a class="open-shop-button" id="map-primary-action" href="./cooking.html?mode=orders">
-          <span><small>3 位顾客 · 连续出餐</small><strong>开门营业</strong></span>
+        <button class="open-shop-button" id="map-primary-action" type="button" data-business-toggle aria-pressed="false">
+          <span><small id="business-hint">店铺当前已打烊</small><strong id="business-label">开门营业</strong></span>
           <b aria-hidden="true">›</b>
-        </a>
+        </button>
 
         <nav class="lobby-actions" aria-label="游戏功能">
-          <a class="lobby-action lobby-action--practice" href="./cooking.html?mode=practice">
+          <a class="lobby-action lobby-action--practice is-active" href="./cooking.html?mode=practice" data-home-mode-index="0" aria-current="true">
             <span aria-hidden="true">练</span><strong>自由练习</strong><small>不限时间</small>
           </a>
-          <button class="lobby-action lobby-action--book" type="button" data-home-action="cookbook">
+          <button class="lobby-action lobby-action--book" type="button" data-home-action="cookbook" data-home-mode-index="1">
             <span aria-hidden="true">册</span><strong>汉堡图鉴</strong><small>配方收藏</small>
           </button>
-          <a class="lobby-action lobby-action--duel" href="./replica-duel.html">
+          <a class="lobby-action lobby-action--duel" href="./replica-duel.html" data-home-mode-index="2">
             <span aria-hidden="true">双</span><strong>复刻对决</strong><small>双人轮换</small>
           </a>
-          <button class="lobby-action lobby-action--sushi" type="button" data-home-action="sushi">
+          <button class="lobby-action lobby-action--sushi" type="button" data-home-action="sushi" data-home-mode-index="3">
             <span aria-hidden="true">鮨</span><strong>寿司店</strong><small>筹备中</small><i class="sr-only">寿司店筹备中</i>
           </button>
         </nav>
