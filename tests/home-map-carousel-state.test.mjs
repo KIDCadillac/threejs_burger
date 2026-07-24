@@ -40,6 +40,7 @@ test("logical maps map through the two invisible boundary clones", () => {
 test("swipe resolves by distance or velocity and otherwise returns", () => {
   assert.equal(resolveSwipe({ deltaX: -90, width: 400, velocityX: 0 }), 1);
   assert.equal(resolveSwipe({ deltaX: -44, width: 390, velocityX: -0.2 }), 1);
+  assert.equal(resolveSwipe({ deltaX: -26, width: 390, velocityX: -0.1 }), 1);
   assert.equal(resolveSwipe({ deltaX: 20, width: 400, velocityX: 0 }), 0);
   assert.equal(resolveSwipe({ deltaX: 18, width: 400, velocityX: 0.8 }), -1);
 });
