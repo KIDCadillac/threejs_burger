@@ -432,6 +432,18 @@ test("home lobby uses one pointer-driven card wheel for swipes arrows and keyboa
     "renderWheel",
     '"ArrowLeft"',
     '"ArrowRight"',
+    "HOME_MODE_KEY",
+    "HOME_BUSINESS_KEY",
+    "lockGestureAxis",
+    "resolveModeSwipe",
+    "dragStartY",
+    "gestureAxis",
+    "moveMode",
+    "renderMode",
+    "renderBusiness",
+    '"ArrowUp"',
+    '"ArrowDown"',
+    "data-business-toggle",
   ]) assert.ok(app.includes(marker), marker);
   assert.doesNotMatch(app, /addEventListener\("scroll"/);
   assert.doesNotMatch(app, /scrollTo\(/);
