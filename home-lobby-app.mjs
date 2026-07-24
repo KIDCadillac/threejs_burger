@@ -8,11 +8,12 @@ import {
 import {
   HOME_MAP_KEY,
   HOME_MAPS,
+  cardWheelPose,
   changeMapIndex,
   mapIndexToPhysicalSlide,
   normalizeMapIndex,
-  physicalSlideToMapIndex,
-} from "./home-map-carousel-state.mjs";
+  resolveSwipe,
+} from "./home-map-carousel-state.mjs?v=20260724-wheel1";
 
 const storage = window.localStorage;
 const energyValue = document.querySelector("#energy-value");
@@ -28,7 +29,6 @@ const mapTrack = document.querySelector("#home-map-track");
 const mapSlides = [...document.querySelectorAll("[data-home-map]")];
 const mapLoopSlides = setupMapLoopSlides();
 const mapArrows = [...document.querySelectorAll("[data-map-direction]")];
-const mapDots = [...document.querySelectorAll("[data-map-index]")];
 const mapCount = document.querySelector("#home-map-count");
 const mapStatus = document.querySelector("#map-status");
 const mapTitle = document.querySelector("#lobby-title");
@@ -37,8 +37,14 @@ const mapPrimaryAction = document.querySelector("#map-primary-action");
 let openSheet = null;
 let toastTimer = 0;
 let mapIndex = readMapIndex();
-let mapScrollFrame = 0;
-let mapSettleTimer = 0;
+let wheelPhysicalIndex = mapIndexToPhysicalSlide(mapIndex);
+let wheelTransitioning = false;
+let wheelTimer = 0;
+let dragPointerId = null;
+let dragStartX = 0;
+let dragStartTime = 0;
+let dragDeltaX = 0;
+const WHEEL_TRANSITION_MS = 400;
 
 function cloneMapSlide(slide) {
   const clone = slide.cloneNode(true);
@@ -73,53 +79,45 @@ function writeMapIndex(index) {
   }
 }
 
-function mapStep() {
-  const measured = mapLoopSlides[1]?.offsetLeft - mapLoopSlides[0]?.offsetLeft;
-  return measured > 0 ? measured : Math.max(1, mapViewport?.clientWidth || 1);
-}
-
-function physicalMapSlide() {
-  return Math.round((mapViewport?.scrollLeft || 0) / mapStep());
-}
-
-function scrollToPhysicalSlide(physicalSlide, animated) {
-  mapViewport?.scrollTo({
-    left: physicalSlide * mapStep(),
-    behavior: animated ? "smooth" : "auto",
+function renderWheel(progress = 0) {
+  const dragProgress = Math.max(-1, Math.min(1, Number(progress) || 0));
+  const center = wheelPhysicalIndex + dragProgress;
+  mapLoopSlides.forEach((slide, physicalIndex) => {
+    const pose = cardWheelPose(physicalIndex - center);
+    slide.style.setProperty("--map-translate-x", `${pose.translatePercent}%`);
+    slide.style.setProperty("--map-rotate-y", `${pose.rotateY}deg`);
+    slide.style.setProperty("--map-scale", String(pose.scale));
+    slide.style.setProperty("--map-opacity", String(pose.opacity));
+    slide.style.zIndex = String(pose.zIndex);
   });
 }
 
-function scrollMapIntoView(animated) {
-  scrollToPhysicalSlide(mapIndexToPhysicalSlide(mapIndex), animated);
+function normalizeWheelLoop() {
+  let normalized = wheelPhysicalIndex;
+  if (normalized <= 0) normalized = HOME_MAPS.length;
+  if (normalized >= HOME_MAPS.length + 1) normalized = 1;
+  if (normalized === wheelPhysicalIndex) return;
+  wheelPhysicalIndex = normalized;
+  mapViewport?.classList.add("is-wheel-jump");
+  renderWheel();
+  requestAnimationFrame(() => mapViewport?.classList.remove("is-wheel-jump"));
 }
 
-function jumpToPhysicalSlide(physicalSlide) {
-  if (!mapViewport) return;
-  const previousBehavior = mapViewport.style.scrollBehavior;
-  const previousSnapType = mapViewport.style.scrollSnapType;
-  mapViewport.style.scrollBehavior = "auto";
-  mapViewport.style.scrollSnapType = "none";
-  mapViewport.scrollLeft = physicalSlide * mapStep();
-  requestAnimationFrame(() => {
-    mapViewport.style.scrollBehavior = previousBehavior;
-    mapViewport.style.scrollSnapType = previousSnapType;
-  });
+function finishWheelTransition() {
+  window.clearTimeout(wheelTimer);
+  normalizeWheelLoop();
+  wheelTransitioning = false;
+  mapViewport?.removeAttribute("aria-busy");
 }
 
-function settleLoopPosition() {
-  window.clearTimeout(mapSettleTimer);
-  const physical = physicalMapSlide();
-  if (physical <= 0) {
-    jumpToPhysicalSlide(HOME_MAPS.length);
-  } else if (physical >= HOME_MAPS.length + 1) {
-    jumpToPhysicalSlide(1);
-  }
+function queueWheelFinish() {
+  window.clearTimeout(wheelTimer);
+  wheelTimer = window.setTimeout(finishWheelTransition, WHEEL_TRANSITION_MS);
 }
 
-function renderMap(animated = true, moveViewport = true) {
+function renderMap() {
   if (!mapViewport || !HOME_MAPS.length) return;
   const map = HOME_MAPS[mapIndex];
-  if (moveViewport) scrollMapIntoView(animated);
   mapTitle.textContent = map.title;
   mapSubtitle.textContent = map.subtitle;
   mapStatus.textContent = map.available ? "今日营业" : "新店预告";
@@ -127,12 +125,6 @@ function renderMap(animated = true, moveViewport = true) {
 
   mapSlides.forEach((slide, index) => {
     slide.setAttribute("aria-hidden", String(index !== mapIndex));
-  });
-  mapDots.forEach((dot, index) => {
-    const active = index === mapIndex;
-    dot.classList.toggle("is-active", active);
-    if (active) dot.setAttribute("aria-current", "true");
-    else dot.removeAttribute("aria-current");
   });
   const hint = mapPrimaryAction?.querySelector("small");
   const label = mapPrimaryAction?.querySelector("strong");
@@ -147,18 +139,16 @@ function renderMap(animated = true, moveViewport = true) {
   }
 }
 
-function selectMap(nextIndex, { animated = true, persist = true } = {}) {
+function selectMap(nextIndex, { persist = true } = {}) {
   const normalized = normalizeMapIndex(nextIndex);
-  const changed = normalized !== mapIndex;
-  mapIndex = normalized;
-  if (persist) writeMapIndex(mapIndex);
-  renderMap(animated);
-  return changed;
+  if (normalized === mapIndex) return false;
+  const direction = changeMapIndex(mapIndex, 1) === normalized ? 1 : -1;
+  return moveMap(direction, { persist });
 }
 
-function moveMap(direction) {
+function moveMap(direction, { persist = true } = {}) {
   const step = Math.sign(Number(direction) || 0);
-  if (!step) return false;
+  if (!step || wheelTransitioning || HOME_MAPS.length < 2) return false;
   const previousIndex = mapIndex;
   const nextIndex = changeMapIndex(previousIndex, step);
   let physicalTarget = mapIndexToPhysicalSlide(nextIndex);
@@ -167,10 +157,58 @@ function moveMap(direction) {
     physicalTarget = HOME_MAPS.length + 1;
   }
   mapIndex = nextIndex;
-  writeMapIndex(mapIndex);
-  renderMap(false, false);
-  scrollToPhysicalSlide(physicalTarget, true);
+  wheelPhysicalIndex = physicalTarget;
+  wheelTransitioning = true;
+  mapViewport?.classList.remove("is-dragging");
+  mapViewport?.setAttribute("aria-busy", "true");
+  if (persist) writeMapIndex(mapIndex);
+  renderMap();
+  renderWheel();
+  queueWheelFinish();
   return true;
+}
+
+function snapWheelBack() {
+  wheelTransitioning = true;
+  mapViewport?.classList.remove("is-dragging");
+  mapViewport?.setAttribute("aria-busy", "true");
+  renderWheel();
+  queueWheelFinish();
+}
+
+function beginMapDrag(event) {
+  if (wheelTransitioning || HOME_MAPS.length < 2) return;
+  if (event.pointerType === "mouse" && event.button !== 0) return;
+  dragPointerId = event.pointerId;
+  dragStartX = event.clientX;
+  dragStartTime = performance.now();
+  dragDeltaX = 0;
+  mapViewport.classList.add("is-dragging");
+  mapViewport.setPointerCapture?.(event.pointerId);
+}
+
+function updateMapDrag(event) {
+  if (event.pointerId !== dragPointerId) return;
+  dragDeltaX = event.clientX - dragStartX;
+  const width = Math.max(1, mapViewport.clientWidth);
+  const progress = -dragDeltaX / (width * 0.72);
+  renderWheel(progress);
+  if (Math.abs(dragDeltaX) > 8) event.preventDefault();
+}
+
+function endMapDrag(event, cancelled = false) {
+  if (event.pointerId !== dragPointerId) return;
+  const elapsed = Math.max(1, performance.now() - dragStartTime);
+  const direction = cancelled ? 0 : resolveSwipe({
+    deltaX: dragDeltaX,
+    width: mapViewport.clientWidth,
+    velocityX: dragDeltaX / elapsed,
+  });
+  mapViewport.releasePointerCapture?.(event.pointerId);
+  dragPointerId = null;
+  mapViewport.classList.remove("is-dragging");
+  if (direction) moveMap(direction);
+  else snapWheelBack();
 }
 
 function readProgress() {
@@ -269,24 +307,10 @@ mapArrows.forEach((arrow) => {
   arrow.addEventListener("click", () => moveMap(Number(arrow.dataset.mapDirection)));
 });
 
-mapDots.forEach((dot) => {
-  dot.addEventListener("click", () => selectMap(Number(dot.dataset.mapIndex)));
-});
-
-mapViewport?.addEventListener("scroll", () => {
-  window.clearTimeout(mapSettleTimer);
-  mapSettleTimer = window.setTimeout(settleLoopPosition, 120);
-  if (mapScrollFrame) return;
-  mapScrollFrame = requestAnimationFrame(() => {
-    mapScrollFrame = 0;
-    const nextIndex = physicalSlideToMapIndex(physicalMapSlide());
-    if (nextIndex === mapIndex) return;
-    mapIndex = nextIndex;
-    writeMapIndex(mapIndex);
-    renderMap(false, false);
-  });
-}, { passive: true });
-mapViewport?.addEventListener("scrollend", settleLoopPosition, { passive: true });
+mapViewport?.addEventListener("pointerdown", beginMapDrag);
+mapViewport?.addEventListener("pointermove", updateMapDrag);
+mapViewport?.addEventListener("pointerup", (event) => endMapDrag(event));
+mapViewport?.addEventListener("pointercancel", (event) => endMapDrag(event, true));
 mapViewport?.addEventListener("keydown", (event) => {
   if (event.key === "ArrowLeft") {
     event.preventDefault();
@@ -298,7 +322,10 @@ mapViewport?.addEventListener("keydown", (event) => {
   }
 });
 
-window.addEventListener("resize", () => renderMap(false));
+window.addEventListener("resize", () => {
+  renderMap();
+  renderWheel();
+});
 
 claimButton.addEventListener("click", () => {
   const result = claimDailyReward(progress);
@@ -315,7 +342,10 @@ window.addEventListener("keydown", (event) => {
 });
 
 renderProgress();
-requestAnimationFrame(() => renderMap(false));
+requestAnimationFrame(() => {
+  renderMap();
+  renderWheel();
+});
 if (progress.lastClaimDay !== dayStamp()) {
   window.setTimeout(() => showSheet("daily-checkin"), 280);
 }

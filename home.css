@@ -150,36 +150,43 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 }
 .home-map-viewport {
   position: absolute;
-  inset: 0 1.25rem 2.15rem;
-  overflow-x: auto;
-  overflow-y: hidden;
+  inset: 0 .2rem 1.55rem;
+  overflow: hidden;
   border-radius: 2.3rem 2.3rem 1.4rem 1.4rem;
   cursor: grab;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-  scroll-behavior: smooth;
-  scroll-snap-type: x mandatory;
-  touch-action: pan-y pan-x;
-  -webkit-overflow-scrolling: touch;
+  perspective: 900px;
+  touch-action: pan-y;
+  user-select: none;
 }
 .home-map-viewport:active { cursor: grabbing; }
-.home-map-viewport::-webkit-scrollbar { display: none; }
 .home-map-track {
-  display: flex;
+  position: relative;
   width: 100%;
   height: 100%;
-  gap: .65rem;
+  transform-style: preserve-3d;
 }
 .home-map-slide {
-  position: relative;
-  flex: 0 0 100%;
-  min-width: 0;
-  height: 100%;
+  --map-translate-x: 0%;
+  --map-rotate-y: 0deg;
+  --map-scale: 1;
+  --map-opacity: 1;
+  position: absolute;
+  inset: 0 2.7rem .2rem;
   contain: layout paint;
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
-  transform: translateZ(0);
+  opacity: var(--map-opacity);
+  transform:
+    translateX(var(--map-translate-x))
+    rotateY(var(--map-rotate-y))
+    scale(var(--map-scale));
+  transform-origin: center center;
+  transition:
+    transform 380ms cubic-bezier(.2,.8,.2,1),
+    opacity 260ms ease;
+  will-change: transform, opacity;
+  pointer-events: none;
 }
+.home-map-viewport.is-dragging .home-map-slide { transition: none; }
+.home-map-viewport.is-wheel-jump .home-map-slide { transition: none; }
 .diner-scene {
   position: relative;
   width: 100%;
@@ -195,23 +202,23 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .home-map-arrow {
   position: absolute;
   z-index: 18;
-  top: calc(50% - 2.2rem);
+  top: calc(50% - 2.55rem);
   display: grid;
-  width: 3rem;
-  height: 3.6rem;
+  width: 3.15rem;
+  height: 4.2rem;
   padding: 0;
   place-items: center;
   border: 2px solid rgba(60,37,23,.58);
-  border-radius: 1.15rem;
+  border-radius: 1.35rem;
   color: #4b2718;
   background: rgba(255,244,210,.92);
   box-shadow: 0 4px 0 rgba(60,37,23,.48);
-  font-size: 2rem;
+  font-size: 2.15rem;
   font-weight: 1000;
   cursor: pointer;
 }
-.home-map-arrow--left { left: -.3rem; }
-.home-map-arrow--right { right: -.3rem; }
+.home-map-arrow--left { left: -.15rem; }
+.home-map-arrow--right { right: -.15rem; }
 .home-map-arrow:disabled {
   opacity: .26;
   box-shadow: none;
@@ -222,34 +229,13 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   z-index: 12;
   right: 1.25rem;
   bottom: 0;
-  left: 1.25rem;
-  display: grid;
-  grid-template-columns: 4.4rem 1fr 4.4rem;
+  display: flex;
   align-items: center;
+  justify-content: flex-end;
   color: #5b321e;
   font-size: .68rem;
   font-weight: 950;
   text-align: center;
-}
-.home-map-meta > strong { justify-self: end; }
-.home-map-dots {
-  display: flex;
-  justify-self: start;
-  gap: .42rem;
-}
-.home-map-dot {
-  width: .58rem;
-  height: .58rem;
-  padding: 0;
-  border: 2px solid #6b3b22;
-  border-radius: 50%;
-  background: rgba(255,244,210,.55);
-  cursor: pointer;
-}
-.home-map-dot.is-active {
-  width: 1.35rem;
-  border-radius: 999px;
-  background: #e64b3f;
 }
 .awning {
   position: absolute;

@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f8c948">
     <title>开饭啦 · 汉堡小馆</title>
-    <link rel="stylesheet" href="./home.css?v=20260724-map4">
-    <script type="module" src="./home-lobby-app.mjs?v=20260724-map3"></script>
+    <link rel="stylesheet" href="./home.css?v=20260724-wheel1">
+    <script type="module" src="./home-lobby-app.mjs?v=20260724-wheel1"></script>
   </head>
   <body>
     <main class="lobby-shell">
@@ -36,7 +36,7 @@
           <p id="map-subtitle">今天也要好好做汉堡</p>
         </div>
 
-        <div class="map-carousel">
+        <div class="map-carousel" data-card-wheel>
           <button class="home-map-arrow home-map-arrow--left" type="button" data-map-direction="-1" aria-label="上一张地图">‹</button>
           <div
             class="home-map-viewport"
@@ -101,11 +101,6 @@
           </div>
           <button class="home-map-arrow home-map-arrow--right" type="button" data-map-direction="1" aria-label="下一张地图">›</button>
           <div class="home-map-meta">
-            <div class="home-map-dots" id="home-map-dots" aria-label="地图位置">
-              <button class="home-map-dot is-active" type="button" data-map-index="0" aria-label="汉堡小馆" aria-current="true"></button>
-              <button class="home-map-dot" type="button" data-map-index="1" aria-label="深夜寿司店"></button>
-            </div>
-            <span>左右滑动切换地图</span>
             <strong id="home-map-count">1/2</strong>
           </div>
         </div>
