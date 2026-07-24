@@ -1,0 +1,40 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  HOME_MODES,
+  changeModeIndex,
+  lockGestureAxis,
+  normalizeBusinessOpen,
+  normalizeModeIndex,
+  resolveModeSwipe,
+} from "../app/static/home-mode-switch-state.mjs";
+
+test("home modes normalize and cycle in both directions", () => {
+  assert.equal(HOME_MODES.length, 4);
+  assert.equal(normalizeModeIndex("2"), 2);
+  assert.equal(normalizeModeIndex(99), 0);
+  assert.equal(changeModeIndex(3, 1), 0);
+  assert.equal(changeModeIndex(0, -1), 3);
+});
+
+test("gesture axis locks only after a dominant movement", () => {
+  assert.equal(lockGestureAxis({ deltaX: 5, deltaY: 8 }), null);
+  assert.equal(lockGestureAxis({ deltaX: 30, deltaY: 8 }), "horizontal");
+  assert.equal(lockGestureAxis({ deltaX: 8, deltaY: 30 }), "vertical");
+  assert.equal(lockGestureAxis({ deltaX: 20, deltaY: 18 }), null);
+});
+
+test("vertical swipe cycles with distance or velocity", () => {
+  assert.equal(resolveModeSwipe({ deltaY: -90, height: 400, velocityY: -0.2 }), 1);
+  assert.equal(resolveModeSwipe({ deltaY: 90, height: 400, velocityY: 0.2 }), -1);
+  assert.equal(resolveModeSwipe({ deltaY: -20, height: 400, velocityY: -0.8 }), 1);
+  assert.equal(resolveModeSwipe({ deltaY: 12, height: 400, velocityY: 0.1 }), 0);
+});
+
+test("business state accepts only the persisted open value", () => {
+  assert.equal(normalizeBusinessOpen("open"), true);
+  assert.equal(normalizeBusinessOpen(true), true);
+  assert.equal(normalizeBusinessOpen("closed"), false);
+  assert.equal(normalizeBusinessOpen(null), false);
+});
