@@ -28,6 +28,11 @@ export const HOME_MODES = Object.freeze([
   }),
 ]);
 
+export const HOME_MAP_MODE_IDS = Object.freeze({
+  burger: Object.freeze(["practice", "cookbook", "duel"]),
+  sushi: Object.freeze(["sushi"]),
+});
+
 export function normalizeModeIndex(value) {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed >= 0 && parsed < HOME_MODES.length ? parsed : 0;
@@ -37,6 +42,28 @@ export function changeModeIndex(index, direction) {
   const current = normalizeModeIndex(index);
   const step = Math.sign(Number(direction) || 0);
   return (current + step + HOME_MODES.length) % HOME_MODES.length;
+}
+
+function modeIndexesForMap(mapId) {
+  const ids = HOME_MAP_MODE_IDS[mapId] ?? HOME_MAP_MODE_IDS.burger;
+  return ids
+    .map((id) => HOME_MODES.findIndex((mode) => mode.id === id))
+    .filter((index) => index >= 0);
+}
+
+export function modeIndexForMap(mapId, index) {
+  const available = modeIndexesForMap(mapId);
+  const current = normalizeModeIndex(index);
+  return available.includes(current) ? current : (available[0] ?? 0);
+}
+
+export function changeModeIndexForMap(mapId, index, direction) {
+  const available = modeIndexesForMap(mapId);
+  const current = modeIndexForMap(mapId, index);
+  const step = Math.sign(Number(direction) || 0);
+  if (!step || available.length < 2) return current;
+  const position = Math.max(0, available.indexOf(current));
+  return available[(position + step + available.length) % available.length];
 }
 
 export function lockGestureAxis({ deltaX, deltaY, threshold = 12, dominance = 1.25 }) {

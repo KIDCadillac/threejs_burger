@@ -8,23 +8,25 @@ import {
 import {
   HOME_MAP_KEY,
   HOME_MAPS,
+  activeCardAccessoryPose,
   afterNextPaint,
   cardWheelPose,
   changeMapIndex,
   createMapCardWindow,
   normalizeMapIndex,
   resolveSwipe,
-} from "./home-map-carousel-state.mjs?v=20260724-buffer1";
+} from "./home-map-carousel-state.mjs?v=20260724-coupled1";
 import {
   HOME_BUSINESS_KEY,
   HOME_MODE_KEY,
   HOME_MODES,
-  changeModeIndex,
+  changeModeIndexForMap,
   lockGestureAxis,
+  modeIndexForMap,
   normalizeBusinessOpen,
   normalizeModeIndex,
   resolveModeSwipe,
-} from "./home-mode-switch-state.mjs?v=20260724-mode1";
+} from "./home-mode-switch-state.mjs?v=20260724-coupled1";
 
 const storage = window.localStorage;
 const energyValue = document.querySelector("#energy-value");
@@ -43,14 +45,12 @@ const mapArrows = [...document.querySelectorAll("[data-map-direction]")];
 const mapCount = document.querySelector("#home-map-count");
 const mapStatus = document.querySelector("#map-status");
 const mapTitle = document.querySelector("#lobby-title");
-const mapSubtitle = document.querySelector("#map-subtitle");
 const lobbyStage = document.querySelector(".lobby-stage");
 const modeIndicator = document.querySelector("#home-mode-indicator");
 const modeLabel = document.querySelector("#home-mode-label");
 const modeHint = document.querySelector("#home-mode-hint");
 const businessToggle = document.querySelector("[data-business-toggle]");
 const businessLabel = document.querySelector("#business-label");
-const businessHint = document.querySelector("#business-hint");
 let openSheet = null;
 let toastTimer = 0;
 let mapIndex = readMapIndex();
@@ -158,6 +158,11 @@ function renderWheel(progress = 0) {
     slide.style.setProperty("--map-opacity", String(pose.opacity));
     slide.style.zIndex = String(pose.zIndex);
   });
+  const accessoryPose = activeCardAccessoryPose(dragProgress);
+  modeIndicator?.style.setProperty("--mode-card-x", `${accessoryPose.translatePercent}%`);
+  modeIndicator?.style.setProperty("--mode-card-rotate-y", `${accessoryPose.rotateY}deg`);
+  modeIndicator?.style.setProperty("--mode-card-scale", String(accessoryPose.scale));
+  modeIndicator?.style.setProperty("--mode-card-opacity", String(accessoryPose.opacity));
 }
 
 function resetBufferedWheel() {
@@ -193,9 +198,14 @@ function renderMap() {
   if (!mapViewport || !HOME_MAPS.length) return;
   const map = HOME_MAPS[mapIndex];
   mapTitle.textContent = map.title;
-  mapSubtitle.textContent = map.subtitle;
   mapCount.textContent = `${mapIndex + 1}/${HOME_MAPS.length}`;
+  const nextModeIndex = modeIndexForMap(map.id, modeIndex);
+  if (nextModeIndex !== modeIndex) {
+    modeIndex = nextModeIndex;
+    writeModeIndex(modeIndex);
+  }
 
+  renderMode();
   renderBusiness();
 }
 
@@ -218,8 +228,11 @@ function renderMode({ animate = false } = {}) {
 
 function moveMode(direction, { persist = true, animate = true } = {}) {
   const step = Math.sign(Number(direction) || 0);
-  if (!step || HOME_MODES.length < 2) return false;
-  modeIndex = changeModeIndex(modeIndex, step);
+  const mapId = HOME_MAPS[mapIndex]?.id;
+  if (!step || !mapId) return false;
+  const nextModeIndex = changeModeIndexForMap(mapId, modeIndex, step);
+  if (nextModeIndex === modeIndex) return false;
+  modeIndex = nextModeIndex;
   if (persist) writeModeIndex(modeIndex);
   renderMode({ animate });
   return true;
@@ -238,16 +251,27 @@ function activateMode() {
 
 function renderBusiness() {
   const map = HOME_MAPS[mapIndex];
-  businessToggle?.setAttribute("aria-pressed", String(businessOpen));
-  if (businessLabel) businessLabel.textContent = businessOpen ? "关门打烊" : "开门营业";
-  if (businessHint) businessHint.textContent = businessOpen ? "店铺正在营业" : "店铺当前已打烊";
-  lobbyStage?.classList.toggle("is-open", businessOpen);
-  if (mapStatus) {
-    mapStatus.textContent = map?.available ? (businessOpen ? "营业中" : "已打烊") : "新店预告";
+  const available = Boolean(map?.available);
+  businessToggle?.toggleAttribute("disabled", !available);
+  businessToggle?.classList.toggle("is-disabled", !available);
+  businessToggle?.setAttribute("aria-disabled", String(!available));
+  businessToggle?.setAttribute("aria-pressed", String(available && businessOpen));
+  lobbyStage?.classList.toggle("is-open", available && businessOpen);
+  if (!available) {
+    if (businessLabel) businessLabel.textContent = "新店筹备";
+    if (mapStatus) mapStatus.textContent = "暂未营业";
+    return;
   }
+  if (businessLabel) businessLabel.textContent = businessOpen ? "关门打烊" : "开门营业";
+  if (mapStatus) mapStatus.textContent = businessOpen ? "营业中" : "已打烊";
 }
 
 function toggleBusiness() {
+  const map = HOME_MAPS[mapIndex];
+  if (!map?.available) {
+    showToast("新店还在筹备，暂时不能开门营业");
+    return;
+  }
   businessOpen = !businessOpen;
   writeBusinessOpen(businessOpen);
   renderBusiness();
