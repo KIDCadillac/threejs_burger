@@ -150,25 +150,34 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .home-map-viewport {
   position: absolute;
   inset: 0 1.25rem 2.15rem;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   border-radius: 2.3rem 2.3rem 1.4rem 1.4rem;
   cursor: grab;
-  touch-action: pan-y;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  scroll-behavior: smooth;
+  scroll-snap-type: x mandatory;
+  touch-action: pan-y pan-x;
+  -webkit-overflow-scrolling: touch;
 }
 .home-map-viewport:active { cursor: grabbing; }
+.home-map-viewport::-webkit-scrollbar { display: none; }
 .home-map-track {
   display: flex;
+  width: 100%;
   height: 100%;
   gap: .65rem;
-  will-change: transform;
-  transition: transform 250ms cubic-bezier(.2,.78,.24,1);
 }
-.home-map-track.is-dragging { transition: none; }
 .home-map-slide {
   position: relative;
   flex: 0 0 100%;
   min-width: 0;
   height: 100%;
+  contain: layout paint;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  transform: translateZ(0);
 }
 .diner-scene {
   position: relative;
