@@ -55,3 +55,19 @@ export function resolveSwipe({ deltaX, width, velocityX }) {
   }
   return 0;
 }
+
+export function cardWheelPose(rawOffset) {
+  const offset = Math.max(-2, Math.min(2, Number(rawOffset) || 0));
+  const distance = Math.abs(offset);
+  const round = (value) => {
+    const rounded = Math.round(value * 1000) / 1000;
+    return Object.is(rounded, -0) ? 0 : rounded;
+  };
+  return {
+    translatePercent: round(offset * 72),
+    rotateY: round(offset * -52),
+    scale: round(Math.max(0.72, 1 - distance * 0.16)),
+    opacity: distance >= 1.6 ? 0 : round(Math.max(0, 1 - distance * 0.28)),
+    zIndex: Math.round(30 - distance * 11),
+  };
+}

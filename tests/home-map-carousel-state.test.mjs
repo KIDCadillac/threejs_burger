@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   HOME_MAP_KEY,
   HOME_MAPS,
+  cardWheelPose,
   changeMapIndex,
   mapIndexToPhysicalSlide,
   normalizeMapIndex,
@@ -40,6 +41,31 @@ test("swipe resolves by distance or velocity and otherwise returns", () => {
   assert.equal(resolveSwipe({ deltaX: -90, width: 400, velocityX: 0 }), 1);
   assert.equal(resolveSwipe({ deltaX: 20, width: 400, velocityX: 0 }), 0);
   assert.equal(resolveSwipe({ deltaX: 18, width: 400, velocityX: 0.8 }), -1);
+});
+
+test("card wheel keeps the active map forward and tilts both neighbours inward", () => {
+  assert.deepEqual(cardWheelPose(0), {
+    translatePercent: 0,
+    rotateY: 0,
+    scale: 1,
+    opacity: 1,
+    zIndex: 30,
+  });
+  assert.deepEqual(cardWheelPose(-1), {
+    translatePercent: -72,
+    rotateY: 52,
+    scale: 0.84,
+    opacity: 0.72,
+    zIndex: 19,
+  });
+  assert.deepEqual(cardWheelPose(1), {
+    translatePercent: 72,
+    rotateY: -52,
+    scale: 0.84,
+    opacity: 0.72,
+    zIndex: 19,
+  });
+  assert.equal(cardWheelPose(2).opacity, 0);
 });
 
 test("invalid stored map indexes fall back to burger", () => {
