@@ -11,10 +11,10 @@ import {
   afterNextPaint,
   cardWheelPose,
   changeMapIndex,
-  mapIndexToPhysicalSlide,
+  createMapCardWindow,
   normalizeMapIndex,
   resolveSwipe,
-} from "./home-map-carousel-state.mjs?v=20260724-loopfix1";
+} from "./home-map-carousel-state.mjs?v=20260724-buffer1";
 import {
   HOME_BUSINESS_KEY,
   HOME_MODE_KEY,
@@ -37,8 +37,8 @@ const backdrop = document.querySelector("#sheet-backdrop");
 const toast = document.querySelector("#home-toast");
 const mapViewport = document.querySelector("#home-map-viewport");
 const mapTrack = document.querySelector("#home-map-track");
-const mapSlides = [...document.querySelectorAll("[data-home-map]")];
-const mapLoopSlides = setupMapLoopSlides();
+const mapTemplates = [...document.querySelectorAll("[data-map-template]")];
+const bufferedMapSlides = setupBufferedMapSlides();
 const mapArrows = [...document.querySelectorAll("[data-map-direction]")];
 const mapCount = document.querySelector("#home-map-count");
 const mapStatus = document.querySelector("#map-status");
@@ -48,7 +48,6 @@ const lobbyStage = document.querySelector(".lobby-stage");
 const modeIndicator = document.querySelector("#home-mode-indicator");
 const modeLabel = document.querySelector("#home-mode-label");
 const modeHint = document.querySelector("#home-mode-hint");
-const modeCards = [...document.querySelectorAll("[data-home-mode-index]")];
 const businessToggle = document.querySelector("[data-business-toggle]");
 const businessLabel = document.querySelector("#business-label");
 const businessHint = document.querySelector("#business-hint");
@@ -57,7 +56,7 @@ let toastTimer = 0;
 let mapIndex = readMapIndex();
 let modeIndex = readModeIndex();
 let businessOpen = readBusinessOpen();
-let wheelPhysicalIndex = mapIndexToPhysicalSlide(mapIndex);
+let pendingMapIndex = null;
 let wheelTransitioning = false;
 let wheelTimer = 0;
 let dragPointerId = null;
@@ -71,21 +70,33 @@ let gestureMoved = false;
 let suppressMapClick = false;
 const WHEEL_TRANSITION_MS = 400;
 
-function cloneMapSlide(slide) {
-  const clone = slide.cloneNode(true);
-  clone.setAttribute("data-map-clone", "true");
-  clone.setAttribute("aria-hidden", "true");
-  clone.setAttribute("inert", "");
-  return clone;
+function setupBufferedMapSlides() {
+  if (!mapTrack || !mapTemplates.length) return [];
+  const slots = [-2, -1, 0, 1, 2].map((offset) => {
+    const slot = mapTemplates[0].cloneNode(true);
+    slot.removeAttribute("data-map-template");
+    slot.setAttribute("data-card-offset", String(offset));
+    return slot;
+  });
+  mapTrack.replaceChildren(...slots);
+  return slots;
 }
 
-function setupMapLoopSlides() {
-  if (!mapTrack || mapSlides.length < 2) return mapSlides;
-  const leadingClone = cloneMapSlide(mapSlides.at(-1));
-  const trailingClone = cloneMapSlide(mapSlides[0]);
-  mapTrack.prepend(leadingClone);
-  mapTrack.append(trailingClone);
-  return [leadingClone, ...mapSlides, trailingClone];
+function refreshBufferedMapSlides(activeIndex = mapIndex) {
+  const cardWindow = createMapCardWindow(activeIndex, mapTemplates.length);
+  cardWindow.forEach(({ offset, mapIndex: templateIndex }, slotIndex) => {
+    const slot = bufferedMapSlides[slotIndex];
+    const template = mapTemplates[templateIndex];
+    if (!slot || !template) return;
+    slot.className = template.className;
+    slot.dataset.homeMap = template.dataset.homeMap;
+    slot.setAttribute("data-card-offset", String(offset));
+    slot.innerHTML = template.innerHTML;
+    slot.setAttribute("aria-label", template.getAttribute("aria-label") || "");
+    slot.setAttribute("aria-hidden", String(offset !== 0));
+    if (offset === 0) slot.removeAttribute("inert");
+    else slot.setAttribute("inert", "");
+  });
 }
 
 function readMapIndex() {
@@ -138,9 +149,9 @@ function writeBusinessOpen(isOpen) {
 
 function renderWheel(progress = 0) {
   const dragProgress = Math.max(-1, Math.min(1, Number(progress) || 0));
-  const center = wheelPhysicalIndex + dragProgress;
-  mapLoopSlides.forEach((slide, physicalIndex) => {
-    const pose = cardWheelPose(physicalIndex - center);
+  bufferedMapSlides.forEach((slide) => {
+    const offset = Number(slide.dataset.cardOffset) || 0;
+    const pose = cardWheelPose(offset - dragProgress);
     slide.style.setProperty("--map-translate-x", `${pose.translatePercent}%`);
     slide.style.setProperty("--map-rotate-y", `${pose.rotateY}deg`);
     slide.style.setProperty("--map-scale", String(pose.scale));
@@ -149,13 +160,9 @@ function renderWheel(progress = 0) {
   });
 }
 
-function normalizeWheelLoop() {
-  let normalized = wheelPhysicalIndex;
-  if (normalized <= 0) normalized = HOME_MAPS.length;
-  if (normalized >= HOME_MAPS.length + 1) normalized = 1;
-  if (normalized === wheelPhysicalIndex) return;
-  wheelPhysicalIndex = normalized;
+function resetBufferedWheel() {
   mapViewport?.classList.add("is-wheel-jump");
+  refreshBufferedMapSlides(mapIndex);
   renderWheel();
   afterNextPaint(
     (callback) => requestAnimationFrame(callback),
@@ -165,7 +172,14 @@ function normalizeWheelLoop() {
 
 function finishWheelTransition() {
   window.clearTimeout(wheelTimer);
-  normalizeWheelLoop();
+  if (pendingMapIndex !== null) {
+    mapIndex = pendingMapIndex;
+    pendingMapIndex = null;
+    renderMap();
+    resetBufferedWheel();
+  } else {
+    renderWheel();
+  }
   wheelTransitioning = false;
   mapViewport?.removeAttribute("aria-busy");
 }
@@ -182,9 +196,6 @@ function renderMap() {
   mapSubtitle.textContent = map.subtitle;
   mapCount.textContent = `${mapIndex + 1}/${HOME_MAPS.length}`;
 
-  mapSlides.forEach((slide, index) => {
-    slide.setAttribute("aria-hidden", String(index !== mapIndex));
-  });
   renderBusiness();
 }
 
@@ -198,12 +209,6 @@ function renderMode({ animate = false } = {}) {
   if (!mode) return;
   if (modeLabel) modeLabel.textContent = mode.label;
   if (modeHint) modeHint.textContent = mode.hint;
-  modeCards.forEach((card) => {
-    const active = normalizeModeIndex(card.dataset.homeModeIndex) === modeIndex;
-    card.classList.toggle("is-active", active);
-    if (active) card.setAttribute("aria-current", "true");
-    else card.removeAttribute("aria-current");
-  });
   resetModePreview();
   if (!animate || !modeIndicator) return;
   modeIndicator.classList.remove("is-switching");
@@ -259,21 +264,13 @@ function selectMap(nextIndex, { persist = true } = {}) {
 function moveMap(direction, { persist = true } = {}) {
   const step = Math.sign(Number(direction) || 0);
   if (!step || wheelTransitioning || HOME_MAPS.length < 2) return false;
-  const previousIndex = mapIndex;
-  const nextIndex = changeMapIndex(previousIndex, step);
-  let physicalTarget = mapIndexToPhysicalSlide(nextIndex);
-  if (step < 0 && previousIndex === 0) physicalTarget = 0;
-  if (step > 0 && previousIndex === HOME_MAPS.length - 1) {
-    physicalTarget = HOME_MAPS.length + 1;
-  }
-  mapIndex = nextIndex;
-  wheelPhysicalIndex = physicalTarget;
+  const nextIndex = changeMapIndex(mapIndex, step);
+  pendingMapIndex = nextIndex;
   wheelTransitioning = true;
   mapViewport?.classList.remove("is-dragging");
   mapViewport?.setAttribute("aria-busy", "true");
-  if (persist) writeMapIndex(mapIndex);
-  renderMap();
-  renderWheel();
+  if (persist) writeMapIndex(nextIndex);
+  renderWheel(step);
   queueWheelFinish();
   return true;
 }
@@ -428,13 +425,6 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const modeCard = event.target.closest("[data-home-mode-index]");
-  if (modeCard) {
-    modeIndex = normalizeModeIndex(modeCard.dataset.homeModeIndex);
-    writeModeIndex(modeIndex);
-    renderMode({ animate: true });
-  }
-
   const action = event.target.closest("[data-home-action]")?.dataset.homeAction;
   if (!action) return;
   if (action === "daily-checkin") showSheet("daily-checkin");
@@ -509,6 +499,7 @@ window.addEventListener("keydown", (event) => {
 
 renderProgress();
 requestAnimationFrame(() => {
+  refreshBufferedMapSlides();
   renderMap();
   renderWheel();
   renderMode();

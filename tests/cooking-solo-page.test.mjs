@@ -106,36 +106,20 @@ test("workbench slot controls overlay the canvas with touch-safe, focus-aware co
   assert.match(css, /env\(safe-area-inset-bottom\)/);
 });
 
-test("home page presents replica duel as a clear secondary game action", async () => {
+test("home page uses a large buffered shop carousel without the old four-button grid", async () => {
   const [html, css] = await Promise.all([
     readFile(homePath, "utf8"),
     readFile(homeCssPath, "utf8"),
   ]);
 
-  for (const marker of [
-    'class="lobby-action lobby-action--duel"',
-    'href="./replica-duel.html"',
-    'class="bottom-nav"',
-    "双人轮换",
-    "复刻对决",
-  ]) assert.ok(html.includes(marker), marker);
-
-  assert.ok(
-    html.indexOf('class="map-carousel"') < html.indexOf('class="lobby-actions"'),
-    "地图在四个次级入口之前",
-  );
-  assert.match(
-    css,
-    /--home-map-height:\s*clamp\(20rem,\s*47vh,\s*25\.5rem\)/,
-  );
-  assert.match(
-    css,
-    /\.lobby-actions\s*\{[^}]*top:\s*calc\(6\.6rem \+ var\(--home-map-height\) \+ 1rem\);[^}]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/s,
-  );
-  assert.doesNotMatch(css, /\.lobby-actions\s*\{[^}]*bottom:/s);
-  assert.doesNotMatch(css, /\.lobby-action--book,\s*\.lobby-action--sushi\s*\{[^}]*grid-column/s);
-  assert.match(css, /\.lobby-action\s*\{[\s\S]*min-height:\s*4\.[4-9]rem/);
-  assert.match(css, /\.bottom-nav\s*\{[\s\S]*grid-template-columns:\s*repeat\(4,\s*1fr\)/);
+  assert.equal((html.match(/data-map-template/g) ?? []).length, 2);
+  assert.ok(html.includes("新店预告"));
+  assert.ok(html.includes("寿司店筹备中"));
+  assert.doesNotMatch(html, /class="lobby-actions"/);
+  assert.doesNotMatch(html, /data-home-mode-index=/);
+  assert.match(css, /--home-map-height:\s*clamp\(24rem,\s*56vh,\s*32rem\)/);
+  assert.match(css, /\.home-map-slide\s*\{[^}]*transform-origin:\s*center center/s);
+  assert.doesNotMatch(css, /\.lobby-actions\s*\{/);
 });
 
 test("the public page exposes a touch-safe playable highlight replay dialog", async () => {
@@ -354,64 +338,6 @@ test("the pure-food focus control is a persistent stage overlay", async () => {
   assert.match(rule, /min-height:\s*(?:4[8-9]|[5-9]\d)px/);
 });
 
-test("root page is a one-screen game lobby with shop mode primary", async () => {
-  const [html, css] = await Promise.all([
-    readFile(homePath, "utf8"),
-    readFile(homeCssPath, "utf8"),
-  ]);
-  for (const marker of [
-    'lang="zh-CN"',
-    'class="lobby-shell"',
-    'class="lobby-hud"',
-    'id="daily-checkin"',
-    'id="cookbook-sheet"',
-    'id="home-map-viewport"',
-    'id="home-map-track"',
-    'data-card-wheel',
-    'data-home-map="burger"',
-    'data-home-map="sushi"',
-    'data-map-direction="-1"',
-    'data-map-direction="1"',
-    'id="home-map-count"',
-    'id="map-primary-action"',
-    'data-business-toggle',
-    'id="home-mode-indicator"',
-    'data-home-mode-index="0"',
-    'data-home-mode-index="3"',
-    'aria-disabled="true"',
-    'data-home-action="daily-checkin"',
-    'data-home-action="cookbook"',
-    'href="./cooking.html?mode=practice"',
-    'href="./replica-duel.html"',
-    "今日营业",
-    "开门营业",
-    "每日签到",
-    "汉堡图鉴",
-    "自由练习",
-    "复刻对决",
-    "深夜寿司店",
-    "寿司店筹备中",
-  ]) assert.ok(html.includes(marker), marker);
-  assert.doesNotMatch(html, /id="home-map-dots"/);
-  assert.doesNotMatch(html, /<span>左右滑动切换地图<\/span>/);
-  assert.match(html, /今天也要好好做汉堡/);
-  assert.doesNotMatch(html, /id="map-primary-action"[^>]*href=/);
-  assert.match(css, /@media \(max-width: 640px\)/);
-  assert.match(css, /min-height:\s*(?:44|48|52|56)px/);
-  assert.match(css, /env\(safe-area-inset-top\)/);
-  assert.match(css, /env\(safe-area-inset-bottom\)/);
-  assert.match(css, /\.home-map-viewport\s*\{[^}]*perspective:\s*900px/s);
-  assert.match(css, /\.home-map-viewport\s*\{[^}]*touch-action:\s*none/s);
-  assert.match(css, /\.home-map-slide\s*\{[^}]*position:\s*absolute/s);
-  assert.match(css, /rotateY\(var\(--map-rotate-y\)\)/);
-  assert.match(css, /\.home-map-viewport\.is-dragging \.home-map-slide\s*\{[^}]*transition:\s*none/s);
-  assert.match(css, /\.lobby-action\.is-active/);
-  assert.match(css, /\.lobby-stage\.is-open/);
-  assert.match(css, /\.home-mode-indicator/);
-  assert.doesNotMatch(css, /background-image\s*:\s*url\(/i);
-  assert.doesNotMatch(html, /Papa|老爹|pizzeria|burgeria/i);
-});
-
 test("daily check-in is centered inside phone safe areas without its ribbon covering content", async () => {
   const css = await readFile(homeCssPath, "utf8");
   const sheet = css.match(/\.lobby-sheet\s*\{([^}]+)\}/)?.[1] ?? "";
@@ -433,49 +359,25 @@ test("daily check-in is centered inside phone safe areas without its ribbon cove
   assert.match(ribbon, /margin:\s*0/);
 });
 
-test("home lobby uses one pointer-driven card wheel for swipes arrows and keyboard", async () => {
-  const [html, app, css] = await Promise.all([
-    readFile(homePath, "utf8"),
-    readFile(homeAppPath, "utf8"),
-    readFile(homeCssPath, "utf8"),
-  ]);
+test("home lobby refills five stable card slots after every map move", async () => {
+  const app = await readFile(homeAppPath, "utf8");
   for (const marker of [
-    'from "./home-map-carousel-state.mjs?v=20260724-loopfix1"',
-    "HOME_MAP_KEY",
-    "afterNextPaint",
-    "cardWheelPose",
-    "resolveSwipe",
-    "cloneNode",
-    "data-map-clone",
-    '"pointerdown"',
-    "setPointerCapture",
-    '"pointermove"',
-    '"pointerup"',
+    "createMapCardWindow",
+    "setupBufferedMapSlides",
+    "refreshBufferedMapSlides",
+    "pendingMapIndex",
+    "data-card-offset",
     "renderWheel",
+    '"pointerdown"',
     '"ArrowLeft"',
     '"ArrowRight"',
-    "HOME_MODE_KEY",
-    "HOME_BUSINESS_KEY",
-    "lockGestureAxis",
-    "resolveModeSwipe",
-    "dragStartY",
-    "gestureAxis",
-    "moveMode",
-    "renderMode",
-    "renderBusiness",
-    '"ArrowUp"',
-    '"ArrowDown"',
-    "data-business-toggle",
   ]) assert.ok(app.includes(marker), marker);
-  assert.doesNotMatch(app, /addEventListener\("scroll"/);
-  assert.doesNotMatch(app, /scrollTo\(/);
-  assert.doesNotMatch(app, /arrow\.disabled/);
-  assert.doesNotMatch(
-    html,
-    /data-map-direction="-1"[^>]*\sdisabled(?:\s|>)/,
-  );
-  assert.match(css, /perspective:\s*900px/);
-  assert.match(css, /rotateY\(var\(--map-rotate-y\)\)/);
+  for (const removed of [
+    "setupMapLoopSlides",
+    "data-map-clone",
+    "wheelPhysicalIndex",
+    "normalizeWheelLoop",
+  ]) assert.equal(app.includes(removed), false, removed);
 });
 
 test("burger cookbook keeps recipe quick starts accessible without crowding the lobby", async () => {

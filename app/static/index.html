@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f8c948">
     <title>开饭啦 · 汉堡小馆</title>
-    <link rel="stylesheet" href="./home.css?v=20260724-lobbyfix1">
-    <script type="module" src="./home-lobby-app.mjs?v=20260724-loopfix1"></script>
+    <link rel="stylesheet" href="./home.css?v=20260724-buffer1">
+    <script type="module" src="./home-lobby-app.mjs?v=20260724-buffer1"></script>
   </head>
   <body>
     <main class="lobby-shell">
@@ -47,7 +47,7 @@
             aria-label="料理地图，左右滑动切换地图"
           >
             <div class="home-map-track" id="home-map-track">
-              <article class="home-map-slide" data-home-map="burger" aria-label="汉堡小馆，已开放">
+              <article class="home-map-slide" data-home-map="burger" data-map-template aria-label="汉堡小馆，已开放">
                 <div class="diner-scene" aria-hidden="true">
                   <div class="awning"><i></i><i></i><i></i><i></i><i></i></div>
                   <div class="order-window">
@@ -75,13 +75,18 @@
                 </div>
               </article>
 
-              <article class="home-map-slide" data-home-map="sushi" aria-label="深夜寿司店，筹备中">
+              <article class="home-map-slide" data-home-map="sushi" data-map-template aria-label="深夜寿司店，筹备中">
                 <div class="diner-scene diner-scene--sushi" aria-hidden="true">
                   <div class="awning awning--sushi"><i></i><i></i><i></i><i></i><i></i></div>
                   <div class="sushi-window">
                     <span class="night-moon"></span>
                     <span class="paper-lantern paper-lantern--left">鮨</span>
                     <span class="paper-lantern paper-lantern--right">月</span>
+                    <div class="sushi-preview-copy">
+                      <small>新店预告</small>
+                      <strong>深夜寿司店</strong>
+                      <span>切鱼 · 卷寿司 · 双人出餐</span>
+                    </div>
                     <div class="sushi-master">
                       <i class="sushi-master__band"></i>
                       <i class="sushi-master__head"></i>
@@ -94,7 +99,7 @@
                     </div>
                   </div>
                   <div class="sushi-counter"><span></span><span></span><span></span></div>
-                  <span class="map-lock-note" aria-disabled="true">寿司店筹备中</span>
+                  <span class="map-lock-note" aria-disabled="true">新店预告 · 寿司店筹备中</span>
                 </div>
               </article>
             </div>
@@ -114,21 +119,6 @@
           <span><small id="business-hint">店铺当前已打烊</small><strong id="business-label">开门营业</strong></span>
           <b aria-hidden="true">›</b>
         </button>
-
-        <nav class="lobby-actions" aria-label="游戏功能">
-          <a class="lobby-action lobby-action--practice is-active" href="./cooking.html?mode=practice" data-home-mode-index="0" aria-current="true">
-            <span aria-hidden="true">练</span><strong>自由练习</strong><small>不限时间</small>
-          </a>
-          <button class="lobby-action lobby-action--book" type="button" data-home-action="cookbook" data-home-mode-index="1">
-            <span aria-hidden="true">册</span><strong>汉堡图鉴</strong><small>配方收藏</small>
-          </button>
-          <a class="lobby-action lobby-action--duel" href="./replica-duel.html" data-home-mode-index="2">
-            <span aria-hidden="true">双</span><strong>复刻对决</strong><small>双人轮换</small>
-          </a>
-          <button class="lobby-action lobby-action--sushi" type="button" data-home-action="sushi" data-home-mode-index="3">
-            <span aria-hidden="true">鮨</span><strong>寿司店</strong><small>筹备中</small><i class="sr-only">寿司店筹备中</i>
-          </button>
-        </nav>
 
       </section>
 

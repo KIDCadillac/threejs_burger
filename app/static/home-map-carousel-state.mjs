@@ -32,15 +32,18 @@ export function changeMapIndex(index, direction) {
   return (current + step + HOME_MAPS.length) % HOME_MAPS.length;
 }
 
-export function mapIndexToPhysicalSlide(index) {
-  return normalizeMapIndex(index) + 1;
+export function mapIndexAtOffset(index, offset, count = HOME_MAPS.length) {
+  const size = Math.max(1, Math.trunc(Number(count) || 0));
+  const current = ((Math.trunc(Number(index) || 0) % size) + size) % size;
+  const step = Math.trunc(Number(offset) || 0);
+  return ((current + step) % size + size) % size;
 }
 
-export function physicalSlideToMapIndex(physicalSlide) {
-  const physical = Math.round(Number(physicalSlide) || 0);
-  if (physical <= 0) return HOME_MAPS.length - 1;
-  if (physical >= HOME_MAPS.length + 1) return 0;
-  return physical - 1;
+export function createMapCardWindow(index, count = HOME_MAPS.length) {
+  return [-2, -1, 0, 1, 2].map((offset) => ({
+    offset,
+    mapIndex: mapIndexAtOffset(index, offset, count),
+  }));
 }
 
 export function resolveSwipe({ deltaX, width, velocityX }) {
@@ -69,10 +72,10 @@ export function cardWheelPose(rawOffset) {
     return Object.is(rounded, -0) ? 0 : rounded;
   };
   return {
-    translatePercent: round(offset * 72),
-    rotateY: round(offset * -52),
-    scale: round(Math.max(0.72, 1 - distance * 0.16)),
-    opacity: distance >= 1.6 ? 0 : round(Math.max(0, 1 - distance * 0.28)),
-    zIndex: Math.round(30 - distance * 11),
+    translatePercent: round(offset * 62),
+    rotateY: round(offset * -45),
+    scale: round(Math.max(0.8, 1 - distance * 0.1)),
+    opacity: distance >= 1.6 ? 0 : round(Math.max(0, 1 - distance * 0.12)),
+    zIndex: Math.round(30 - distance * 12),
   };
 }

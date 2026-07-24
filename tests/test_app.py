@@ -130,7 +130,9 @@ def test_home_page_contains_the_playable_cooking_lobby() -> None:
     assert 'class="lobby-shell"' in response.text
     assert 'data-business-toggle' in response.text
     assert 'id="home-mode-indicator"' in response.text
-    assert 'data-home-action="sushi"' in response.text
+    assert 'data-home-map="sushi"' in response.text
+    assert response.text.count("data-map-template") == 2
+    assert 'class="lobby-actions"' not in response.text
 
 
 def test_root_catalog_assets_and_cooking_route_are_served() -> None:
