@@ -393,7 +393,8 @@ test("root page is a one-screen game lobby with shop mode primary", async () => 
 });
 
 test("home lobby uses native scroll snapping instead of repainting the map on every pointer move", async () => {
-  const [app, css] = await Promise.all([
+  const [html, app, css] = await Promise.all([
+    readFile(homePath, "utf8"),
     readFile(homeAppPath, "utf8"),
     readFile(homeCssPath, "utf8"),
   ]);
@@ -402,10 +403,19 @@ test("home lobby uses native scroll snapping instead of repainting the map on ev
     "HOME_MAP_KEY",
     '"scroll"',
     "scrollTo",
+    "cloneNode",
+    "data-map-clone",
+    "settleLoopPosition",
+    '"scrollend"',
     '"ArrowLeft"',
     '"ArrowRight"',
   ]) assert.ok(app.includes(marker), marker);
   assert.doesNotMatch(app, /"pointermove"/);
+  assert.doesNotMatch(app, /arrow\.disabled/);
+  assert.doesNotMatch(
+    html,
+    /data-map-direction="-1"[^>]*\sdisabled(?:\s|>)/,
+  );
   assert.match(css, /scroll-snap-type:\s*x\s+mandatory/);
   assert.match(css, /scroll-snap-align:\s*start/);
   assert.match(css, /-webkit-overflow-scrolling:\s*touch/);

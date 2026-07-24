@@ -9,7 +9,9 @@ import {
   HOME_MAP_KEY,
   HOME_MAPS,
   changeMapIndex,
+  mapIndexToPhysicalSlide,
   normalizeMapIndex,
+  physicalSlideToMapIndex,
 } from "./home-map-carousel-state.mjs";
 
 const storage = window.localStorage;
@@ -22,7 +24,9 @@ const rewardCards = [...document.querySelectorAll("[data-day]")];
 const backdrop = document.querySelector("#sheet-backdrop");
 const toast = document.querySelector("#home-toast");
 const mapViewport = document.querySelector("#home-map-viewport");
+const mapTrack = document.querySelector("#home-map-track");
 const mapSlides = [...document.querySelectorAll("[data-home-map]")];
+const mapLoopSlides = setupMapLoopSlides();
 const mapArrows = [...document.querySelectorAll("[data-map-direction]")];
 const mapDots = [...document.querySelectorAll("[data-map-index]")];
 const mapCount = document.querySelector("#home-map-count");
@@ -34,6 +38,24 @@ let openSheet = null;
 let toastTimer = 0;
 let mapIndex = readMapIndex();
 let mapScrollFrame = 0;
+let mapSettleTimer = 0;
+
+function cloneMapSlide(slide) {
+  const clone = slide.cloneNode(true);
+  clone.setAttribute("data-map-clone", "true");
+  clone.setAttribute("aria-hidden", "true");
+  clone.setAttribute("inert", "");
+  return clone;
+}
+
+function setupMapLoopSlides() {
+  if (!mapTrack || mapSlides.length < 2) return mapSlides;
+  const leadingClone = cloneMapSlide(mapSlides.at(-1));
+  const trailingClone = cloneMapSlide(mapSlides[0]);
+  mapTrack.prepend(leadingClone);
+  mapTrack.append(trailingClone);
+  return [leadingClone, ...mapSlides, trailingClone];
+}
 
 function readMapIndex() {
   try {
@@ -52,15 +74,46 @@ function writeMapIndex(index) {
 }
 
 function mapStep() {
-  const measured = mapSlides[1]?.offsetLeft - mapSlides[0]?.offsetLeft;
+  const measured = mapLoopSlides[1]?.offsetLeft - mapLoopSlides[0]?.offsetLeft;
   return measured > 0 ? measured : Math.max(1, mapViewport?.clientWidth || 1);
 }
 
-function scrollMapIntoView(animated) {
+function physicalMapSlide() {
+  return Math.round((mapViewport?.scrollLeft || 0) / mapStep());
+}
+
+function scrollToPhysicalSlide(physicalSlide, animated) {
   mapViewport?.scrollTo({
-    left: mapIndex * mapStep(),
+    left: physicalSlide * mapStep(),
     behavior: animated ? "smooth" : "auto",
   });
+}
+
+function scrollMapIntoView(animated) {
+  scrollToPhysicalSlide(mapIndexToPhysicalSlide(mapIndex), animated);
+}
+
+function jumpToPhysicalSlide(physicalSlide) {
+  if (!mapViewport) return;
+  const previousBehavior = mapViewport.style.scrollBehavior;
+  const previousSnapType = mapViewport.style.scrollSnapType;
+  mapViewport.style.scrollBehavior = "auto";
+  mapViewport.style.scrollSnapType = "none";
+  mapViewport.scrollLeft = physicalSlide * mapStep();
+  requestAnimationFrame(() => {
+    mapViewport.style.scrollBehavior = previousBehavior;
+    mapViewport.style.scrollSnapType = previousSnapType;
+  });
+}
+
+function settleLoopPosition() {
+  window.clearTimeout(mapSettleTimer);
+  const physical = physicalMapSlide();
+  if (physical <= 0) {
+    jumpToPhysicalSlide(HOME_MAPS.length);
+  } else if (physical >= HOME_MAPS.length + 1) {
+    jumpToPhysicalSlide(1);
+  }
 }
 
 function renderMap(animated = true, moveViewport = true) {
@@ -81,11 +134,6 @@ function renderMap(animated = true, moveViewport = true) {
     if (active) dot.setAttribute("aria-current", "true");
     else dot.removeAttribute("aria-current");
   });
-  mapArrows.forEach((arrow) => {
-    const direction = Number(arrow.dataset.mapDirection);
-    arrow.disabled = direction < 0 ? mapIndex === 0 : mapIndex === HOME_MAPS.length - 1;
-  });
-
   const hint = mapPrimaryAction?.querySelector("small");
   const label = mapPrimaryAction?.querySelector("strong");
   if (hint) hint.textContent = map.actionHint;
@@ -109,7 +157,20 @@ function selectMap(nextIndex, { animated = true, persist = true } = {}) {
 }
 
 function moveMap(direction) {
-  selectMap(changeMapIndex(mapIndex, direction));
+  const step = Math.sign(Number(direction) || 0);
+  if (!step) return false;
+  const previousIndex = mapIndex;
+  const nextIndex = changeMapIndex(previousIndex, step);
+  let physicalTarget = mapIndexToPhysicalSlide(nextIndex);
+  if (step < 0 && previousIndex === 0) physicalTarget = 0;
+  if (step > 0 && previousIndex === HOME_MAPS.length - 1) {
+    physicalTarget = HOME_MAPS.length + 1;
+  }
+  mapIndex = nextIndex;
+  writeMapIndex(mapIndex);
+  renderMap(false, false);
+  scrollToPhysicalSlide(physicalTarget, true);
+  return true;
 }
 
 function readProgress() {
@@ -213,16 +274,19 @@ mapDots.forEach((dot) => {
 });
 
 mapViewport?.addEventListener("scroll", () => {
+  window.clearTimeout(mapSettleTimer);
+  mapSettleTimer = window.setTimeout(settleLoopPosition, 120);
   if (mapScrollFrame) return;
   mapScrollFrame = requestAnimationFrame(() => {
     mapScrollFrame = 0;
-    const nextIndex = normalizeMapIndex(Math.round(mapViewport.scrollLeft / mapStep()));
+    const nextIndex = physicalSlideToMapIndex(physicalMapSlide());
     if (nextIndex === mapIndex) return;
     mapIndex = nextIndex;
     writeMapIndex(mapIndex);
     renderMap(false, false);
   });
 }, { passive: true });
+mapViewport?.addEventListener("scrollend", settleLoopPosition, { passive: true });
 mapViewport?.addEventListener("keydown", (event) => {
   if (event.key === "ArrowLeft") {
     event.preventDefault();

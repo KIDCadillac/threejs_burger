@@ -5,7 +5,9 @@ import {
   HOME_MAP_KEY,
   HOME_MAPS,
   changeMapIndex,
+  mapIndexToPhysicalSlide,
   normalizeMapIndex,
+  physicalSlideToMapIndex,
   resolveSwipe,
 } from "../app/static/home-map-carousel-state.mjs";
 
@@ -17,10 +19,21 @@ test("map catalog exposes burger first and locked sushi second", () => {
   ]);
 });
 
-test("map navigation stops at both edges", () => {
-  assert.equal(changeMapIndex(0, -1), 0);
+test("map navigation wraps at both edges", () => {
+  assert.equal(changeMapIndex(0, -1), 1);
   assert.equal(changeMapIndex(0, 1), 1);
-  assert.equal(changeMapIndex(1, 1), 1);
+  assert.equal(changeMapIndex(1, 1), 0);
+  assert.equal(changeMapIndex(1, -1), 0);
+  assert.equal(changeMapIndex(1, 0), 1);
+});
+
+test("logical maps map through the two invisible boundary clones", () => {
+  assert.equal(mapIndexToPhysicalSlide(0), 1);
+  assert.equal(mapIndexToPhysicalSlide(1), 2);
+  assert.equal(physicalSlideToMapIndex(0), 1);
+  assert.equal(physicalSlideToMapIndex(1), 0);
+  assert.equal(physicalSlideToMapIndex(2), 1);
+  assert.equal(physicalSlideToMapIndex(3), 0);
 });
 
 test("swipe resolves by distance or velocity and otherwise returns", () => {
