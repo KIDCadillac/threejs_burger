@@ -28,7 +28,19 @@ export function normalizeMapIndex(value) {
 
 export function changeMapIndex(index, direction) {
   const current = normalizeMapIndex(index);
-  return Math.max(0, Math.min(HOME_MAPS.length - 1, current + Math.sign(direction)));
+  const step = Math.sign(Number(direction) || 0);
+  return (current + step + HOME_MAPS.length) % HOME_MAPS.length;
+}
+
+export function mapIndexToPhysicalSlide(index) {
+  return normalizeMapIndex(index) + 1;
+}
+
+export function physicalSlideToMapIndex(physicalSlide) {
+  const physical = Math.round(Number(physicalSlide) || 0);
+  if (physical <= 0) return HOME_MAPS.length - 1;
+  if (physical >= HOME_MAPS.length + 1) return 0;
+  return physical - 1;
 }
 
 export function resolveSwipe({ deltaX, width, velocityX }) {
