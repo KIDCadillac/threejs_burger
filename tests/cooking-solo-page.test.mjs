@@ -120,8 +120,21 @@ test("home page presents replica duel as a clear secondary game action", async (
     "复刻对决",
   ]) assert.ok(html.includes(marker), marker);
 
-  assert.match(css, /\.lobby-actions\s*\{[\s\S]*grid-template-columns:\s*5rem 5rem/);
-  assert.match(css, /\.lobby-action\s*\{[\s\S]*min-height:\s*5rem/);
+  assert.ok(
+    html.indexOf('class="map-carousel"') < html.indexOf('class="lobby-actions"'),
+    "地图在四个次级入口之前",
+  );
+  assert.match(
+    css,
+    /--home-map-height:\s*clamp\(20rem,\s*47vh,\s*25\.5rem\)/,
+  );
+  assert.match(
+    css,
+    /\.lobby-actions\s*\{[^}]*top:\s*calc\(6\.6rem \+ var\(--home-map-height\) \+ 1rem\);[^}]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/s,
+  );
+  assert.doesNotMatch(css, /\.lobby-actions\s*\{[^}]*bottom:/s);
+  assert.doesNotMatch(css, /\.lobby-action--book,\s*\.lobby-action--sushi\s*\{[^}]*grid-column/s);
+  assert.match(css, /\.lobby-action\s*\{[\s\S]*min-height:\s*4\.[4-9]rem/);
   assert.match(css, /\.bottom-nav\s*\{[\s\S]*grid-template-columns:\s*repeat\(4,\s*1fr\)/);
 });
 
