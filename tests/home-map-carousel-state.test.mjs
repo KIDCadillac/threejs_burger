@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import * as carouselState from "../app/static/home-map-carousel-state.mjs";
 import {
   HOME_MAP_KEY,
   HOME_MAPS,
@@ -11,6 +12,24 @@ import {
   physicalSlideToMapIndex,
   resolveSwipe,
 } from "../app/static/home-map-carousel-state.mjs";
+
+test("loop clone normalization waits through one painted frame before restoring transitions", () => {
+  assert.equal(typeof carouselState.afterNextPaint, "function");
+  const queued = [];
+  let restored = false;
+  const requestFrame = (callback) => queued.push(callback);
+
+  carouselState.afterNextPaint(requestFrame, () => {
+    restored = true;
+  });
+
+  assert.equal(queued.length, 1);
+  queued.shift()();
+  assert.equal(restored, false);
+  assert.equal(queued.length, 1);
+  queued.shift()();
+  assert.equal(restored, true);
+});
 
 test("map catalog exposes burger first and locked sushi second", () => {
   assert.equal(HOME_MAP_KEY, "burger-home-map-v1");

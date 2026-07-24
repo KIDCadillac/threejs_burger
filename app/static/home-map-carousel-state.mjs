@@ -57,6 +57,10 @@ export function resolveSwipe({ deltaX, width, velocityX }) {
   return 0;
 }
 
+export function afterNextPaint(requestFrame, callback) {
+  requestFrame(() => requestFrame(callback));
+}
+
 export function cardWheelPose(rawOffset) {
   const offset = Math.max(-2, Math.min(2, Number(rawOffset) || 0));
   const distance = Math.abs(offset);

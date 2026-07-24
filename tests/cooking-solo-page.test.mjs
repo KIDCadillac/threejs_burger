@@ -440,8 +440,9 @@ test("home lobby uses one pointer-driven card wheel for swipes arrows and keyboa
     readFile(homeCssPath, "utf8"),
   ]);
   for (const marker of [
-    'from "./home-map-carousel-state.mjs?v=20260724-swipe2"',
+    'from "./home-map-carousel-state.mjs?v=20260724-loopfix1"',
     "HOME_MAP_KEY",
+    "afterNextPaint",
     "cardWheelPose",
     "resolveSwipe",
     "cloneNode",

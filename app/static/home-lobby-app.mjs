@@ -8,12 +8,13 @@ import {
 import {
   HOME_MAP_KEY,
   HOME_MAPS,
+  afterNextPaint,
   cardWheelPose,
   changeMapIndex,
   mapIndexToPhysicalSlide,
   normalizeMapIndex,
   resolveSwipe,
-} from "./home-map-carousel-state.mjs?v=20260724-swipe2";
+} from "./home-map-carousel-state.mjs?v=20260724-loopfix1";
 import {
   HOME_BUSINESS_KEY,
   HOME_MODE_KEY,
@@ -156,7 +157,10 @@ function normalizeWheelLoop() {
   wheelPhysicalIndex = normalized;
   mapViewport?.classList.add("is-wheel-jump");
   renderWheel();
-  requestAnimationFrame(() => mapViewport?.classList.remove("is-wheel-jump"));
+  afterNextPaint(
+    (callback) => requestAnimationFrame(callback),
+    () => mapViewport?.classList.remove("is-wheel-jump"),
+  );
 }
 
 function finishWheelTransition() {
