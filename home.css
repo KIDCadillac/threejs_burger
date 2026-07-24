@@ -632,23 +632,25 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .lobby-sheet {
   position: fixed;
   z-index: 90;
-  right: max(1rem, calc((100vw - 31rem) / 2 + 1rem));
-  bottom: max(1rem, env(safe-area-inset-bottom));
-  left: max(1rem, calc((100vw - 31rem) / 2 + 1rem));
-  max-height: min(82vh, 46rem);
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  width: min(calc(100vw - 2rem), 29rem);
+  max-height: calc(100dvh - max(2rem, env(safe-area-inset-top)) - max(2rem, env(safe-area-inset-bottom)));
   padding: 1.35rem;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   border: 3px solid var(--ink);
   border-radius: 2rem;
   background: #fff6dc;
   box-shadow: 0 10px 0 var(--ink), 0 2rem 5rem rgba(25,12,7,.4);
   opacity: 0;
-  transform: translateY(2rem) scale(.96);
+  transform: translate(-50%, calc(-50% + 2rem)) scale(.96);
   transition: opacity 180ms ease, transform 180ms ease;
 }
-.lobby-sheet[data-open="true"] { opacity: 1; transform: translateY(0) scale(1); }
-.lobby-sheet--compact { bottom: auto; top: 50%; transform: translateY(calc(-50% + 2rem)) scale(.96); }
-.lobby-sheet--compact[data-open="true"] { transform: translateY(-50%) scale(1); }
+.lobby-sheet[data-open="true"] { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.lobby-sheet--compact { width: min(calc(100vw - 2rem), 29rem); }
 .sheet-close {
   position: absolute;
   top: .9rem;
@@ -666,7 +668,7 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 }
 .sheet-ribbon {
   width: fit-content;
-  margin: -2.5rem auto .7rem;
+  margin: 0 auto .7rem;
   padding: .72rem 2.2rem;
   border: 3px solid var(--ink);
   border-radius: .8rem;
@@ -675,6 +677,14 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   box-shadow: 0 4px 0 var(--ink);
   font-size: 1.35rem;
   font-weight: 1000;
+}
+.daily-sheet { padding-top: 4.9rem; }
+.daily-sheet > .sheet-ribbon {
+  position: absolute;
+  top: .8rem;
+  left: 50%;
+  margin: 0;
+  transform: translateX(-50%);
 }
 .sheet-kicker { margin: 0 0 .2rem; color: #ac5934; font-size: .72rem; font-weight: 900; letter-spacing: .12em; }
 .lobby-sheet h2 { margin: 0; padding-right: 3.2rem; font-size: 1.7rem; }
@@ -775,7 +785,8 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   .lobby-shell { width: 100%; }
   .resource-pill small { display: none; }
   .lobby-stage { min-height: calc(100dvh - 9.2rem); }
-  .lobby-sheet { right: .7rem; left: .7rem; padding: 1.1rem; }
+  .lobby-sheet { width: calc(100vw - 1.4rem); padding: 1.1rem; }
+  .daily-sheet { padding-top: 4.9rem; }
 }
 
 @media (max-height: 900px) {
