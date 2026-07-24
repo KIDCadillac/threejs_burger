@@ -374,10 +374,13 @@ test("root page is a one-screen game lobby with shop mode primary", async () => 
     'data-map-direction="1"',
     'id="home-map-count"',
     'id="map-primary-action"',
+    'data-business-toggle',
+    'id="home-mode-indicator"',
+    'data-home-mode-index="0"',
+    'data-home-mode-index="3"',
     'aria-disabled="true"',
     'data-home-action="daily-checkin"',
     'data-home-action="cookbook"',
-    'href="./cooking.html?mode=orders"',
     'href="./cooking.html?mode=practice"',
     'href="./replica-duel.html"',
     "今日营业",
@@ -392,19 +395,19 @@ test("root page is a one-screen game lobby with shop mode primary", async () => 
   assert.doesNotMatch(html, /id="home-map-dots"/);
   assert.doesNotMatch(html, /<span>左右滑动切换地图<\/span>/);
   assert.match(html, /今天也要好好做汉堡/);
-  assert.ok(
-    html.indexOf('href="./cooking.html?mode=orders"') < html.indexOf('href="./replica-duel.html"'),
-    "三单营业入口保持首要",
-  );
+  assert.doesNotMatch(html, /id="map-primary-action"[^>]*href=/);
   assert.match(css, /@media \(max-width: 640px\)/);
   assert.match(css, /min-height:\s*(?:44|48|52|56)px/);
   assert.match(css, /env\(safe-area-inset-top\)/);
   assert.match(css, /env\(safe-area-inset-bottom\)/);
   assert.match(css, /\.home-map-viewport\s*\{[^}]*perspective:\s*900px/s);
-  assert.match(css, /\.home-map-viewport\s*\{[^}]*touch-action:\s*pan-y/s);
+  assert.match(css, /\.home-map-viewport\s*\{[^}]*touch-action:\s*none/s);
   assert.match(css, /\.home-map-slide\s*\{[^}]*position:\s*absolute/s);
   assert.match(css, /rotateY\(var\(--map-rotate-y\)\)/);
   assert.match(css, /\.home-map-viewport\.is-dragging \.home-map-slide\s*\{[^}]*transition:\s*none/s);
+  assert.match(css, /\.lobby-action\.is-active/);
+  assert.match(css, /\.lobby-stage\.is-open/);
+  assert.match(css, /\.home-mode-indicator/);
   assert.doesNotMatch(css, /background-image\s*:\s*url\(/i);
   assert.doesNotMatch(html, /Papa|老爹|pizzeria|burgeria/i);
 });

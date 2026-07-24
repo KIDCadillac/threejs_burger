@@ -128,7 +128,8 @@ def test_home_page_contains_the_playable_cooking_lobby() -> None:
     assert response.status_code == 200
     assert "开饭啦" in response.text
     assert 'class="lobby-shell"' in response.text
-    assert 'href="./cooking.html?mode=orders"' in response.text
+    assert 'data-business-toggle' in response.text
+    assert 'id="home-mode-indicator"' in response.text
     assert 'data-home-action="sushi"' in response.text
 
 
@@ -180,7 +181,8 @@ def test_root_is_the_game_lobby_while_the_legacy_snack_bundle_is_preserved() -> 
     script = client.get("/static/app.js").text
 
     assert "今日营业" in page
-    assert 'href="./cooking.html?mode=orders"' in page
+    assert 'data-business-toggle' in page
+    assert 'id="home-mode-indicator"' in page
     assert "开门营业" in page
     assert "每日签到" in page
     assert "汉堡图鉴" in page

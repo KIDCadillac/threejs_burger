@@ -155,7 +155,7 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   border-radius: 2.3rem 2.3rem 1.4rem 1.4rem;
   cursor: grab;
   perspective: 900px;
-  touch-action: pan-y;
+  touch-action: none;
   user-select: none;
 }
 .home-map-viewport:active { cursor: grabbing; }
@@ -187,6 +187,46 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 }
 .home-map-viewport.is-dragging .home-map-slide { transition: none; }
 .home-map-viewport.is-wheel-jump .home-map-slide { transition: none; }
+.home-mode-indicator {
+  --mode-drag-y: 0px;
+  --mode-drag-rotate: 0deg;
+  position: absolute;
+  z-index: 17;
+  top: .7rem;
+  left: 50%;
+  display: grid;
+  min-width: 8.6rem;
+  padding: .35rem .85rem .4rem;
+  border: 2px solid rgba(55,34,22,.84);
+  border-radius: 999px;
+  color: #4f2918;
+  background: rgba(255,244,210,.93);
+  box-shadow: 0 4px 0 rgba(60,37,23,.42);
+  text-align: center;
+  transform:
+    translate(-50%, var(--mode-drag-y))
+    rotateX(var(--mode-drag-rotate));
+  transform-origin: center;
+  pointer-events: none;
+  transition: transform 160ms ease, opacity 160ms ease;
+}
+.home-mode-indicator small,
+.home-mode-indicator span {
+  color: #8b5941;
+  font-size: .5rem;
+  font-weight: 850;
+  line-height: 1.05;
+}
+.home-mode-indicator strong {
+  font-size: .8rem;
+  line-height: 1.15;
+}
+.home-mode-indicator.is-switching { animation: home-mode-card-switch 220ms cubic-bezier(.2,.8,.2,1); }
+@keyframes home-mode-card-switch {
+  0% { opacity: .45; transform: translate(-50%, -10px) rotateX(-14deg) scale(.96); }
+  65% { opacity: 1; transform: translate(-50%, 2px) rotateX(3deg) scale(1.02); }
+  100% { transform: translate(-50%, 0) rotateX(0) scale(1); }
+}
 .diner-scene {
   position: relative;
   width: 100%;
@@ -495,6 +535,12 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   cursor: pointer;
 }
 .lobby-action:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(60,37,23,.5); }
+.lobby-action.is-active {
+  border-color: #6d3c1d;
+  background: #fff0a8;
+  box-shadow: 0 0 0 4px #ffc843, 0 5px 0 rgba(60,37,23,.58);
+  transform: translateY(-2px);
+}
 .lobby-action span { display: grid; width: 1.9rem; height: 1.9rem; place-items: center; border-radius: .7rem; color: #fff; background: var(--blue); font-weight: 1000; }
 .lobby-action strong { overflow: hidden; max-width: 100%; font-size: clamp(.58rem, 2.6vw, .72rem); line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
 .lobby-action small { overflow: hidden; max-width: 100%; color: #8b5941; font-size: clamp(.49rem, 2.1vw, .57rem); text-overflow: ellipsis; white-space: nowrap; }
@@ -522,6 +568,8 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   box-shadow: 0 7px 0 var(--ink), inset 0 2px rgba(255,255,255,.5);
   text-align: center;
   transform: translateZ(0);
+  font: inherit;
+  cursor: pointer;
 }
 .open-shop-button span { display: grid; }
 .open-shop-button small { font-size: .66rem; font-weight: 850; }
@@ -535,6 +583,16 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   cursor: default;
 }
 .open-shop-button.is-disabled:active { transform: none; }
+.lobby-stage.is-open .diner-sign small {
+  color: #fff9d8;
+  background: #3e9b4d;
+  box-shadow: 0 0 0 4px rgba(105,211,111,.22);
+}
+.lobby-stage.is-open .open-shop-button {
+  color: #fff9d8;
+  background: linear-gradient(#a75438, #77311f);
+  box-shadow: 0 7px 0 var(--ink), inset 0 2px rgba(255,255,255,.2);
+}
 
 .bottom-nav {
   position: relative;
