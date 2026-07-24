@@ -351,6 +351,16 @@ test("root page is a one-screen game lobby with shop mode primary", async () => 
     'class="lobby-hud"',
     'id="daily-checkin"',
     'id="cookbook-sheet"',
+    'id="home-map-viewport"',
+    'id="home-map-track"',
+    'data-home-map="burger"',
+    'data-home-map="sushi"',
+    'data-map-direction="-1"',
+    'data-map-direction="1"',
+    'id="home-map-dots"',
+    'id="home-map-count"',
+    'id="map-primary-action"',
+    'aria-disabled="true"',
     'data-home-action="daily-checkin"',
     'data-home-action="cookbook"',
     'href="./cooking.html?mode=orders"',
@@ -362,7 +372,9 @@ test("root page is a one-screen game lobby with shop mode primary", async () => 
     "汉堡图鉴",
     "自由练习",
     "复刻对决",
+    "深夜寿司店",
     "寿司店筹备中",
+    "左右滑动切换地图",
   ]) assert.ok(html.includes(marker), marker);
   assert.match(html, /今天也要好好做汉堡/);
   assert.ok(
@@ -373,6 +385,8 @@ test("root page is a one-screen game lobby with shop mode primary", async () => 
   assert.match(css, /min-height:\s*(?:44|48|52|56)px/);
   assert.match(css, /env\(safe-area-inset-top\)/);
   assert.match(css, /env\(safe-area-inset-bottom\)/);
+  assert.match(css, /\.home-map-track\s*\{[^}]*display:\s*flex/s);
+  assert.match(css, /\.home-map-viewport\s*\{[^}]*touch-action:\s*pan-y/s);
   assert.doesNotMatch(css, /background-image\s*:\s*url\(/i);
   assert.doesNotMatch(html, /Papa|老爹|pizzeria|burgeria/i);
 });
