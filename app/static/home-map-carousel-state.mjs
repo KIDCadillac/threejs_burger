@@ -79,3 +79,7 @@ export function cardWheelPose(rawOffset) {
     zIndex: Math.round(30 - distance * 12),
   };
 }
+
+export function activeCardAccessoryPose(progress) {
+  return cardWheelPose(-(Number(progress) || 0));
+}

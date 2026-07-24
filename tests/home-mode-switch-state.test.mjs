@@ -2,9 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  HOME_MAP_MODE_IDS,
   HOME_MODES,
   changeModeIndex,
+  changeModeIndexForMap,
   lockGestureAxis,
+  modeIndexForMap,
   normalizeBusinessOpen,
   normalizeModeIndex,
   resolveModeSwipe,
@@ -16,6 +19,19 @@ test("home modes normalize and cycle in both directions", () => {
   assert.equal(normalizeModeIndex(99), 0);
   assert.equal(changeModeIndex(3, 1), 0);
   assert.equal(changeModeIndex(0, -1), 3);
+});
+
+test("each shop card owns its available mode sequence", () => {
+  assert.deepEqual(HOME_MAP_MODE_IDS, {
+    burger: ["practice", "cookbook", "duel"],
+    sushi: ["sushi"],
+  });
+  assert.equal(modeIndexForMap("burger", 3), 0);
+  assert.equal(modeIndexForMap("burger", 1), 1);
+  assert.equal(modeIndexForMap("sushi", 0), 3);
+  assert.equal(changeModeIndexForMap("burger", 2, 1), 0);
+  assert.equal(changeModeIndexForMap("burger", 0, -1), 2);
+  assert.equal(changeModeIndexForMap("sushi", 0, 1), 3);
 });
 
 test("gesture axis locks only after a dominant movement", () => {

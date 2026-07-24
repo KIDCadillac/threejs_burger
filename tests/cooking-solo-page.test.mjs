@@ -117,7 +117,11 @@ test("home page uses a large buffered shop carousel without the old four-button 
   assert.ok(html.includes("寿司店筹备中"));
   assert.doesNotMatch(html, /class="lobby-actions"/);
   assert.doesNotMatch(html, /data-home-mode-index=/);
-  assert.match(css, /--home-map-height:\s*clamp\(24rem,\s*56vh,\s*32rem\)/);
+  assert.doesNotMatch(html, /id="map-subtitle"/);
+  assert.match(html, /<div class="diner-sign">[\s\S]*data-business-toggle[\s\S]*id="lobby-title"/);
+  assert.doesNotMatch(html, /class="open-shop-button"/);
+  assert.match(css, /--home-map-height:\s*clamp\(22rem,\s*50vh,\s*28rem\)/);
+  assert.match(css, /\.business-sign-button\s*\{/);
   assert.match(css, /\.home-map-slide\s*\{[^}]*transform-origin:\s*center center/s);
   assert.doesNotMatch(css, /\.lobby-actions\s*\{/);
 });

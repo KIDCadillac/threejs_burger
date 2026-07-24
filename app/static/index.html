@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f8c948">
     <title>开饭啦 · 汉堡小馆</title>
-    <link rel="stylesheet" href="./home.css?v=20260724-buffer1">
-    <script type="module" src="./home-lobby-app.mjs?v=20260724-buffer1"></script>
+    <link rel="stylesheet" href="./home.css?v=20260724-coupled1">
+    <script type="module" src="./home-lobby-app.mjs?v=20260724-coupled1"></script>
   </head>
   <body>
     <main class="lobby-shell">
@@ -31,9 +31,13 @@
 
       <section class="lobby-stage" aria-labelledby="lobby-title">
         <div class="diner-sign">
-          <small id="map-status">今日营业</small>
+          <button class="business-sign-button" type="button" data-business-toggle aria-pressed="false">
+            <span>
+              <small id="map-status">已打烊</small>
+              <strong id="business-label">开门营业</strong>
+            </span>
+          </button>
           <h1 id="lobby-title">汉堡小馆</h1>
-          <p id="map-subtitle">今天也要好好做汉堡</p>
         </div>
 
         <div class="map-carousel" data-card-wheel>
@@ -114,11 +118,6 @@
             <strong id="home-map-count">1/2</strong>
           </div>
         </div>
-
-        <button class="open-shop-button" id="map-primary-action" type="button" data-business-toggle aria-pressed="false">
-          <span><small id="business-hint">店铺当前已打烊</small><strong id="business-label">开门营业</strong></span>
-          <b aria-hidden="true">›</b>
-        </button>
 
       </section>
 

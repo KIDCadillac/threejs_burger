@@ -5,6 +5,7 @@ import * as carouselState from "../app/static/home-map-carousel-state.mjs";
 import {
   HOME_MAP_KEY,
   HOME_MAPS,
+  activeCardAccessoryPose,
   cardWheelPose,
   changeMapIndex,
   normalizeMapIndex,
@@ -94,6 +95,12 @@ test("card wheel keeps the active map forward and turns readable neighbours 45 d
     zIndex: 18,
   });
   assert.equal(cardWheelPose(2).opacity, 0);
+});
+
+test("active card accessory shares the active card pose during drag", () => {
+  assert.deepEqual(activeCardAccessoryPose(0), cardWheelPose(0));
+  assert.deepEqual(activeCardAccessoryPose(0.5), cardWheelPose(-0.5));
+  assert.deepEqual(activeCardAccessoryPose(-1), cardWheelPose(1));
 });
 
 test("invalid stored map indexes fall back to burger", () => {
