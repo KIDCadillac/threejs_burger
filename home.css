@@ -11,7 +11,7 @@
   --green: #73b94e;
   --blue: #3d84d8;
   --line: rgba(76, 42, 21, 0.18);
-  --home-map-height: clamp(20rem, 47vh, 25.5rem);
+  --home-map-height: clamp(24rem, 56vh, 32rem);
 }
 
 * { box-sizing: border-box; }
@@ -171,7 +171,7 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   --map-scale: 1;
   --map-opacity: 1;
   position: absolute;
-  inset: 0 2.7rem .2rem;
+  inset: 0 2.35rem .2rem;
   contain: layout paint;
   opacity: var(--map-opacity);
   transform:
@@ -381,6 +381,30 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
     linear-gradient(90deg, transparent 48%, rgba(241,215,160,.22) 49% 51%, transparent 52%),
     linear-gradient(180deg, #163747 0%, #10252f 100%);
 }
+.sushi-preview-copy {
+  position: absolute;
+  z-index: 8;
+  top: 1rem;
+  left: 50%;
+  display: grid;
+  width: min(68%, 12rem);
+  gap: .08rem;
+  color: #fff2c8;
+  text-align: center;
+  text-shadow: 0 2px 0 rgba(17, 23, 29, .7);
+  transform: translateX(-50%);
+}
+.sushi-preview-copy small {
+  justify-self: center;
+  padding: .18rem .55rem;
+  border-radius: 999px;
+  background: #d94d3e;
+  font-size: .58rem;
+  font-weight: 950;
+  letter-spacing: .1em;
+}
+.sushi-preview-copy strong { font-size: 1.05rem; letter-spacing: .08em; }
+.sushi-preview-copy span { color: #d5e8e5; font-size: .56rem; font-weight: 850; }
 .night-moon {
   position: absolute;
   top: 1rem;
@@ -509,51 +533,11 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   font-weight: 950;
 }
 
-.lobby-actions {
-  position: absolute;
-  z-index: 9;
-  top: calc(6.6rem + var(--home-map-height) + 1rem);
-  right: .45rem;
-  left: .45rem;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: .45rem;
-  pointer-events: none;
-}
-.lobby-action {
-  display: grid;
-  min-width: 0;
-  min-height: 4.6rem;
-  padding: .34rem .16rem;
-  place-items: center;
-  border: 2px solid var(--ink);
-  border-radius: 1.05rem;
-  background: #fff4d2;
-  box-shadow: 0 4px 0 rgba(60,37,23,.5);
-  text-align: center;
-  pointer-events: auto;
-  cursor: pointer;
-}
-.lobby-action:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(60,37,23,.5); }
-.lobby-action.is-active {
-  border-color: #6d3c1d;
-  background: #fff0a8;
-  box-shadow: 0 0 0 4px #ffc843, 0 5px 0 rgba(60,37,23,.58);
-  transform: translateY(-2px);
-}
-.lobby-action span { display: grid; width: 1.9rem; height: 1.9rem; place-items: center; border-radius: .7rem; color: #fff; background: var(--blue); font-weight: 1000; }
-.lobby-action strong { overflow: hidden; max-width: 100%; font-size: clamp(.58rem, 2.6vw, .72rem); line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
-.lobby-action small { overflow: hidden; max-width: 100%; color: #8b5941; font-size: clamp(.49rem, 2.1vw, .57rem); text-overflow: ellipsis; white-space: nowrap; }
-.lobby-action--practice span { background: var(--green); }
-.lobby-action--book span { background: var(--orange); }
-.lobby-action--duel span { background: #8858b6; }
-.lobby-action--sushi span { background: #3d8491; }
-
 .open-shop-button {
   position: absolute;
   z-index: 10;
+  top: calc(6.6rem + var(--home-map-height) + .85rem);
   right: 4.4rem;
-  bottom: 1.1rem;
   left: 4.4rem;
   display: flex;
   min-height: 5.15rem;
