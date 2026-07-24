@@ -11,6 +11,7 @@
   --green: #73b94e;
   --blue: #3d84d8;
   --line: rgba(76, 42, 21, 0.18);
+  --home-map-height: clamp(20rem, 47vh, 25.5rem);
 }
 
 * { box-sizing: border-box; }
@@ -145,7 +146,7 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   top: 6.6rem;
   right: 0;
   left: 0;
-  height: clamp(20rem, 51vh, 27rem);
+  height: var(--home-map-height);
 }
 .home-map-viewport {
   position: absolute;
@@ -485,32 +486,32 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .lobby-actions {
   position: absolute;
   z-index: 9;
-  top: 11.2rem;
-  right: 0;
-  left: 0;
+  top: calc(6.6rem + var(--home-map-height) + 1rem);
+  right: .45rem;
+  left: .45rem;
   display: grid;
-  grid-template-columns: 5rem 5rem;
-  justify-content: space-between;
-  gap: .8rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .45rem;
   pointer-events: none;
 }
 .lobby-action {
   display: grid;
-  min-height: 5rem;
-  padding: .38rem;
+  min-width: 0;
+  min-height: 4.6rem;
+  padding: .34rem .16rem;
   place-items: center;
   border: 2px solid var(--ink);
-  border-radius: 1.3rem;
+  border-radius: 1.05rem;
   background: #fff4d2;
-  box-shadow: 0 5px 0 rgba(60,37,23,.5);
+  box-shadow: 0 4px 0 rgba(60,37,23,.5);
   text-align: center;
   pointer-events: auto;
   cursor: pointer;
 }
-.lobby-action span { display: grid; width: 2.1rem; height: 2.1rem; place-items: center; border-radius: .75rem; color: #fff; background: var(--blue); font-weight: 1000; }
-.lobby-action strong { font-size: .7rem; line-height: 1; }
-.lobby-action small { color: #8b5941; font-size: .58rem; }
-.lobby-action--book, .lobby-action--sushi { grid-column: 2; }
+.lobby-action:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(60,37,23,.5); }
+.lobby-action span { display: grid; width: 1.9rem; height: 1.9rem; place-items: center; border-radius: .7rem; color: #fff; background: var(--blue); font-weight: 1000; }
+.lobby-action strong { overflow: hidden; max-width: 100%; font-size: clamp(.58rem, 2.6vw, .72rem); line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+.lobby-action small { overflow: hidden; max-width: 100%; color: #8b5941; font-size: clamp(.49rem, 2.1vw, .57rem); text-overflow: ellipsis; white-space: nowrap; }
 .lobby-action--practice span { background: var(--green); }
 .lobby-action--book span { background: var(--orange); }
 .lobby-action--duel span { background: #8858b6; }
@@ -733,10 +734,15 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   .lobby-sheet { right: .7rem; left: .7rem; padding: 1.1rem; }
 }
 
-@media (max-height: 740px) {
+@media (max-height: 900px) {
   body { overflow-y: auto; }
-  .lobby-stage { min-height: 37rem; }
-  .map-carousel { height: 20rem; }
+  .lobby-stage { min-height: 43rem; }
+}
+
+@media (max-height: 740px) {
+  :root { --home-map-height: 20rem; }
+  body { overflow-y: auto; }
+  .lobby-stage { min-height: 40rem; }
   .health-note { display: none; }
 }
 
