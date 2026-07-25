@@ -254,17 +254,15 @@ test("home store cards read as a burger food truck and a sushi counter with ston
   assert.doesNotMatch(css, /\.home-map-slide\.is-closing \.food-truck-wheel/);
 });
 
-test("home lobby uses responsive flow and keeps the active mode inside its map card", async () => {
+test("home lobby uses responsive flow and keeps each mode label inside its own map card", async () => {
   const [html, css, app] = await Promise.all([
     readFile(homePath, "utf8"),
     readFile(homeCssPath, "utf8"),
     readFile(homeAppPath, "utf8"),
   ]);
 
-  assert.match(
-    html,
-    /class="home-map-viewport"[\s\S]*id="home-mode-indicator"[\s\S]*data-map-direction="1"/,
-  );
+  assert.equal((html.match(/data-card-mode-indicator/g) ?? []).length, 2);
+  assert.match(html, /class="home-mode-announcer" id="home-mode-indicator"/);
   assert.doesNotMatch(html, /class="home-map-meta"|id="home-map-count"/);
   assert.match(css, /\.lobby-stage\s*\{[^}]*display:\s*grid;[^}]*grid-template-rows:/s);
   assert.match(css, /\.map-carousel\s*\{[^}]*position:\s*relative;/s);
@@ -275,6 +273,35 @@ test("home lobby uses responsive flow and keeps the active mode inside its map c
   assert.match(css, /env\(safe-area-inset-top\)/);
   assert.match(css, /env\(safe-area-inset-bottom\)/);
   assert.doesNotMatch(app, /home-map-count|mapCount/);
+  assert.match(app, /function renderBufferedModeIndicators\(\)/);
+  assert.doesNotMatch(
+    app,
+    /activeCardAccessoryPose|--mode-card-x|--mode-card-scale|--mode-card-opacity/,
+  );
+});
+
+test("shop workers follow shutter progress and buffered card corners are clipped", async () => {
+  const [css, app] = await Promise.all([
+    readFile(homeCssPath, "utf8"),
+    readFile(homeAppPath, "utf8"),
+  ]);
+
+  assert.match(
+    css,
+    /\.home-map-slide\s*\{[^}]*clip-path:\s*inset\(0 round [^)]+\);/s,
+  );
+  assert.match(
+    css,
+    /\.chef,\s*\.sushi-master\s*\{[^}]*translateY\(calc\(\(1 - var\(--shop-open-progress,\s*0\)\) \* 2\.2rem\)\)/s,
+  );
+  assert.match(
+    css,
+    /\.home-map-viewport\.is-dragging \.chef,\s*\.home-map-viewport\.is-dragging \.sushi-master/s,
+  );
+  assert.match(
+    app,
+    /slide\.style\.setProperty\(\s*"--shop-open-progress"/s,
+  );
 });
 
 test("the public page exposes a touch-safe playable highlight replay dialog", async () => {
