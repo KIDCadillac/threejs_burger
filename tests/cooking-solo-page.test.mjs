@@ -126,6 +126,30 @@ test("home page uses a large buffered shop carousel without the old four-button 
   assert.doesNotMatch(css, /\.lobby-actions\s*\{/);
 });
 
+test("home business control looks and behaves like a physical wooden hanging sign", async () => {
+  const [html, css, app] = await Promise.all([
+    readFile(homePath, "utf8"),
+    readFile(homeCssPath, "utf8"),
+    readFile(homeAppPath, "utf8"),
+  ]);
+
+  assert.match(html, /class="business-sign__board"/);
+  assert.match(html, /class="business-sign__welcome"[^>]*>WELCOME</);
+  assert.match(html, /id="map-status">已打烊</);
+  assert.match(html, /id="business-label">点击开门营业</);
+  assert.match(css, /\.business-sign__board\s*\{/);
+  assert.match(css, /repeating-linear-gradient\(/);
+  assert.match(css, /\.business-sign__board::before/);
+  assert.match(css, /\.business-sign-button\.is-flipping\s+\.business-sign__board/);
+  assert.match(css, /@keyframes business-sign-flip/);
+  assert.match(css, /\.map-carousel\s*\{[^}]*top:\s*8\.1rem;/s);
+  assert.match(css, /\.lobby-stage\.is-open\s+\.business-sign__board/);
+  assert.doesNotMatch(css, /\.lobby-stage\.is-open\s+\.business-sign-button\s*\{/);
+  assert.match(app, /businessOpen\s*\?\s*"点击关门打烊"\s*:\s*"点击开门营业"/);
+  assert.match(app, /classList\.add\("is-flipping"\)/);
+  assert.match(app, /animationend/);
+});
+
 test("the public page exposes a touch-safe playable highlight replay dialog", async () => {
   const [html, css, app] = await Promise.all([
     readFile(htmlPath, "utf8"),
