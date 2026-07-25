@@ -10,12 +10,13 @@ import {
   HOME_MAPS,
   activeCardAccessoryPose,
   afterNextPaint,
-  cardWheelPose,
   changeMapIndex,
+  createLatestFrameScheduler,
   createMapCardWindow,
   normalizeMapIndex,
   resolveSwipe,
-} from "./home-map-carousel-state.mjs?v=20260725-cardfilm1";
+  streetShopPose,
+} from "./home-map-carousel-state.mjs?v=20260725-streetshop1";
 import {
   HOME_BUSINESS_KEY,
   HOME_MODE_KEY,
@@ -69,10 +70,15 @@ let dragDeltaY = 0;
 let gestureAxis = null;
 let gestureMoved = false;
 let suppressMapClick = false;
-const WHEEL_TRANSITION_MS = 320;
-const SHOP_CLOSE_DELAY_MS = 360;
-const SHOP_OPEN_MS = 540;
+const WHEEL_TRANSITION_MS = 280;
+const SHOP_CLOSE_DELAY_MS = 100;
+const SHOP_OPEN_MS = 260;
 const reducedMotionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+const wheelFrameScheduler = createLatestFrameScheduler({
+  requestFrame: (callback) => requestAnimationFrame(callback),
+  cancelFrame: (frameId) => cancelAnimationFrame(frameId),
+  render: (progress) => renderWheel(progress),
+});
 
 function setupBufferedMapSlides() {
   if (!mapTrack || !mapTemplates.length) return [];
@@ -155,28 +161,21 @@ function renderWheel(progress = 0) {
   const dragProgress = Math.max(-1, Math.min(1, Number(progress) || 0));
   bufferedMapSlides.forEach((slide) => {
     const offset = Number(slide.dataset.cardOffset) || 0;
-    const pose = cardWheelPose(offset - dragProgress);
-    slide.style.setProperty("--map-translate-x", `${pose.translatePercent}%`);
-    slide.style.setProperty("--map-translate-y", `${pose.translateYPercent}%`);
-    slide.style.setProperty("--map-translate-z", `${pose.translateZPx}px`);
-    slide.style.setProperty("--map-rotate-y", `${pose.rotateY}deg`);
-    slide.style.setProperty("--map-scale", String(pose.scale));
+    const pose = streetShopPose(offset - dragProgress);
+    const motion = `translate3d(${pose.translatePercent}%, ${pose.translateYPercent}%, 0) scale(${pose.scale})`;
+    slide.style.setProperty("--map-motion", motion);
     slide.style.setProperty("--map-opacity", String(pose.opacity));
-    slide.style.setProperty("--map-blur", `${pose.blurPx}px`);
-    slide.style.setProperty("--map-saturation", String(pose.saturation));
-    slide.style.setProperty("--map-brightness", String(pose.brightness));
-    slide.style.setProperty("--map-sheen-x", `${pose.sheenPercent}%`);
-    slide.style.setProperty("--map-sheen-opacity", String(pose.sheenOpacity));
+    slide.style.setProperty("--map-shade-opacity", String(pose.shadeOpacity));
     slide.style.zIndex = String(pose.zIndex);
   });
   const accessoryPose = activeCardAccessoryPose(dragProgress);
   modeIndicator?.style.setProperty("--mode-card-x", `${accessoryPose.translatePercent}%`);
-  modeIndicator?.style.setProperty("--mode-card-rotate-y", `${accessoryPose.rotateY}deg`);
   modeIndicator?.style.setProperty("--mode-card-scale", String(accessoryPose.scale));
   modeIndicator?.style.setProperty("--mode-card-opacity", String(accessoryPose.opacity));
 }
 
 function resetBufferedWheel() {
+  wheelFrameScheduler.cancel();
   mapViewport?.classList.add("is-wheel-jump");
   refreshBufferedMapSlides(mapIndex);
   renderWheel();
@@ -208,6 +207,7 @@ function playShopOpen() {
 }
 
 function finishWheelTransition({ playArrival = true } = {}) {
+  wheelFrameScheduler.cancel();
   window.clearTimeout(wheelTimer);
   window.clearTimeout(closeTimer);
   const arrived = pendingMapIndex !== null;
@@ -344,6 +344,7 @@ function activeMapSlide() {
 }
 
 function beginShopClose(step, nextIndex, { persist = true } = {}) {
+  wheelFrameScheduler.cancel();
   wheelTransitioning = true;
   pendingMapIndex = nextIndex;
   if (persist) writeMapIndex(nextIndex);
@@ -381,6 +382,7 @@ function moveMap(direction, { persist = true } = {}) {
 }
 
 function snapWheelBack() {
+  wheelFrameScheduler.cancel();
   wheelTransitioning = true;
   mapViewport?.classList.remove("is-dragging");
   mapViewport?.setAttribute("aria-busy", "true");
@@ -389,6 +391,7 @@ function snapWheelBack() {
 }
 
 function beginMapDrag(event) {
+  wheelFrameScheduler.cancel();
   if (wheelTransitioning) settleWheelForInteraction();
   if (HOME_MAPS.length < 2) return;
   if (event.pointerType === "mouse" && event.button !== 0) return;
@@ -415,7 +418,7 @@ function updateMapDrag(event) {
   if (gestureAxis === "horizontal") {
     const width = Math.max(1, mapViewport.clientWidth);
     const progress = -dragDeltaX / (width * 0.72);
-    renderWheel(progress);
+    wheelFrameScheduler.schedule(progress);
   } else {
     const height = Math.max(1, mapViewport.clientHeight);
     const progress = Math.max(-1, Math.min(1, dragDeltaY / (height * 0.42)));
@@ -427,6 +430,7 @@ function updateMapDrag(event) {
 
 function endMapDrag(event, cancelled = false) {
   if (event.pointerId !== dragPointerId) return;
+  wheelFrameScheduler.cancel();
   const elapsed = Math.max(1, performance.now() - dragStartTime);
   mapViewport.releasePointerCapture?.(event.pointerId);
   dragPointerId = null;
