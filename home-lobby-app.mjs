@@ -15,7 +15,7 @@ import {
   createMapCardWindow,
   normalizeMapIndex,
   resolveSwipe,
-} from "./home-map-carousel-state.mjs?v=20260725-responsive1";
+} from "./home-map-carousel-state.mjs?v=20260725-elastic1";
 import {
   HOME_BUSINESS_KEY,
   HOME_MODE_KEY,
@@ -152,6 +152,8 @@ function renderWheel(progress = 0) {
     const offset = Number(slide.dataset.cardOffset) || 0;
     const pose = cardWheelPose(offset - dragProgress);
     slide.style.setProperty("--map-translate-x", `${pose.translatePercent}%`);
+    slide.style.setProperty("--map-translate-y", `${pose.translateYPercent}%`);
+    slide.style.setProperty("--map-translate-z", `${pose.translateZPx}px`);
     slide.style.setProperty("--map-rotate-y", `${pose.rotateY}deg`);
     slide.style.setProperty("--map-scale", String(pose.scale));
     slide.style.setProperty("--map-opacity", String(pose.opacity));
