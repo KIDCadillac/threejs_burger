@@ -75,6 +75,8 @@ test("swipe resolves by distance or velocity and otherwise returns", () => {
 test("card wheel keeps the active map forward and turns readable neighbours 45 degrees", () => {
   assert.deepEqual(cardWheelPose(0), {
     translatePercent: 0,
+    translateYPercent: 0,
+    translateZPx: 0,
     rotateY: 0,
     scale: 1,
     opacity: 1,
@@ -82,18 +84,29 @@ test("card wheel keeps the active map forward and turns readable neighbours 45 d
   });
   assert.deepEqual(cardWheelPose(-1), {
     translatePercent: -62,
+    translateYPercent: 4.5,
+    translateZPx: -72,
     rotateY: -45,
-    scale: 0.9,
+    scale: 0.78,
     opacity: 0.88,
     zIndex: 18,
   });
   assert.deepEqual(cardWheelPose(1), {
     translatePercent: 62,
+    translateYPercent: 4.5,
+    translateZPx: -72,
     rotateY: 45,
-    scale: 0.9,
+    scale: 0.78,
     opacity: 0.88,
     zIndex: 18,
   });
+  const halfway = cardWheelPose(0.5);
+  assert.ok(halfway.scale > cardWheelPose(1).scale);
+  assert.ok(halfway.scale < cardWheelPose(0).scale);
+  assert.ok(halfway.translateYPercent > 0);
+  assert.ok(halfway.translateYPercent < cardWheelPose(1).translateYPercent);
+  assert.ok(halfway.translateZPx < 0);
+  assert.ok(halfway.translateZPx > cardWheelPose(1).translateZPx);
   assert.equal(cardWheelPose(2).opacity, 0);
 });
 

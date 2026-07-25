@@ -302,6 +302,8 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 }
 .home-map-slide {
   --map-translate-x: 0%;
+  --map-translate-y: 0%;
+  --map-translate-z: 0px;
   --map-rotate-y: 0deg;
   --map-scale: 1;
   --map-opacity: 1;
@@ -311,11 +313,13 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   opacity: var(--map-opacity);
   transform:
     translateX(var(--map-translate-x))
+    translateY(var(--map-translate-y))
+    translateZ(var(--map-translate-z))
     rotateY(var(--map-rotate-y))
     scale(var(--map-scale));
   transform-origin: center center;
   transition:
-    transform 380ms cubic-bezier(.2,.8,.2,1),
+    transform 420ms cubic-bezier(.18,1.32,.32,1),
     opacity 260ms ease;
   will-change: transform, opacity;
   pointer-events: none;

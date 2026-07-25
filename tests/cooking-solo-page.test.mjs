@@ -107,9 +107,10 @@ test("workbench slot controls overlay the canvas with touch-safe, focus-aware co
 });
 
 test("home page uses a large buffered shop carousel without the old four-button grid", async () => {
-  const [html, css] = await Promise.all([
+  const [html, css, app] = await Promise.all([
     readFile(homePath, "utf8"),
     readFile(homeCssPath, "utf8"),
+    readFile(homeAppPath, "utf8"),
   ]);
 
   assert.equal((html.match(/data-map-template/g) ?? []).length, 2);
@@ -123,6 +124,14 @@ test("home page uses a large buffered shop carousel without the old four-button 
   assert.match(css, /--home-map-height:\s*clamp\(/);
   assert.match(css, /\.business-sign-button\s*\{/);
   assert.match(css, /\.home-map-slide\s*\{[^}]*transform-origin:\s*center center/s);
+  assert.ok(app.includes('slide.style.setProperty("--map-translate-y", `${pose.translateYPercent}%`);'));
+  assert.ok(app.includes('slide.style.setProperty("--map-translate-z", `${pose.translateZPx}px`);'));
+  assert.match(
+    css,
+    /translateX\(var\(--map-translate-x\)\)\s*translateY\(var\(--map-translate-y\)\)\s*translateZ\(var\(--map-translate-z\)\)\s*rotateY\(var\(--map-rotate-y\)\)\s*scale\(var\(--map-scale\)\)/s,
+  );
+  assert.match(css, /transform\s+420ms\s+cubic-bezier\(\.18,1\.32,\.32,1\)/);
+  assert.match(css, /\.home-map-viewport\.is-dragging \.home-map-slide\s*\{\s*transition:\s*none;\s*\}/);
   assert.doesNotMatch(css, /\.lobby-actions\s*\{/);
 });
 
