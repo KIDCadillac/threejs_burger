@@ -8,7 +8,6 @@ import {
 import {
   HOME_MAP_KEY,
   HOME_MAPS,
-  activeCardAccessoryPose,
   afterNextPaint,
   changeMapIndex,
   createLatestFrameScheduler,
@@ -51,7 +50,6 @@ const mapArrows = [...document.querySelectorAll("[data-map-direction]")];
 const mapStatus = document.querySelector("#map-status");
 const mapTitle = document.querySelector("#lobby-title");
 const lobbyStage = document.querySelector(".lobby-stage");
-const modeIndicator = document.querySelector("#home-mode-indicator");
 const modeLabel = document.querySelector("#home-mode-label");
 const modeHint = document.querySelector("#home-mode-hint");
 const businessToggle = document.querySelector("[data-business-toggle]");
@@ -117,6 +115,34 @@ function hydrateBufferedMapSlide(slot, templateIndex, offset) {
   slot.innerHTML = template.innerHTML;
   slot.setAttribute("aria-label", template.getAttribute("aria-label") || "");
   updateBufferedMapSlideAccess(slot, offset);
+  renderModeIndicatorForSlide(slot);
+}
+
+function modeIndicatorForSlide(slide) {
+  return slide?.querySelector("[data-card-mode-indicator]") ?? null;
+}
+
+function activeModeIndicator() {
+  const activeSlide = bufferedMapSlides.find(
+    (slide) => (Number(slide.dataset.cardOffset) || 0) === 0,
+  );
+  return modeIndicatorForSlide(activeSlide);
+}
+
+function renderModeIndicatorForSlide(slide) {
+  if (!slide) return;
+  const indicator = modeIndicatorForSlide(slide);
+  const slideModeIndex = modeIndexForMap(slide.dataset.homeMap, modeIndex);
+  const mode = HOME_MODES[slideModeIndex];
+  if (!indicator || !mode) return;
+  const label = indicator.querySelector("[data-card-mode-label]");
+  const hint = indicator.querySelector("[data-card-mode-hint]");
+  if (label) label.textContent = mode.label;
+  if (hint) hint.textContent = mode.hint;
+}
+
+function renderBufferedModeIndicators() {
+  bufferedMapSlides.forEach(renderModeIndicatorForSlide);
 }
 
 function advanceBufferedMapSlides(activeIndex, step) {
@@ -199,10 +225,6 @@ function renderWheel(progress = 0) {
     );
     slide.style.zIndex = String(pose.zIndex);
   });
-  const accessoryPose = activeCardAccessoryPose(dragProgress);
-  modeIndicator?.style.setProperty("--mode-card-x", `${accessoryPose.translatePercent}%`);
-  modeIndicator?.style.setProperty("--mode-card-scale", String(accessoryPose.scale));
-  modeIndicator?.style.setProperty("--mode-card-opacity", String(accessoryPose.opacity));
 }
 
 function setWheelSettleDuration(duration) {
@@ -210,7 +232,6 @@ function setWheelSettleDuration(duration) {
   bufferedMapSlides.forEach((slide) => {
     slide.style.setProperty("--wheel-settle-ms", milliseconds);
   });
-  modeIndicator?.style.setProperty("--wheel-settle-ms", milliseconds);
 }
 
 function resetBufferedWheel({ step = 0 } = {}) {
@@ -269,8 +290,11 @@ function renderMap() {
 }
 
 function resetModePreview() {
-  modeIndicator?.style.setProperty("--mode-drag-y", "0px");
-  modeIndicator?.style.setProperty("--mode-drag-rotate", "0deg");
+  bufferedMapSlides.forEach((slide) => {
+    const indicator = modeIndicatorForSlide(slide);
+    indicator?.style.setProperty("--mode-drag-y", "0px");
+    indicator?.style.setProperty("--mode-drag-rotate", "0deg");
+  });
 }
 
 function renderMode({ animate = false } = {}) {
@@ -278,11 +302,13 @@ function renderMode({ animate = false } = {}) {
   if (!mode) return;
   if (modeLabel) modeLabel.textContent = mode.label;
   if (modeHint) modeHint.textContent = mode.hint;
+  renderBufferedModeIndicators();
   resetModePreview();
-  if (!animate || !modeIndicator) return;
-  modeIndicator.classList.remove("is-switching");
-  void modeIndicator.offsetWidth;
-  modeIndicator.classList.add("is-switching");
+  const activeIndicator = activeModeIndicator();
+  if (!animate || !activeIndicator) return;
+  activeIndicator.classList.remove("is-switching");
+  void activeIndicator.offsetWidth;
+  activeIndicator.classList.add("is-switching");
 }
 
 function moveMode(direction, { persist = true, animate = true } = {}) {
@@ -431,8 +457,9 @@ function updateMapDrag(event) {
   } else {
     const height = Math.max(1, mapViewport.clientHeight);
     const progress = Math.max(-1, Math.min(1, dragDeltaY / (height * 0.42)));
-    modeIndicator?.style.setProperty("--mode-drag-y", `${progress * 18}px`);
-    modeIndicator?.style.setProperty("--mode-drag-rotate", `${progress * -10}deg`);
+    const indicator = activeModeIndicator();
+    indicator?.style.setProperty("--mode-drag-y", `${progress * 18}px`);
+    indicator?.style.setProperty("--mode-drag-rotate", `${progress * -10}deg`);
   }
   event.preventDefault();
 }
