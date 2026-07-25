@@ -15,7 +15,7 @@ import {
   createMapCardWindow,
   normalizeMapIndex,
   resolveSwipe,
-} from "./home-map-carousel-state.mjs?v=20260725-clearance1";
+} from "./home-map-carousel-state.mjs?v=20260725-cardfilm1";
 import {
   HOME_BUSINESS_KEY,
   HOME_MODE_KEY,
@@ -58,6 +58,7 @@ let businessOpen = readBusinessOpen();
 let pendingMapIndex = null;
 let wheelTransitioning = false;
 let wheelTimer = 0;
+let closeTimer = 0;
 let dragPointerId = null;
 let dragStartX = 0;
 let dragStartY = 0;
@@ -68,6 +69,8 @@ let gestureAxis = null;
 let gestureMoved = false;
 let suppressMapClick = false;
 const WHEEL_TRANSITION_MS = 400;
+const SHOP_CLOSE_DELAY_MS = 660;
+const reducedMotionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
 
 function setupBufferedMapSlides() {
   if (!mapTrack || !mapTemplates.length) return [];
@@ -157,6 +160,11 @@ function renderWheel(progress = 0) {
     slide.style.setProperty("--map-rotate-y", `${pose.rotateY}deg`);
     slide.style.setProperty("--map-scale", String(pose.scale));
     slide.style.setProperty("--map-opacity", String(pose.opacity));
+    slide.style.setProperty("--map-blur", `${pose.blurPx}px`);
+    slide.style.setProperty("--map-saturation", String(pose.saturation));
+    slide.style.setProperty("--map-brightness", String(pose.brightness));
+    slide.style.setProperty("--map-sheen-x", `${pose.sheenPercent}%`);
+    slide.style.setProperty("--map-sheen-opacity", String(pose.sheenOpacity));
     slide.style.zIndex = String(pose.zIndex);
   });
   const accessoryPose = activeCardAccessoryPose(dragProgress);
@@ -178,6 +186,7 @@ function resetBufferedWheel() {
 
 function finishWheelTransition() {
   window.clearTimeout(wheelTimer);
+  window.clearTimeout(closeTimer);
   if (pendingMapIndex !== null) {
     mapIndex = pendingMapIndex;
     pendingMapIndex = null;
@@ -187,6 +196,7 @@ function finishWheelTransition() {
     renderWheel();
   }
   wheelTransitioning = false;
+  lobbyStage?.classList.remove("is-switching-shop");
   mapViewport?.removeAttribute("aria-busy");
 }
 
@@ -293,18 +303,41 @@ function selectMap(nextIndex, { persist = true } = {}) {
   return moveMap(direction, { persist });
 }
 
+function activeMapSlide() {
+  return bufferedMapSlides.find((slide) => Number(slide.dataset.cardOffset) === 0) || null;
+}
+
+function beginShopClose(step, nextIndex, { persist = true } = {}) {
+  wheelTransitioning = true;
+  mapViewport?.classList.remove("is-dragging");
+  mapViewport?.setAttribute("aria-busy", "true");
+  renderWheel();
+
+  if (HOME_MAPS[mapIndex]?.available && businessOpen) {
+    businessOpen = false;
+    writeBusinessOpen(false);
+    renderBusiness();
+  }
+  replayBusinessFlip();
+  activeMapSlide()?.classList.add("is-closing");
+  lobbyStage?.classList.add("is-switching-shop");
+
+  const delay = reducedMotionQuery?.matches ? 0 : SHOP_CLOSE_DELAY_MS;
+  window.clearTimeout(closeTimer);
+  closeTimer = window.setTimeout(() => {
+    pendingMapIndex = nextIndex;
+    if (persist) writeMapIndex(nextIndex);
+    renderWheel(step);
+    queueWheelFinish();
+  }, delay);
+  return true;
+}
+
 function moveMap(direction, { persist = true } = {}) {
   const step = Math.sign(Number(direction) || 0);
   if (!step || wheelTransitioning || HOME_MAPS.length < 2) return false;
   const nextIndex = changeMapIndex(mapIndex, step);
-  pendingMapIndex = nextIndex;
-  wheelTransitioning = true;
-  mapViewport?.classList.remove("is-dragging");
-  mapViewport?.setAttribute("aria-busy", "true");
-  if (persist) writeMapIndex(nextIndex);
-  renderWheel(step);
-  queueWheelFinish();
-  return true;
+  return beginShopClose(step, nextIndex, { persist });
 }
 
 function snapWheelBack() {

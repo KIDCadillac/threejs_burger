@@ -158,6 +158,35 @@ test("home business control looks and behaves like a physical wooden hanging sig
   assert.match(app, /animationend/);
 });
 
+test("home carousel cards expose store emblems, angle material, and closing shutters", async () => {
+  const [html, css, app] = await Promise.all([
+    readFile(homePath, "utf8"),
+    readFile(homeCssPath, "utf8"),
+    readFile(homeAppPath, "utf8"),
+  ]);
+
+  assert.match(html, /class="hero-burger" data-store-emblem="burger"/);
+  assert.match(html, /class="sushi-platter" data-store-emblem="sushi"/);
+  assert.equal((html.match(/class="shop-shutter(?: [^"]*)?"/g) ?? []).length, 2);
+  assert.match(css, /\.home-map-slide::before/);
+  assert.match(css, /var\(--map-blur\)/);
+  assert.match(css, /var\(--map-sheen-x\)/);
+  assert.match(css, /\.home-map-slide\.is-closing \.shop-shutter/);
+  assert.ok(app.includes('slide.style.setProperty("--map-blur", `${pose.blurPx}px`);'));
+  assert.ok(app.includes('slide.style.setProperty("--map-sheen-x", `${pose.sheenPercent}%`);'));
+});
+
+test("leaving a shop flips the sign and closes the shutter before the card moves", async () => {
+  const app = await readFile(homeAppPath, "utf8");
+
+  assert.match(app, /function beginShopClose\(/);
+  assert.match(
+    app,
+    /replayBusinessFlip\(\);[\s\S]*classList\.add\("is-closing"\)[\s\S]*setTimeout\([\s\S]*renderWheel\(step\)/,
+  );
+  assert.match(app, /prefers-reduced-motion/);
+});
+
 test("home lobby uses responsive flow and keeps the active mode inside its map card", async () => {
   const [html, css, app] = await Promise.all([
     readFile(homePath, "utf8"),

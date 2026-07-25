@@ -81,6 +81,11 @@ export function cardWheelPose(rawOffset) {
     scale: round(Math.max(0.68, 1 - distance * 0.22)),
     opacity: distance >= 1.6 ? 0 : round(Math.max(0, 1 - distance * 0.12)),
     zIndex: Math.round(30 - distance * 12),
+    blurPx: round(distance * 1.35),
+    saturation: round(Math.max(0.68, 1 - distance * 0.22)),
+    brightness: round(Math.max(0.74, 1 - distance * 0.14)),
+    sheenPercent: round(50 - offset * 24),
+    sheenOpacity: round(0.08 + Math.min(0.2, distance * 0.12)),
   };
 }
 

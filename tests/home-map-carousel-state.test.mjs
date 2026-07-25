@@ -81,6 +81,11 @@ test("card wheel keeps the active map forward and turns readable neighbours 45 d
     scale: 1,
     opacity: 1,
     zIndex: 30,
+    blurPx: 0,
+    saturation: 1,
+    brightness: 1,
+    sheenPercent: 50,
+    sheenOpacity: 0.08,
   });
   assert.deepEqual(cardWheelPose(-1), {
     translatePercent: -62,
@@ -90,6 +95,11 @@ test("card wheel keeps the active map forward and turns readable neighbours 45 d
     scale: 0.78,
     opacity: 0.88,
     zIndex: 18,
+    blurPx: 1.35,
+    saturation: 0.78,
+    brightness: 0.86,
+    sheenPercent: 74,
+    sheenOpacity: 0.2,
   });
   assert.deepEqual(cardWheelPose(1), {
     translatePercent: 62,
@@ -99,6 +109,11 @@ test("card wheel keeps the active map forward and turns readable neighbours 45 d
     scale: 0.78,
     opacity: 0.88,
     zIndex: 18,
+    blurPx: 1.35,
+    saturation: 0.78,
+    brightness: 0.86,
+    sheenPercent: 26,
+    sheenOpacity: 0.2,
   });
   const halfway = cardWheelPose(0.5);
   assert.ok(halfway.scale > cardWheelPose(1).scale);
@@ -107,6 +122,9 @@ test("card wheel keeps the active map forward and turns readable neighbours 45 d
   assert.ok(halfway.translateYPercent < cardWheelPose(1).translateYPercent);
   assert.ok(halfway.translateZPx < 0);
   assert.ok(halfway.translateZPx > cardWheelPose(1).translateZPx);
+  assert.ok(halfway.blurPx > 0);
+  assert.ok(halfway.blurPx < cardWheelPose(1).blurPx);
+  assert.equal(cardWheelPose(-1).sheenPercent + cardWheelPose(1).sheenPercent, 100);
   assert.equal(cardWheelPose(2).opacity, 0);
 });
 
