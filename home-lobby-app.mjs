@@ -262,8 +262,15 @@ function renderBusiness() {
     if (mapStatus) mapStatus.textContent = "暂未营业";
     return;
   }
-  if (businessLabel) businessLabel.textContent = businessOpen ? "关门打烊" : "开门营业";
+  if (businessLabel) businessLabel.textContent = businessOpen ? "点击关门打烊" : "点击开门营业";
   if (mapStatus) mapStatus.textContent = businessOpen ? "营业中" : "已打烊";
+}
+
+function replayBusinessFlip() {
+  if (!businessToggle) return;
+  businessToggle.classList.remove("is-flipping");
+  void businessToggle.offsetWidth;
+  businessToggle.classList.add("is-flipping");
 }
 
 function toggleBusiness() {
@@ -275,6 +282,7 @@ function toggleBusiness() {
   businessOpen = !businessOpen;
   writeBusinessOpen(businessOpen);
   renderBusiness();
+  replayBusinessFlip();
   showToast(businessOpen ? "挂牌翻到营业中，欢迎光临！" : "挂牌翻到已打烊，今天辛苦了");
 }
 
@@ -466,6 +474,9 @@ document.addEventListener("click", (event) => {
 });
 
 businessToggle?.addEventListener("click", toggleBusiness);
+businessToggle?.addEventListener("animationend", () => {
+  businessToggle.classList.remove("is-flipping");
+});
 
 mapArrows.forEach((arrow) => {
   arrow.addEventListener("click", () => moveMap(Number(arrow.dataset.mapDirection)));
