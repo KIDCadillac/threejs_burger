@@ -187,6 +187,44 @@ test("leaving a shop flips the sign and closes the shutter before the card moves
   assert.match(app, /prefers-reduced-motion/);
 });
 
+test("map gestures can interrupt shop animation and arriving opens without locking input", async () => {
+  const [css, app] = await Promise.all([
+    readFile(homeCssPath, "utf8"),
+    readFile(homeAppPath, "utf8"),
+  ]);
+
+  assert.match(app, /function settleWheelForInteraction\(/);
+  assert.match(
+    app,
+    /function beginMapDrag\(event\)[\s\S]*if \(wheelTransitioning\) settleWheelForInteraction\(\)/,
+  );
+  assert.match(
+    app,
+    /function playShopOpen\(\)[\s\S]*classList\.add\("is-opening"\)/,
+  );
+  assert.doesNotMatch(
+    app,
+    /function playShopOpen\(\)[\s\S]{0,500}wheelTransitioning\s*=\s*true/,
+  );
+  assert.match(css, /@keyframes shop-shutter-open/);
+  assert.match(css, /\.home-map-slide\.is-opening \.shop-shutter/);
+});
+
+test("home store cards read as a burger food truck and a sushi counter with stone service", async () => {
+  const [html, css] = await Promise.all([
+    readFile(homePath, "utf8"),
+    readFile(homeCssPath, "utf8"),
+  ]);
+
+  assert.match(html, /class="food-truck-shell"/);
+  assert.equal((html.match(/class="food-truck-wheel/g) ?? []).length, 2);
+  assert.match(html, /class="sushi-bar-seats"/);
+  assert.match(html, /class="sushi-stone-service"/);
+  assert.match(css, /\.food-truck-shell\s*\{/);
+  assert.match(css, /\.sushi-stone-service\s*\{/);
+  assert.match(css, /\.home-map-slide\.is-opening \.sushi-stone-service/);
+});
+
 test("home lobby uses responsive flow and keeps the active mode inside its map card", async () => {
   const [html, css, app] = await Promise.all([
     readFile(homePath, "utf8"),

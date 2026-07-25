@@ -501,6 +501,54 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   background: #b95731;
 }
 .service-counter span { border-right: 2px solid rgba(60,37,23,.3); }
+.food-truck-shell {
+  position: absolute;
+  z-index: 9;
+  right: .55rem;
+  bottom: .2rem;
+  left: .55rem;
+  height: 3.25rem;
+  border: 3px solid var(--ink);
+  border-radius: .75rem 1.1rem .65rem .65rem;
+  background:
+    linear-gradient(90deg, transparent 0 67%, #f7d56f 67% 72%, transparent 72%),
+    linear-gradient(180deg, #cf6136 0 42%, #a5452c 42% 100%);
+  box-shadow: inset 0 .5rem rgba(255,255,255,.08);
+  pointer-events: none;
+}
+.food-truck-shell::before {
+  content: "";
+  position: absolute;
+  top: .45rem;
+  right: 1rem;
+  left: 1rem;
+  height: .34rem;
+  border-radius: 999px;
+  background: #f4d476;
+  box-shadow: 0 2px 0 rgba(59,31,21,.48);
+}
+.food-truck-wheel {
+  position: absolute;
+  bottom: -.65rem;
+  width: 2.05rem;
+  height: 2.05rem;
+  border: .42rem solid #2e211c;
+  border-radius: 50%;
+  background: #e8b765;
+  box-shadow: inset 0 0 0 .18rem #8e4c31;
+}
+.food-truck-wheel--left { left: 1.25rem; }
+.food-truck-wheel--right { right: 1.25rem; }
+.food-truck-bumper {
+  position: absolute;
+  right: -.4rem;
+  bottom: .25rem;
+  width: 1.25rem;
+  height: .42rem;
+  border: 2px solid #372218;
+  border-radius: 999px;
+  background: #f3d48a;
+}
 
 .chef { position: absolute; z-index: 2; bottom: .2rem; left: 50%; width: 7.4rem; height: 11.5rem; transform: translateX(-50%); }
 .chef i { position: absolute; display: block; }
@@ -566,6 +614,19 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
     repeating-linear-gradient(0deg, #357a7c 0 .5rem, #25666c .5rem .68rem);
 }
 .home-map-slide.is-closing .shop-shutter { transform: translateY(0); }
+.home-map-slide.is-opening .shop-shutter {
+  animation: shop-shutter-open 520ms cubic-bezier(.2,.82,.22,1) both;
+}
+.home-map-slide.is-opening .chef,
+.home-map-slide.is-opening .sushi-master {
+  animation: shop-worker-arrive 480ms cubic-bezier(.18,1.38,.32,1) 110ms both;
+}
+.home-map-slide.is-opening .hero-burger {
+  animation: shop-food-arrive 460ms cubic-bezier(.18,1.45,.3,1) 150ms both;
+}
+.home-map-slide.is-opening .food-truck-shell {
+  animation: food-truck-start 500ms cubic-bezier(.18,1.28,.3,1) both;
+}
 .home-map-slide.is-closing .chef,
 .home-map-slide.is-closing .sushi-master {
   opacity: .18;
@@ -598,6 +659,26 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   0% { transform: rotate(-28deg); }
   42% { transform: translate(-.9rem,-2.3rem) rotate(36deg); }
   100% { transform: translate(-.45rem,1rem) rotate(-8deg); }
+}
+@keyframes shop-shutter-open {
+  0% { transform: translateY(0); }
+  68% { transform: translateY(-106%); }
+  100% { transform: translateY(-103%); }
+}
+@keyframes shop-worker-arrive {
+  0% { opacity: .15; transform: translateX(-50%) translateY(1.5rem) scale(.94); }
+  72% { opacity: 1; transform: translateX(-50%) translateY(-.18rem) scale(1.03); }
+  100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+@keyframes shop-food-arrive {
+  0% { opacity: .2; transform: translateX(-50%) translateY(.8rem) scale(.72); }
+  72% { opacity: 1; transform: translateX(-50%) translateY(-.16rem) scale(1.06); }
+  100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+@keyframes food-truck-start {
+  0% { transform: translateY(.8rem); }
+  72% { transform: translateY(-.12rem); }
+  100% { transform: translateY(0); }
 }
 
 .diner-scene--sushi {
@@ -732,9 +813,29 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   bottom: .65rem;
   left: .8rem;
   height: 2.2rem;
-  border: 3px solid #291e1c;
+  border: 0;
   border-radius: 50%;
-  background: #3e6e74;
+  background: transparent;
+}
+.sushi-stone-service {
+  position: absolute;
+  z-index: 6;
+  right: .65rem;
+  bottom: .42rem;
+  left: .65rem;
+  height: 2.5rem;
+  border: 3px solid #211c1b;
+  border-radius: 48% 52% 45% 50%;
+  background:
+    radial-gradient(circle at 27% 34%, rgba(255,255,255,.17) 0 .18rem, transparent .2rem),
+    linear-gradient(165deg, #6e7d79, #3b4c4b 62%, #293736);
+  box-shadow: 0 .35rem 0 rgba(16,22,23,.65), inset 0 .18rem rgba(255,255,255,.13);
+}
+.home-map-slide.is-opening .sushi-stone-service {
+  animation: sushi-stone-serve 520ms cubic-bezier(.18,1.32,.3,1) 120ms both;
+}
+.home-map-slide.is-opening .sushi-platter {
+  animation: sushi-order-serve 500ms cubic-bezier(.18,1.4,.3,1) 180ms both;
 }
 .sushi-piece {
   position: absolute;
@@ -758,6 +859,34 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   height: 4.8rem;
   border-top: 3px solid #291e1c;
   background: linear-gradient(#925033, #60301f);
+}
+.sushi-bar-seats {
+  position: absolute;
+  z-index: 11;
+  right: 1.1rem;
+  bottom: .35rem;
+  left: 1.1rem;
+  display: flex;
+  justify-content: space-around;
+  pointer-events: none;
+}
+.sushi-bar-seats i {
+  width: 1.8rem;
+  height: .72rem;
+  border: 2px solid #291e1c;
+  border-radius: 50%;
+  background: #d7b36b;
+  box-shadow: 0 .32rem 0 #5d3425;
+}
+@keyframes sushi-stone-serve {
+  0% { opacity: .2; transform: translateX(-68%) scale(.82); }
+  76% { opacity: 1; transform: translateX(4%) scale(1.03); }
+  100% { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes sushi-order-serve {
+  0% { opacity: 0; transform: translateX(-24%) scale(.7); }
+  74% { opacity: 1; transform: translateX(3%) scale(1.06); }
+  100% { opacity: 1; transform: translateX(0) scale(1); }
 }
 .map-lock-note {
   position: absolute;

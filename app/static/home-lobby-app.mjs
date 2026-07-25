@@ -59,6 +59,7 @@ let pendingMapIndex = null;
 let wheelTransitioning = false;
 let wheelTimer = 0;
 let closeTimer = 0;
+let openTimer = 0;
 let dragPointerId = null;
 let dragStartX = 0;
 let dragStartY = 0;
@@ -68,8 +69,9 @@ let dragDeltaY = 0;
 let gestureAxis = null;
 let gestureMoved = false;
 let suppressMapClick = false;
-const WHEEL_TRANSITION_MS = 400;
-const SHOP_CLOSE_DELAY_MS = 660;
+const WHEEL_TRANSITION_MS = 320;
+const SHOP_CLOSE_DELAY_MS = 360;
+const SHOP_OPEN_MS = 540;
 const reducedMotionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
 
 function setupBufferedMapSlides() {
@@ -184,9 +186,31 @@ function resetBufferedWheel() {
   );
 }
 
-function finishWheelTransition() {
+function playShopOpen() {
+  if (wheelTransitioning || dragPointerId !== null) return;
+  const slide = activeMapSlide();
+  if (!slide) return;
+  window.clearTimeout(openTimer);
+  slide.classList.remove("is-closing", "is-opening");
+  void slide.offsetWidth;
+  slide.classList.add("is-opening");
+
+  if (HOME_MAPS[mapIndex]?.available && !businessOpen) {
+    businessOpen = true;
+    writeBusinessOpen(true);
+    renderBusiness();
+    replayBusinessFlip();
+  }
+
+  openTimer = window.setTimeout(() => {
+    slide.classList.remove("is-opening");
+  }, reducedMotionQuery?.matches ? 0 : SHOP_OPEN_MS);
+}
+
+function finishWheelTransition({ playArrival = true } = {}) {
   window.clearTimeout(wheelTimer);
   window.clearTimeout(closeTimer);
+  const arrived = pendingMapIndex !== null;
   if (pendingMapIndex !== null) {
     mapIndex = pendingMapIndex;
     pendingMapIndex = null;
@@ -198,6 +222,18 @@ function finishWheelTransition() {
   wheelTransitioning = false;
   lobbyStage?.classList.remove("is-switching-shop");
   mapViewport?.removeAttribute("aria-busy");
+  if (arrived && playArrival) {
+    afterNextPaint(
+      (callback) => requestAnimationFrame(callback),
+      playShopOpen,
+    );
+  }
+}
+
+function settleWheelForInteraction() {
+  if (!wheelTransitioning) return false;
+  finishWheelTransition();
+  return true;
 }
 
 function queueWheelFinish() {
@@ -309,6 +345,9 @@ function activeMapSlide() {
 
 function beginShopClose(step, nextIndex, { persist = true } = {}) {
   wheelTransitioning = true;
+  pendingMapIndex = nextIndex;
+  if (persist) writeMapIndex(nextIndex);
+  window.clearTimeout(openTimer);
   mapViewport?.classList.remove("is-dragging");
   mapViewport?.setAttribute("aria-busy", "true");
   renderWheel();
@@ -319,14 +358,14 @@ function beginShopClose(step, nextIndex, { persist = true } = {}) {
     renderBusiness();
   }
   replayBusinessFlip();
-  activeMapSlide()?.classList.add("is-closing");
+  const activeSlide = activeMapSlide();
+  activeSlide?.classList.remove("is-opening");
+  activeSlide?.classList.add("is-closing");
   lobbyStage?.classList.add("is-switching-shop");
 
   const delay = reducedMotionQuery?.matches ? 0 : SHOP_CLOSE_DELAY_MS;
   window.clearTimeout(closeTimer);
   closeTimer = window.setTimeout(() => {
-    pendingMapIndex = nextIndex;
-    if (persist) writeMapIndex(nextIndex);
     renderWheel(step);
     queueWheelFinish();
   }, delay);
@@ -335,7 +374,8 @@ function beginShopClose(step, nextIndex, { persist = true } = {}) {
 
 function moveMap(direction, { persist = true } = {}) {
   const step = Math.sign(Number(direction) || 0);
-  if (!step || wheelTransitioning || HOME_MAPS.length < 2) return false;
+  if (!step || HOME_MAPS.length < 2) return false;
+  if (wheelTransitioning) settleWheelForInteraction();
   const nextIndex = changeMapIndex(mapIndex, step);
   return beginShopClose(step, nextIndex, { persist });
 }
@@ -349,7 +389,8 @@ function snapWheelBack() {
 }
 
 function beginMapDrag(event) {
-  if (wheelTransitioning || HOME_MAPS.length < 2) return;
+  if (wheelTransitioning) settleWheelForInteraction();
+  if (HOME_MAPS.length < 2) return;
   if (event.pointerType === "mouse" && event.button !== 0) return;
   dragPointerId = event.pointerId;
   dragStartX = event.clientX;
