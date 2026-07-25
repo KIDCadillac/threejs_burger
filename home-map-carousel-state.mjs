@@ -73,7 +73,7 @@ export function cardWheelPose(rawOffset) {
   };
   return {
     translatePercent: round(offset * 62),
-    rotateY: round(offset * -45),
+    rotateY: round(offset * 45),
     scale: round(Math.max(0.8, 1 - distance * 0.1)),
     opacity: distance >= 1.6 ? 0 : round(Math.max(0, 1 - distance * 0.12)),
     zIndex: Math.round(30 - distance * 12),

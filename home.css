@@ -11,7 +11,11 @@
   --green: #73b94e;
   --blue: #3d84d8;
   --line: rgba(76, 42, 21, 0.18);
-  --home-map-height: clamp(22rem, 50vh, 28rem);
+  --home-map-height: clamp(21rem, calc(100vh - 17rem), 33rem);
+}
+
+@supports (height: 100dvh) {
+  :root { --home-map-height: clamp(21rem, calc(100dvh - 17rem), 33rem); }
 }
 
 * { box-sizing: border-box; }
@@ -33,6 +37,9 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 
 .lobby-shell {
   position: relative;
+  display: grid;
+  grid-template-rows: auto auto auto auto;
+  align-content: start;
   width: min(100%, 31rem);
   min-height: 100vh;
   margin: 0 auto;
@@ -40,7 +47,8 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
     max(0.8rem, env(safe-area-inset-top))
     0.85rem
     max(0.7rem, env(safe-area-inset-bottom));
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   background:
     radial-gradient(circle at 20% 20%, rgba(255,255,255,.2), transparent 8rem),
     linear-gradient(180deg, #f9dc68 0 18%, #f1af3a 58%, #d96933 100%);
@@ -116,8 +124,11 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 
 .lobby-stage {
   position: relative;
-  min-height: calc(100vh - 9.4rem);
-  padding-top: .8rem;
+  display: grid;
+  grid-template-rows: auto var(--home-map-height);
+  gap: .25rem;
+  min-height: 0;
+  padding-top: .35rem;
 }
 .diner-sign {
   position: relative;
@@ -128,9 +139,9 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 }
 .business-sign-button {
   position: relative;
-  width: 9.8rem;
-  height: 4.15rem;
-  padding: .72rem 0 0;
+  width: clamp(7.5rem, 27vw, 9rem);
+  height: 3.72rem;
+  padding: .62rem 0 0;
   border: 0;
   color: #fff1c7;
   background: transparent;
@@ -154,14 +165,14 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   box-shadow: 0 0 0 1px rgba(50,25,12,.18);
   transform-origin: top;
 }
-.business-sign-button::before { left: 2.72rem; transform: rotate(48deg); }
-.business-sign-button::after { right: 2.72rem; transform: rotate(-48deg); }
+.business-sign-button::before { left: 27%; transform: rotate(48deg); }
+.business-sign-button::after { right: 27%; transform: rotate(-48deg); }
 .business-sign__board {
   position: relative;
   isolation: isolate;
   display: grid;
   width: 100%;
-  height: 3.42rem;
+  height: 3.08rem;
   padding: .38rem .9rem .32rem;
   align-content: center;
   justify-items: center;
@@ -233,7 +244,7 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
     inset 0 2px rgba(255,243,211,.28),
     inset 0 -3px rgba(48,21,9,.24);
 }
-.business-sign-button.is-flipping .business-sign__board {
+.business-sign-button.is-flipping {
   animation: business-sign-flip 480ms cubic-bezier(.22,.78,.25,1);
 }
 .business-sign-button:disabled {
@@ -250,32 +261,31 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .business-sign-button:disabled:active .business-sign__board { transform: rotate(-.45deg); }
 
 @keyframes business-sign-flip {
-  0% { transform: rotate(-.45deg) scaleX(1); }
-  38% { transform: rotate(-2.5deg) scaleX(.08) translateY(-2px); }
-  55% { transform: rotate(2deg) scaleX(.16) translateY(-2px); }
-  78% { transform: rotate(-1.3deg) scaleX(1.04); }
-  100% { transform: rotate(-.45deg) scaleX(1); }
+  0% { transform: rotate(0deg) rotateY(0deg); }
+  38% { transform: rotate(-3deg) rotateY(82deg) translateY(-2px); }
+  55% { transform: rotate(2deg) rotateY(82deg) translateY(-2px); }
+  78% { transform: rotate(-1.2deg) rotateY(-5deg); }
+  100% { transform: rotate(0deg) rotateY(0deg); }
 }
 .diner-sign h1 {
-  margin: .28rem 0 0;
+  margin: .12rem 0 0;
   color: #4f2918;
-  font-size: clamp(2rem, 9vw, 3rem);
+  font-size: clamp(1.8rem, 8vw, 2.55rem);
   line-height: 1;
   letter-spacing: .08em;
   text-shadow: 0 3px 0 rgba(255,255,255,.48);
 }
 
 .map-carousel {
-  position: absolute;
+  position: relative;
   z-index: 2;
-  top: 8.1rem;
-  right: 0;
-  left: 0;
-  height: var(--home-map-height);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
 }
 .home-map-viewport {
   position: absolute;
-  inset: 0 .2rem 1.55rem;
+  inset: 0 .2rem .15rem;
   overflow: hidden;
   border-radius: 2.3rem 2.3rem 1.4rem 1.4rem;
   cursor: grab;
@@ -320,12 +330,12 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   --mode-card-scale: 1;
   --mode-card-opacity: 1;
   position: absolute;
-  z-index: 17;
-  top: .7rem;
+  z-index: 80;
+  top: 4.45rem;
   left: calc(50% + var(--mode-card-x));
   display: grid;
-  min-width: 8.6rem;
-  padding: .35rem .85rem .4rem;
+  min-width: 7.8rem;
+  padding: .28rem .72rem .32rem;
   border: 2px solid rgba(55,34,22,.84);
   border-radius: 999px;
   color: #4f2918;
@@ -344,8 +354,8 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
     transform 380ms cubic-bezier(.2,.8,.2,1),
     opacity 260ms ease;
 }
-.home-map-viewport.is-dragging ~ .home-mode-indicator,
-.home-map-viewport.is-wheel-jump ~ .home-mode-indicator { transition: none; }
+.home-map-viewport.is-dragging .home-mode-indicator,
+.home-map-viewport.is-wheel-jump .home-mode-indicator { transition: none; }
 .home-mode-indicator small,
 .home-mode-indicator span {
   color: #8b5941;
@@ -399,19 +409,6 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   opacity: .26;
   box-shadow: none;
   cursor: default;
-}
-.home-map-meta {
-  position: absolute;
-  z-index: 12;
-  right: 1.25rem;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  color: #5b321e;
-  font-size: .68rem;
-  font-weight: 950;
-  text-align: center;
 }
 .awning {
   position: absolute;
@@ -873,20 +870,38 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 @media (max-width: 640px) {
   .lobby-shell { width: 100%; }
   .resource-pill small { display: none; }
-  .lobby-stage { min-height: calc(100dvh - 9.2rem); }
   .lobby-sheet { width: calc(100vw - 1.4rem); padding: 1.1rem; }
   .daily-sheet { padding-top: 4.9rem; }
 }
 
+@media (max-width: 370px) {
+  .lobby-shell { padding-right: .45rem; padding-left: .45rem; }
+  .lobby-hud {
+    grid-template-columns: 3rem minmax(4.5rem, 1fr) minmax(4.4rem, .82fr) 3rem;
+    gap: .2rem;
+  }
+  .resource-pill { gap: .2rem; padding-right: .3rem; padding-left: .3rem; }
+  .heart,
+  .coin { flex-basis: 1.7rem; width: 1.7rem; height: 1.7rem; }
+}
+
 @media (max-height: 900px) {
-  body { overflow-y: auto; }
-  .lobby-stage { min-height: 43rem; }
+  :root { --home-map-height: clamp(20rem, calc(100vh - 16.2rem), 29rem); }
+  @supports (height: 100dvh) {
+    :root { --home-map-height: clamp(20rem, calc(100dvh - 16.2rem), 29rem); }
+  }
 }
 
 @media (max-height: 740px) {
-  :root { --home-map-height: 18.5rem; }
-  body { overflow-y: auto; }
-  .lobby-stage { min-height: 40rem; }
+  :root { --home-map-height: clamp(18rem, calc(100vh - 14.8rem), 25rem); }
+  @supports (height: 100dvh) {
+    :root { --home-map-height: clamp(18rem, calc(100dvh - 14.8rem), 25rem); }
+  }
+  .business-sign-button { height: 3.15rem; padding-top: .48rem; }
+  .business-sign__board { height: 2.66rem; }
+  .business-sign-button small { font-size: .95rem; }
+  .diner-sign h1 { font-size: clamp(1.55rem, 7vw, 2rem); }
+  .home-mode-indicator { top: 3.8rem; }
   .health-note { display: none; }
 }
 
@@ -894,6 +909,6 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   *, *::before, *::after { animation-duration: .01ms !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
 
-@supports (min-height: 100dvh) {
+@supports (height: 100dvh) {
   .lobby-shell { min-height: 100dvh; }
 }
