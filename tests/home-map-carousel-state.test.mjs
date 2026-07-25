@@ -6,10 +6,11 @@ import {
   HOME_MAP_KEY,
   HOME_MAPS,
   activeCardAccessoryPose,
-  cardWheelPose,
   changeMapIndex,
+  createLatestFrameScheduler,
   normalizeMapIndex,
   resolveSwipe,
+  streetShopPose,
 } from "../app/static/home-map-carousel-state.mjs";
 
 test("buffer reset waits through one painted frame before restoring transitions", () => {
@@ -72,79 +73,77 @@ test("swipe resolves by distance or velocity and otherwise returns", () => {
   assert.equal(resolveSwipe({ deltaX: 18, width: 400, velocityX: 0.8 }), -1);
 });
 
-test("card wheel keeps the active map forward and turns readable neighbours 45 degrees", () => {
-  assert.deepEqual(cardWheelPose(0), {
+test("street shop pose keeps the active store forward and pulls readable neighbours beside it", () => {
+  assert.deepEqual(streetShopPose(0), {
     translatePercent: 0,
     translateYPercent: 0,
-    translateZPx: 0,
-    rotateY: 0,
     scale: 1,
     opacity: 1,
     zIndex: 30,
-    blurPx: 0,
-    saturation: 1,
-    brightness: 1,
-    sheenPercent: 50,
-    sheenOpacity: 0.08,
+    shadeOpacity: 0,
   });
-  assert.deepEqual(cardWheelPose(-1), {
-    translatePercent: -62,
-    translateYPercent: 4.5,
-    translateZPx: -180,
-    rotateY: -45,
-    scale: 0.78,
-    opacity: 0.88,
+  assert.deepEqual(streetShopPose(-1), {
+    translatePercent: -88,
+    translateYPercent: 2.5,
+    scale: 0.9,
+    opacity: 0.8,
     zIndex: 18,
-    blurPx: 1.35,
-    saturation: 0.78,
-    brightness: 0.86,
-    sheenPercent: 74,
-    sheenOpacity: 0.2,
+    shadeOpacity: 0.22,
   });
-  assert.deepEqual(cardWheelPose(1), {
-    translatePercent: 62,
-    translateYPercent: 4.5,
-    translateZPx: -180,
-    rotateY: 45,
-    scale: 0.78,
-    opacity: 0.88,
+  assert.deepEqual(streetShopPose(1), {
+    translatePercent: 88,
+    translateYPercent: 2.5,
+    scale: 0.9,
+    opacity: 0.8,
     zIndex: 18,
-    blurPx: 1.35,
-    saturation: 0.78,
-    brightness: 0.86,
-    sheenPercent: 26,
-    sheenOpacity: 0.2,
+    shadeOpacity: 0.22,
   });
-  const halfway = cardWheelPose(0.5);
-  assert.ok(halfway.scale > cardWheelPose(1).scale);
-  assert.ok(halfway.scale < cardWheelPose(0).scale);
+  const halfway = streetShopPose(0.5);
+  assert.ok(halfway.scale > streetShopPose(1).scale);
+  assert.ok(halfway.scale < streetShopPose(0).scale);
   assert.ok(halfway.translateYPercent > 0);
-  assert.ok(halfway.translateYPercent < cardWheelPose(1).translateYPercent);
-  assert.ok(halfway.translateZPx < 0);
-  assert.ok(halfway.translateZPx > cardWheelPose(1).translateZPx);
-  assert.ok(halfway.blurPx > 0);
-  assert.ok(halfway.blurPx < cardWheelPose(1).blurPx);
-  assert.equal(cardWheelPose(-1).sheenPercent + cardWheelPose(1).sheenPercent, 100);
-  assert.equal(cardWheelPose(2).opacity, 0);
-});
-
-test("rotated neighbour stays fully behind the active card plane", () => {
-  const pose = cardWheelPose(1);
-  const maximumCardWidthPx = 420;
-  const rotatedFrontEdgePx =
-    pose.translateZPx
-    + (maximumCardWidthPx * pose.scale * Math.sin(Math.abs(pose.rotateY) * Math.PI / 180)) / 2;
-
-  assert.ok(
-    rotatedFrontEdgePx <= -16,
-    `side card front edge must remain behind the active card, got ${rotatedFrontEdgePx}px`,
-  );
+  assert.ok(halfway.translateYPercent < streetShopPose(1).translateYPercent);
+  assert.ok(halfway.shadeOpacity > 0);
+  assert.ok(halfway.shadeOpacity < streetShopPose(1).shadeOpacity);
+  assert.equal(streetShopPose(2).opacity, 0);
 });
 
 test("active card accessory shares the active card pose during drag", () => {
-  assert.deepEqual(activeCardAccessoryPose(0), cardWheelPose(0));
-  assert.deepEqual(activeCardAccessoryPose(0.5), cardWheelPose(-0.5));
-  assert.deepEqual(activeCardAccessoryPose(-1), cardWheelPose(1));
+  assert.deepEqual(activeCardAccessoryPose(0), streetShopPose(0));
+  assert.deepEqual(activeCardAccessoryPose(0.5), streetShopPose(-0.5));
+  assert.deepEqual(activeCardAccessoryPose(-1), streetShopPose(1));
+});
+
+test("latest-frame scheduler renders only the newest drag progress once per frame", () => {
+  const queued = [];
+  const cancelled = [];
+  const rendered = [];
+  let nextId = 1;
+  const scheduler = createLatestFrameScheduler({
+    requestFrame(callback) {
+      const id = nextId++;
+      queued.push({ id, callback });
+      return id;
+    },
+    cancelFrame(id) {
+      cancelled.push(id);
+    },
+    render(value) {
+      rendered.push(value);
+    },
+  });
+
+  scheduler.schedule(0.1);
+  scheduler.schedule(0.4);
+  scheduler.schedule(0.8);
+  assert.equal(queued.length, 1);
+  queued.shift().callback();
+  assert.deepEqual(rendered, [0.8]);
+
+  scheduler.schedule(-0.5);
+  scheduler.cancel();
+  assert.deepEqual(cancelled, [2]);
+  assert.deepEqual(rendered, [0.8]);
 });
 
 test("invalid stored map indexes fall back to burger", () => {

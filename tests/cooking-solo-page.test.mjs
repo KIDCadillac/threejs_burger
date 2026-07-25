@@ -124,13 +124,13 @@ test("home page uses a large buffered shop carousel without the old four-button 
   assert.match(css, /--home-map-height:\s*clamp\(/);
   assert.match(css, /\.business-sign-button\s*\{/);
   assert.match(css, /\.home-map-slide\s*\{[^}]*transform-origin:\s*center center/s);
-  assert.ok(app.includes('slide.style.setProperty("--map-translate-y", `${pose.translateYPercent}%`);'));
-  assert.ok(app.includes('slide.style.setProperty("--map-translate-z", `${pose.translateZPx}px`);'));
+  assert.ok(app.includes('slide.style.setProperty("--map-motion",'));
+  assert.ok(app.includes('slide.style.setProperty("--map-shade-opacity", String(pose.shadeOpacity));'));
   assert.match(
     css,
-    /translateX\(var\(--map-translate-x\)\)\s*translateY\(var\(--map-translate-y\)\)\s*translateZ\(var\(--map-translate-z\)\)\s*rotateY\(var\(--map-rotate-y\)\)\s*scale\(var\(--map-scale\)\)/s,
+    /transform:\s*var\(--map-motion\)/,
   );
-  assert.match(css, /transform\s+420ms\s+cubic-bezier\(\.18,1\.32,\.32,1\)/);
+  assert.match(css, /transform\s+280ms\s+cubic-bezier\(\.22,\.8,\.2,1\)/);
   assert.match(css, /\.home-map-viewport\.is-dragging \.home-map-slide\s*\{\s*transition:\s*none;\s*\}/);
   assert.doesNotMatch(css, /\.lobby-actions\s*\{/);
 });
@@ -158,7 +158,7 @@ test("home business control looks and behaves like a physical wooden hanging sig
   assert.match(app, /animationend/);
 });
 
-test("home carousel cards expose store emblems, angle material, and closing shutters", async () => {
+test("home carousel cards expose store emblems, lightweight depth shade, and closing shutters", async () => {
   const [html, css, app] = await Promise.all([
     readFile(homePath, "utf8"),
     readFile(homeCssPath, "utf8"),
@@ -169,11 +169,11 @@ test("home carousel cards expose store emblems, angle material, and closing shut
   assert.match(html, /class="sushi-platter" data-store-emblem="sushi"/);
   assert.equal((html.match(/class="shop-shutter(?: [^"]*)?"/g) ?? []).length, 2);
   assert.match(css, /\.home-map-slide::before/);
-  assert.match(css, /var\(--map-blur\)/);
-  assert.match(css, /var\(--map-sheen-x\)/);
+  assert.match(css, /var\(--map-shade-opacity\)/);
+  assert.doesNotMatch(css, /filter:\s*blur\(var\(--map-blur\)\)/);
   assert.match(css, /\.home-map-slide\.is-closing \.shop-shutter/);
-  assert.ok(app.includes('slide.style.setProperty("--map-blur", `${pose.blurPx}px`);'));
-  assert.ok(app.includes('slide.style.setProperty("--map-sheen-x", `${pose.sheenPercent}%`);'));
+  assert.ok(app.includes('slide.style.setProperty("--map-motion",'));
+  assert.ok(app.includes('slide.style.setProperty("--map-shade-opacity", String(pose.shadeOpacity));'));
 });
 
 test("leaving a shop flips the sign and closes the shutter before the card moves", async () => {
@@ -185,6 +185,8 @@ test("leaving a shop flips the sign and closes the shutter before the card moves
     /replayBusinessFlip\(\);[\s\S]*classList\.add\("is-closing"\)[\s\S]*setTimeout\([\s\S]*renderWheel\(step\)/,
   );
   assert.match(app, /prefers-reduced-motion/);
+  assert.match(app, /const SHOP_CLOSE_DELAY_MS = 100;/);
+  assert.match(app, /const WHEEL_TRANSITION_MS = 280;/);
 });
 
 test("map gestures can interrupt shop animation and arriving opens without locking input", async () => {
@@ -194,6 +196,9 @@ test("map gestures can interrupt shop animation and arriving opens without locki
   ]);
 
   assert.match(app, /function settleWheelForInteraction\(/);
+  assert.match(app, /createLatestFrameScheduler/);
+  assert.match(app, /wheelFrameScheduler\.schedule\(progress\)/);
+  assert.match(app, /wheelFrameScheduler\.cancel\(\)/);
   assert.match(
     app,
     /function beginMapDrag\(event\)[\s\S]*if \(wheelTransitioning\) settleWheelForInteraction\(\)/,
@@ -223,6 +228,9 @@ test("home store cards read as a burger food truck and a sushi counter with ston
   assert.match(css, /\.food-truck-shell\s*\{/);
   assert.match(css, /\.sushi-stone-service\s*\{/);
   assert.match(css, /\.home-map-slide\.is-opening \.sushi-stone-service/);
+  assert.match(css, /\.home-map-slide\.is-closing \.food-truck-wheel/);
+  assert.match(css, /\.home-map-slide\.is-opening \.food-truck-shell/);
+  assert.match(css, /\.home-map-slide\.is-closing \.diner-scene--sushi/);
 });
 
 test("home lobby uses responsive flow and keeps the active mode inside its map card", async () => {

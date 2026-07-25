@@ -301,32 +301,19 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   transform-style: preserve-3d;
 }
 .home-map-slide {
-  --map-translate-x: 0%;
-  --map-translate-y: 0%;
-  --map-translate-z: 0px;
-  --map-rotate-y: 0deg;
-  --map-scale: 1;
+  --map-motion: translate3d(0, 0, 0) scale(1);
   --map-opacity: 1;
-  --map-blur: 0px;
-  --map-saturation: 1;
-  --map-brightness: 1;
-  --map-sheen-x: 50%;
-  --map-sheen-opacity: .08;
+  --map-shade-opacity: 0;
   position: absolute;
   inset: 0 2.35rem .2rem;
   contain: layout paint;
   opacity: var(--map-opacity);
-  transform:
-    translateX(var(--map-translate-x))
-    translateY(var(--map-translate-y))
-    translateZ(var(--map-translate-z))
-    rotateY(var(--map-rotate-y))
-    scale(var(--map-scale));
+  transform: var(--map-motion);
   transform-origin: center center;
+  backface-visibility: hidden;
   transition:
-    transform 420ms cubic-bezier(.18,1.32,.32,1),
-    opacity 260ms ease;
-  will-change: transform, opacity;
+    transform 280ms cubic-bezier(.22,.8,.2,1),
+    opacity 200ms ease;
   pointer-events: none;
 }
 .home-map-slide::before {
@@ -336,25 +323,22 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   inset: 0;
   border: 1px solid rgba(255,255,255,.24);
   border-radius: 2.3rem 2.3rem 1.4rem 1.4rem;
-  background:
-    radial-gradient(
-      circle at var(--map-sheen-x) 7%,
-      rgba(255,255,255,var(--map-sheen-opacity)) 0 4%,
-      transparent 42%
-    ),
-    linear-gradient(110deg, rgba(255,255,255,.1), transparent 22% 78%, rgba(255,255,255,.06));
+  background: linear-gradient(90deg, rgba(24,14,10,.38), rgba(24,14,10,.08));
   box-shadow:
     inset 0 0 0 1px rgba(70,39,22,.12),
     inset 0 1rem 2.2rem rgba(255,255,255,.05);
+  opacity: var(--map-shade-opacity);
+  transition: opacity 120ms linear;
   pointer-events: none;
 }
 .home-map-viewport.is-dragging .home-map-slide { transition: none; }
 .home-map-viewport.is-wheel-jump .home-map-slide { transition: none; }
+.home-map-viewport.is-dragging .home-map-slide,
+.lobby-stage.is-switching-shop .home-map-slide { will-change: transform, opacity; }
 .home-mode-indicator {
   --mode-drag-y: 0px;
   --mode-drag-rotate: 0deg;
   --mode-card-x: 0%;
-  --mode-card-rotate-y: 0deg;
   --mode-card-scale: 1;
   --mode-card-opacity: 1;
   position: absolute;
@@ -373,14 +357,13 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   text-align: center;
   transform:
     translate(-50%, var(--mode-drag-y))
-    rotateY(var(--mode-card-rotate-y))
     rotateX(var(--mode-drag-rotate))
     scale(var(--mode-card-scale));
   transform-origin: center;
   pointer-events: none;
   transition:
-    transform 380ms cubic-bezier(.2,.8,.2,1),
-    opacity 260ms ease;
+    transform 280ms cubic-bezier(.22,.8,.2,1),
+    opacity 200ms ease;
 }
 .home-map-viewport.is-dragging .home-mode-indicator,
 .home-map-viewport.is-wheel-jump .home-mode-indicator { transition: none; }
@@ -412,12 +395,7 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
     linear-gradient(90deg, transparent 49.5%, rgba(60,37,23,.11) 50% 50.5%, transparent 51%),
     linear-gradient(#7dc3cf 0 38%, #f6d180 38% 100%);
   box-shadow: 0 9px 0 rgba(60,37,23,.56), inset 0 -1rem rgba(128,58,29,.12);
-  filter:
-    blur(var(--map-blur))
-    saturate(var(--map-saturation))
-    brightness(var(--map-brightness));
-  transition: filter 260ms ease, box-shadow 260ms ease;
-  will-change: filter;
+  transition: box-shadow 200ms ease;
 }
 .home-map-viewport.is-dragging .diner-scene,
 .home-map-viewport.is-wheel-jump .diner-scene { transition: none; }
@@ -586,7 +564,7 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   padding-bottom: .8rem;
   filter: drop-shadow(0 .45rem .28rem rgba(25,13,8,.45));
   transform: translateY(-103%);
-  transition: transform 380ms cubic-bezier(.25,.78,.22,1) 260ms;
+  transition: transform 100ms cubic-bezier(.4,0,.2,1);
   pointer-events: none;
 }
 .shop-shutter i {
@@ -615,31 +593,43 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 }
 .home-map-slide.is-closing .shop-shutter { transform: translateY(0); }
 .home-map-slide.is-opening .shop-shutter {
-  animation: shop-shutter-open 520ms cubic-bezier(.2,.82,.22,1) both;
+  animation: shop-shutter-open 240ms cubic-bezier(.2,.82,.22,1) both;
 }
 .home-map-slide.is-opening .chef,
 .home-map-slide.is-opening .sushi-master {
-  animation: shop-worker-arrive 480ms cubic-bezier(.18,1.38,.32,1) 110ms both;
+  animation: shop-worker-arrive 240ms cubic-bezier(.18,1.2,.32,1) 30ms both;
 }
 .home-map-slide.is-opening .hero-burger {
-  animation: shop-food-arrive 460ms cubic-bezier(.18,1.45,.3,1) 150ms both;
+  animation: shop-food-arrive 240ms cubic-bezier(.18,1.28,.3,1) 30ms both;
 }
 .home-map-slide.is-opening .food-truck-shell {
-  animation: food-truck-start 500ms cubic-bezier(.18,1.28,.3,1) both;
+  animation: food-truck-arrive 260ms cubic-bezier(.18,1.12,.3,1) both;
+}
+.home-map-slide.is-closing .food-truck-shell {
+  animation: food-truck-depart-rumble 160ms ease-in-out both;
+}
+.home-map-slide.is-closing .food-truck-wheel {
+  animation: food-truck-wheel-spin 150ms linear infinite;
+}
+.home-map-slide.is-closing .diner-scene--sushi {
+  animation: sushi-bar-close 160ms ease-in both;
+}
+.home-map-slide.is-opening .diner-scene--sushi {
+  animation: sushi-bar-arrive 260ms cubic-bezier(.22,.8,.2,1) both;
 }
 .home-map-slide.is-closing .chef,
 .home-map-slide.is-closing .sushi-master {
   opacity: .18;
   transform: translateX(-50%) translateY(1.8rem) scale(.96);
   transition:
-    transform 300ms ease 210ms,
-    opacity 180ms ease 340ms;
+    transform 100ms ease,
+    opacity 100ms ease;
 }
 .home-map-slide.is-closing .chef__hand--left {
-  animation: shop-pull-left 560ms cubic-bezier(.2,.8,.25,1) both;
+  animation: shop-pull-left 140ms cubic-bezier(.2,.8,.25,1) both;
 }
 .home-map-slide.is-closing .chef__hand--right {
-  animation: shop-pull-right 560ms cubic-bezier(.2,.8,.25,1) both;
+  animation: shop-pull-right 140ms cubic-bezier(.2,.8,.25,1) both;
 }
 .home-map-slide.is-closing .hero-burger,
 .home-map-slide.is-closing .sushi-platter {
@@ -675,10 +665,27 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   72% { opacity: 1; transform: translateX(-50%) translateY(-.16rem) scale(1.06); }
   100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 }
-@keyframes food-truck-start {
-  0% { transform: translateY(.8rem); }
-  72% { transform: translateY(-.12rem); }
+@keyframes food-truck-arrive {
+  0% { transform: translateX(.85rem) translateY(.18rem); }
+  72% { transform: translateX(-.08rem) translateY(-.06rem); }
   100% { transform: translateY(0); }
+}
+@keyframes food-truck-depart-rumble {
+  0% { transform: translateX(0); }
+  45% { transform: translateX(-.1rem) translateY(.03rem); }
+  100% { transform: translateX(.18rem); }
+}
+@keyframes food-truck-wheel-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes sushi-bar-close {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-.35rem); }
+}
+@keyframes sushi-bar-arrive {
+  0% { opacity: .82; transform: translateX(.75rem); }
+  72% { opacity: 1; transform: translateX(-.06rem); }
+  100% { opacity: 1; transform: translateX(0); }
 }
 
 .diner-scene--sushi {
@@ -832,10 +839,10 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   box-shadow: 0 .35rem 0 rgba(16,22,23,.65), inset 0 .18rem rgba(255,255,255,.13);
 }
 .home-map-slide.is-opening .sushi-stone-service {
-  animation: sushi-stone-serve 520ms cubic-bezier(.18,1.32,.3,1) 120ms both;
+  animation: sushi-stone-serve 250ms cubic-bezier(.18,1.2,.3,1) 35ms both;
 }
 .home-map-slide.is-opening .sushi-platter {
-  animation: sushi-order-serve 500ms cubic-bezier(.18,1.4,.3,1) 180ms both;
+  animation: sushi-order-serve 250ms cubic-bezier(.18,1.24,.3,1) 45ms both;
 }
 .sushi-piece {
   position: absolute;

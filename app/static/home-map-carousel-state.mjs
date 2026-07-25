@@ -64,7 +64,7 @@ export function afterNextPaint(requestFrame, callback) {
   requestFrame(() => requestFrame(callback));
 }
 
-export function cardWheelPose(rawOffset) {
+export function streetShopPose(rawOffset) {
   const offset = Math.max(-2, Math.min(2, Number(rawOffset) || 0));
   const distance = Math.abs(offset);
   const round = (value) => {
@@ -72,23 +72,45 @@ export function cardWheelPose(rawOffset) {
     return Object.is(rounded, -0) ? 0 : rounded;
   };
   return {
-    translatePercent: round(offset * 62),
-    translateYPercent: round(distance * 4.5),
-    // The 45° turn pushes the inner edge toward the viewer. Keep the whole
-    // neighbour plane behind the active card instead of only moving its centre.
-    translateZPx: round(distance * -180),
-    rotateY: round(offset * 45),
-    scale: round(Math.max(0.68, 1 - distance * 0.22)),
-    opacity: distance >= 1.6 ? 0 : round(Math.max(0, 1 - distance * 0.12)),
+    translatePercent: round(offset * 88),
+    translateYPercent: round(distance * 2.5),
+    scale: round(Math.max(0.8, 1 - distance * 0.1)),
+    opacity: distance >= 1.6 ? 0 : round(Math.max(0, 1 - distance * 0.2)),
     zIndex: Math.round(30 - distance * 12),
-    blurPx: round(distance * 1.35),
-    saturation: round(Math.max(0.68, 1 - distance * 0.22)),
-    brightness: round(Math.max(0.74, 1 - distance * 0.14)),
-    sheenPercent: round(50 - offset * 24),
-    sheenOpacity: round(0.08 + Math.min(0.2, distance * 0.12)),
+    shadeOpacity: round(Math.min(0.44, distance * 0.22)),
   };
 }
 
+export const cardWheelPose = streetShopPose;
+
 export function activeCardAccessoryPose(progress) {
-  return cardWheelPose(-(Number(progress) || 0));
+  return streetShopPose(-(Number(progress) || 0));
+}
+
+export function createLatestFrameScheduler({ requestFrame, cancelFrame, render }) {
+  let frameId = null;
+  let latestValue = 0;
+
+  return {
+    schedule(value) {
+      latestValue = value;
+      if (frameId !== null) return;
+      frameId = requestFrame(() => {
+        frameId = null;
+        render(latestValue);
+      });
+    },
+    cancel() {
+      if (frameId === null) return;
+      cancelFrame(frameId);
+      frameId = null;
+    },
+    flush() {
+      if (frameId !== null) {
+        cancelFrame(frameId);
+        frameId = null;
+      }
+      render(latestValue);
+    },
+  };
 }
