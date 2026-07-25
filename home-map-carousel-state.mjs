@@ -46,6 +46,16 @@ export function createMapCardWindow(index, count = HOME_MAPS.length) {
   }));
 }
 
+export function shiftBufferedCardOffset(offset, direction) {
+  const current = Math.max(-2, Math.min(2, Math.trunc(Number(offset) || 0)));
+  const step = Math.sign(Number(direction) || 0);
+  if (!step) return current;
+  const shifted = current - step;
+  if (shifted < -2) return 2;
+  if (shifted > 2) return -2;
+  return shifted;
+}
+
 export function resolveSwipe({ deltaX, width, velocityX }) {
   const distance = Number.isFinite(deltaX) ? deltaX : 0;
   const viewportWidth = Number.isFinite(width) && width > 0 ? width : 1;
