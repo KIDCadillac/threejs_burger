@@ -60,6 +60,12 @@ export function resolveSwipe({ deltaX, width, velocityX }) {
   return 0;
 }
 
+export function dragProgressFromDelta({ deltaX, width }) {
+  const distance = Number.isFinite(deltaX) ? deltaX : 0;
+  const viewportWidth = Number.isFinite(width) && width > 0 ? width : 1;
+  return Math.max(-1, Math.min(1, -distance / (viewportWidth * 0.72)));
+}
+
 export function afterNextPaint(requestFrame, callback) {
   requestFrame(() => requestFrame(callback));
 }

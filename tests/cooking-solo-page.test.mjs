@@ -215,6 +215,20 @@ test("map gestures can interrupt shop animation and arriving opens without locki
   assert.match(css, /\.home-map-slide\.is-opening \.shop-shutter/);
 });
 
+test("committed map swipes continue from the released drag pose without snapping backward", async () => {
+  const app = await readFile(homeAppPath, "utf8");
+
+  assert.match(app, /dragProgressFromDelta/);
+  assert.match(
+    app,
+    /function endMapDrag\(event,[\s\S]*wheelFrameScheduler\.flush\(\)[\s\S]*moveMap\(direction,\s*\{\s*fromProgress\s*\}\)/,
+  );
+  assert.match(
+    app,
+    /function beginShopClose\(step,\s*nextIndex,\s*\{\s*persist = true,\s*fromProgress = 0\s*\} = \{\}\)[\s\S]*renderWheel\(fromProgress\)/,
+  );
+});
+
 test("home store cards read as a burger food truck and a sushi counter with stone service", async () => {
   const [html, css] = await Promise.all([
     readFile(homePath, "utf8"),

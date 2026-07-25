@@ -73,6 +73,14 @@ test("swipe resolves by distance or velocity and otherwise returns", () => {
   assert.equal(resolveSwipe({ deltaX: 18, width: 400, velocityX: 0.8 }), -1);
 });
 
+test("drag progress preserves the same clamped pose through pointer release", () => {
+  assert.equal(typeof carouselState.dragProgressFromDelta, "function");
+  assert.equal(carouselState.dragProgressFromDelta({ deltaX: -72, width: 400 }), 0.25);
+  assert.equal(carouselState.dragProgressFromDelta({ deltaX: 72, width: 400 }), -0.25);
+  assert.equal(carouselState.dragProgressFromDelta({ deltaX: -900, width: 400 }), 1);
+  assert.equal(carouselState.dragProgressFromDelta({ deltaX: 900, width: 400 }), -1);
+});
+
 test("street shop pose keeps the active store forward and pulls readable neighbours beside it", () => {
   assert.deepEqual(streetShopPose(0), {
     translatePercent: 0,
@@ -144,6 +152,31 @@ test("latest-frame scheduler renders only the newest drag progress once per fram
   scheduler.cancel();
   assert.deepEqual(cancelled, [2]);
   assert.deepEqual(rendered, [0.8]);
+});
+
+test("latest-frame scheduler can flush the final pointer pose before transitions resume", () => {
+  const queued = [];
+  const cancelled = [];
+  const rendered = [];
+  const scheduler = createLatestFrameScheduler({
+    requestFrame(callback) {
+      queued.push(callback);
+      return 7;
+    },
+    cancelFrame(id) {
+      cancelled.push(id);
+    },
+    render(value) {
+      rendered.push(value);
+    },
+  });
+
+  scheduler.schedule(0.2);
+  scheduler.schedule(0.55);
+  scheduler.flush();
+
+  assert.deepEqual(cancelled, [7]);
+  assert.deepEqual(rendered, [0.55]);
 });
 
 test("invalid stored map indexes fall back to burger", () => {
