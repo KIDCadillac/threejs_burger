@@ -82,14 +82,14 @@ test("card wheel keeps the active map forward and turns readable neighbours 45 d
   });
   assert.deepEqual(cardWheelPose(-1), {
     translatePercent: -62,
-    rotateY: 45,
+    rotateY: -45,
     scale: 0.9,
     opacity: 0.88,
     zIndex: 18,
   });
   assert.deepEqual(cardWheelPose(1), {
     translatePercent: 62,
-    rotateY: -45,
+    rotateY: 45,
     scale: 0.9,
     opacity: 0.88,
     zIndex: 18,

@@ -120,7 +120,7 @@ test("home page uses a large buffered shop carousel without the old four-button 
   assert.doesNotMatch(html, /id="map-subtitle"/);
   assert.match(html, /<div class="diner-sign">[\s\S]*data-business-toggle[\s\S]*id="lobby-title"/);
   assert.doesNotMatch(html, /class="open-shop-button"/);
-  assert.match(css, /--home-map-height:\s*clamp\(22rem,\s*50vh,\s*28rem\)/);
+  assert.match(css, /--home-map-height:\s*clamp\(/);
   assert.match(css, /\.business-sign-button\s*\{/);
   assert.match(css, /\.home-map-slide\s*\{[^}]*transform-origin:\s*center center/s);
   assert.doesNotMatch(css, /\.lobby-actions\s*\{/);
@@ -140,14 +140,36 @@ test("home business control looks and behaves like a physical wooden hanging sig
   assert.match(css, /\.business-sign__board\s*\{/);
   assert.match(css, /repeating-linear-gradient\(/);
   assert.match(css, /\.business-sign__board::before/);
-  assert.match(css, /\.business-sign-button\.is-flipping\s+\.business-sign__board/);
+  assert.match(css, /\.business-sign-button\.is-flipping\s*\{[^}]*animation:\s*business-sign-flip/s);
   assert.match(css, /@keyframes business-sign-flip/);
-  assert.match(css, /\.map-carousel\s*\{[^}]*top:\s*8\.1rem;/s);
   assert.match(css, /\.lobby-stage\.is-open\s+\.business-sign__board/);
   assert.doesNotMatch(css, /\.lobby-stage\.is-open\s+\.business-sign-button\s*\{/);
   assert.match(app, /businessOpen\s*\?\s*"点击关门打烊"\s*:\s*"点击开门营业"/);
   assert.match(app, /classList\.add\("is-flipping"\)/);
   assert.match(app, /animationend/);
+});
+
+test("home lobby uses responsive flow and keeps the active mode inside its map card", async () => {
+  const [html, css, app] = await Promise.all([
+    readFile(homePath, "utf8"),
+    readFile(homeCssPath, "utf8"),
+    readFile(homeAppPath, "utf8"),
+  ]);
+
+  assert.match(
+    html,
+    /class="home-map-viewport"[\s\S]*id="home-mode-indicator"[\s\S]*data-map-direction="1"/,
+  );
+  assert.doesNotMatch(html, /class="home-map-meta"|id="home-map-count"/);
+  assert.match(css, /\.lobby-stage\s*\{[^}]*display:\s*grid;[^}]*grid-template-rows:/s);
+  assert.match(css, /\.map-carousel\s*\{[^}]*position:\s*relative;/s);
+  assert.doesNotMatch(css, /\.map-carousel\s*\{[^}]*top:\s*8\.1rem;/s);
+  assert.match(css, /calc\(100vh\s*-\s*17rem\)/);
+  assert.match(css, /@supports\s*\(height:\s*100dvh\)/);
+  assert.match(css, /100dvh/);
+  assert.match(css, /env\(safe-area-inset-top\)/);
+  assert.match(css, /env\(safe-area-inset-bottom\)/);
+  assert.doesNotMatch(app, /home-map-count|mapCount/);
 });
 
 test("the public page exposes a touch-safe playable highlight replay dialog", async () => {

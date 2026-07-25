@@ -131,6 +131,11 @@ def test_home_page_contains_the_playable_cooking_lobby() -> None:
     assert 'data-business-toggle' in response.text
     assert response.text.index("data-business-toggle") < response.text.index('id="lobby-title"')
     assert 'id="home-mode-indicator"' in response.text
+    assert response.text.index('id="home-map-viewport"') < response.text.index(
+        'id="home-mode-indicator"'
+    )
+    assert 'id="home-map-count"' not in response.text
+    assert 'class="home-map-meta"' not in response.text
     assert 'id="map-subtitle"' not in response.text
     assert 'class="open-shop-button"' not in response.text
     assert 'data-home-map="sushi"' in response.text

@@ -15,7 +15,7 @@ import {
   createMapCardWindow,
   normalizeMapIndex,
   resolveSwipe,
-} from "./home-map-carousel-state.mjs?v=20260724-coupled1";
+} from "./home-map-carousel-state.mjs?v=20260725-responsive1";
 import {
   HOME_BUSINESS_KEY,
   HOME_MODE_KEY,
@@ -42,7 +42,6 @@ const mapTrack = document.querySelector("#home-map-track");
 const mapTemplates = [...document.querySelectorAll("[data-map-template]")];
 const bufferedMapSlides = setupBufferedMapSlides();
 const mapArrows = [...document.querySelectorAll("[data-map-direction]")];
-const mapCount = document.querySelector("#home-map-count");
 const mapStatus = document.querySelector("#map-status");
 const mapTitle = document.querySelector("#lobby-title");
 const lobbyStage = document.querySelector(".lobby-stage");
@@ -198,7 +197,6 @@ function renderMap() {
   if (!mapViewport || !HOME_MAPS.length) return;
   const map = HOME_MAPS[mapIndex];
   mapTitle.textContent = map.title;
-  mapCount.textContent = `${mapIndex + 1}/${HOME_MAPS.length}`;
   const nextModeIndex = modeIndexForMap(map.id, modeIndex);
   if (nextModeIndex !== modeIndex) {
     modeIndex = nextModeIndex;
