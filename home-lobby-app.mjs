@@ -13,6 +13,7 @@ import {
   changeMapIndex,
   createLatestFrameScheduler,
   createMapCardWindow,
+  dragProgressFromDelta,
   normalizeMapIndex,
   resolveSwipe,
   streetShopPose,
@@ -343,7 +344,7 @@ function activeMapSlide() {
   return bufferedMapSlides.find((slide) => Number(slide.dataset.cardOffset) === 0) || null;
 }
 
-function beginShopClose(step, nextIndex, { persist = true } = {}) {
+function beginShopClose(step, nextIndex, { persist = true, fromProgress = 0 } = {}) {
   wheelFrameScheduler.cancel();
   wheelTransitioning = true;
   pendingMapIndex = nextIndex;
@@ -351,7 +352,7 @@ function beginShopClose(step, nextIndex, { persist = true } = {}) {
   window.clearTimeout(openTimer);
   mapViewport?.classList.remove("is-dragging");
   mapViewport?.setAttribute("aria-busy", "true");
-  renderWheel();
+  renderWheel(fromProgress);
 
   if (HOME_MAPS[mapIndex]?.available && businessOpen) {
     businessOpen = false;
@@ -373,12 +374,12 @@ function beginShopClose(step, nextIndex, { persist = true } = {}) {
   return true;
 }
 
-function moveMap(direction, { persist = true } = {}) {
+function moveMap(direction, { persist = true, fromProgress = 0 } = {}) {
   const step = Math.sign(Number(direction) || 0);
   if (!step || HOME_MAPS.length < 2) return false;
   if (wheelTransitioning) settleWheelForInteraction();
   const nextIndex = changeMapIndex(mapIndex, step);
-  return beginShopClose(step, nextIndex, { persist });
+  return beginShopClose(step, nextIndex, { persist, fromProgress });
 }
 
 function snapWheelBack() {
@@ -416,8 +417,10 @@ function updateMapDrag(event) {
   if (!gestureAxis) return;
   gestureMoved = true;
   if (gestureAxis === "horizontal") {
-    const width = Math.max(1, mapViewport.clientWidth);
-    const progress = -dragDeltaX / (width * 0.72);
+    const progress = dragProgressFromDelta({
+      deltaX: dragDeltaX,
+      width: mapViewport.clientWidth,
+    });
     wheelFrameScheduler.schedule(progress);
   } else {
     const height = Math.max(1, mapViewport.clientHeight);
@@ -430,27 +433,34 @@ function updateMapDrag(event) {
 
 function endMapDrag(event, cancelled = false) {
   if (event.pointerId !== dragPointerId) return;
-  wheelFrameScheduler.cancel();
   const elapsed = Math.max(1, performance.now() - dragStartTime);
   mapViewport.releasePointerCapture?.(event.pointerId);
   dragPointerId = null;
-  mapViewport.classList.remove("is-dragging");
   suppressMapClick = gestureMoved;
   if (cancelled) {
+    wheelFrameScheduler.cancel();
+    mapViewport.classList.remove("is-dragging");
     renderWheel();
     resetModePreview();
     return;
   }
   if (gestureAxis === "horizontal") {
+    const fromProgress = dragProgressFromDelta({
+      deltaX: dragDeltaX,
+      width: mapViewport.clientWidth,
+    });
+    wheelFrameScheduler.flush();
     const direction = resolveSwipe({
       deltaX: dragDeltaX,
       width: mapViewport.clientWidth,
       velocityX: dragDeltaX / elapsed,
     });
-    if (direction) moveMap(direction);
+    if (direction) moveMap(direction, { fromProgress });
     else snapWheelBack();
     return;
   }
+  wheelFrameScheduler.cancel();
+  mapViewport.classList.remove("is-dragging");
   if (gestureAxis === "vertical") {
     const direction = resolveModeSwipe({
       deltaY: dragDeltaY,
