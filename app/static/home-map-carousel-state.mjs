@@ -74,7 +74,9 @@ export function cardWheelPose(rawOffset) {
   return {
     translatePercent: round(offset * 62),
     translateYPercent: round(distance * 4.5),
-    translateZPx: round(distance * -72),
+    // The 45° turn pushes the inner edge toward the viewer. Keep the whole
+    // neighbour plane behind the active card instead of only moving its centre.
+    translateZPx: round(distance * -180),
     rotateY: round(offset * 45),
     scale: round(Math.max(0.68, 1 - distance * 0.22)),
     opacity: distance >= 1.6 ? 0 : round(Math.max(0, 1 - distance * 0.12)),

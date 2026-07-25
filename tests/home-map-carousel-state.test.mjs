@@ -85,7 +85,7 @@ test("card wheel keeps the active map forward and turns readable neighbours 45 d
   assert.deepEqual(cardWheelPose(-1), {
     translatePercent: -62,
     translateYPercent: 4.5,
-    translateZPx: -72,
+    translateZPx: -180,
     rotateY: -45,
     scale: 0.78,
     opacity: 0.88,
@@ -94,7 +94,7 @@ test("card wheel keeps the active map forward and turns readable neighbours 45 d
   assert.deepEqual(cardWheelPose(1), {
     translatePercent: 62,
     translateYPercent: 4.5,
-    translateZPx: -72,
+    translateZPx: -180,
     rotateY: 45,
     scale: 0.78,
     opacity: 0.88,
@@ -108,6 +108,19 @@ test("card wheel keeps the active map forward and turns readable neighbours 45 d
   assert.ok(halfway.translateZPx < 0);
   assert.ok(halfway.translateZPx > cardWheelPose(1).translateZPx);
   assert.equal(cardWheelPose(2).opacity, 0);
+});
+
+test("rotated neighbour stays fully behind the active card plane", () => {
+  const pose = cardWheelPose(1);
+  const maximumCardWidthPx = 420;
+  const rotatedFrontEdgePx =
+    pose.translateZPx
+    + (maximumCardWidthPx * pose.scale * Math.sin(Math.abs(pose.rotateY) * Math.PI / 180)) / 2;
+
+  assert.ok(
+    rotatedFrontEdgePx <= -16,
+    `side card front edge must remain behind the active card, got ${rotatedFrontEdgePx}px`,
+  );
 });
 
 test("active card accessory shares the active card pose during drag", () => {

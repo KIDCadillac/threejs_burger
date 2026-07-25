@@ -15,7 +15,7 @@ import {
   createMapCardWindow,
   normalizeMapIndex,
   resolveSwipe,
-} from "./home-map-carousel-state.mjs?v=20260725-elastic1";
+} from "./home-map-carousel-state.mjs?v=20260725-clearance1";
 import {
   HOME_BUSINESS_KEY,
   HOME_MODE_KEY,
