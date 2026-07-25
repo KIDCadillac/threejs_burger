@@ -17,9 +17,11 @@ import {
   mapIndexAtOffset,
   normalizeMapIndex,
   resolveSwipe,
+  shopOpenProgress,
   shiftBufferedCardOffset,
   streetShopPose,
-} from "./home-map-carousel-state.mjs?v=20260725-streetshop2";
+  wheelSettleDuration,
+} from "./home-map-carousel-state.mjs?v=20260725-doorscrub1";
 import {
   HOME_BUSINESS_KEY,
   HOME_MODE_KEY,
@@ -63,7 +65,6 @@ let pendingMapIndex = null;
 let pendingMapStep = 0;
 let wheelTransitioning = false;
 let wheelTimer = 0;
-let openTimer = 0;
 let dragPointerId = null;
 let dragStartX = 0;
 let dragStartY = 0;
@@ -73,8 +74,6 @@ let dragDeltaY = 0;
 let gestureAxis = null;
 let gestureMoved = false;
 let suppressMapClick = false;
-const WHEEL_TRANSITION_MS = 280;
-const SHOP_OPEN_MS = 260;
 const reducedMotionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
 const wheelFrameScheduler = createLatestFrameScheduler({
   requestFrame: (callback) => requestAnimationFrame(callback),
@@ -133,7 +132,6 @@ function advanceBufferedMapSlides(activeIndex, step) {
       );
       return;
     }
-    slot.classList.remove("is-opening", "is-closing");
     updateBufferedMapSlideAccess(slot, nextOffset);
   });
 }
@@ -195,12 +193,24 @@ function renderWheel(progress = 0) {
     slide.style.transform = motion;
     slide.style.opacity = String(pose.opacity);
     slide.style.setProperty("--map-shade-opacity", String(pose.shadeOpacity));
+    slide.style.setProperty(
+      "--shop-open-progress",
+      String(shopOpenProgress({ offset, dragProgress })),
+    );
     slide.style.zIndex = String(pose.zIndex);
   });
   const accessoryPose = activeCardAccessoryPose(dragProgress);
   modeIndicator?.style.setProperty("--mode-card-x", `${accessoryPose.translatePercent}%`);
   modeIndicator?.style.setProperty("--mode-card-scale", String(accessoryPose.scale));
   modeIndicator?.style.setProperty("--mode-card-opacity", String(accessoryPose.opacity));
+}
+
+function setWheelSettleDuration(duration) {
+  const milliseconds = `${Math.max(0, Math.round(Number(duration) || 0))}ms`;
+  bufferedMapSlides.forEach((slide) => {
+    slide.style.setProperty("--wheel-settle-ms", milliseconds);
+  });
+  modeIndicator?.style.setProperty("--wheel-settle-ms", milliseconds);
 }
 
 function resetBufferedWheel({ step = 0 } = {}) {
@@ -215,31 +225,9 @@ function resetBufferedWheel({ step = 0 } = {}) {
   );
 }
 
-function playShopOpen() {
-  if (wheelTransitioning || dragPointerId !== null) return;
-  const slide = activeMapSlide();
-  if (!slide) return;
-  window.clearTimeout(openTimer);
-  slide.classList.remove("is-closing", "is-opening");
-  void slide.offsetWidth;
-  slide.classList.add("is-opening");
-
-  if (HOME_MAPS[mapIndex]?.available && !businessOpen) {
-    businessOpen = true;
-    writeBusinessOpen(true);
-    renderBusiness();
-    replayBusinessFlip();
-  }
-
-  openTimer = window.setTimeout(() => {
-    slide.classList.remove("is-opening");
-  }, reducedMotionQuery?.matches ? 0 : SHOP_OPEN_MS);
-}
-
-function finishWheelTransition({ playArrival = true } = {}) {
+function finishWheelTransition() {
   wheelFrameScheduler.cancel();
   window.clearTimeout(wheelTimer);
-  const arrived = pendingMapIndex !== null;
   if (pendingMapIndex !== null) {
     const arrivedStep = pendingMapStep;
     mapIndex = pendingMapIndex;
@@ -253,12 +241,6 @@ function finishWheelTransition({ playArrival = true } = {}) {
   wheelTransitioning = false;
   lobbyStage?.classList.remove("is-switching-shop");
   mapViewport?.removeAttribute("aria-busy");
-  if (arrived && playArrival) {
-    afterNextPaint(
-      (callback) => requestAnimationFrame(callback),
-      playShopOpen,
-    );
-  }
 }
 
 function settleWheelForInteraction() {
@@ -267,9 +249,9 @@ function settleWheelForInteraction() {
   return true;
 }
 
-function queueWheelFinish() {
+function queueWheelFinish(duration) {
   window.clearTimeout(wheelTimer);
-  wheelTimer = window.setTimeout(finishWheelTransition, WHEEL_TRANSITION_MS);
+  wheelTimer = window.setTimeout(finishWheelTransition, Math.max(0, duration));
 }
 
 function renderMap() {
@@ -370,34 +352,25 @@ function selectMap(nextIndex, { persist = true } = {}) {
   return moveMap(direction, { persist });
 }
 
-function activeMapSlide() {
-  return bufferedMapSlides.find((slide) => Number(slide.dataset.cardOffset) === 0) || null;
-}
-
-function beginShopClose(step, nextIndex, { persist = true, fromProgress = 0 } = {}) {
+function beginShopTransition(step, nextIndex, { persist = true, fromProgress = 0 } = {}) {
   wheelFrameScheduler.cancel();
   wheelTransitioning = true;
   pendingMapIndex = nextIndex;
   pendingMapStep = step;
   if (persist) writeMapIndex(nextIndex);
-  window.clearTimeout(openTimer);
+  const duration = wheelSettleDuration({
+    fromProgress,
+    targetProgress: step,
+    reducedMotion: reducedMotionQuery?.matches,
+  });
+  setWheelSettleDuration(duration);
   renderWheel(fromProgress);
   mapViewport?.classList.remove("is-dragging");
   mapViewport?.setAttribute("aria-busy", "true");
-
-  if (HOME_MAPS[mapIndex]?.available && businessOpen) {
-    businessOpen = false;
-    writeBusinessOpen(false);
-    renderBusiness();
-  }
-  replayBusinessFlip();
-  const activeSlide = activeMapSlide();
-  activeSlide?.classList.remove("is-opening");
-  activeSlide?.classList.add("is-closing");
   lobbyStage?.classList.add("is-switching-shop");
 
   renderWheel(step);
-  queueWheelFinish();
+  queueWheelFinish(duration);
   return true;
 }
 
@@ -406,16 +379,22 @@ function moveMap(direction, { persist = true, fromProgress = 0 } = {}) {
   if (!step || HOME_MAPS.length < 2) return false;
   if (wheelTransitioning) settleWheelForInteraction();
   const nextIndex = changeMapIndex(mapIndex, step);
-  return beginShopClose(step, nextIndex, { persist, fromProgress });
+  return beginShopTransition(step, nextIndex, { persist, fromProgress });
 }
 
-function snapWheelBack() {
+function snapWheelBack(fromProgress = 0) {
   wheelFrameScheduler.cancel();
   wheelTransitioning = true;
+  const duration = wheelSettleDuration({
+    fromProgress,
+    targetProgress: 0,
+    reducedMotion: reducedMotionQuery?.matches,
+  });
+  setWheelSettleDuration(duration);
   mapViewport?.classList.remove("is-dragging");
   mapViewport?.setAttribute("aria-busy", "true");
   renderWheel();
-  queueWheelFinish();
+  queueWheelFinish(duration);
 }
 
 function beginMapDrag(event) {
@@ -483,7 +462,7 @@ function endMapDrag(event, cancelled = false) {
       velocityX: dragDeltaX / elapsed,
     });
     if (direction) moveMap(direction, { fromProgress });
-    else snapWheelBack();
+    else snapWheelBack(fromProgress);
     return;
   }
   wheelFrameScheduler.cancel();

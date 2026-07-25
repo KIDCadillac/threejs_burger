@@ -302,6 +302,8 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 }
 .home-map-slide {
   --map-shade-opacity: 0;
+  --shop-open-progress: 0;
+  --wheel-settle-ms: 280ms;
   position: absolute;
   inset: 0 2.35rem .2rem;
   contain: layout paint style;
@@ -310,8 +312,8 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   transform-origin: center center;
   backface-visibility: hidden;
   transition:
-    transform 280ms cubic-bezier(.22,.8,.2,1),
-    opacity 200ms ease;
+    transform var(--wheel-settle-ms, 280ms) cubic-bezier(.22,.8,.2,1),
+    opacity var(--wheel-settle-ms, 280ms) ease;
   pointer-events: none;
 }
 .home-map-slide::before {
@@ -339,6 +341,7 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   --mode-card-x: 0%;
   --mode-card-scale: 1;
   --mode-card-opacity: 1;
+  --wheel-settle-ms: 280ms;
   position: absolute;
   z-index: 80;
   top: 4.45rem;
@@ -360,8 +363,8 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   transform-origin: center;
   pointer-events: none;
   transition:
-    transform 280ms cubic-bezier(.22,.8,.2,1),
-    opacity 200ms ease;
+    transform var(--wheel-settle-ms, 280ms) cubic-bezier(.22,.8,.2,1),
+    opacity var(--wheel-settle-ms, 280ms) ease;
 }
 .home-map-viewport.is-dragging .home-mode-indicator,
 .home-map-viewport.is-wheel-jump .home-mode-indicator { transition: none; }
@@ -561,9 +564,13 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   grid-template-rows: repeat(4, 1fr);
   padding-bottom: .8rem;
   filter: drop-shadow(0 .45rem .28rem rgba(25,13,8,.45));
-  transform: translateY(-103%);
-  transition: transform 100ms cubic-bezier(.4,0,.2,1);
+  transform: translateY(calc(-103% * var(--shop-open-progress, 0)));
+  transition: transform var(--wheel-settle-ms, 280ms) cubic-bezier(.22,.8,.2,1);
   pointer-events: none;
+}
+.home-map-viewport.is-dragging .shop-shutter,
+.home-map-viewport.is-wheel-jump .shop-shutter {
+  transition: none;
 }
 .shop-shutter i {
   display: block;
@@ -588,55 +595,6 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   background:
     linear-gradient(90deg, rgba(255,255,255,.14), transparent 18% 82%, rgba(5,18,25,.22)),
     repeating-linear-gradient(0deg, #357a7c 0 .5rem, #25666c .5rem .68rem);
-}
-.home-map-slide.is-closing .shop-shutter { transform: translateY(0); }
-.home-map-slide.is-opening .shop-shutter {
-  animation: shop-shutter-open 240ms cubic-bezier(.2,.82,.22,1) both;
-}
-.home-map-slide.is-opening .chef,
-.home-map-slide.is-opening .sushi-master {
-  animation: shop-worker-arrive 240ms cubic-bezier(.18,1.2,.32,1) 30ms both;
-}
-.home-map-slide.is-opening .hero-burger {
-  animation: shop-food-arrive 240ms cubic-bezier(.18,1.28,.3,1) 30ms both;
-}
-.home-map-slide.is-opening .food-truck-shell {
-  animation: food-truck-arrive 260ms cubic-bezier(.18,1.12,.3,1) both;
-}
-.home-map-slide.is-closing .food-truck-shell {
-  animation: food-truck-depart-rumble 160ms ease-in-out both;
-}
-.home-map-slide.is-closing .food-truck-wheel {
-  animation: food-truck-wheel-spin 150ms linear infinite;
-}
-.home-map-slide.is-closing .diner-scene--sushi {
-  animation: sushi-bar-close 160ms ease-in both;
-}
-.home-map-slide.is-opening .diner-scene--sushi {
-  animation: sushi-bar-arrive 260ms cubic-bezier(.22,.8,.2,1) both;
-}
-.home-map-slide.is-closing .chef,
-.home-map-slide.is-closing .sushi-master {
-  opacity: .18;
-  transform: translateX(-50%) translateY(1.8rem) scale(.96);
-  transition:
-    transform 100ms ease,
-    opacity 100ms ease;
-}
-.home-map-slide.is-closing .chef__hand--left {
-  animation: shop-pull-left 140ms cubic-bezier(.2,.8,.25,1) both;
-}
-.home-map-slide.is-closing .chef__hand--right {
-  animation: shop-pull-right 140ms cubic-bezier(.2,.8,.25,1) both;
-}
-.home-map-slide.is-closing .hero-burger,
-.home-map-slide.is-closing .sushi-platter {
-  transform: translateX(-50%) scale(.96);
-  transition: transform 220ms ease, opacity 180ms ease;
-}
-.home-map-slide.is-closing .sushi-platter {
-  transform: scale(.96);
-  opacity: .42;
 }
 @keyframes shop-pull-left {
   0% { transform: rotate(28deg); }
@@ -835,12 +793,6 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
     radial-gradient(circle at 27% 34%, rgba(255,255,255,.17) 0 .18rem, transparent .2rem),
     linear-gradient(165deg, #6e7d79, #3b4c4b 62%, #293736);
   box-shadow: 0 .35rem 0 rgba(16,22,23,.65), inset 0 .18rem rgba(255,255,255,.13);
-}
-.home-map-slide.is-opening .sushi-stone-service {
-  animation: sushi-stone-serve 250ms cubic-bezier(.18,1.2,.3,1) 35ms both;
-}
-.home-map-slide.is-opening .sushi-platter {
-  animation: sushi-order-serve 250ms cubic-bezier(.18,1.24,.3,1) 45ms both;
 }
 .sushi-piece {
   position: absolute;

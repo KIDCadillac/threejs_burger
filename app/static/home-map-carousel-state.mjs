@@ -76,6 +76,27 @@ export function dragProgressFromDelta({ deltaX, width }) {
   return Math.max(-1, Math.min(1, -distance / (viewportWidth * 0.72)));
 }
 
+export function shopOpenProgress({ offset, dragProgress }) {
+  const slotOffset = Math.trunc(Number(offset) || 0);
+  const progress = Math.max(-1, Math.min(1, Number(dragProgress) || 0));
+  if (slotOffset === 0) return 1;
+  if (Math.abs(slotOffset) !== 1) return 0;
+  if (Math.sign(slotOffset) !== Math.sign(progress)) return 0;
+  return Math.abs(progress);
+}
+
+export function wheelSettleDuration({
+  fromProgress,
+  targetProgress,
+  reducedMotion = false,
+}) {
+  if (reducedMotion) return 0;
+  const from = Math.max(-1, Math.min(1, Number(fromProgress) || 0));
+  const target = Math.max(-1, Math.min(1, Number(targetProgress) || 0));
+  const remaining = Math.abs(target - from);
+  return Math.round(Math.max(120, Math.min(325, 120 + remaining * 205)));
+}
+
 export function afterNextPaint(requestFrame, callback) {
   requestFrame(() => requestFrame(callback));
 }

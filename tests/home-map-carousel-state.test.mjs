@@ -93,6 +93,37 @@ test("drag progress preserves the same clamped pose through pointer release", ()
   assert.equal(carouselState.dragProgressFromDelta({ deltaX: 900, width: 400 }), -1);
 });
 
+test("the incoming shop opens with the drag while the current shop stays open", () => {
+  assert.equal(typeof carouselState.shopOpenProgress, "function");
+  assert.equal(carouselState.shopOpenProgress({ offset: 0, dragProgress: 0.65 }), 1);
+  assert.equal(carouselState.shopOpenProgress({ offset: 1, dragProgress: 0.4 }), 0.4);
+  assert.equal(carouselState.shopOpenProgress({ offset: -1, dragProgress: 0.4 }), 0);
+  assert.equal(carouselState.shopOpenProgress({ offset: -1, dragProgress: -0.6 }), 0.6);
+  assert.equal(carouselState.shopOpenProgress({ offset: 1, dragProgress: -0.6 }), 0);
+  assert.equal(carouselState.shopOpenProgress({ offset: 2, dragProgress: 1 }), 0);
+});
+
+test("release animation duration follows only the remaining travel", () => {
+  assert.equal(typeof carouselState.wheelSettleDuration, "function");
+  assert.equal(carouselState.wheelSettleDuration({
+    fromProgress: 0.9,
+    targetProgress: 1,
+  }), 141);
+  assert.equal(carouselState.wheelSettleDuration({
+    fromProgress: 0.2,
+    targetProgress: 1,
+  }), 284);
+  assert.equal(carouselState.wheelSettleDuration({
+    fromProgress: -0.45,
+    targetProgress: 0,
+  }), 212);
+  assert.equal(carouselState.wheelSettleDuration({
+    fromProgress: 0.2,
+    targetProgress: 1,
+    reducedMotion: true,
+  }), 0);
+});
+
 test("street shop pose keeps the active store forward and pulls readable neighbours beside it", () => {
   assert.deepEqual(streetShopPose(0), {
     translatePercent: 0,

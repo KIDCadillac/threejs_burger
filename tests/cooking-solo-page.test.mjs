@@ -130,7 +130,7 @@ test("home page uses a large buffered shop carousel without the old four-button 
     css,
     /transform:\s*translate3d\(0,\s*0,\s*0\)\s*scale\(1\)/,
   );
-  assert.match(css, /transform\s+280ms\s+cubic-bezier\(\.22,\.8,\.2,1\)/);
+  assert.match(css, /transform\s+var\(--wheel-settle-ms,\s*280ms\)\s+cubic-bezier\(\.22,\.8,\.2,1\)/);
   assert.match(css, /\.home-map-viewport\.is-dragging \.home-map-slide\s*\{\s*transition:\s*none;\s*\}/);
   assert.doesNotMatch(css, /\.lobby-actions\s*\{/);
 });
@@ -158,7 +158,7 @@ test("home business control looks and behaves like a physical wooden hanging sig
   assert.match(app, /animationend/);
 });
 
-test("home carousel cards expose store emblems, lightweight depth shade, and closing shutters", async () => {
+test("home carousel cards expose store emblems, lightweight depth shade, and scrubbed shutters", async () => {
   const [html, css, app] = await Promise.all([
     readFile(homePath, "utf8"),
     readFile(homeCssPath, "utf8"),
@@ -171,25 +171,27 @@ test("home carousel cards expose store emblems, lightweight depth shade, and clo
   assert.match(css, /\.home-map-slide::before/);
   assert.match(css, /var\(--map-shade-opacity\)/);
   assert.doesNotMatch(css, /filter:\s*blur\(var\(--map-blur\)\)/);
-  assert.match(css, /\.home-map-slide\.is-closing \.shop-shutter/);
+  assert.match(css, /var\(--shop-open-progress/);
   assert.ok(app.includes("slide.style.transform = motion;"));
   assert.ok(app.includes("slide.style.opacity = String(pose.opacity);"));
   assert.ok(!app.includes('slide.style.setProperty("--map-motion",'));
   assert.ok(!app.includes('slide.style.setProperty("--map-opacity",'));
   assert.ok(app.includes('slide.style.setProperty("--map-shade-opacity", String(pose.shadeOpacity));'));
+  assert.match(app, /slide\.style\.setProperty\(\s*"--shop-open-progress"/);
 });
 
-test("leaving a shop closes the shutter while the card starts moving without a dead pause", async () => {
+test("leaving a shop drives the incoming shutter from drag progress without replaying business state", async () => {
   const app = await readFile(homeAppPath, "utf8");
 
-  assert.match(app, /function beginShopClose\(/);
+  assert.match(app, /shopOpenProgress/);
+  assert.match(app, /wheelSettleDuration/);
   assert.match(
     app,
-    /replayBusinessFlip\(\);[\s\S]*classList\.add\("is-closing"\)[\s\S]*renderWheel\(step\);[\s\S]*queueWheelFinish\(\)/,
+    /function beginShopTransition\([\s\S]*renderWheel\(fromProgress\)[\s\S]*renderWheel\(step\)[\s\S]*queueWheelFinish\(duration\)/,
   );
   assert.match(app, /prefers-reduced-motion/);
-  assert.doesNotMatch(app, /SHOP_CLOSE_DELAY_MS|closeTimer/);
-  assert.match(app, /const WHEEL_TRANSITION_MS = 280;/);
+  assert.doesNotMatch(app, /classList\.add\("is-closing"\)|function playShopOpen\(/);
+  assert.doesNotMatch(app, /SHOP_OPEN_MS|openTimer/);
 });
 
 test("finishing a map switch recycles one buffered card instead of rebuilding all five", async () => {
@@ -203,7 +205,7 @@ test("finishing a map switch recycles one buffered card instead of rebuilding al
   );
 });
 
-test("map gestures can interrupt shop animation and arriving opens without locking input", async () => {
+test("map gestures can interrupt settling while drag progress remains the only door animation", async () => {
   const [css, app] = await Promise.all([
     readFile(homeCssPath, "utf8"),
     readFile(homeAppPath, "utf8"),
@@ -217,16 +219,9 @@ test("map gestures can interrupt shop animation and arriving opens without locki
     app,
     /function beginMapDrag\(event\)[\s\S]*if \(wheelTransitioning\) settleWheelForInteraction\(\)/,
   );
-  assert.match(
-    app,
-    /function playShopOpen\(\)[\s\S]*classList\.add\("is-opening"\)/,
-  );
-  assert.doesNotMatch(
-    app,
-    /function playShopOpen\(\)[\s\S]{0,500}wheelTransitioning\s*=\s*true/,
-  );
-  assert.match(css, /@keyframes shop-shutter-open/);
-  assert.match(css, /\.home-map-slide\.is-opening \.shop-shutter/);
+  assert.match(css, /\.home-map-viewport\.is-dragging \.shop-shutter/);
+  assert.doesNotMatch(css, /\.home-map-slide\.is-opening \.shop-shutter/);
+  assert.doesNotMatch(css, /\.home-map-slide\.is-closing \.shop-shutter/);
 });
 
 test("committed map swipes continue from the released drag pose without snapping backward", async () => {
@@ -239,7 +234,7 @@ test("committed map swipes continue from the released drag pose without snapping
   );
   assert.match(
     app,
-    /function beginShopClose\(step,\s*nextIndex,\s*\{\s*persist = true,\s*fromProgress = 0\s*\} = \{\}\)[\s\S]*renderWheel\(fromProgress\)/,
+    /function beginShopTransition\(step,\s*nextIndex,\s*\{\s*persist = true,\s*fromProgress = 0\s*\} = \{\}\)[\s\S]*renderWheel\(fromProgress\)/,
   );
 });
 
@@ -255,10 +250,8 @@ test("home store cards read as a burger food truck and a sushi counter with ston
   assert.match(html, /class="sushi-stone-service"/);
   assert.match(css, /\.food-truck-shell\s*\{/);
   assert.match(css, /\.sushi-stone-service\s*\{/);
-  assert.match(css, /\.home-map-slide\.is-opening \.sushi-stone-service/);
-  assert.match(css, /\.home-map-slide\.is-closing \.food-truck-wheel/);
-  assert.match(css, /\.home-map-slide\.is-opening \.food-truck-shell/);
-  assert.match(css, /\.home-map-slide\.is-closing \.diner-scene--sushi/);
+  assert.match(css, /\.sushi-stone-service\s*\{/);
+  assert.doesNotMatch(css, /\.home-map-slide\.is-closing \.food-truck-wheel/);
 });
 
 test("home lobby uses responsive flow and keeps the active mode inside its map card", async () => {
