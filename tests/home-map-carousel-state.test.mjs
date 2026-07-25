@@ -10,6 +10,7 @@ import {
   createLatestFrameScheduler,
   normalizeMapIndex,
   resolveSwipe,
+  shiftBufferedCardOffset,
   streetShopPose,
 } from "../app/static/home-map-carousel-state.mjs";
 
@@ -63,6 +64,17 @@ test("buffered wheel always supplies two cards on both sides", () => {
     { offset: 1, mapIndex: 0 },
     { offset: 2, mapIndex: 1 },
   ]);
+});
+
+test("advancing the wheel recycles only the card that leaves the five-card buffer", () => {
+  assert.deepEqual(
+    [-2, -1, 0, 1, 2].map((offset) => shiftBufferedCardOffset(offset, 1)),
+    [2, -2, -1, 0, 1],
+  );
+  assert.deepEqual(
+    [-2, -1, 0, 1, 2].map((offset) => shiftBufferedCardOffset(offset, -1)),
+    [-1, 0, 1, 2, -2],
+  );
 });
 
 test("swipe resolves by distance or velocity and otherwise returns", () => {

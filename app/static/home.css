@@ -301,14 +301,12 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   transform-style: preserve-3d;
 }
 .home-map-slide {
-  --map-motion: translate3d(0, 0, 0) scale(1);
-  --map-opacity: 1;
   --map-shade-opacity: 0;
   position: absolute;
   inset: 0 2.35rem .2rem;
-  contain: layout paint;
-  opacity: var(--map-opacity);
-  transform: var(--map-motion);
+  contain: layout paint style;
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
   transform-origin: center center;
   backface-visibility: hidden;
   transition:

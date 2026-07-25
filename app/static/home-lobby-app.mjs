@@ -14,10 +14,12 @@ import {
   createLatestFrameScheduler,
   createMapCardWindow,
   dragProgressFromDelta,
+  mapIndexAtOffset,
   normalizeMapIndex,
   resolveSwipe,
+  shiftBufferedCardOffset,
   streetShopPose,
-} from "./home-map-carousel-state.mjs?v=20260725-streetshop1";
+} from "./home-map-carousel-state.mjs?v=20260725-streetshop2";
 import {
   HOME_BUSINESS_KEY,
   HOME_MODE_KEY,
@@ -58,9 +60,9 @@ let mapIndex = readMapIndex();
 let modeIndex = readModeIndex();
 let businessOpen = readBusinessOpen();
 let pendingMapIndex = null;
+let pendingMapStep = 0;
 let wheelTransitioning = false;
 let wheelTimer = 0;
-let closeTimer = 0;
 let openTimer = 0;
 let dragPointerId = null;
 let dragStartX = 0;
@@ -72,7 +74,6 @@ let gestureAxis = null;
 let gestureMoved = false;
 let suppressMapClick = false;
 const WHEEL_TRANSITION_MS = 280;
-const SHOP_CLOSE_DELAY_MS = 100;
 const SHOP_OPEN_MS = 260;
 const reducedMotionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
 const wheelFrameScheduler = createLatestFrameScheduler({
@@ -97,16 +98,43 @@ function refreshBufferedMapSlides(activeIndex = mapIndex) {
   const cardWindow = createMapCardWindow(activeIndex, mapTemplates.length);
   cardWindow.forEach(({ offset, mapIndex: templateIndex }, slotIndex) => {
     const slot = bufferedMapSlides[slotIndex];
-    const template = mapTemplates[templateIndex];
-    if (!slot || !template) return;
-    slot.className = template.className;
-    slot.dataset.homeMap = template.dataset.homeMap;
-    slot.setAttribute("data-card-offset", String(offset));
-    slot.innerHTML = template.innerHTML;
-    slot.setAttribute("aria-label", template.getAttribute("aria-label") || "");
-    slot.setAttribute("aria-hidden", String(offset !== 0));
-    if (offset === 0) slot.removeAttribute("inert");
-    else slot.setAttribute("inert", "");
+    hydrateBufferedMapSlide(slot, templateIndex, offset);
+  });
+}
+
+function updateBufferedMapSlideAccess(slot, offset) {
+  if (!slot) return;
+  slot.setAttribute("data-card-offset", String(offset));
+  slot.setAttribute("aria-hidden", String(offset !== 0));
+  if (offset === 0) slot.removeAttribute("inert");
+  else slot.setAttribute("inert", "");
+}
+
+function hydrateBufferedMapSlide(slot, templateIndex, offset) {
+  const template = mapTemplates[templateIndex];
+  if (!slot || !template) return;
+  slot.className = template.className;
+  slot.dataset.homeMap = template.dataset.homeMap;
+  slot.innerHTML = template.innerHTML;
+  slot.setAttribute("aria-label", template.getAttribute("aria-label") || "");
+  updateBufferedMapSlideAccess(slot, offset);
+}
+
+function advanceBufferedMapSlides(activeIndex, step) {
+  bufferedMapSlides.forEach((slot) => {
+    const previousOffset = Number(slot.dataset.cardOffset) || 0;
+    const nextOffset = shiftBufferedCardOffset(previousOffset, step);
+    const recycled = Math.abs(nextOffset - previousOffset) > 1;
+    if (recycled) {
+      hydrateBufferedMapSlide(
+        slot,
+        mapIndexAtOffset(activeIndex, nextOffset, mapTemplates.length),
+        nextOffset,
+      );
+      return;
+    }
+    slot.classList.remove("is-opening", "is-closing");
+    updateBufferedMapSlideAccess(slot, nextOffset);
   });
 }
 
@@ -164,8 +192,8 @@ function renderWheel(progress = 0) {
     const offset = Number(slide.dataset.cardOffset) || 0;
     const pose = streetShopPose(offset - dragProgress);
     const motion = `translate3d(${pose.translatePercent}%, ${pose.translateYPercent}%, 0) scale(${pose.scale})`;
-    slide.style.setProperty("--map-motion", motion);
-    slide.style.setProperty("--map-opacity", String(pose.opacity));
+    slide.style.transform = motion;
+    slide.style.opacity = String(pose.opacity);
     slide.style.setProperty("--map-shade-opacity", String(pose.shadeOpacity));
     slide.style.zIndex = String(pose.zIndex);
   });
@@ -175,10 +203,11 @@ function renderWheel(progress = 0) {
   modeIndicator?.style.setProperty("--mode-card-opacity", String(accessoryPose.opacity));
 }
 
-function resetBufferedWheel() {
+function resetBufferedWheel({ step = 0 } = {}) {
   wheelFrameScheduler.cancel();
   mapViewport?.classList.add("is-wheel-jump");
-  refreshBufferedMapSlides(mapIndex);
+  if (step) advanceBufferedMapSlides(mapIndex, step);
+  else refreshBufferedMapSlides(mapIndex);
   renderWheel();
   afterNextPaint(
     (callback) => requestAnimationFrame(callback),
@@ -210,13 +239,14 @@ function playShopOpen() {
 function finishWheelTransition({ playArrival = true } = {}) {
   wheelFrameScheduler.cancel();
   window.clearTimeout(wheelTimer);
-  window.clearTimeout(closeTimer);
   const arrived = pendingMapIndex !== null;
   if (pendingMapIndex !== null) {
+    const arrivedStep = pendingMapStep;
     mapIndex = pendingMapIndex;
     pendingMapIndex = null;
+    pendingMapStep = 0;
     renderMap();
-    resetBufferedWheel();
+    resetBufferedWheel({ step: arrivedStep });
   } else {
     renderWheel();
   }
@@ -348,11 +378,12 @@ function beginShopClose(step, nextIndex, { persist = true, fromProgress = 0 } = 
   wheelFrameScheduler.cancel();
   wheelTransitioning = true;
   pendingMapIndex = nextIndex;
+  pendingMapStep = step;
   if (persist) writeMapIndex(nextIndex);
   window.clearTimeout(openTimer);
+  renderWheel(fromProgress);
   mapViewport?.classList.remove("is-dragging");
   mapViewport?.setAttribute("aria-busy", "true");
-  renderWheel(fromProgress);
 
   if (HOME_MAPS[mapIndex]?.available && businessOpen) {
     businessOpen = false;
@@ -365,12 +396,8 @@ function beginShopClose(step, nextIndex, { persist = true, fromProgress = 0 } = 
   activeSlide?.classList.add("is-closing");
   lobbyStage?.classList.add("is-switching-shop");
 
-  const delay = reducedMotionQuery?.matches ? 0 : SHOP_CLOSE_DELAY_MS;
-  window.clearTimeout(closeTimer);
-  closeTimer = window.setTimeout(() => {
-    renderWheel(step);
-    queueWheelFinish();
-  }, delay);
+  renderWheel(step);
+  queueWheelFinish();
   return true;
 }
 

@@ -124,11 +124,11 @@ test("home page uses a large buffered shop carousel without the old four-button 
   assert.match(css, /--home-map-height:\s*clamp\(/);
   assert.match(css, /\.business-sign-button\s*\{/);
   assert.match(css, /\.home-map-slide\s*\{[^}]*transform-origin:\s*center center/s);
-  assert.ok(app.includes('slide.style.setProperty("--map-motion",'));
+  assert.ok(app.includes("slide.style.transform = motion;"));
   assert.ok(app.includes('slide.style.setProperty("--map-shade-opacity", String(pose.shadeOpacity));'));
   assert.match(
     css,
-    /transform:\s*var\(--map-motion\)/,
+    /transform:\s*translate3d\(0,\s*0,\s*0\)\s*scale\(1\)/,
   );
   assert.match(css, /transform\s+280ms\s+cubic-bezier\(\.22,\.8,\.2,1\)/);
   assert.match(css, /\.home-map-viewport\.is-dragging \.home-map-slide\s*\{\s*transition:\s*none;\s*\}/);
@@ -172,21 +172,35 @@ test("home carousel cards expose store emblems, lightweight depth shade, and clo
   assert.match(css, /var\(--map-shade-opacity\)/);
   assert.doesNotMatch(css, /filter:\s*blur\(var\(--map-blur\)\)/);
   assert.match(css, /\.home-map-slide\.is-closing \.shop-shutter/);
-  assert.ok(app.includes('slide.style.setProperty("--map-motion",'));
+  assert.ok(app.includes("slide.style.transform = motion;"));
+  assert.ok(app.includes("slide.style.opacity = String(pose.opacity);"));
+  assert.ok(!app.includes('slide.style.setProperty("--map-motion",'));
+  assert.ok(!app.includes('slide.style.setProperty("--map-opacity",'));
   assert.ok(app.includes('slide.style.setProperty("--map-shade-opacity", String(pose.shadeOpacity));'));
 });
 
-test("leaving a shop flips the sign and closes the shutter before the card moves", async () => {
+test("leaving a shop closes the shutter while the card starts moving without a dead pause", async () => {
   const app = await readFile(homeAppPath, "utf8");
 
   assert.match(app, /function beginShopClose\(/);
   assert.match(
     app,
-    /replayBusinessFlip\(\);[\s\S]*classList\.add\("is-closing"\)[\s\S]*setTimeout\([\s\S]*renderWheel\(step\)/,
+    /replayBusinessFlip\(\);[\s\S]*classList\.add\("is-closing"\)[\s\S]*renderWheel\(step\);[\s\S]*queueWheelFinish\(\)/,
   );
   assert.match(app, /prefers-reduced-motion/);
-  assert.match(app, /const SHOP_CLOSE_DELAY_MS = 100;/);
+  assert.doesNotMatch(app, /SHOP_CLOSE_DELAY_MS|closeTimer/);
   assert.match(app, /const WHEEL_TRANSITION_MS = 280;/);
+});
+
+test("finishing a map switch recycles one buffered card instead of rebuilding all five", async () => {
+  const app = await readFile(homeAppPath, "utf8");
+
+  assert.match(app, /function advanceBufferedMapSlides\(/);
+  assert.match(app, /shiftBufferedCardOffset/);
+  assert.match(
+    app,
+    /function finishWheelTransition\([\s\S]*resetBufferedWheel\(\{\s*step:\s*arrivedStep\s*\}\)/,
+  );
 });
 
 test("map gestures can interrupt shop animation and arriving opens without locking input", async () => {
