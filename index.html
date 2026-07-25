@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f8c948">
     <title>开饭啦 · 汉堡小馆</title>
-    <link rel="stylesheet" href="./home.css?v=20260725-clearance1">
-    <script type="module" src="./home-lobby-app.mjs?v=20260725-clearance1"></script>
+    <link rel="stylesheet" href="./home.css?v=20260725-cardfilm1">
+    <script type="module" src="./home-lobby-app.mjs?v=20260725-cardfilm1"></script>
   </head>
   <body>
     <main class="lobby-shell">
@@ -65,7 +65,7 @@
                       <i class="chef__hand chef__hand--left"></i>
                       <i class="chef__hand chef__hand--right"></i>
                     </div>
-                    <div class="hero-burger">
+                    <div class="hero-burger" data-store-emblem="burger">
                       <i class="hero-burger__top"></i>
                       <i class="hero-burger__leaf"></i>
                       <i class="hero-burger__tomato"></i>
@@ -75,6 +75,9 @@
                     </div>
                     <span class="steam steam--one">⌁</span>
                     <span class="steam steam--two">⌁</span>
+                    <div class="shop-shutter" aria-hidden="true">
+                      <i></i><i></i><i></i><i></i><b></b>
+                    </div>
                   </div>
                   <div class="service-counter"><span></span><span></span><span></span></div>
                 </div>
@@ -97,10 +100,13 @@
                       <i class="sushi-master__head"></i>
                       <i class="sushi-master__body"></i>
                     </div>
-                    <div class="sushi-platter">
+                    <div class="sushi-platter" data-store-emblem="sushi">
                       <i class="sushi-piece sushi-piece--salmon"><b></b></i>
                       <i class="sushi-piece sushi-piece--tuna"><b></b></i>
                       <i class="sushi-piece sushi-piece--cucumber"><b></b></i>
+                    </div>
+                    <div class="shop-shutter shop-shutter--sushi" aria-hidden="true">
+                      <i></i><i></i><i></i><i></i><b></b>
                     </div>
                   </div>
                   <div class="sushi-counter"><span></span><span></span><span></span></div>
