@@ -193,7 +193,7 @@ test("home carousel cards expose store emblems, lightweight depth shade, and scr
   assert.match(app, /slide\.style\.setProperty\(\s*"--shop-open-progress"/);
 });
 
-test("burger map reads as a compact side-profile food truck with rotating three-face menu boxes", async () => {
+test("burger map reads as one complete side-profile food truck with rotating menu boxes", async () => {
   const [html, css] = await Promise.all([
     readFile(homePath, "utf8"),
     readFile(homeCssPath, "utf8"),
@@ -201,18 +201,19 @@ test("burger map reads as a compact side-profile food truck with rotating three-
 
   assert.match(html, /data-burger-food-truck/);
   assert.match(html, /class="burger-entrance-sign"/);
-  assert.match(html, /class="burger-truck-serving-frame"/);
-  assert.match(html, /class="food-truck-shell food-truck-shell--compact-icon"/);
-  assert.match(html, /class="food-truck-body-panel"/);
-  assert.match(html, /class="food-truck-serving-hatch"/);
-  assert.match(html, /class="food-truck-awning-mini"/);
-  assert.match(html, /class="food-truck-metal-trim"/);
-  assert.match(html, /class="food-truck-step"/);
-  assert.match(html, /class="food-truck-shell__cab"/);
-  assert.match(html, /class="food-truck-shell__cab-window"/);
-  assert.match(html, /class="food-truck-shell__cab-door"/);
-  assert.equal((html.match(/class="food-truck-arch(?: [^"]*)?"/g) ?? []).length, 1);
-  assert.equal((html.match(/class="food-truck-wheel(?: [^"]*)?"/g) ?? []).length, 1);
+  assert.equal((html.match(/data-food-truck-card/g) ?? []).length, 1);
+  assert.match(html, /class="food-truck-card__body"/);
+  assert.equal((html.match(/class="food-truck-card__awning-stripe"/g) ?? []).length, 5);
+  assert.match(html, /class="food-truck-card__service-window"/);
+  assert.match(html, /class="food-truck-card__metal-frame"/);
+  assert.match(html, /class="food-truck-card__counter"/);
+  assert.match(html, /class="food-truck-card__lower-trim"/);
+  assert.match(html, /class="food-truck-card__step"/);
+  assert.equal((html.match(/class="food-truck-card__wheel"/g) ?? []).length, 1);
+  assert.match(html, /class="food-truck-card__bumper"/);
+  assert.doesNotMatch(html, /food-truck-shell--compact-icon/);
+  assert.doesNotMatch(html, /burger-truck-serving-frame/);
+  assert.doesNotMatch(html, /class="service-counter"/);
   assert.equal((html.match(/class="burger-menu-lightbox__art(?: [^"]*)?"/g) ?? []).length, 6);
   assert.equal((html.match(/class="burger-menu-lightbox(?: [^"]*)?"/g) ?? []).length, 2);
   assert.equal((html.match(/class="burger-menu-lightbox__panel(?: [^"]*)?"/g) ?? []).length, 6);
@@ -225,25 +226,25 @@ test("burger map reads as a compact side-profile food truck with rotating three-
     css,
     /\.home-map-viewport\.is-dragging \.burger-menu-lightbox__rotor\s*\{[^}]*animation-play-state:\s*paused/s,
   );
-  assert.match(css, /\.burger-truck-serving-frame\s*\{/);
   assert.match(css, /--truck-metal-light:/);
   assert.match(css, /--truck-metal-shadow:/);
-  assert.match(css, /\.food-truck-body-panel\s*\{/);
-  assert.match(css, /\.food-truck-serving-hatch\s*\{/);
-  assert.match(css, /\.food-truck-awning-mini\s*\{/);
-  assert.match(css, /\.food-truck-metal-trim\s*\{/);
-  assert.match(css, /\.food-truck-step\s*\{/);
-  assert.match(css, /\.food-truck-shell__cab\s*\{/);
-  assert.match(css, /\.food-truck-shell__cab-window\s*\{/);
-  assert.match(css, /\.food-truck-shell__cab-door\s*\{/);
-  assert.match(css, /\.food-truck-arch\s*\{/);
+  assert.match(css, /\.food-truck-card__service-window\s*\{/);
+  assert.match(css, /\.food-truck-card__metal-frame\s*\{/);
+  assert.match(css, /\.food-truck-card__counter\s*\{/);
+  assert.match(css, /\.food-truck-card__lower-trim\s*\{/);
+  assert.match(css, /\.food-truck-card__step\s*\{/);
+  assert.match(css, /\.food-truck-card__wheel\s*\{/);
   assert.match(
     css,
-    /\.food-truck-shell--compact-icon\s*\{[^}]*aspect-ratio:\s*2\.7\s*\/\s*1/s,
+    /\.food-truck-card\s*\{[^}]*aspect-ratio:\s*2\.7\s*\/\s*1/s,
   );
   assert.match(
     css,
-    /\.home-map-slide:not\(\[data-card-offset="0"\]\) \.food-truck-shell--compact-icon\s*\{[^}]*filter:[^}]*blur\(/s,
+    /\.home-map-slide:not\(\[data-card-offset="0"\]\) \.food-truck-card\s*\{[^}]*filter:[^}]*blur\(/s,
+  );
+  assert.match(
+    css,
+    /\.home-map-slide\[data-card-offset="0"\] \.food-truck-card\s*\{[^}]*transform:[^}]*scale\(1\)/s,
   );
   assert.match(css, /\.burger-menu-lightbox__art\s*\{/);
   assert.match(css, /@media\s*\(max-width:\s*430px\)/);
@@ -319,20 +320,19 @@ test("committed map swipes continue from the released drag pose without snapping
   );
 });
 
-test("home store cards read as a burger food truck and a sushi counter with stone service", async () => {
+test("home store cards read as a single burger food truck and a sushi counter with stone service", async () => {
   const [html, css] = await Promise.all([
     readFile(homePath, "utf8"),
     readFile(homeCssPath, "utf8"),
   ]);
 
-  assert.match(html, /class="food-truck-shell food-truck-shell--compact-icon"/);
-  assert.equal((html.match(/class="food-truck-wheel/g) ?? []).length, 1);
+  assert.equal((html.match(/data-food-truck-card/g) ?? []).length, 1);
+  assert.equal((html.match(/class="food-truck-card__wheel"/g) ?? []).length, 1);
   assert.match(html, /class="sushi-bar-seats"/);
   assert.match(html, /class="sushi-stone-service"/);
-  assert.match(css, /\.food-truck-shell\s*\{/);
+  assert.match(css, /\.food-truck-card\s*\{/);
   assert.match(css, /\.sushi-stone-service\s*\{/);
-  assert.match(css, /\.sushi-stone-service\s*\{/);
-  assert.doesNotMatch(css, /\.home-map-slide\.is-closing \.food-truck-wheel/);
+  assert.doesNotMatch(css, /\.home-map-slide\.is-closing \.food-truck-card__wheel/);
 });
 
 test("home lobby uses responsive flow and keeps each mode label inside its own map card", async () => {

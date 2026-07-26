@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f8c948">
     <title>开饭啦 · 汉堡小馆</title>
-    <link rel="stylesheet" href="./home.css?v=20260727-compacttruck1">
+    <link rel="stylesheet" href="./home.css?v=20260727-compacttruck2">
     <script type="module" src="./home-lobby-app.mjs?v=20260726-truckart1"></script>
   </head>
   <body>
@@ -53,9 +53,16 @@
                   <span data-card-mode-hint>不限时间</span>
                 </div>
                 <div class="diner-scene" data-burger-food-truck aria-hidden="true">
-                  <div class="awning"><i></i><i></i><i></i><i></i><i></i></div>
-                  <div class="order-window">
-                    <div class="burger-truck-serving-frame"></div>
+                  <div class="food-truck-card" data-food-truck-card>
+                    <div class="food-truck-card__body">
+                      <div class="food-truck-card__awning" aria-hidden="true">
+                        <i class="food-truck-card__awning-stripe"></i>
+                        <i class="food-truck-card__awning-stripe"></i>
+                        <i class="food-truck-card__awning-stripe"></i>
+                        <i class="food-truck-card__awning-stripe"></i>
+                        <i class="food-truck-card__awning-stripe"></i>
+                      </div>
+                      <div class="food-truck-card__service-window">
                     <div class="burger-entrance-sign">
                       <small>热餐现做</small>
                       <strong>汉堡小馆</strong>
@@ -126,25 +133,14 @@
                       <b aria-hidden="true"></b>
                       <span class="shop-shutter__grip" data-business-grip>已打烊 · 点我开门</span>
                     </button>
-                  </div>
-                  <div class="service-counter"><span></span><span></span><span></span></div>
-                  <div class="food-truck-shell food-truck-shell--compact-icon">
-                    <div class="food-truck-body-panel">
-                      <span class="food-truck-serving-hatch"></span>
-                      <span class="food-truck-awning-mini" aria-hidden="true">
-                        <i></i><i></i><i></i><i></i><i></i>
-                      </span>
-                      <span class="food-truck-metal-trim"></span>
-                      <span class="food-truck-step"></span>
+                      </div>
+                      <div class="food-truck-card__metal-frame" aria-hidden="true"></div>
+                      <div class="food-truck-card__counter" aria-hidden="true"></div>
+                      <div class="food-truck-card__lower-trim" aria-hidden="true"></div>
+                      <div class="food-truck-card__step" aria-hidden="true"></div>
+                      <i class="food-truck-card__wheel" aria-hidden="true"></i>
+                      <i class="food-truck-card__bumper" aria-hidden="true"></i>
                     </div>
-                    <span class="food-truck-shell__cab">
-                      <i class="food-truck-shell__cab-window"></i>
-                      <i class="food-truck-shell__cab-door"></i>
-                    </span>
-                    <i class="food-truck-arch food-truck-arch--hero"></i>
-                    <i class="food-truck-wheel food-truck-wheel--hero"></i>
-                    <i class="food-truck-headlamp"></i>
-                    <span class="food-truck-bumper"></span>
                   </div>
                 </div>
               </article>
