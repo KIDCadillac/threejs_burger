@@ -278,6 +278,9 @@ test("burger food-truck card follows the compact silver pixel-truck silhouette",
   );
   assert.match(html, /class="food-truck-card__roof-cap"/);
   assert.match(html, /class="food-truck-card__cab-window"/);
+  assert.match(html, /class="food-truck-card__front-nose"/);
+  assert.match(html, /class="food-truck-card__side-marker"/);
+  assert.match(html, /class="food-truck-card__undercarriage"/);
   assert.match(css, /\.food-truck-card\s*\{[^}]*aspect-ratio:\s*3\s*\/\s*2/s);
   assert.match(
     css,
@@ -287,6 +290,12 @@ test("burger food-truck card follows the compact silver pixel-truck silhouette",
   assert.match(css, /\.food-truck-card__cab-window\s*\{[^}]*right:\s*5%/s);
   assert.match(css, /\.food-truck-card__step\s*\{[^}]*width:\s*3[0-9]%/s);
   assert.match(css, /\.food-truck-card__bumper\s*\{[^}]*width:\s*3[0-9]%/s);
+  assert.match(css, /\.food-truck-card__front-nose\s*\{[^}]*clip-path:/s);
+  assert.match(css, /\.food-truck-card__side-marker\s*\{[^}]*background:\s*#c95f3f/s);
+  assert.match(
+    css,
+    /\.food-truck-card__undercarriage\s*\{[^}]*repeating-linear-gradient/s,
+  );
 });
 
 test("leaving a shop drives the incoming shutter from drag progress without replaying business state", async () => {
