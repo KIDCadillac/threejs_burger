@@ -1598,6 +1598,305 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   50% { opacity: .9; transform: translateY(-.55rem) scale(1.08); }
 }
 
+/* Compact side-view food-truck card.
+   The whole burger map is one vehicle silhouette instead of a storefront
+   nested inside a second decorative truck. */
+.food-truck-card {
+  position: absolute;
+  z-index: 3;
+  top: 51%;
+  left: 50%;
+  width: min(95%, 28rem);
+  aspect-ratio: 2.7 / 1;
+  opacity: 1;
+  filter: none;
+  transform: translate(-50%, -50%) scale(1);
+  transform-origin: center center;
+  transition:
+    transform 320ms cubic-bezier(.2,.78,.24,1),
+    filter 260ms ease,
+    opacity 220ms ease;
+  will-change: transform, filter, opacity;
+}
+.home-map-slide:not([data-card-offset="0"]) .food-truck-card {
+  opacity: .68;
+  filter: blur(1.2px) saturate(.72) brightness(.86);
+  transform: translate(-50%, -50%) scale(.82);
+}
+.home-map-slide[data-card-offset="0"] .food-truck-card {
+  opacity: 1;
+  filter: none;
+  transform: translate(-50%, -50%) scale(1);
+}
+.food-truck-card__body {
+  position: absolute;
+  inset: 0;
+  border: .16rem solid #3e4442;
+  border-radius: 1.15rem .62rem .54rem .92rem;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.86) 0 8%, transparent 9%),
+    linear-gradient(100deg, #d3d6d2 0%, #f3f2e9 24%, #b8bdb9 52%, #eef0eb 75%, #aeb4b1 100%);
+  box-shadow:
+    0 .42rem 0 rgba(55,41,30,.38),
+    0 .9rem 1.35rem rgba(48,34,23,.22),
+    inset 0 0 0 .2rem rgba(255,255,255,.35);
+}
+.food-truck-card__body::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 7%;
+  right: 2.5%;
+  width: 10%;
+  height: 61%;
+  border: .13rem solid #69706d;
+  border-radius: .32rem .32rem .16rem .16rem;
+  background:
+    linear-gradient(90deg, transparent 44%, rgba(53,61,60,.38) 45% 55%, transparent 56%),
+    linear-gradient(180deg, #aeb6b4, #e4e7e1);
+  box-shadow: inset 0 0 0 .1rem rgba(255,255,255,.35);
+}
+.food-truck-card__body::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  right: 4.4%;
+  bottom: 17%;
+  width: 5.5%;
+  height: 8%;
+  border-radius: .18rem;
+  background: #777e7b;
+  box-shadow: inset 0 .08rem rgba(255,255,255,.45);
+}
+.food-truck-card__awning {
+  position: absolute;
+  z-index: 9;
+  top: 4%;
+  right: 13%;
+  left: 3.4%;
+  height: 21%;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  overflow: hidden;
+  border: .13rem solid #444a48;
+  border-radius: .72rem .72rem .2rem .2rem;
+  box-shadow: 0 .18rem 0 rgba(49,39,31,.3);
+}
+.food-truck-card__awning-stripe {
+  display: block;
+  min-width: 0;
+  background: #f8ecd0;
+}
+.food-truck-card__awning-stripe:nth-child(even) {
+  background: #c95f3f;
+}
+.food-truck-card__awning-stripe + .food-truck-card__awning-stripe {
+  border-left: .08rem solid rgba(70,54,43,.22);
+}
+.food-truck-card__service-window {
+  position: absolute;
+  z-index: 4;
+  top: 18%;
+  right: 13%;
+  bottom: 25%;
+  left: 3.5%;
+  overflow: hidden;
+  border: .18rem solid #515754;
+  border-radius: .34rem .34rem .16rem .16rem;
+  background:
+    radial-gradient(circle at 50% 85%, rgba(255,173,77,.14), transparent 38%),
+    linear-gradient(160deg, #2e241f, #141719 70%);
+  box-shadow:
+    inset 0 .28rem .7rem rgba(0,0,0,.58),
+    inset 0 0 0 .08rem rgba(232,239,233,.2);
+}
+.food-truck-card__metal-frame {
+  position: absolute;
+  z-index: 8;
+  top: 16.2%;
+  right: 11.8%;
+  bottom: 23.2%;
+  left: 2.4%;
+  border: .22rem solid #e7e8e2;
+  border-radius: .46rem .46rem .22rem .22rem;
+  box-shadow:
+    0 0 0 .1rem #707774,
+    inset 0 0 0 .06rem rgba(66,73,71,.4);
+  pointer-events: none;
+}
+.food-truck-card__counter {
+  position: absolute;
+  z-index: 11;
+  right: 10.5%;
+  bottom: 20.5%;
+  left: 2.2%;
+  height: 9.5%;
+  border: .12rem solid #59605d;
+  border-radius: .16rem;
+  background:
+    linear-gradient(180deg, #f5f4eb 0 28%, #a9afac 30% 52%, #e4e6e0 54% 72%, #858c89 74%);
+  box-shadow: 0 .18rem .18rem rgba(36,30,25,.28);
+}
+.food-truck-card__lower-trim {
+  position: absolute;
+  z-index: 4;
+  right: 6%;
+  bottom: 5.5%;
+  left: 3%;
+  height: 11.5%;
+  border: .08rem solid #6e7471;
+  border-radius: .12rem;
+  background:
+    repeating-linear-gradient(90deg, #828986 0 .22rem, #c6cac6 .23rem .4rem),
+    linear-gradient(#d7dad5, #8f9693);
+  box-shadow: inset 0 .08rem rgba(255,255,255,.38);
+}
+.food-truck-card__step {
+  position: absolute;
+  z-index: 6;
+  bottom: -1.5%;
+  left: 10%;
+  width: 45%;
+  height: 8.5%;
+  border: .11rem solid #444a48;
+  border-radius: .12rem .12rem .24rem .24rem;
+  background:
+    repeating-linear-gradient(90deg, #b7bcb8 0 .22rem, #69706d .23rem .36rem);
+  box-shadow: 0 .2rem 0 rgba(42,34,28,.28);
+}
+.food-truck-card__wheel {
+  position: absolute;
+  z-index: 12;
+  bottom: -18%;
+  left: 14.5%;
+  width: 17%;
+  aspect-ratio: 1;
+  display: block;
+  border: .12rem solid #343937;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, #dce0dc 0 13%, #7e8582 14% 29%, #262a29 30% 64%, #111313 65%);
+  box-shadow:
+    0 .18rem .22rem rgba(30,25,22,.45),
+    inset 0 0 0 .12rem rgba(255,255,255,.08);
+}
+.food-truck-card__wheel::after {
+  content: "";
+  position: absolute;
+  inset: 34%;
+  border: .08rem solid #555d59;
+  border-radius: 50%;
+  background: #dfe2de;
+}
+.food-truck-card__bumper {
+  position: absolute;
+  z-index: 7;
+  right: -1.5%;
+  bottom: 5.2%;
+  width: 9%;
+  height: 8%;
+  display: block;
+  border: .1rem solid #555c59;
+  border-radius: .16rem;
+  background: linear-gradient(180deg, #edf0ea, #8f9693);
+  box-shadow: 0 .12rem .16rem rgba(39,31,26,.25);
+}
+.food-truck-card__service-window .burger-entrance-sign {
+  top: .24rem;
+  width: 4.4rem;
+  height: 1.55rem;
+  padding: .12rem .28rem;
+  border-width: .08rem;
+  border-radius: .22rem;
+}
+.food-truck-card__service-window .burger-entrance-sign small,
+.food-truck-card__service-window .burger-entrance-sign span {
+  font-size: .28rem;
+  line-height: 1;
+}
+.food-truck-card__service-window .burger-entrance-sign strong {
+  font-size: .48rem;
+  line-height: 1;
+}
+.food-truck-card__service-window .burger-menu-lightbox {
+  top: .25rem;
+  width: 3.25rem;
+  height: 1.78rem;
+  border-width: .08rem;
+  border-radius: .18rem;
+}
+.food-truck-card__service-window .burger-menu-lightbox--one { left: .28rem; }
+.food-truck-card__service-window .burger-menu-lightbox--two { right: .28rem; }
+.food-truck-card__service-window .burger-menu-lightbox__panel {
+  gap: .1rem;
+  padding: .18rem;
+}
+.food-truck-card__service-window .burger-menu-lightbox__panel b { font-size: .38rem; }
+.food-truck-card__service-window .burger-menu-lightbox__panel small { font-size: .25rem; }
+.food-truck-card__service-window .burger-menu-lightbox__art {
+  width: .9rem;
+  height: .72rem;
+}
+.food-truck-card__service-window .chef {
+  bottom: -2.05rem;
+  transform:
+    translateX(-50%)
+    translateY(calc((1 - var(--shop-open-progress, 0)) * 2.2rem))
+    scale(calc(.34 + var(--shop-open-progress, 0) * .02));
+  transform-origin: center bottom;
+}
+.food-truck-card__service-window .hero-burger {
+  bottom: -1.7rem;
+  transform: translateX(-50%) rotate(-1deg) scale(.4);
+  transform-origin: center bottom;
+}
+.food-truck-card__service-window .steam {
+  top: 48%;
+  transform: scale(.58);
+}
+.food-truck-card__service-window .shop-shutter {
+  border-radius: .12rem;
+}
+.food-truck-card__service-window .shop-shutter__status {
+  top: .38rem;
+  transform: translateX(-50%) scale(.72);
+}
+.food-truck-card__service-window .shop-shutter__grip {
+  bottom: .3rem;
+  transform: translateX(-50%) scale(.72);
+}
+.food-truck-card__service-window .shop-shutter:active .shop-shutter__grip {
+  transform: translateX(-50%) translateY(.08rem) scale(.72);
+}
+.food-truck-card__service-window .hero-burger,
+.food-truck-card__service-window .chef,
+.food-truck-card__service-window .steam {
+  transition-duration: 320ms;
+}
+.food-truck-card__service-window .chef--partner {
+  transform:
+    translateX(-50%)
+    translateY(calc((1 - var(--shop-open-progress, 0)) * 2.2rem))
+    scale(calc(.34 + var(--shop-open-progress, 0) * .02));
+}
+.home-map-slide[data-home-players="2"] .food-truck-card__service-window .chef:not(.chef--partner) {
+  left: 40%;
+  transform:
+    translateX(-50%)
+    translateY(calc((1 - var(--shop-open-progress, 0)) * 2.2rem))
+    scale(calc(.3 + var(--shop-open-progress, 0) * .02));
+}
+.home-map-slide[data-home-players="2"] .food-truck-card__service-window .chef--partner {
+  left: 60%;
+  transform:
+    translateX(-50%)
+    translateY(calc((1 - var(--shop-open-progress, 0)) * 2.2rem))
+    scale(calc(.3 + var(--shop-open-progress, 0) * .02));
+}
+.home-map-slide:not([data-card-offset="0"]) .burger-menu-lightbox {
+  opacity: .42;
+}
+
 @media (min-width: 641px) {
   .lobby-shell { border-right: 3px solid rgba(60,37,23,.35); border-left: 3px solid rgba(60,37,23,.35); }
 }
