@@ -93,9 +93,9 @@ test("drag progress preserves the same clamped pose through pointer release", ()
   assert.equal(carouselState.dragProgressFromDelta({ deltaX: 900, width: 400 }), -1);
 });
 
-test("the incoming shop opens with the drag while the current shop stays open", () => {
+test("the current shop closes while the incoming shop opens with the drag", () => {
   assert.equal(typeof carouselState.shopOpenProgress, "function");
-  assert.equal(carouselState.shopOpenProgress({ offset: 0, dragProgress: 0.65 }), 1);
+  assert.equal(carouselState.shopOpenProgress({ offset: 0, dragProgress: 0.65 }), 0.35);
   assert.equal(carouselState.shopOpenProgress({ offset: 1, dragProgress: 0.4 }), 0.4);
   assert.equal(carouselState.shopOpenProgress({ offset: -1, dragProgress: 0.4 }), 0);
   assert.equal(carouselState.shopOpenProgress({ offset: -1, dragProgress: -0.6 }), 0.6);
@@ -120,6 +120,27 @@ test("release animation duration follows only the remaining travel", () => {
   assert.equal(carouselState.wheelSettleDuration({
     fromProgress: 0.2,
     targetProgress: 1,
+    reducedMotion: true,
+  }), 0);
+});
+
+test("shop doors settle more slowly than cards, with closing slower than opening", () => {
+  assert.equal(typeof carouselState.shopDoorDuration, "function");
+  assert.equal(carouselState.shopDoorDuration({
+    fromProgress: 1,
+    targetProgress: 0,
+  }), 760);
+  assert.equal(carouselState.shopDoorDuration({
+    fromProgress: 0,
+    targetProgress: 1,
+  }), 440);
+  assert.equal(carouselState.shopDoorDuration({
+    fromProgress: 0.4,
+    targetProgress: 0.4,
+  }), 0);
+  assert.equal(carouselState.shopDoorDuration({
+    fromProgress: 1,
+    targetProgress: 0,
     reducedMotion: true,
   }), 0);
 });

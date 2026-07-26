@@ -79,10 +79,24 @@ export function dragProgressFromDelta({ deltaX, width }) {
 export function shopOpenProgress({ offset, dragProgress }) {
   const slotOffset = Math.trunc(Number(offset) || 0);
   const progress = Math.max(-1, Math.min(1, Number(dragProgress) || 0));
-  if (slotOffset === 0) return 1;
+  if (slotOffset === 0) return Math.round((1 - Math.abs(progress)) * 1000) / 1000;
   if (Math.abs(slotOffset) !== 1) return 0;
   if (Math.sign(slotOffset) !== Math.sign(progress)) return 0;
   return Math.abs(progress);
+}
+
+export function shopDoorDuration({
+  fromProgress,
+  targetProgress,
+  reducedMotion = false,
+}) {
+  if (reducedMotion) return 0;
+  const from = Math.max(0, Math.min(1, Number(fromProgress) || 0));
+  const target = Math.max(0, Math.min(1, Number(targetProgress) || 0));
+  const distance = Math.abs(target - from);
+  if (distance < 0.001) return 0;
+  const fullTravelDuration = target < from ? 760 : 440;
+  return Math.round(fullTravelDuration * distance);
 }
 
 export function wheelSettleDuration({

@@ -16,11 +16,12 @@ import {
   mapIndexAtOffset,
   normalizeMapIndex,
   resolveSwipe,
+  shopDoorDuration,
   shopOpenProgress,
   shiftBufferedCardOffset,
   streetShopPose,
   wheelSettleDuration,
-} from "./home-map-carousel-state.mjs?v=20260725-doorscrub1";
+} from "./home-map-carousel-state.mjs?v=20260726-doortiming1";
 import {
   HOME_BUSINESS_KEY,
   HOME_MODE_KEY,
@@ -234,6 +235,21 @@ function setWheelSettleDuration(duration) {
   });
 }
 
+function setWheelDoorDurations(fromProgress, targetProgress) {
+  let longestDuration = 0;
+  bufferedMapSlides.forEach((slide) => {
+    const offset = Number(slide.dataset.cardOffset) || 0;
+    const duration = shopDoorDuration({
+      fromProgress: shopOpenProgress({ offset, dragProgress: fromProgress }),
+      targetProgress: shopOpenProgress({ offset, dragProgress: targetProgress }),
+      reducedMotion: reducedMotionQuery?.matches,
+    });
+    slide.style.setProperty("--shop-door-ms", `${duration}ms`);
+    longestDuration = Math.max(longestDuration, duration);
+  });
+  return longestDuration;
+}
+
 function resetBufferedWheel({ step = 0 } = {}) {
   wheelFrameScheduler.cancel();
   mapViewport?.classList.add("is-wheel-jump");
@@ -391,12 +407,13 @@ function beginShopTransition(step, nextIndex, { persist = true, fromProgress = 0
   });
   setWheelSettleDuration(duration);
   renderWheel(fromProgress);
+  const doorDuration = setWheelDoorDurations(fromProgress, step);
   mapViewport?.classList.remove("is-dragging");
   mapViewport?.setAttribute("aria-busy", "true");
   lobbyStage?.classList.add("is-switching-shop");
 
   renderWheel(step);
-  queueWheelFinish(duration);
+  queueWheelFinish(Math.max(duration, doorDuration));
   return true;
 }
 
@@ -417,10 +434,11 @@ function snapWheelBack(fromProgress = 0) {
     reducedMotion: reducedMotionQuery?.matches,
   });
   setWheelSettleDuration(duration);
+  const doorDuration = setWheelDoorDurations(fromProgress, 0);
   mapViewport?.classList.remove("is-dragging");
   mapViewport?.setAttribute("aria-busy", "true");
   renderWheel();
-  queueWheelFinish(duration);
+  queueWheelFinish(Math.max(duration, doorDuration));
 }
 
 function beginMapDrag(event) {

@@ -181,14 +181,21 @@ test("home carousel cards expose store emblems, lightweight depth shade, and scr
 });
 
 test("leaving a shop drives the incoming shutter from drag progress without replaying business state", async () => {
-  const app = await readFile(homeAppPath, "utf8");
+  const [css, app] = await Promise.all([
+    readFile(homeCssPath, "utf8"),
+    readFile(homeAppPath, "utf8"),
+  ]);
 
   assert.match(app, /shopOpenProgress/);
+  assert.match(app, /shopDoorDuration/);
   assert.match(app, /wheelSettleDuration/);
   assert.match(
     app,
-    /function beginShopTransition\([\s\S]*renderWheel\(fromProgress\)[\s\S]*renderWheel\(step\)[\s\S]*queueWheelFinish\(duration\)/,
+    /function beginShopTransition\([\s\S]*renderWheel\(fromProgress\)[\s\S]*setWheelDoorDurations\([\s\S]*renderWheel\(step\)[\s\S]*queueWheelFinish\(Math\.max\(duration,\s*doorDuration\)\)/,
   );
+  assert.match(css, /\.shop-shutter\s*\{[^}]*var\(--shop-door-ms,\s*440ms\)/s);
+  assert.match(css, /\.chef,\s*\.sushi-master\s*\{[^}]*var\(--shop-door-ms,\s*440ms\)/s);
+  assert.match(css, /\.home-card-mode-indicator\s*\{[^}]*var\(--wheel-settle-ms,\s*280ms\)/s);
   assert.match(app, /prefers-reduced-motion/);
   assert.doesNotMatch(app, /classList\.add\("is-closing"\)|function playShopOpen\(/);
   assert.doesNotMatch(app, /SHOP_OPEN_MS|openTimer/);

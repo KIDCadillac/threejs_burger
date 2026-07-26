@@ -571,7 +571,7 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   padding-bottom: .8rem;
   filter: drop-shadow(0 .45rem .28rem rgba(25,13,8,.45));
   transform: translateY(calc(-103% * var(--shop-open-progress, 0)));
-  transition: transform var(--wheel-settle-ms, 280ms) cubic-bezier(.22,.8,.2,1);
+  transition: transform var(--shop-door-ms, 440ms) cubic-bezier(.22,.8,.2,1);
   pointer-events: none;
 }
 .home-map-viewport.is-dragging .shop-shutter,
@@ -755,8 +755,8 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
     scale(calc(.92 + var(--shop-open-progress, 0) * .08));
   transform-origin: center bottom;
   transition:
-    transform var(--wheel-settle-ms, 280ms) cubic-bezier(.22,.8,.2,1),
-    opacity var(--wheel-settle-ms, 280ms) ease;
+    transform var(--shop-door-ms, 440ms) cubic-bezier(.22,.8,.2,1),
+    opacity var(--shop-door-ms, 440ms) ease;
 }
 .home-map-viewport.is-dragging .chef,
 .home-map-viewport.is-dragging .sushi-master,
