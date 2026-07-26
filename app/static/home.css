@@ -1606,8 +1606,8 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   z-index: 3;
   top: 52%;
   left: 50%;
-  width: min(84%, 22rem);
-  aspect-ratio: 3 / 2;
+  width: min(92%, 28rem);
+  aspect-ratio: 12 / 5;
   opacity: 1;
   filter: none;
   transform: translate(-50%, -50%) scale(1);
@@ -1636,7 +1636,7 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 }
 .food-truck-card__body {
   position: absolute;
-  inset: 3% 2% 9%;
+  inset: 6% 1.5% 12%;
   border: .13rem solid #3f4644;
   border-radius: .72rem .26rem .22rem .58rem;
   background:
@@ -1653,10 +1653,10 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   content: "";
   position: absolute;
   z-index: 0;
-  top: 16%;
+  top: 21%;
   right: -1%;
   width: 27%;
-  height: 55%;
+  height: 50%;
   clip-path: polygon(0 0, 72% 0, 100% 27%, 100% 100%, 0 100%);
   border-radius: .12rem .32rem .16rem .08rem;
   background: linear-gradient(105deg, #e8e8e0, #aeb5b2 58%, #8e9793);
@@ -1667,7 +1667,7 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   position: absolute;
   z-index: 2;
   right: 7.5%;
-  bottom: 25%;
+  bottom: 24%;
   width: 3.4%;
   height: 5.5%;
   border-radius: .12rem;
@@ -1677,10 +1677,10 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .food-truck-card__roof-cap {
   position: absolute;
   z-index: 10;
-  top: -3%;
+  top: -4%;
   left: 10%;
-  width: 55%;
-  height: 7%;
+  width: 58%;
+  height: 9%;
   border: .1rem solid #5b625f;
   border-radius: .36rem .36rem .08rem .08rem;
   background: linear-gradient(180deg, #f3f2eb, #9aa19e);
@@ -1691,10 +1691,10 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .food-truck-card__awning {
   position: absolute;
   z-index: 9;
-  top: 4%;
-  left: 4%;
+  top: 5%;
+  left: 3.5%;
   width: 65%;
-  height: 17%;
+  height: 23%;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   overflow: hidden;
@@ -1716,10 +1716,10 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .food-truck-card__service-window {
   position: absolute;
   z-index: 4;
-  top: 18%;
-  left: 4%;
+  top: 24%;
+  left: 3.5%;
   width: 64%;
-  height: 53%;
+  height: 49%;
   overflow: hidden;
   border: .18rem solid #515754;
   border-radius: .34rem .34rem .16rem .16rem;
@@ -1733,10 +1733,10 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .food-truck-card__cab-window {
   position: absolute;
   z-index: 4;
-  top: 20%;
+  top: 25%;
   right: 5%;
-  width: 20%;
-  height: 32%;
+  width: 21%;
+  height: 35%;
   overflow: hidden;
   clip-path: polygon(0 0, 68% 0, 100% 27%, 100% 100%, 0 100%);
   border: .14rem solid #515855;
@@ -1762,10 +1762,10 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .food-truck-card__front-nose {
   position: absolute;
   z-index: 3;
-  right: -1.5%;
-  bottom: 19%;
-  width: 24%;
-  height: 25%;
+  right: -1%;
+  bottom: 18%;
+  width: 23%;
+  height: 27%;
   clip-path: polygon(0 0, 66% 0, 100% 28%, 100% 100%, 0 100%);
   border: .1rem solid #626966;
   border-radius: .12rem .34rem .18rem .08rem;
@@ -1780,7 +1780,7 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   position: absolute;
   z-index: 12;
   right: 3.8%;
-  bottom: 25%;
+  bottom: 24%;
   width: 3.6%;
   aspect-ratio: 1.65;
   display: block;
@@ -1794,10 +1794,10 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .food-truck-card__metal-frame {
   position: absolute;
   z-index: 8;
-  top: 16.5%;
-  left: 2.8%;
-  width: 66.5%;
-  height: 57%;
+  top: 22%;
+  left: 2.5%;
+  width: 67%;
+  height: 53%;
   border: .22rem solid #e7e8e2;
   border-radius: .46rem .46rem .22rem .22rem;
   box-shadow:
@@ -1808,10 +1808,10 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .food-truck-card__counter {
   position: absolute;
   z-index: 11;
-  left: 2.5%;
-  bottom: 24%;
-  width: 69%;
-  height: 7.5%;
+  left: 2.2%;
+  bottom: 23%;
+  width: 69.5%;
+  height: 8.5%;
   border: .12rem solid #59605d;
   border-radius: .16rem;
   background:
@@ -1821,10 +1821,10 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .food-truck-card__accent-rail {
   position: absolute;
   z-index: 5;
-  right: 3.5%;
-  bottom: 14%;
-  left: 2.6%;
-  height: 7%;
+  right: 3%;
+  bottom: 12%;
+  left: 2.3%;
+  height: 8%;
   border: .08rem solid #7e3e2a;
   border-radius: .1rem;
   background:
@@ -1836,9 +1836,9 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .food-truck-card__lower-trim {
   position: absolute;
   z-index: 4;
-  right: 3.5%;
-  bottom: 6%;
-  left: 30%;
+  right: 3%;
+  bottom: 4%;
+  left: 29%;
   height: 7%;
   border: .08rem solid #6e7471;
   border-radius: .12rem;
@@ -1850,10 +1850,10 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .food-truck-card__step {
   position: absolute;
   z-index: 6;
-  bottom: 1%;
-  left: 28%;
+  bottom: -1%;
+  left: 27%;
   width: 38%;
-  height: 5%;
+  height: 6%;
   border: .11rem solid #444a48;
   border-radius: .12rem .12rem .24rem .24rem;
   background:
@@ -1864,9 +1864,9 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   position: absolute;
   z-index: 9;
   right: 3%;
-  bottom: 0;
-  left: 27%;
-  height: 6.5%;
+  bottom: -1%;
+  left: 26%;
+  height: 7%;
   border: .11rem solid #414745;
   border-radius: .08rem .08rem .22rem .22rem;
   background:
@@ -1878,9 +1878,9 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .food-truck-card__wheel {
   position: absolute;
   z-index: 12;
-  bottom: -4%;
-  left: 12%;
-  width: 18%;
+  bottom: -10%;
+  left: 11%;
+  width: 17%;
   aspect-ratio: 1;
   display: block;
   border: .12rem solid #343937;
@@ -1918,10 +1918,10 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .food-truck-card__bumper {
   position: absolute;
   z-index: 7;
-  right: 4%;
-  bottom: 3%;
-  width: 34%;
-  height: 6%;
+  right: 3%;
+  bottom: 0;
+  width: 36%;
+  height: 7%;
   display: block;
   border: .1rem solid #555c59;
   border-radius: .12rem .12rem .22rem .22rem;
@@ -1931,52 +1931,52 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   box-shadow: 0 .12rem .16rem rgba(39,31,26,.25);
 }
 .food-truck-card__service-window .burger-entrance-sign {
-  top: .24rem;
-  width: 4.4rem;
-  height: 1.55rem;
-  padding: .12rem .28rem;
+  top: .12rem;
+  width: 3.45rem;
+  height: 1.08rem;
+  padding: .07rem .18rem;
   border-width: .08rem;
   border-radius: .22rem;
 }
 .food-truck-card__service-window .burger-entrance-sign small,
 .food-truck-card__service-window .burger-entrance-sign span {
-  font-size: .28rem;
+  font-size: .2rem;
   line-height: 1;
 }
 .food-truck-card__service-window .burger-entrance-sign strong {
-  font-size: .48rem;
+  font-size: .34rem;
   line-height: 1;
 }
 .food-truck-card__service-window .burger-menu-lightbox {
-  top: .25rem;
-  width: 3.25rem;
-  height: 1.78rem;
+  top: .12rem;
+  width: 2.35rem;
+  height: 1.15rem;
   border-width: .08rem;
   border-radius: .18rem;
 }
 .food-truck-card__service-window .burger-menu-lightbox--one { left: .28rem; }
 .food-truck-card__service-window .burger-menu-lightbox--two { right: .28rem; }
 .food-truck-card__service-window .burger-menu-lightbox__panel {
-  gap: .1rem;
-  padding: .18rem;
+  gap: .06rem;
+  padding: .08rem;
 }
-.food-truck-card__service-window .burger-menu-lightbox__panel b { font-size: .38rem; }
-.food-truck-card__service-window .burger-menu-lightbox__panel small { font-size: .25rem; }
+.food-truck-card__service-window .burger-menu-lightbox__panel b { font-size: .28rem; }
+.food-truck-card__service-window .burger-menu-lightbox__panel small { font-size: .18rem; }
 .food-truck-card__service-window .burger-menu-lightbox__art {
-  width: .9rem;
-  height: .72rem;
+  width: .62rem;
+  height: .5rem;
 }
 .food-truck-card__service-window .chef {
-  bottom: -2.05rem;
+  bottom: -2.45rem;
   transform:
     translateX(-50%)
     translateY(calc((1 - var(--shop-open-progress, 0)) * 2.2rem))
-    scale(calc(.34 + var(--shop-open-progress, 0) * .02));
+    scale(calc(.25 + var(--shop-open-progress, 0) * .02));
   transform-origin: center bottom;
 }
 .food-truck-card__service-window .hero-burger {
-  bottom: -1.7rem;
-  transform: translateX(-50%) rotate(-1deg) scale(.4);
+  bottom: -2.05rem;
+  transform: translateX(-50%) rotate(-1deg) scale(.29);
   transform-origin: center bottom;
 }
 .food-truck-card__service-window .steam {
