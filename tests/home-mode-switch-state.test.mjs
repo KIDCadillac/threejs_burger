@@ -15,6 +15,16 @@ import {
 
 test("home modes normalize and cycle in both directions", () => {
   assert.equal(HOME_MODES.length, 4);
+  assert.deepEqual(
+    HOME_MODES.map(({ id, players }) => [id, players]),
+    [
+      ["practice", 1],
+      ["duel", 2],
+      ["duo", 2],
+      ["sushi", 1],
+    ],
+  );
+  assert.equal(HOME_MODES.some((mode) => mode.id === "cookbook"), false);
   assert.equal(normalizeModeIndex("2"), 2);
   assert.equal(normalizeModeIndex(99), 0);
   assert.equal(changeModeIndex(3, 1), 0);
@@ -23,7 +33,7 @@ test("home modes normalize and cycle in both directions", () => {
 
 test("each shop card owns its available mode sequence", () => {
   assert.deepEqual(HOME_MAP_MODE_IDS, {
-    burger: ["practice", "cookbook", "duel"],
+    burger: ["practice", "duel", "duo"],
     sushi: ["sushi"],
   });
   assert.equal(modeIndexForMap("burger", 3), 0);

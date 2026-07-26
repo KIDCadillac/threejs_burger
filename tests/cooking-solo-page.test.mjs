@@ -622,6 +622,23 @@ test("burger cookbook keeps recipe quick starts accessible without crowding the 
   assert.match(css, /\.lobby-sheet\[data-open="true"\]/);
 });
 
+test("home mode switching uses the shutter and keeps cookbook in bottom navigation only", async () => {
+  const html = await readFile(new URL("../app/static/index.html", import.meta.url), "utf8");
+  const app = await readFile(
+    new URL("../app/static/home-lobby-app.mjs", import.meta.url),
+    "utf8",
+  );
+  const css = await readFile(new URL("../app/static/home.css", import.meta.url), "utf8");
+
+  assert.equal((html.match(/data-home-action="cookbook"/g) ?? []).length, 1);
+  assert.match(html, /class="chef chef--partner"/);
+  assert.match(app, /dataset\.homePlayers/);
+  assert.match(app, /is-mode-closing/);
+  assert.match(app, /is-mode-opening/);
+  assert.equal((app.match(/action === "cookbook"/g) ?? []).length, 1);
+  assert.match(css, /\[data-home-players="2"\]/);
+});
+
 test("page and modules use only relative static imports with no socket dependency", async () => {
   const [html, app, loader] = await Promise.all([
     readFile(htmlPath, "utf8"),
