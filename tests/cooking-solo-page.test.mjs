@@ -246,7 +246,7 @@ test("burger map reads as one complete side-profile food truck with rotating men
   );
   assert.match(
     css,
-    /\.food-truck-card\s*\{[^}]*aspect-ratio:\s*3\s*\/\s*1/s,
+    /\.food-truck-card\s*\{[^}]*aspect-ratio:\s*3\s*\/\s*2/s,
   );
   assert.match(
     css,
@@ -254,8 +254,9 @@ test("burger map reads as one complete side-profile food truck with rotating men
   );
   assert.match(
     css,
-    /\.home-map-slide\[data-card-offset="0"\] \.food-truck-card\s*\{[^}]*transform:[^}]*scale\(1\)/s,
+    /\.home-map-slide\[data-card-offset="0"\] \.food-truck-card\s*\{[^}]*animation:\s*food-truck-card-focus-pop/s,
   );
+  assert.match(css, /@keyframes\s+food-truck-card-focus-pop\s*\{/);
   assert.match(css, /\.burger-menu-lightbox__art\s*\{/);
   assert.match(css, /@media\s*\(max-width:\s*430px\)/);
   assert.match(
@@ -277,7 +278,11 @@ test("burger food-truck card follows the compact silver pixel-truck silhouette",
   );
   assert.match(html, /class="food-truck-card__roof-cap"/);
   assert.match(html, /class="food-truck-card__cab-window"/);
-  assert.match(css, /\.food-truck-card\s*\{[^}]*aspect-ratio:\s*3\s*\/\s*1/s);
+  assert.match(css, /\.food-truck-card\s*\{[^}]*aspect-ratio:\s*3\s*\/\s*2/s);
+  assert.match(
+    css,
+    /\.home-map-slide:not\(\[data-card-offset="0"\]\) \.food-truck-card\s*\{[^}]*scale\(\.7[0-9]\)/s,
+  );
   assert.match(css, /\.food-truck-card__service-window\s*\{[^}]*width:\s*6[0-9]%/s);
   assert.match(css, /\.food-truck-card__cab-window\s*\{[^}]*right:\s*5%/s);
   assert.match(css, /\.food-truck-card__step\s*\{[^}]*width:\s*3[0-9]%/s);
