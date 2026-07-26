@@ -6,7 +6,7 @@ export const HOME_MAPS = Object.freeze([
     title: "汉堡小馆",
     subtitle: "今天也要好好做汉堡",
     actionLabel: "开门营业",
-    actionHint: "3 位顾客 · 连续出餐",
+    actionHint: "8 位顾客 · 连续出餐",
     href: "./cooking.html?mode=orders",
     available: true,
   }),

@@ -56,6 +56,24 @@ test("customer entry renders an original character and current order number then
   customer.dispose();
 });
 
+test("customer entry supports the eighth customer in a full shop run", () => {
+  const root = createRoot();
+  const customer = createBurgerCustomerStage({
+    root,
+    reducedMotion: true,
+  });
+
+  customer.enter({
+    id: "customer-8",
+    name: "第八位顾客",
+    orderNumber: 8,
+  });
+
+  assert.match(root.innerHTML, /data-shop-order-number>8</);
+  assert.match(root.innerHTML, /\/8/);
+  customer.dispose();
+});
+
 test("tasting exposes eating before distinct high medium and low reactions", async () => {
   for (const reaction of ["high", "medium", "low"]) {
     const root = createRoot();

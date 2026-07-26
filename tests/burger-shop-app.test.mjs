@@ -1,11 +1,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 
 import { bootBurgerShopPage } from "../app/static/burger-shop-app.mjs";
 import {
   applyBurgerShopEvent,
   createBurgerShopRun,
 } from "../app/static/burger-shop-run-state.mjs";
+
+const appPath = new URL("../app/static/burger-shop-app.mjs", import.meta.url);
+
+test("shop completion follows the configured eight-order run boundary", async () => {
+  const source = await readFile(appPath, "utf8");
+
+  assert.match(source, /BURGER_SHOP_ORDER_COUNT/);
+  assert.doesNotMatch(source, /orderNumber\s*>=\s*3/);
+  assert.doesNotMatch(source, /三单营业完成/);
+});
 
 class Events {
   constructor() {

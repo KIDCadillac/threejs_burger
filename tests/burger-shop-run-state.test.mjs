@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   applyBurgerShopEvent,
+  BURGER_SHOP_ORDER_COUNT,
   BURGER_SHOP_ORDER_MS,
   createBurgerShopRun,
 } from "../app/static/burger-shop-run-state.mjs";
@@ -59,9 +60,9 @@ test("clock timeout serves an empty snapshot", () => {
   assert.deepEqual(timedOut.servedSnapshot, { assembledOrder: [] });
 });
 
-test("three scored orders finish one run", () => {
+test("eight scored orders finish one continuous service run", () => {
   let state = createBurgerShopRun({ runId: "run-3", now: () => 0 });
-  for (let order = 1; order <= 3; order += 1) {
+  for (let order = 1; order <= BURGER_SHOP_ORDER_COUNT; order += 1) {
     state = at(state, order * 100, { type: "customer.arrived" });
     state = at(state, order * 100 + 1, { type: "order.previewed" });
     state = at(state, order * 100 + 2, {
@@ -74,8 +75,8 @@ test("three scored orders finish one run", () => {
   }
 
   assert.equal(state.phase, "run-result");
-  assert.equal(state.totalScore, 2_100);
-  assert.equal(state.orders.length, 3);
+  assert.equal(state.totalScore, 5_600);
+  assert.equal(state.orders.length, 8);
 });
 
 test("invalid events, late manual serve and duplicate scoring do not mutate state", () => {
@@ -105,4 +106,5 @@ test("invalid events, late manual serve and duplicate scoring do not mutate stat
 
 test("exposes a stable forty-five second order duration", () => {
   assert.equal(BURGER_SHOP_ORDER_MS, 45_000);
+  assert.equal(BURGER_SHOP_ORDER_COUNT, 8);
 });

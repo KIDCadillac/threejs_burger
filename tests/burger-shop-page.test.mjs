@@ -27,6 +27,7 @@ test("the cooking page contains one semantic burger shop HUD", async () => {
     assert.match(html, new RegExp(marker), `missing ${marker}`);
   }
   assert.equal((html.match(/id="burger-shop-ui"/g) ?? []).length, 1);
+  assert.match(html, /<b data-shop-order-number>1<\/b>\/8/);
 });
 
 test("order mode is a fixed safe-area game layout rather than a scrolling page", async () => {
@@ -41,4 +42,16 @@ test("order mode is a fixed safe-area game layout rather than a scrolling page",
   assert.match(css, /\.shop-hud[^}]*button[^}]*,\s*\.shop-actions[^}]*button\s*\{[^}]*pointer-events:\s*auto;/s);
   assert.match(css, /\.shop-result-card\s*\{[^}]*max-width:\s*360px;[^}]*border-radius:/s);
   assert.match(css, /\.shop-result-card\s*>\s*button[^}]*min-height:\s*52px/s);
+});
+
+test("desktop order mode becomes a full-width silver food-truck cockpit", async () => {
+  const css = await readFile(cssPath, "utf8");
+  const desktop = css.match(/@media\s*\(min-width:\s*1000px\)\s*\{([\s\S]+)\}\s*$/)?.[1] ?? "";
+
+  assert.notEqual(desktop, "", "missing desktop food-truck breakpoint");
+  assert.match(desktop, /body\[data-game-mode="orders"\]\s+\.cooking-stage\s*\{[^}]*--shop-left-safe:\s*clamp\([^;]+;[^}]*--shop-right-safe:\s*clamp\([^;]+;[^}]*width:\s*100vw;[^}]*max-width:\s*none;/s);
+  assert.match(desktop, /body\[data-game-mode="orders"\]\s+\.shop-hud\s*\{[^}]*top:\s*18px;[^}]*bottom:\s*18px;[^}]*left:\s*18px;[^}]*right:\s*auto;[^}]*width:\s*calc\(var\(--shop-left-safe\)\s*-\s*36px\);/s);
+  assert.match(desktop, /body\[data-game-mode="orders"\]\s+\.shop-actions\s*\{[^}]*top:\s*18px;[^}]*right:\s*18px;[^}]*bottom:\s*18px;[^}]*left:\s*auto;[^}]*width:\s*calc\(var\(--shop-right-safe\)\s*-\s*36px\);/s);
+  assert.match(desktop, /body\[data-game-mode="orders"\]\s+\.workbench-slot-controls\s*\{[^}]*left:\s*var\(--shop-left-safe\);[^}]*right:\s*var\(--shop-right-safe\);/s);
+  assert.match(desktop, /body\[data-game-mode="orders"\]\s+#cooking-canvas\s*\{[^}]*border:\s*2px solid rgba\(255,\s*255,\s*255,\s*\.28\);/s);
 });

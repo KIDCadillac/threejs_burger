@@ -84,6 +84,32 @@ test("round-trips a run, legal order, hydrated cooking state and settings", () =
   assert.equal(Object.isFrozen(restored), true);
 });
 
+test("round-trips the eighth order and a complete eight-customer run", () => {
+  const storage = memoryStorage();
+  const save = createBurgerShopSave({ storage, now: () => 10_000 });
+  const run = Object.freeze({
+    ...cookingRun(),
+    orderNumber: 8,
+    orders: Object.freeze(Array.from({ length: 7 }, (_, index) => Object.freeze({
+      number: index + 1,
+      score: 800 + index,
+    }))),
+  });
+  const order = createBurgerOrder({ orderNumber: 8, random: () => 0 });
+
+  assert.equal(save.save({
+    run,
+    order,
+    cookingState: cookingState(),
+    settings: {},
+  }), true);
+
+  const restored = createBurgerShopSave({ storage, now: () => 10_000 }).load();
+  assert.equal(restored.run.orderNumber, 8);
+  assert.equal(restored.run.orders.length, 7);
+  assert.equal(restored.order.orderNumber, 8);
+});
+
 test("uses an independent key and never touches the free-cooking autosave", () => {
   const storage = memoryStorage({ [SOLO_AUTOSAVE_STORAGE_KEY]: "free-burger" });
   const save = createBurgerShopSave({ storage, now: () => 10_000 });

@@ -39,6 +39,28 @@ test("third order has seven or eight layers without adjacent bread", () => {
   assert.equal(isLegalBurgerOrder(order), true);
 });
 
+test("orders four through eight progressively increase difficulty and stay legal", () => {
+  const expectations = new Map([
+    [4, { minLayers: 7, maxLayers: 8, sauces: 1 }],
+    [5, { minLayers: 7, maxLayers: 9, sauces: 2 }],
+    [6, { minLayers: 8, maxLayers: 10, sauces: 2 }],
+    [7, { minLayers: 9, maxLayers: 11, sauces: 2 }],
+    [8, { minLayers: 10, maxLayers: 12, sauces: 2 }],
+  ]);
+
+  for (const [orderNumber, expectation] of expectations) {
+    const order = createBurgerOrder({ orderNumber, random: () => 0.75 });
+    assert.ok(
+      order.layers.length >= expectation.minLayers
+        && order.layers.length <= expectation.maxLayers,
+      `order ${orderNumber} has an expected layer count`,
+    );
+    assert.equal(order.sauces.length, expectation.sauces);
+    assert.equal(isLegalBurgerOrder(order), true);
+    assert.ok(order.publicName);
+  }
+});
+
 test("generation is deterministic for the same random sequence", () => {
   const sequence = [0.8, 0.1, 0.6, 0.2, 0.9, 0.4, 0.3, 0.7];
   const makeRandom = () => {
@@ -54,6 +76,7 @@ test("generation is deterministic for the same random sequence", () => {
 
 test("rejects unsupported order numbers and invalid random sources", () => {
   assert.throws(() => createBurgerOrder({ orderNumber: 0 }), /orderNumber/);
+  assert.throws(() => createBurgerOrder({ orderNumber: 9 }), /orderNumber/);
   assert.throws(
     () => createBurgerOrder({ orderNumber: 1, random: () => Number.NaN }),
     /random/,
