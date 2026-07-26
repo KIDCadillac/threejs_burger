@@ -193,6 +193,28 @@ test("home carousel cards expose store emblems, lightweight depth shade, and scr
   assert.match(app, /slide\.style\.setProperty\(\s*"--shop-open-progress"/);
 });
 
+test("burger map reads as a lit food truck with rotating three-face menu boxes", async () => {
+  const [html, css] = await Promise.all([
+    readFile(homePath, "utf8"),
+    readFile(homeCssPath, "utf8"),
+  ]);
+
+  assert.match(html, /data-burger-food-truck/);
+  assert.match(html, /class="burger-entrance-sign"/);
+  assert.equal((html.match(/class="burger-menu-lightbox(?: [^"]*)?"/g) ?? []).length, 2);
+  assert.equal((html.match(/class="burger-menu-lightbox__panel(?: [^"]*)?"/g) ?? []).length, 6);
+  assert.match(css, /@keyframes burger-menu-lightbox-turn/);
+  assert.match(
+    css,
+    /\.home-map-slide\[data-card-offset="0"\] \.burger-menu-lightbox__rotor\s*\{[^}]*animation-play-state:\s*running/s,
+  );
+  assert.match(
+    css,
+    /\.home-map-viewport\.is-dragging \.burger-menu-lightbox__rotor\s*\{[^}]*animation-play-state:\s*paused/s,
+  );
+  assert.doesNotMatch(html, /McDonald|McDonalds|麦当劳/i);
+});
+
 test("leaving a shop drives the incoming shutter from drag progress without replaying business state", async () => {
   const [css, app] = await Promise.all([
     readFile(homeCssPath, "utf8"),
