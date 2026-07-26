@@ -119,12 +119,20 @@ test("home page uses a large buffered shop carousel without the old four-button 
   assert.doesNotMatch(html, /class="lobby-actions"/);
   assert.doesNotMatch(html, /data-home-mode-index=/);
   assert.doesNotMatch(html, /id="map-subtitle"/);
-  assert.match(html, /<div class="diner-sign">[\s\S]*data-business-toggle[\s\S]*id="lobby-title"/);
+  assert.match(html, /id="map-caption-track"/);
+  assert.match(html, /<h1 id="lobby-title" class="sr-only"/);
+  assert.doesNotMatch(html, /class="business-sign-button"/);
+  assert.equal((html.match(/data-business-toggle/g) ?? []).length, 2);
   assert.doesNotMatch(html, /class="open-shop-button"/);
   assert.match(css, /--home-map-height:\s*clamp\(/);
-  assert.match(css, /\.business-sign-button\s*\{/);
+  assert.match(css, /\.shop-shutter__status\s*\{/);
   assert.match(css, /\.home-map-slide\s*\{[^}]*transform-origin:\s*center center/s);
   assert.ok(app.includes("slide.style.transform = motion;"));
+  assert.match(app, /function renderMapCaptions\(progress = 0\)/);
+  assert.match(app, /renderMapCaptions\(dragProgress\)/);
+  assert.match(app, /hydrateBufferedMapCaption/);
+  assert.match(css, /\.map-caption-track\s*\{/);
+  assert.match(css, /\.map-caption\s*\{/);
   assert.ok(app.includes('slide.style.setProperty("--map-shade-opacity", String(pose.shadeOpacity));'));
   assert.match(
     css,
@@ -135,26 +143,31 @@ test("home page uses a large buffered shop carousel without the old four-button 
   assert.doesNotMatch(css, /\.lobby-actions\s*\{/);
 });
 
-test("home business control looks and behaves like a physical wooden hanging sign", async () => {
+test("home business control is built into each roller shutter instead of floating above the shop", async () => {
   const [html, css, app] = await Promise.all([
     readFile(homePath, "utf8"),
     readFile(homeCssPath, "utf8"),
     readFile(homeAppPath, "utf8"),
   ]);
 
-  assert.match(html, /class="business-sign__board"/);
-  assert.match(html, /class="business-sign__welcome"[^>]*>WELCOME</);
-  assert.match(html, /id="map-status">已打烊</);
-  assert.match(html, /id="business-label">点击开门营业</);
-  assert.match(css, /\.business-sign__board\s*\{/);
+  assert.doesNotMatch(html, /class="business-sign-button"/);
+  assert.doesNotMatch(html, /class="business-sign__board"/);
+  assert.equal((html.match(/data-business-toggle/g) ?? []).length, 2);
+  assert.equal((html.match(/data-business-status/g) ?? []).length, 2);
+  assert.equal((html.match(/data-business-action/g) ?? []).length, 2);
+  assert.match(
+    html,
+    /class="shop-shutter"[\s\S]*class="shop-shutter__status"[\s\S]*data-business-status[\s\S]*data-business-action/,
+  );
+  assert.match(css, /\.shop-shutter__status\s*\{/);
+  assert.match(css, /\.shop-shutter__grip\s*\{/);
   assert.match(css, /repeating-linear-gradient\(/);
-  assert.match(css, /\.business-sign__board::before/);
-  assert.match(css, /\.business-sign-button\.is-flipping\s*\{[^}]*animation:\s*business-sign-flip/s);
-  assert.match(css, /@keyframes business-sign-flip/);
-  assert.match(css, /\.lobby-stage\.is-open\s+\.business-sign__board/);
-  assert.doesNotMatch(css, /\.lobby-stage\.is-open\s+\.business-sign-button\s*\{/);
+  assert.match(css, /\.shop-shutter__status\.is-changing\s*\{/);
+  assert.match(css, /@keyframes shutter-status-pop/);
   assert.match(app, /businessOpen\s*\?\s*"点击关门打烊"\s*:\s*"点击开门营业"/);
-  assert.match(app, /classList\.add\("is-flipping"\)/);
+  assert.match(app, /querySelectorAll\("\[data-business-toggle\]"\)/);
+  assert.match(app, /closest\("\[data-business-toggle\]"\)/);
+  assert.match(app, /classList\.add\("is-changing"\)/);
   assert.match(app, /animationend/);
 });
 

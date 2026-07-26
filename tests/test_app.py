@@ -128,8 +128,9 @@ def test_home_page_contains_the_playable_cooking_lobby() -> None:
     assert response.status_code == 200
     assert "开饭啦" in response.text
     assert 'class="lobby-shell"' in response.text
-    assert 'data-business-toggle' in response.text
-    assert response.text.index("data-business-toggle") < response.text.index('id="lobby-title"')
+    assert response.text.count("data-business-toggle") == 2
+    assert response.text.index("data-business-toggle") > response.text.index('id="lobby-title"')
+    assert 'class="business-sign-button"' not in response.text
     assert 'id="home-mode-indicator"' in response.text
     assert response.text.index('id="home-map-viewport"') < response.text.index(
         'id="home-mode-indicator"'
@@ -192,6 +193,7 @@ def test_root_is_the_game_lobby_while_the_legacy_snack_bundle_is_preserved() -> 
 
     assert "开门营业" in page
     assert 'data-business-toggle' in page
+    assert 'class="business-sign-button"' not in page
     assert 'id="home-mode-indicator"' in page
     assert "开门营业" in page
     assert "每日签到" in page
