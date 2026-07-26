@@ -246,7 +246,7 @@ test("burger map reads as one complete side-profile food truck with rotating men
   );
   assert.match(
     css,
-    /\.food-truck-card\s*\{[^}]*aspect-ratio:\s*2\.7\s*\/\s*1/s,
+    /\.food-truck-card\s*\{[^}]*aspect-ratio:\s*3\s*\/\s*1/s,
   );
   assert.match(
     css,
@@ -263,6 +263,25 @@ test("burger map reads as one complete side-profile food truck with rotating men
     /\.home-map-slide:not\(\[data-card-offset="0"\]\) \.burger-menu-lightbox\s*\{[^}]*opacity:/s,
   );
   assert.doesNotMatch(html, /McDonald|McDonalds|麦当劳/i);
+});
+
+test("burger food-truck card follows the compact silver pixel-truck silhouette", async () => {
+  const [html, css] = await Promise.all([
+    readFile(homePath, "utf8"),
+    readFile(homeCssPath, "utf8"),
+  ]);
+
+  assert.match(
+    html,
+    /class="food-truck-card food-truck-card--silver-pixel"[^>]*data-truck-style="silver-pixel"/,
+  );
+  assert.match(html, /class="food-truck-card__roof-cap"/);
+  assert.match(html, /class="food-truck-card__cab-window"/);
+  assert.match(css, /\.food-truck-card\s*\{[^}]*aspect-ratio:\s*3\s*\/\s*1/s);
+  assert.match(css, /\.food-truck-card__service-window\s*\{[^}]*width:\s*6[0-9]%/s);
+  assert.match(css, /\.food-truck-card__cab-window\s*\{[^}]*right:\s*5%/s);
+  assert.match(css, /\.food-truck-card__step\s*\{[^}]*width:\s*3[0-9]%/s);
+  assert.match(css, /\.food-truck-card__bumper\s*\{[^}]*width:\s*3[0-9]%/s);
 });
 
 test("leaving a shop drives the incoming shutter from drag progress without replaying business state", async () => {
