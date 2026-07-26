@@ -7,29 +7,33 @@ export const HOME_MODES = Object.freeze([
     label: "自由练习",
     hint: "不限时间",
     action: "practice",
-  }),
-  Object.freeze({
-    id: "cookbook",
-    label: "汉堡图鉴",
-    hint: "配方收藏",
-    action: "cookbook",
+    players: 1,
   }),
   Object.freeze({
     id: "duel",
     label: "复刻对决",
     hint: "双人轮换",
     action: "duel",
+    players: 2,
+  }),
+  Object.freeze({
+    id: "duo",
+    label: "双人制作",
+    hint: "两位厨师",
+    action: "duo",
+    players: 2,
   }),
   Object.freeze({
     id: "sushi",
     label: "寿司店",
     hint: "筹备中",
     action: "sushi",
+    players: 1,
   }),
 ]);
 
 export const HOME_MAP_MODE_IDS = Object.freeze({
-  burger: Object.freeze(["practice", "cookbook", "duel"]),
+  burger: Object.freeze(["practice", "duel", "duo"]),
   sushi: Object.freeze(["sushi"]),
 });
 

@@ -32,7 +32,7 @@ import {
   normalizeBusinessOpen,
   normalizeModeIndex,
   resolveModeSwipe,
-} from "./home-mode-switch-state.mjs?v=20260724-coupled1";
+} from "./home-mode-switch-state.mjs?v=20260726-modecrew1";
 
 const storage = window.localStorage;
 const energyValue = document.querySelector("#energy-value");
@@ -64,6 +64,8 @@ let pendingMapIndex = null;
 let pendingMapStep = 0;
 let wheelTransitioning = false;
 let wheelTimer = 0;
+let modeTransitioning = false;
+let modeTransitionTimer = 0;
 let dragPointerId = null;
 let dragStartX = 0;
 let dragStartY = 0;
@@ -74,6 +76,8 @@ let gestureAxis = null;
 let gestureMoved = false;
 let suppressMapClick = false;
 const reducedMotionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+const MODE_CLOSE_MS = 560;
+const MODE_OPEN_MS = 680;
 const wheelFrameScheduler = createLatestFrameScheduler({
   requestFrame: (callback) => requestAnimationFrame(callback),
   cancelFrame: (frameId) => cancelAnimationFrame(frameId),
@@ -173,12 +177,21 @@ function activeModeIndicator() {
   return modeIndicatorForSlide(activeSlide);
 }
 
+function activeBufferedMapSlide() {
+  return bufferedMapSlides.find(
+    (slide) => (Number(slide.dataset.cardOffset) || 0) === 0,
+  ) ?? null;
+}
+
 function renderModeIndicatorForSlide(slide) {
   if (!slide) return;
   const indicator = modeIndicatorForSlide(slide);
   const slideModeIndex = modeIndexForMap(slide.dataset.homeMap, modeIndex);
   const mode = HOME_MODES[slideModeIndex];
-  if (!indicator || !mode) return;
+  if (!mode) return;
+  slide.dataset.homeMode = mode.id;
+  slide.dataset.homePlayers = String(mode.players || 1);
+  if (!indicator) return;
   const label = indicator.querySelector("[data-card-mode-label]");
   const hint = indicator.querySelector("[data-card-mode-hint]");
   if (label) label.textContent = mode.label;
@@ -400,20 +413,45 @@ function renderMode({ animate = false } = {}) {
 function moveMode(direction, { persist = true, animate = true } = {}) {
   const step = Math.sign(Number(direction) || 0);
   const mapId = HOME_MAPS[mapIndex]?.id;
-  if (!step || !mapId) return false;
+  if (!step || !mapId || modeTransitioning) return false;
   const nextModeIndex = changeModeIndexForMap(mapId, modeIndex, step);
   if (nextModeIndex === modeIndex) return false;
-  modeIndex = nextModeIndex;
-  if (persist) writeModeIndex(modeIndex);
-  renderMode({ animate });
+
+  const applyNextMode = () => {
+    modeIndex = nextModeIndex;
+    if (persist) writeModeIndex(modeIndex);
+    renderMode({ animate });
+  };
+  const activeSlide = activeBufferedMapSlide();
+  if (!animate || !activeSlide || reducedMotionQuery?.matches) {
+    applyNextMode();
+    return true;
+  }
+
+  modeTransitioning = true;
+  mapViewport?.setAttribute("aria-busy", "true");
+  activeSlide.classList.remove("is-mode-opening");
+  activeSlide.classList.add("is-mode-closing");
+  window.clearTimeout(modeTransitionTimer);
+  modeTransitionTimer = window.setTimeout(() => {
+    applyNextMode();
+    activeSlide.classList.remove("is-mode-closing");
+    activeSlide.classList.add("is-mode-opening");
+    void activeSlide.offsetWidth;
+    modeTransitionTimer = window.setTimeout(() => {
+      activeSlide.classList.remove("is-mode-opening");
+      modeTransitioning = false;
+      if (!wheelTransitioning) mapViewport?.removeAttribute("aria-busy");
+    }, MODE_OPEN_MS);
+  }, MODE_CLOSE_MS);
   return true;
 }
 
 function activateMode() {
   const action = HOME_MODES[modeIndex]?.action;
   if (action === "practice") window.location.href = "./cooking.html?mode=practice";
-  if (action === "cookbook") showSheet("cookbook-sheet");
   if (action === "duel") window.location.href = "./replica-duel.html";
+  if (action === "duo") window.location.href = "./cooking.html?mode=duo";
   if (action === "sushi") {
     selectMap(1);
     showToast("寿司店还在筹备，先看看新店招牌");
