@@ -1759,6 +1759,38 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   background: #69716e;
   box-shadow: .06rem 0 rgba(235,239,234,.2);
 }
+.food-truck-card__front-nose {
+  position: absolute;
+  z-index: 3;
+  right: -1.5%;
+  bottom: 19%;
+  width: 24%;
+  height: 25%;
+  clip-path: polygon(0 0, 66% 0, 100% 28%, 100% 100%, 0 100%);
+  border: .1rem solid #626966;
+  border-radius: .12rem .34rem .18rem .08rem;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.62) 0 12%, transparent 13%),
+    linear-gradient(104deg, #d9dcd6, #f0eee5 42%, #a5ada9 100%);
+  box-shadow:
+    inset .12rem .08rem rgba(255,255,255,.45),
+    0 .1rem .12rem rgba(45,36,29,.2);
+}
+.food-truck-card__side-marker {
+  position: absolute;
+  z-index: 12;
+  right: 3.8%;
+  bottom: 25%;
+  width: 3.6%;
+  aspect-ratio: 1.65;
+  display: block;
+  border: .06rem solid #75412f;
+  border-radius: .08rem;
+  background: #c95f3f;
+  box-shadow:
+    inset 0 .04rem rgba(255,255,255,.42),
+    0 .06rem .08rem rgba(43,33,27,.28);
+}
 .food-truck-card__metal-frame {
   position: absolute;
   z-index: 8;
@@ -1827,6 +1859,21 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   background:
     repeating-linear-gradient(90deg, #b7bcb8 0 .22rem, #69706d .23rem .36rem);
   box-shadow: 0 .2rem 0 rgba(42,34,28,.28);
+}
+.food-truck-card__undercarriage {
+  position: absolute;
+  z-index: 9;
+  right: 3%;
+  bottom: 0;
+  left: 27%;
+  height: 6.5%;
+  border: .11rem solid #414745;
+  border-radius: .08rem .08rem .22rem .22rem;
+  background:
+    repeating-linear-gradient(90deg, #d6d9d4 0 .24rem, #707773 .25rem .38rem);
+  box-shadow:
+    inset 0 .06rem rgba(255,255,255,.6),
+    0 .17rem 0 rgba(44,35,29,.34);
 }
 .food-truck-card__wheel {
   position: absolute;
