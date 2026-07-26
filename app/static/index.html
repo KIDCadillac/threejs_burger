@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f8c948">
     <title>开饭啦 · 汉堡小馆</title>
-    <link rel="stylesheet" href="./home.css?v=20260726-truckart1">
+    <link rel="stylesheet" href="./home.css?v=20260726-truckart2">
     <script type="module" src="./home-lobby-app.mjs?v=20260726-truckart1"></script>
   </head>
   <body>
@@ -55,6 +55,7 @@
                 <div class="diner-scene" data-burger-food-truck aria-hidden="true">
                   <div class="awning"><i></i><i></i><i></i><i></i><i></i></div>
                   <div class="order-window">
+                    <div class="burger-truck-serving-frame"></div>
                     <div class="burger-entrance-sign">
                       <small>热餐现做</small>
                       <strong>汉堡小馆</strong>
@@ -63,26 +64,26 @@
                     <div class="burger-menu-lightbox burger-menu-lightbox--one">
                       <div class="burger-menu-lightbox__rotor">
                         <span class="burger-menu-lightbox__panel burger-menu-lightbox__panel--burger">
-                          <i>堡</i><b>经典汉堡</b><small>牛肉 · 芝士</small>
+                          <i class="burger-menu-lightbox__art burger-menu-lightbox__art--burger"><span></span></i><b>经典汉堡</b><small>牛肉 · 芝士</small>
                         </span>
                         <span class="burger-menu-lightbox__panel burger-menu-lightbox__panel--fries">
-                          <i>薯</i><b>脆薯小食</b><small>现炸 · 热脆</small>
+                          <i class="burger-menu-lightbox__art burger-menu-lightbox__art--fries"><span></span></i><b>脆薯小食</b><small>现炸 · 热脆</small>
                         </span>
                         <span class="burger-menu-lightbox__panel burger-menu-lightbox__panel--drink">
-                          <i>饮</i><b>清爽饮品</b><small>冰饮 · 热饮</small>
+                          <i class="burger-menu-lightbox__art burger-menu-lightbox__art--drink"><span></span></i><b>清爽饮品</b><small>冰饮 · 热饮</small>
                         </span>
                       </div>
                     </div>
                     <div class="burger-menu-lightbox burger-menu-lightbox--two">
                       <div class="burger-menu-lightbox__rotor">
                         <span class="burger-menu-lightbox__panel burger-menu-lightbox__panel--set">
-                          <i>套</i><b>招牌套餐</b><small>主食 · 小食</small>
+                          <i class="burger-menu-lightbox__art burger-menu-lightbox__art--set"><span></span></i><b>招牌套餐</b><small>主食 · 小食</small>
                         </span>
                         <span class="burger-menu-lightbox__panel burger-menu-lightbox__panel--fries">
-                          <i>加</i><b>小食加餐</b><small>薯条 · 洋葱圈</small>
+                          <i class="burger-menu-lightbox__art burger-menu-lightbox__art--fries"><span></span></i><b>小食加餐</b><small>薯条 · 洋葱圈</small>
                         </span>
                         <span class="burger-menu-lightbox__panel burger-menu-lightbox__panel--drink">
-                          <i>杯</i><b>搭配饮品</b><small>汽水 · 果饮</small>
+                          <i class="burger-menu-lightbox__art burger-menu-lightbox__art--drink"><span></span></i><b>搭配饮品</b><small>汽水 · 果饮</small>
                         </span>
                       </div>
                     </div>
@@ -128,8 +129,12 @@
                   </div>
                   <div class="service-counter"><span></span><span></span><span></span></div>
                   <div class="food-truck-shell">
+                    <span class="food-truck-shell__cab"><i></i></span>
+                    <i class="food-truck-arch food-truck-arch--left"></i>
+                    <i class="food-truck-arch food-truck-arch--right"></i>
                     <i class="food-truck-wheel food-truck-wheel--left"></i>
                     <i class="food-truck-wheel food-truck-wheel--right"></i>
+                    <i class="food-truck-headlamp"></i>
                     <span class="food-truck-bumper"></span>
                   </div>
                 </div>

@@ -201,6 +201,10 @@ test("burger map reads as a lit food truck with rotating three-face menu boxes",
 
   assert.match(html, /data-burger-food-truck/);
   assert.match(html, /class="burger-entrance-sign"/);
+  assert.match(html, /class="burger-truck-serving-frame"/);
+  assert.match(html, /class="food-truck-shell__cab"/);
+  assert.equal((html.match(/class="food-truck-arch(?: [^"]*)?"/g) ?? []).length, 2);
+  assert.equal((html.match(/class="burger-menu-lightbox__art(?: [^"]*)?"/g) ?? []).length, 6);
   assert.equal((html.match(/class="burger-menu-lightbox(?: [^"]*)?"/g) ?? []).length, 2);
   assert.equal((html.match(/class="burger-menu-lightbox__panel(?: [^"]*)?"/g) ?? []).length, 6);
   assert.match(css, /@keyframes burger-menu-lightbox-turn/);
@@ -211,6 +215,14 @@ test("burger map reads as a lit food truck with rotating three-face menu boxes",
   assert.match(
     css,
     /\.home-map-viewport\.is-dragging \.burger-menu-lightbox__rotor\s*\{[^}]*animation-play-state:\s*paused/s,
+  );
+  assert.match(css, /\.burger-truck-serving-frame\s*\{/);
+  assert.match(css, /\.food-truck-shell__cab\s*\{/);
+  assert.match(css, /\.food-truck-arch\s*\{/);
+  assert.match(css, /\.burger-menu-lightbox__art\s*\{/);
+  assert.match(
+    css,
+    /\.home-map-slide:not\(\[data-card-offset="0"\]\) \.burger-menu-lightbox\s*\{[^}]*opacity:/s,
   );
   assert.doesNotMatch(html, /McDonald|McDonalds|麦当劳/i);
 });
