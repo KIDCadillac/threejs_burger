@@ -202,8 +202,15 @@ test("burger map reads as a lit food truck with rotating three-face menu boxes",
   assert.match(html, /data-burger-food-truck/);
   assert.match(html, /class="burger-entrance-sign"/);
   assert.match(html, /class="burger-truck-serving-frame"/);
+  assert.match(html, /class="food-truck-body-panel"/);
+  assert.match(html, /class="food-truck-serving-hatch"/);
+  assert.match(html, /class="food-truck-metal-trim"/);
+  assert.match(html, /class="food-truck-step"/);
   assert.match(html, /class="food-truck-shell__cab"/);
+  assert.match(html, /class="food-truck-shell__cab-window"/);
+  assert.match(html, /class="food-truck-shell__cab-door"/);
   assert.equal((html.match(/class="food-truck-arch(?: [^"]*)?"/g) ?? []).length, 2);
+  assert.equal((html.match(/class="food-truck-wheel(?: [^"]*)?"/g) ?? []).length, 2);
   assert.equal((html.match(/class="burger-menu-lightbox__art(?: [^"]*)?"/g) ?? []).length, 6);
   assert.equal((html.match(/class="burger-menu-lightbox(?: [^"]*)?"/g) ?? []).length, 2);
   assert.equal((html.match(/class="burger-menu-lightbox__panel(?: [^"]*)?"/g) ?? []).length, 6);
@@ -217,9 +224,18 @@ test("burger map reads as a lit food truck with rotating three-face menu boxes",
     /\.home-map-viewport\.is-dragging \.burger-menu-lightbox__rotor\s*\{[^}]*animation-play-state:\s*paused/s,
   );
   assert.match(css, /\.burger-truck-serving-frame\s*\{/);
+  assert.match(css, /--truck-metal-light:/);
+  assert.match(css, /--truck-metal-shadow:/);
+  assert.match(css, /\.food-truck-body-panel\s*\{/);
+  assert.match(css, /\.food-truck-serving-hatch\s*\{/);
+  assert.match(css, /\.food-truck-metal-trim\s*\{/);
+  assert.match(css, /\.food-truck-step\s*\{/);
   assert.match(css, /\.food-truck-shell__cab\s*\{/);
+  assert.match(css, /\.food-truck-shell__cab-window\s*\{/);
+  assert.match(css, /\.food-truck-shell__cab-door\s*\{/);
   assert.match(css, /\.food-truck-arch\s*\{/);
   assert.match(css, /\.burger-menu-lightbox__art\s*\{/);
+  assert.match(css, /@media\s*\(max-width:\s*430px\)/);
   assert.match(
     css,
     /\.home-map-slide:not\(\[data-card-offset="0"\]\) \.burger-menu-lightbox\s*\{[^}]*opacity:/s,

@@ -296,6 +296,12 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   transition: box-shadow 200ms ease;
 }
 .diner-scene[data-burger-food-truck] {
+  --truck-metal-light: #f3f1e8;
+  --truck-metal-mid: #c5c6bf;
+  --truck-metal-shadow: #777b76;
+  --truck-accent: #d95a3a;
+  --truck-window: #173c45;
+  --truck-rubber: #292724;
   background:
     radial-gradient(circle at 50% 26%, rgba(255,224,114,.3), transparent 8.8rem),
     linear-gradient(90deg, transparent 49.5%, rgba(60,37,23,.11) 50% 50.5%, transparent 51%),
@@ -624,113 +630,249 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .food-truck-shell {
   position: absolute;
   z-index: 9;
-  right: .55rem;
-  bottom: .2rem;
-  left: .55rem;
-  height: 3.25rem;
-  border: 3px solid var(--ink);
-  border-radius: .75rem 1.1rem .65rem .65rem;
+  right: .38rem;
+  bottom: .42rem;
+  left: .38rem;
+  height: 3.7rem;
+  border: .18rem solid #3e3831;
+  border-radius: .62rem 1.45rem .52rem .58rem;
   background:
-    linear-gradient(90deg, transparent 0 67%, #f7d56f 67% 72%, transparent 72%),
-    linear-gradient(180deg, #d84830 0 20%, #f1b735 20% 34%, #c95331 34% 58%, #26201d 58% 67%, #a5452c 67% 100%);
-  box-shadow: inset 0 .5rem rgba(255,255,255,.08);
+    linear-gradient(180deg, rgba(255,255,255,.78), transparent .42rem),
+    linear-gradient(92deg, var(--truck-metal-light), var(--truck-metal-mid) 55%, var(--truck-metal-shadow));
+  box-shadow:
+    inset 0 .2rem rgba(255,255,255,.72),
+    inset 0 -.28rem rgba(72,76,73,.22),
+    0 .28rem .35rem rgba(41,24,17,.38);
   pointer-events: none;
 }
 .food-truck-shell::before {
   content: "";
   position: absolute;
-  top: .45rem;
-  right: 1rem;
-  left: 1rem;
-  height: .34rem;
+  z-index: 4;
+  right: .28rem;
+  bottom: .36rem;
+  left: .28rem;
+  height: .22rem;
   border-radius: 999px;
-  background: #f4d476;
-  box-shadow: 0 2px 0 rgba(59,31,21,.48);
+  background: linear-gradient(180deg, #f8f7ef, #7d817c);
+  box-shadow:
+    0 .1rem 0 rgba(42,39,34,.45),
+    inset 0 .06rem rgba(255,255,255,.8);
+}
+.food-truck-body-panel {
+  position: absolute;
+  top: .18rem;
+  right: 3.55rem;
+  bottom: .18rem;
+  left: .18rem;
+  overflow: visible;
+  border: .09rem solid rgba(53,51,46,.58);
+  border-radius: .42rem .24rem .25rem .38rem;
+  background:
+    linear-gradient(100deg, rgba(255,255,255,.52), transparent 24% 73%, rgba(77,80,76,.12)),
+    repeating-linear-gradient(0deg, rgba(65,67,64,.07) 0 .04rem, transparent .04rem .31rem),
+    var(--truck-metal-light);
+  box-shadow:
+    inset 0 0 0 .08rem rgba(255,255,255,.55),
+    inset -.18rem 0 rgba(83,87,82,.1);
+}
+.food-truck-serving-hatch {
+  position: absolute;
+  top: .35rem;
+  right: .48rem;
+  left: .48rem;
+  height: 1.75rem;
+  border: .14rem solid #35322d;
+  border-radius: .26rem .26rem .14rem .14rem;
+  background:
+    radial-gradient(circle at 55% 38%, rgba(255,194,92,.3), transparent 42%),
+    linear-gradient(180deg, #342a24, #171918);
+  box-shadow:
+    inset 0 .18rem .4rem rgba(0,0,0,.58),
+    0 .1rem 0 rgba(255,255,255,.58);
+}
+.food-truck-serving-hatch::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  top: -.5rem;
+  right: -.2rem;
+  left: -.2rem;
+  height: .52rem;
+  border: .09rem solid #514139;
+  border-radius: .15rem .15rem .06rem .06rem;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      #fff1cc 0 1.02rem,
+      var(--truck-accent) 1.02rem 2.04rem
+    );
+  box-shadow: 0 .12rem .18rem rgba(29,17,11,.36);
+}
+.food-truck-serving-hatch::after {
+  content: "";
+  position: absolute;
+  right: .25rem;
+  bottom: .14rem;
+  left: .25rem;
+  height: .18rem;
+  border-radius: 999px;
+  background: #d17a3b;
+  box-shadow: 0 0 .38rem rgba(255,176,75,.7);
+}
+.food-truck-metal-trim {
+  position: absolute;
+  right: .25rem;
+  bottom: .42rem;
+  left: .25rem;
+  height: .58rem;
+  border: .08rem solid rgba(55,55,51,.44);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.58), transparent 40%),
+    var(--truck-metal-mid);
+  box-shadow: inset 0 -.14rem rgba(68,72,68,.2);
+}
+.food-truck-step {
+  position: absolute;
+  z-index: 6;
+  bottom: -.44rem;
+  left: 2.15rem;
+  width: 3.4rem;
+  height: .4rem;
+  border: .08rem solid #373531;
+  border-radius: .08rem;
+  background:
+    repeating-linear-gradient(90deg, #777a75 0 .17rem, #bfc0b9 .17rem .3rem);
+  box-shadow: 0 .15rem 0 #302d29;
 }
 .food-truck-shell__cab {
   position: absolute;
-  z-index: 1;
-  top: -.95rem;
-  right: .35rem;
-  width: 4.2rem;
-  height: 2.45rem;
-  border: .18rem solid #3a241a;
-  border-radius: .38rem .82rem .12rem .2rem;
+  z-index: 3;
+  top: -.7rem;
+  right: -.04rem;
+  width: 3.95rem;
+  height: 3.32rem;
+  border: .15rem solid #3e3933;
+  border-radius: .38rem 1.38rem .3rem .2rem;
   background:
-    linear-gradient(110deg, #224a58 0 52%, #8dc5c8 53% 58%, #2c5965 59% 100%);
+    linear-gradient(108deg, rgba(255,255,255,.76), transparent 30% 72%, rgba(63,67,63,.24)),
+    linear-gradient(180deg, var(--truck-metal-light), var(--truck-metal-mid));
   box-shadow:
-    inset 0 0 0 .12rem rgba(255,242,184,.3),
-    -.24rem .22rem 0 #f0b63d;
+    inset 0 0 0 .08rem rgba(255,255,255,.58),
+    -.16rem .12rem 0 rgba(91,94,89,.36);
 }
 .food-truck-shell__cab::before {
   content: "";
   position: absolute;
-  top: .18rem;
-  left: .32rem;
-  width: 1.55rem;
-  height: 1.12rem;
-  border: .12rem solid #f5dd91;
-  border-radius: .18rem;
-  background: linear-gradient(145deg, rgba(255,255,255,.35), transparent 48%), #173b48;
+  right: -.42rem;
+  bottom: .22rem;
+  width: 1.1rem;
+  height: 1.05rem;
+  border: .12rem solid #403b35;
+  border-left: 0;
+  border-radius: 0 .72rem .2rem 0;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.5), transparent 50%),
+    var(--truck-metal-mid);
 }
-.food-truck-shell__cab i {
+.food-truck-shell__cab-window {
   position: absolute;
-  right: .25rem;
-  bottom: .2rem;
-  width: 1.25rem;
-  height: .36rem;
+  top: .28rem;
+  right: .38rem;
+  width: 1.72rem;
+  height: 1.18rem;
+  border: .12rem solid #443d35;
+  border-radius: .2rem .72rem .18rem .18rem;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.48), transparent 42%),
+    var(--truck-window);
+  box-shadow: inset 0 0 0 .08rem rgba(207,233,229,.18);
+}
+.food-truck-shell__cab-door {
+  position: absolute;
+  top: 1.55rem;
+  right: .35rem;
+  bottom: .27rem;
+  width: 2.08rem;
+  border: .08rem solid rgba(62,60,55,.46);
+  border-radius: .14rem .3rem .14rem .14rem;
+  box-shadow: inset .12rem 0 rgba(255,255,255,.32);
+}
+.food-truck-shell__cab-door::after {
+  content: "";
+  position: absolute;
+  top: .25rem;
+  right: .22rem;
+  width: .52rem;
+  height: .1rem;
   border-radius: 999px;
-  background: #f7d56f;
-  box-shadow: inset 0 -.1rem rgba(97,42,26,.3);
+  background: #4a4944;
+  box-shadow: 0 .05rem 0 rgba(255,255,255,.38);
 }
 .food-truck-arch {
   position: absolute;
-  z-index: 2;
-  bottom: -.2rem;
-  width: 2.55rem;
-  height: 1.4rem;
-  border: .22rem solid #48281d;
+  z-index: 5;
+  bottom: -.22rem;
+  width: 2.28rem;
+  height: 1.25rem;
+  border: .18rem solid #484943;
   border-bottom: 0;
   border-radius: 1.5rem 1.5rem 0 0;
-  background: #a9422d;
-  box-shadow: inset 0 .12rem rgba(255,230,150,.18);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.54), transparent 46%),
+    var(--truck-metal-shadow);
+  box-shadow: inset 0 .1rem rgba(255,255,255,.48);
 }
-.food-truck-arch--left { left: .98rem; }
-.food-truck-arch--right { right: .98rem; }
+.food-truck-arch--left { left: 1.05rem; }
+.food-truck-arch--right { right: .72rem; }
 .food-truck-wheel {
   position: absolute;
-  z-index: 3;
-  bottom: -.65rem;
-  width: 2.05rem;
-  height: 2.05rem;
-  border: .42rem solid #2e211c;
+  z-index: 6;
+  bottom: -.72rem;
+  width: 1.82rem;
+  height: 1.82rem;
+  border: .38rem solid var(--truck-rubber);
   border-radius: 50%;
-  background: #e8b765;
-  box-shadow: inset 0 0 0 .18rem #8e4c31;
+  background: radial-gradient(circle, #ecece5 0 25%, #7d817b 26% 56%, #deded6 57%);
+  box-shadow:
+    inset 0 0 0 .12rem #4c4f4b,
+    0 .1rem .12rem rgba(33,25,20,.45);
 }
-.food-truck-wheel--left { left: 1.25rem; }
-.food-truck-wheel--right { right: 1.25rem; }
+.food-truck-wheel::after {
+  content: "";
+  position: absolute;
+  inset: 31%;
+  border: .07rem solid #5d615c;
+  border-radius: 50%;
+  background: #d9d9d1;
+}
+.food-truck-wheel--left { left: 1.28rem; }
+.food-truck-wheel--right { right: .95rem; }
 .food-truck-bumper {
   position: absolute;
-  right: -.4rem;
-  bottom: .25rem;
-  width: 1.25rem;
-  height: .42rem;
-  border: 2px solid #372218;
+  z-index: 7;
+  right: -.62rem;
+  bottom: .18rem;
+  width: 1.38rem;
+  height: .34rem;
+  border: .08rem solid #383631;
   border-radius: 999px;
-  background: #f3d48a;
+  background: linear-gradient(180deg, #f1f0e7, #757a75);
+  box-shadow: 0 .08rem 0 rgba(45,41,36,.4);
 }
 .food-truck-headlamp {
   position: absolute;
-  z-index: 3;
-  right: .22rem;
-  bottom: 1.1rem;
-  width: .44rem;
-  height: .44rem;
-  border: .1rem solid #5a2c20;
+  z-index: 7;
+  right: -.18rem;
+  bottom: 1.18rem;
+  width: .48rem;
+  height: .48rem;
+  border: .09rem solid #4a443b;
   border-radius: 50%;
   background: #fff1a9;
-  box-shadow: 0 0 .35rem rgba(255,220,105,.75);
+  box-shadow:
+    0 0 .42rem rgba(255,220,105,.92),
+    inset 0 0 .08rem #fff;
 }
 
 .chef { position: absolute; z-index: 2; bottom: .2rem; left: 50%; width: 7.4rem; height: 11.5rem; transform: translateX(-50%); }
@@ -1466,6 +1608,35 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   .map-caption strong { font-size: clamp(1.55rem, 7vw, 2rem); }
   .home-card-mode-indicator { top: 3.8rem; }
   .health-note { display: none; }
+}
+
+@media (max-width: 430px) {
+  .food-truck-shell {
+    right: .25rem;
+    bottom: .38rem;
+    left: .25rem;
+    height: 3.38rem;
+  }
+  .food-truck-body-panel { right: 3.18rem; }
+  .food-truck-serving-hatch {
+    right: .35rem;
+    left: .35rem;
+    height: 1.62rem;
+  }
+  .food-truck-metal-trim { right: .24rem; left: .24rem; }
+  .food-truck-step {
+    left: 1.72rem;
+    width: 3.05rem;
+  }
+  .food-truck-shell__cab {
+    right: -.06rem;
+    width: 3.56rem;
+    height: 3.05rem;
+  }
+  .food-truck-arch--left { left: .72rem; }
+  .food-truck-wheel--left { left: .93rem; }
+  .food-truck-arch--right { right: .52rem; }
+  .food-truck-wheel--right { right: .76rem; }
 }
 
 @media (max-width: 390px) {
