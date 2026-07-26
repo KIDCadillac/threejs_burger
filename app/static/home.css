@@ -1631,15 +1631,17 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .food-truck-card__body {
   position: absolute;
   inset: 0;
-  border: .16rem solid #3e4442;
-  border-radius: 1.15rem .62rem .54rem .92rem;
+  border: .14rem solid #414744;
+  border-radius: .82rem .42rem .38rem .72rem;
   background:
-    linear-gradient(180deg, rgba(255,255,255,.86) 0 8%, transparent 9%),
-    linear-gradient(100deg, #d3d6d2 0%, #f3f2e9 24%, #b8bdb9 52%, #eef0eb 75%, #aeb4b1 100%);
+    linear-gradient(180deg, rgba(255,255,255,.95) 0 7%, transparent 8%),
+    linear-gradient(100deg, #bbc0bd 0%, #f5f3e9 18%, #c2c6c2 52%, #f1f0e8 76%, #a6adaa 100%);
   box-shadow:
+    0 0 0 .1rem #f6f4e9,
+    0 0 0 .23rem #777e7a,
     0 .42rem 0 rgba(55,41,30,.38),
     0 .9rem 1.35rem rgba(48,34,23,.22),
-    inset 0 0 0 .2rem rgba(255,255,255,.35);
+    inset 0 0 0 .13rem rgba(255,255,255,.42);
 }
 .food-truck-card__body::before {
   content: "";
@@ -1671,15 +1673,15 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .food-truck-card__awning {
   position: absolute;
   z-index: 9;
-  top: 4%;
-  right: 13%;
-  left: 3.4%;
-  height: 21%;
+  top: 4.5%;
+  right: 12%;
+  left: 3.8%;
+  height: 20%;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   overflow: hidden;
   border: .13rem solid #444a48;
-  border-radius: .72rem .72rem .2rem .2rem;
+  border-radius: .32rem .32rem .12rem .12rem;
   box-shadow: 0 .18rem 0 rgba(49,39,31,.3);
 }
 .food-truck-card__awning-stripe {
@@ -1704,8 +1706,8 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   border: .18rem solid #515754;
   border-radius: .34rem .34rem .16rem .16rem;
   background:
-    radial-gradient(circle at 50% 85%, rgba(255,173,77,.14), transparent 38%),
-    linear-gradient(160deg, #2e241f, #141719 70%);
+    radial-gradient(circle at 50% 80%, rgba(255,173,77,.12), transparent 38%),
+    linear-gradient(160deg, #33241d, #17120f 70%);
   box-shadow:
     inset 0 .28rem .7rem rgba(0,0,0,.58),
     inset 0 0 0 .08rem rgba(232,239,233,.2);
@@ -1737,13 +1739,28 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
     linear-gradient(180deg, #f5f4eb 0 28%, #a9afac 30% 52%, #e4e6e0 54% 72%, #858c89 74%);
   box-shadow: 0 .18rem .18rem rgba(36,30,25,.28);
 }
+.food-truck-card__accent-rail {
+  position: absolute;
+  z-index: 5;
+  right: 7%;
+  bottom: 12.8%;
+  left: 3.2%;
+  height: 8%;
+  border: .08rem solid #7e3e2a;
+  border-radius: .1rem;
+  background:
+    linear-gradient(180deg, #db744b 0 46%, #bd5738 48% 100%);
+  box-shadow:
+    inset 0 .07rem rgba(255,255,255,.24),
+    0 .08rem 0 rgba(48,36,28,.22);
+}
 .food-truck-card__lower-trim {
   position: absolute;
   z-index: 4;
   right: 6%;
-  bottom: 5.5%;
+  bottom: 4.8%;
   left: 3%;
-  height: 11.5%;
+  height: 8.5%;
   border: .08rem solid #6e7471;
   border-radius: .12rem;
   background:
@@ -1754,10 +1771,10 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .food-truck-card__step {
   position: absolute;
   z-index: 6;
-  bottom: -1.5%;
-  left: 10%;
-  width: 45%;
-  height: 8.5%;
+  bottom: -1%;
+  left: 9%;
+  width: 47%;
+  height: 7%;
   border: .11rem solid #444a48;
   border-radius: .12rem .12rem .24rem .24rem;
   background:
@@ -1767,26 +1784,42 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .food-truck-card__wheel {
   position: absolute;
   z-index: 12;
-  bottom: -18%;
-  left: 14.5%;
-  width: 17%;
+  bottom: -17%;
+  left: 14%;
+  width: 18%;
   aspect-ratio: 1;
   display: block;
   border: .12rem solid #343937;
   border-radius: 50%;
+  padding: 17%;
   background:
-    radial-gradient(circle, #dce0dc 0 13%, #7e8582 14% 29%, #262a29 30% 64%, #111313 65%);
+    radial-gradient(circle at 34% 28%, #4b504e 0 9%, transparent 10%),
+    linear-gradient(145deg, #303534, #111313 68%);
   box-shadow:
     0 .18rem .22rem rgba(30,25,22,.45),
     inset 0 0 0 .12rem rgba(255,255,255,.08);
 }
-.food-truck-card__wheel::after {
-  content: "";
-  position: absolute;
-  inset: 34%;
-  border: .08rem solid #555d59;
+.food-truck-card__wheel-rim {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  border: .09rem solid #5b625f;
   border-radius: 50%;
-  background: #dfe2de;
+  background: radial-gradient(circle, #cfd3cf 0 56%, #8c9390 58% 100%);
+  box-shadow:
+    inset 0 0 0 .08rem rgba(255,255,255,.48),
+    0 0 0 .06rem #252928;
+}
+.food-truck-card__wheel-hub {
+  width: 36%;
+  aspect-ratio: 1;
+  display: block;
+  border: .06rem solid #606764;
+  border-radius: 50%;
+  background: #e4e6e2;
+  box-shadow: inset 0 .05rem rgba(255,255,255,.72);
 }
 .food-truck-card__bumper {
   position: absolute;
