@@ -1,4 +1,4 @@
-export const BURGER_SHOP_ORDER_COUNT = 3;
+export const BURGER_SHOP_ORDER_COUNT = 8;
 export const BURGER_SHOP_ORDER_MS = 45_000;
 
 const EMPTY_SERVED_SNAPSHOT = Object.freeze({

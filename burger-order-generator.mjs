@@ -7,6 +7,11 @@ const DIFFICULTY = Object.freeze({
   1: Object.freeze({ minLayers: 4, maxLayers: 5, sauces: 0 }),
   2: Object.freeze({ minLayers: 5, maxLayers: 6, sauces: 1 }),
   3: Object.freeze({ minLayers: 7, maxLayers: 8, sauces: 1 }),
+  4: Object.freeze({ minLayers: 7, maxLayers: 8, sauces: 1 }),
+  5: Object.freeze({ minLayers: 7, maxLayers: 9, sauces: 2 }),
+  6: Object.freeze({ minLayers: 8, maxLayers: 10, sauces: 2 }),
+  7: Object.freeze({ minLayers: 9, maxLayers: 11, sauces: 2 }),
+  8: Object.freeze({ minLayers: 10, maxLayers: 12, sauces: 2 }),
 });
 
 const FILLING_IDS = Object.freeze([
@@ -22,6 +27,11 @@ const PUBLIC_NAMES = Object.freeze([
   "小馆暖场牛肉堡",
   "今日融金招牌堡",
   "满层丰收高塔堡",
+  "脆爽酸瓜招牌堡",
+  "双酱浓香牛肉堡",
+  "洋葱芝士叠叠堡",
+  "深夜全料挑战堡",
+  "银车终极冠军堡",
 ]);
 
 function nextRandom(random) {
@@ -91,7 +101,7 @@ export function isLegalBurgerOrder(order) {
 
 export function createBurgerOrder({ orderNumber, random = Math.random } = {}) {
   const difficulty = DIFFICULTY[orderNumber];
-  if (!difficulty) throw new RangeError("orderNumber must be 1, 2, or 3");
+  if (!difficulty) throw new RangeError("orderNumber must be between 1 and 8");
   if (typeof random !== "function") throw new TypeError("random must be a function");
 
   const layerCount = difficulty.minLayers

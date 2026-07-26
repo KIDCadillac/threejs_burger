@@ -1,4 +1,5 @@
 import { isLegalBurgerOrder } from "./burger-order-generator.mjs";
+import { BURGER_SHOP_ORDER_COUNT } from "./burger-shop-run-state.mjs";
 import {
   decodeSoloSave,
   hydrateSoloCookingState,
@@ -43,17 +44,21 @@ function normalizeRun(value, { deadlineAt = value?.deadlineAt } = {}) {
     throw new TypeError("invalid runId");
   }
   if (!PHASES.has(value.phase)) throw new TypeError("invalid run phase");
-  if (!Number.isInteger(value.orderNumber) || value.orderNumber < 1 || value.orderNumber > 3) {
+  if (
+    !Number.isInteger(value.orderNumber)
+    || value.orderNumber < 1
+    || value.orderNumber > BURGER_SHOP_ORDER_COUNT
+  ) {
     throw new TypeError("invalid run orderNumber");
   }
-  if (!Array.isArray(value.orders) || value.orders.length > 3) {
+  if (!Array.isArray(value.orders) || value.orders.length > BURGER_SHOP_ORDER_COUNT) {
     throw new TypeError("invalid run orders");
   }
   const orders = Object.freeze(value.orders.map((order) => {
     if (
       !Number.isInteger(order?.number)
       || order.number < 1
-      || order.number > 3
+      || order.number > BURGER_SHOP_ORDER_COUNT
       || !Number.isFinite(order.score)
       || order.score < 0
     ) {
