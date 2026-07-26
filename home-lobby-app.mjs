@@ -21,7 +21,7 @@ import {
   shiftBufferedCardOffset,
   streetShopPose,
   wheelSettleDuration,
-} from "./home-map-carousel-state.mjs?v=20260726-doortiming1";
+} from "./home-map-carousel-state.mjs?v=20260726-captionfollow1";
 import {
   HOME_BUSINESS_KEY,
   HOME_MODE_KEY,
@@ -50,11 +50,11 @@ const bufferedMapSlides = setupBufferedMapSlides();
 const mapArrows = [...document.querySelectorAll("[data-map-direction]")];
 const mapStatus = document.querySelector("#map-status");
 const mapTitle = document.querySelector("#lobby-title");
+const mapCaptionTrack = document.querySelector("#map-caption-track");
+const bufferedMapCaptions = setupBufferedMapCaptions();
 const lobbyStage = document.querySelector(".lobby-stage");
 const modeLabel = document.querySelector("#home-mode-label");
 const modeHint = document.querySelector("#home-mode-hint");
-const businessToggle = document.querySelector("[data-business-toggle]");
-const businessLabel = document.querySelector("#business-label");
 let openSheet = null;
 let toastTimer = 0;
 let mapIndex = readMapIndex();
@@ -90,6 +90,49 @@ function setupBufferedMapSlides() {
   });
   mapTrack.replaceChildren(...slots);
   return slots;
+}
+
+function setupBufferedMapCaptions() {
+  if (!mapCaptionTrack || !HOME_MAPS.length) return [];
+  const slots = [-2, -1, 0, 1, 2].map((offset) => {
+    const caption = document.createElement("div");
+    caption.className = "map-caption";
+    caption.dataset.captionOffset = String(offset);
+    caption.innerHTML = "<strong></strong>";
+    return caption;
+  });
+  mapCaptionTrack.replaceChildren(...slots);
+  return slots;
+}
+
+function hydrateBufferedMapCaption(slot, templateIndex, offset) {
+  const map = HOME_MAPS[templateIndex];
+  if (!slot || !map) return;
+  slot.dataset.captionOffset = String(offset);
+  slot.querySelector("strong").textContent = map.title;
+}
+
+function refreshBufferedMapCaptions(activeIndex = mapIndex) {
+  const captionWindow = createMapCardWindow(activeIndex, HOME_MAPS.length);
+  captionWindow.forEach(({ offset, mapIndex: templateIndex }, slotIndex) => {
+    hydrateBufferedMapCaption(bufferedMapCaptions[slotIndex], templateIndex, offset);
+  });
+}
+
+function advanceBufferedMapCaptions(activeIndex, step) {
+  bufferedMapCaptions.forEach((slot) => {
+    const previousOffset = Number(slot.dataset.captionOffset) || 0;
+    const nextOffset = shiftBufferedCardOffset(previousOffset, step);
+    if (Math.abs(nextOffset - previousOffset) > 1) {
+      hydrateBufferedMapCaption(
+        slot,
+        mapIndexAtOffset(activeIndex, nextOffset, HOME_MAPS.length),
+        nextOffset,
+      );
+    } else {
+      slot.dataset.captionOffset = String(nextOffset);
+    }
+  });
 }
 
 function refreshBufferedMapSlides(activeIndex = mapIndex) {
@@ -226,12 +269,29 @@ function renderWheel(progress = 0) {
     );
     slide.style.zIndex = String(pose.zIndex);
   });
+  renderMapCaptions(dragProgress);
+}
+
+function renderMapCaptions(progress = 0) {
+  const dragProgress = Math.max(-1, Math.min(1, Number(progress) || 0));
+  bufferedMapCaptions.forEach((caption) => {
+    const offset = Number(caption.dataset.captionOffset) || 0;
+    const relativeOffset = offset - dragProgress;
+    const distance = Math.abs(relativeOffset);
+    caption.style.transform =
+      `translate3d(${relativeOffset * 100}%, 0, 0) scale(${Math.max(.88, 1 - distance * .08)})`;
+    caption.style.opacity = String(Math.max(0, 1 - distance));
+    caption.style.zIndex = String(Math.round(10 - distance * 4));
+  });
 }
 
 function setWheelSettleDuration(duration) {
   const milliseconds = `${Math.max(0, Math.round(Number(duration) || 0))}ms`;
   bufferedMapSlides.forEach((slide) => {
     slide.style.setProperty("--wheel-settle-ms", milliseconds);
+  });
+  bufferedMapCaptions.forEach((caption) => {
+    caption.style.setProperty("--wheel-settle-ms", milliseconds);
   });
 }
 
@@ -253,12 +313,22 @@ function setWheelDoorDurations(fromProgress, targetProgress) {
 function resetBufferedWheel({ step = 0 } = {}) {
   wheelFrameScheduler.cancel();
   mapViewport?.classList.add("is-wheel-jump");
-  if (step) advanceBufferedMapSlides(mapIndex, step);
-  else refreshBufferedMapSlides(mapIndex);
+  lobbyStage?.classList.add("is-wheel-jump");
+  if (step) {
+    advanceBufferedMapSlides(mapIndex, step);
+    advanceBufferedMapCaptions(mapIndex, step);
+  } else {
+    refreshBufferedMapSlides(mapIndex);
+    refreshBufferedMapCaptions(mapIndex);
+  }
   renderWheel();
+  renderBusiness();
   afterNextPaint(
     (callback) => requestAnimationFrame(callback),
-    () => mapViewport?.classList.remove("is-wheel-jump"),
+    () => {
+      mapViewport?.classList.remove("is-wheel-jump");
+      lobbyStage?.classList.remove("is-wheel-jump");
+    },
   );
 }
 
@@ -351,27 +421,48 @@ function activateMode() {
 }
 
 function renderBusiness() {
-  const map = HOME_MAPS[mapIndex];
-  const available = Boolean(map?.available);
-  businessToggle?.toggleAttribute("disabled", !available);
-  businessToggle?.classList.toggle("is-disabled", !available);
-  businessToggle?.setAttribute("aria-disabled", String(!available));
-  businessToggle?.setAttribute("aria-pressed", String(available && businessOpen));
-  lobbyStage?.classList.toggle("is-open", available && businessOpen);
-  if (!available) {
-    if (businessLabel) businessLabel.textContent = "新店筹备";
-    if (mapStatus) mapStatus.textContent = "暂未营业";
-    return;
-  }
-  if (businessLabel) businessLabel.textContent = businessOpen ? "点击关门打烊" : "点击开门营业";
-  if (mapStatus) mapStatus.textContent = businessOpen ? "营业中" : "已打烊";
+  const activeMap = HOME_MAPS[mapIndex];
+  const activeOpen = Boolean(activeMap?.available && businessOpen);
+  lobbyStage?.classList.toggle("is-open", activeOpen);
+
+  document.querySelectorAll("[data-business-toggle]").forEach((control) => {
+    const slide = control.closest("[data-home-map]");
+    const map = HOME_MAPS.find((entry) => entry.id === slide?.dataset.homeMap);
+    const available = Boolean(map?.available);
+    const status = control.querySelector("[data-business-status]");
+    const action = control.querySelector("[data-business-action]");
+    const grip = control.querySelector("[data-business-grip]");
+
+    control.toggleAttribute("disabled", !available);
+    control.classList.toggle("is-disabled", !available);
+    control.setAttribute("aria-disabled", String(!available));
+    control.setAttribute("aria-pressed", String(available && businessOpen));
+
+    if (!available) {
+      if (status) status.textContent = "新店筹备";
+      if (action) action.textContent = "暂未营业";
+      if (grip) grip.textContent = "新店筹备中";
+      control.setAttribute("aria-label", `${map?.title || "新店"}暂未营业，新店筹备中`);
+      return;
+    }
+
+    const statusText = businessOpen ? "营业中" : "已打烊";
+    const actionText = businessOpen ? "点击关门打烊" : "点击开门营业";
+    if (status) status.textContent = statusText;
+    if (action) action.textContent = actionText;
+    if (grip) grip.textContent = `${statusText} · ${businessOpen ? "点我打烊" : "点我开门"}`;
+    control.setAttribute("aria-label", `${map.title}${statusText}，${actionText}`);
+  });
 }
 
-function replayBusinessFlip() {
-  if (!businessToggle) return;
-  businessToggle.classList.remove("is-flipping");
-  void businessToggle.offsetWidth;
-  businessToggle.classList.add("is-flipping");
+function replayShutterStatus() {
+  const status = mapViewport
+    ?.querySelector('.home-map-slide[data-card-offset="0"] [data-business-toggle]')
+    ?.querySelector(".shop-shutter__status");
+  if (!status) return;
+  status.classList.remove("is-changing");
+  void status.offsetWidth;
+  status.classList.add("is-changing");
 }
 
 function toggleBusiness() {
@@ -383,8 +474,8 @@ function toggleBusiness() {
   businessOpen = !businessOpen;
   writeBusinessOpen(businessOpen);
   renderBusiness();
-  replayBusinessFlip();
-  showToast(businessOpen ? "挂牌翻到营业中，欢迎光临！" : "挂牌翻到已打烊，今天辛苦了");
+  replayShutterStatus();
+  showToast(businessOpen ? "卷帘门显示营业中，欢迎光临！" : "卷帘门显示已打烊，今天辛苦了");
 }
 
 function selectMap(nextIndex, { persist = true } = {}) {
@@ -409,6 +500,7 @@ function beginShopTransition(step, nextIndex, { persist = true, fromProgress = 0
   renderWheel(fromProgress);
   const doorDuration = setWheelDoorDurations(fromProgress, step);
   mapViewport?.classList.remove("is-dragging");
+  lobbyStage?.classList.remove("is-dragging-map");
   mapViewport?.setAttribute("aria-busy", "true");
   lobbyStage?.classList.add("is-switching-shop");
 
@@ -436,6 +528,7 @@ function snapWheelBack(fromProgress = 0) {
   setWheelSettleDuration(duration);
   const doorDuration = setWheelDoorDurations(fromProgress, 0);
   mapViewport?.classList.remove("is-dragging");
+  lobbyStage?.classList.remove("is-dragging-map");
   mapViewport?.setAttribute("aria-busy", "true");
   renderWheel();
   queueWheelFinish(Math.max(duration, doorDuration));
@@ -456,6 +549,7 @@ function beginMapDrag(event) {
   gestureMoved = false;
   suppressMapClick = false;
   mapViewport.classList.add("is-dragging");
+  lobbyStage?.classList.add("is-dragging-map");
   mapViewport.setPointerCapture?.(event.pointerId);
 }
 
@@ -491,6 +585,7 @@ function endMapDrag(event, cancelled = false) {
   if (cancelled) {
     wheelFrameScheduler.cancel();
     mapViewport.classList.remove("is-dragging");
+    lobbyStage?.classList.remove("is-dragging-map");
     renderWheel();
     resetModePreview();
     return;
@@ -512,6 +607,7 @@ function endMapDrag(event, cancelled = false) {
   }
   wheelFrameScheduler.cancel();
   mapViewport.classList.remove("is-dragging");
+  lobbyStage?.classList.remove("is-dragging-map");
   if (gestureAxis === "vertical") {
     const direction = resolveModeSwipe({
       deltaY: dragDeltaY,
@@ -612,11 +708,6 @@ document.addEventListener("click", (event) => {
   }
 });
 
-businessToggle?.addEventListener("click", toggleBusiness);
-businessToggle?.addEventListener("animationend", () => {
-  businessToggle.classList.remove("is-flipping");
-});
-
 mapArrows.forEach((arrow) => {
   arrow.addEventListener("click", () => moveMap(Number(arrow.dataset.mapDirection)));
 });
@@ -631,7 +722,18 @@ mapViewport?.addEventListener("click", (event) => {
     event.preventDefault();
     return;
   }
+  const businessControl = event.target.closest("[data-business-toggle]");
+  if (businessControl) {
+    event.preventDefault();
+    if (!businessControl.disabled) toggleBusiness();
+    return;
+  }
   activateMode();
+});
+mapViewport?.addEventListener("animationend", (event) => {
+  if (event.target.classList?.contains("shop-shutter__status")) {
+    event.target.classList.remove("is-changing");
+  }
 });
 mapViewport?.addEventListener("keydown", (event) => {
   if (event.key === "ArrowLeft") {
@@ -674,6 +776,7 @@ window.addEventListener("keydown", (event) => {
 renderProgress();
 requestAnimationFrame(() => {
   refreshBufferedMapSlides();
+  refreshBufferedMapCaptions();
   renderMap();
   renderWheel();
   renderMode();

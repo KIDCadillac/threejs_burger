@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f8c948">
     <title>开饭啦 · 汉堡小馆</title>
-    <link rel="stylesheet" href="./home.css?v=20260726-doortiming1">
-    <script type="module" src="./home-lobby-app.mjs?v=20260726-doortiming1"></script>
+    <link rel="stylesheet" href="./home.css?v=20260726-captionfollow1">
+    <script type="module" src="./home-lobby-app.mjs?v=20260726-captionfollow1"></script>
   </head>
   <body>
     <main class="lobby-shell">
@@ -30,15 +30,9 @@
       </header>
 
       <section class="lobby-stage" aria-labelledby="lobby-title">
-        <div class="diner-sign">
-          <button class="business-sign-button" type="button" data-business-toggle aria-pressed="false">
-            <span class="business-sign__board">
-              <i class="business-sign__welcome" aria-hidden="true">WELCOME</i>
-              <small id="map-status">已打烊</small>
-              <strong id="business-label">点击开门营业</strong>
-            </span>
-          </button>
-          <h1 id="lobby-title">汉堡小馆</h1>
+        <div class="diner-sign" aria-live="polite">
+          <h1 id="lobby-title" class="sr-only">汉堡小馆</h1>
+          <div class="map-caption-track" id="map-caption-track" aria-hidden="true"></div>
         </div>
 
         <div class="map-carousel" data-card-wheel>
@@ -80,9 +74,21 @@
                     </div>
                     <span class="steam steam--one">⌁</span>
                     <span class="steam steam--two">⌁</span>
-                    <div class="shop-shutter" aria-hidden="true">
-                      <i></i><i></i><i></i><i></i><b></b>
-                    </div>
+                    <button
+                      class="shop-shutter"
+                      type="button"
+                      data-business-toggle
+                      aria-label="汉堡小馆已打烊，点击开门营业"
+                      aria-pressed="false"
+                    >
+                      <i></i><i></i><i></i><i></i>
+                      <span class="shop-shutter__status">
+                        <small data-business-status>已打烊</small>
+                        <strong data-business-action>点击开门营业</strong>
+                      </span>
+                      <b aria-hidden="true"></b>
+                      <span class="shop-shutter__grip" data-business-grip>已打烊 · 点我开门</span>
+                    </button>
                   </div>
                   <div class="service-counter"><span></span><span></span><span></span></div>
                   <div class="food-truck-shell">
@@ -121,9 +127,22 @@
                       <i class="sushi-piece sushi-piece--tuna"><b></b></i>
                       <i class="sushi-piece sushi-piece--cucumber"><b></b></i>
                     </div>
-                    <div class="shop-shutter shop-shutter--sushi" aria-hidden="true">
-                      <i></i><i></i><i></i><i></i><b></b>
-                    </div>
+                    <button
+                      class="shop-shutter shop-shutter--sushi"
+                      type="button"
+                      data-business-toggle
+                      aria-label="寿司店暂未营业，新店筹备中"
+                      aria-disabled="true"
+                      disabled
+                    >
+                      <i></i><i></i><i></i><i></i>
+                      <span class="shop-shutter__status">
+                        <small data-business-status>暂未营业</small>
+                        <strong data-business-action>新店筹备</strong>
+                      </span>
+                      <b aria-hidden="true"></b>
+                      <span class="shop-shutter__grip" data-business-grip>新店筹备中</span>
+                    </button>
                   </div>
                   <div class="sushi-counter"><span></span><span></span><span></span></div>
                   <div class="sushi-bar-seats"><i></i><i></i><i></i></div>
