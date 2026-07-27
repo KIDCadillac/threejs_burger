@@ -15,11 +15,6 @@ ROOT = Path(__file__).resolve().parents[1]
 ASSET_DIR = ROOT / "art" / "home" / "layered-truck"
 
 ASSETS = {
-    "truck-body.png": ("truck-body.webp", 1600, True),
-    "truck-wheel.png": ("truck-wheel.webp", 560, True),
-    "burger-marquee.png": ("burger-marquee.webp", 900, True),
-    "menu-frame.png": ("menu-frame.webp", 1100, True),
-    "service-shutter.png": ("service-shutter.webp", 1000, True),
     "service-window.png": ("service-window.webp", 1300, False),
     "menu-burger.png": ("menu-burger.webp", 520, False),
     "menu-fries.png": ("menu-fries.webp", 520, False),

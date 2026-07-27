@@ -300,9 +300,24 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 
 .diner-scene--burger {
   isolation: isolate;
+  background:
+    linear-gradient(90deg, transparent 49.6%, rgba(65,42,26,.1) 49.6% 50.4%, transparent 50.4%),
+    linear-gradient(180deg, #7bc0ca 0 55%, #f4cd79 55% 100%);
   box-shadow:
     0 9px 0 rgba(60,37,23,.56),
     inset 0 0 0 1px rgba(255,255,255,.26);
+}
+.diner-scene--burger::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  right: 0;
+  bottom: 9%;
+  left: 0;
+  height: 4px;
+  background: rgba(78,44,27,.2);
+  box-shadow: 0 2.2rem 0 rgba(255,247,208,.18);
+  pointer-events: none;
 }
 .home-map-slide[data-home-map="burger"] .home-card-mode-indicator {
   top: .85rem;
@@ -314,113 +329,346 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   z-index: 2;
   inset: 0;
   overflow: hidden;
-  transform: translate3d(0,0,0) scale(2.1);
-  transform-origin: 61% 58%;
+  transform: translate3d(-4%,-12%,0) scale(1.72);
+  transform-origin: 67% 46%;
   will-change: transform, opacity, filter;
 }
 .burger-truck-camera.is-arriving {
-  animation: burger-truck-camera-arrive 5.4s cubic-bezier(.2,.72,.16,1) both;
+  animation: burger-truck-camera-arrive 5.25s cubic-bezier(.2,.72,.16,1) both;
 }
 .burger-truck-rig {
   position: absolute;
-  right: 3%;
-  bottom: 10%;
-  width: 94%;
-  aspect-ratio: 1.43 / 1;
+  right: 2%;
+  bottom: 7%;
+  width: 96%;
+  aspect-ratio: 1.36 / 1;
   transform-origin: 50% 82%;
 }
-.burger-truck-shell,
-.burger-truck-body,
-.burger-truck-wheel,
-.burger-truck-marquee,
-.burger-menu-machine,
-.burger-service-window {
+.hybrid-truck {
   position: absolute;
+  inset: 0;
 }
-.burger-truck-shell {
+.hybrid-truck__body {
+  position: absolute;
   z-index: 3;
+  top: 24%;
   right: 0;
-  bottom: 0;
+  bottom: 7%;
   left: 0;
-  height: 72%;
+  overflow: hidden;
+  border: 3px solid #3c291c;
+  border-radius: 2.1rem .9rem 1rem 1.4rem;
+  background: #f7e5b7;
+  box-shadow:
+    inset 0 -.45rem 0 #e7b45d,
+    0 .35rem 0 rgba(60,41,28,.2);
   transform-origin: 50% 90%;
 }
-.burger-truck-body {
-  z-index: 3;
-  inset: auto 0 0;
+.hybrid-truck__cab {
+  position: absolute;
+  z-index: 2;
+  inset: 0 auto 0 0;
+  width: 29%;
+  border-right: 3px solid #3c291c;
+  background: #efc35c;
+}
+.hybrid-truck__windshield,
+.hybrid-truck__door-window {
+  position: absolute;
+  display: block;
+  border: 3px solid #3c291c;
+  background: #6fb0ba;
+  box-shadow: inset 0 -.55rem 0 rgba(44,85,90,.2);
+}
+.hybrid-truck__windshield {
+  top: 11%;
+  left: 9%;
+  width: 45%;
+  height: 32%;
+  border-radius: 1rem .35rem .35rem .5rem;
+  transform: skewX(-7deg);
+}
+.hybrid-truck__door-window {
+  top: 11%;
+  right: 7%;
+  width: 34%;
+  height: 32%;
+  border-radius: .35rem;
+}
+.hybrid-truck__door-line {
+  position: absolute;
+  top: 48%;
+  right: 7%;
+  bottom: 9%;
+  width: 40%;
+  border: 3px solid rgba(60,41,28,.72);
+  border-radius: .4rem .4rem 1.1rem .4rem;
+}
+.hybrid-truck__door-line::after {
+  content: "";
+  position: absolute;
+  top: .45rem;
+  right: .38rem;
+  width: 22%;
+  height: 3px;
+  border-radius: 999px;
+  background: #3c291c;
+}
+.hybrid-truck__headlight {
+  position: absolute;
+  bottom: 14%;
+  left: 3%;
+  width: 11%;
+  aspect-ratio: 1;
+  border: 3px solid #3c291c;
+  border-radius: 50%;
+  background: #fff2a8;
+}
+.hybrid-truck__mirror {
+  position: absolute;
+  top: 32%;
+  right: -5%;
+  width: 11%;
+  height: 8%;
+  border: 3px solid #3c291c;
+  border-radius: 999px;
+  background: #f6e5b4;
+}
+.hybrid-truck__shop {
+  position: absolute;
+  inset: 0 0 0 29%;
+  background: #f8e7bb;
+}
+.hybrid-truck__awning {
+  position: absolute;
+  z-index: 8;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  height: 13%;
+  border-bottom: 3px solid #3c291c;
+}
+.hybrid-truck__awning i {
+  display: block;
+  border-right: 2px solid rgba(60,41,28,.42);
+  border-radius: 0 0 .8rem .8rem;
+}
+.hybrid-truck__awning i:nth-child(odd) { background: #fff1c8; }
+.hybrid-truck__awning i:nth-child(even) { background: #e9573f; }
+.hybrid-truck__roof-sign {
+  position: absolute;
+  z-index: 12;
+  top: 2%;
+  left: 48%;
+  display: flex;
+  width: 40%;
+  min-height: 19%;
+  align-items: center;
+  gap: .42rem;
+  padding: .32rem .58rem;
+  border: 3px solid #3c291c;
+  border-radius: 1.1rem 1.1rem .5rem .5rem;
+  color: #442719;
+  background: #fff0b9;
+  box-shadow: 0 .28rem 0 #bc5638;
+  transform: rotate(-1deg);
+}
+.hybrid-truck__roof-sign > span:last-child {
+  display: grid;
+  gap: .02rem;
+  min-width: 0;
+}
+.hybrid-truck__roof-sign strong {
+  font-size: clamp(.62rem, 2.6vw, .88rem);
+  line-height: 1;
+  letter-spacing: .08em;
+  white-space: nowrap;
+}
+.hybrid-truck__roof-sign small {
+  color: #9b5339;
+  font-size: clamp(.34rem, 1.45vw, .48rem);
+  font-weight: 850;
+  white-space: nowrap;
+}
+.hybrid-sign-burger {
+  position: relative;
+  display: block;
+  flex: 0 0 2rem;
+  width: 2rem;
+  height: 1.55rem;
+}
+.hybrid-sign-burger i {
+  position: absolute;
+  left: 50%;
+  display: block;
   width: 100%;
-  height: auto;
+  height: .48rem;
+  border: 2px solid #3c291c;
+  transform: translateX(-50%);
+}
+.hybrid-sign-burger i:nth-child(1) {
+  top: 0;
+  border-radius: 999px 999px .2rem .2rem;
+  background: #efa33a;
+}
+.hybrid-sign-burger i:nth-child(2) {
+  top: .5rem;
+  width: 108%;
+  height: .36rem;
+  border-radius: 999px;
+  background: #70a84c;
+}
+.hybrid-sign-burger i:nth-child(3) {
+  bottom: 0;
+  border-radius: .2rem .2rem 999px 999px;
+  background: #d06037;
 }
 .burger-truck-wheel {
+  position: absolute;
   z-index: 2;
-  bottom: -3%;
+  bottom: 0;
   display: block;
-  width: 18%;
-  height: auto;
-  filter: drop-shadow(0 .45rem .35rem rgba(60,37,23,.28));
+  width: 17%;
+  aspect-ratio: 1;
+  border: .46rem solid #2f2723;
+  border-radius: 50%;
+  background: #d99348;
+  box-shadow:
+    inset 0 0 0 .2rem #6d4932,
+    0 .28rem 0 rgba(60,37,23,.28);
   transform-origin: 50% 50%;
 }
-.burger-truck-wheel--front { left: 8.8%; }
-.burger-truck-wheel--rear { right: 10.8%; }
-.burger-service-window {
-  z-index: 5;
-  top: 25.8%;
-  left: 32.8%;
-  width: 46.4%;
-  height: 43.2%;
-  overflow: hidden;
-  border-radius: .18rem;
-  background: #2a211d;
+.burger-truck-wheel i {
+  position: absolute;
+  inset: 26%;
+  display: block;
+  border: 3px solid #3c291c;
+  border-radius: 50%;
+  background: #f4ce75;
 }
-.burger-service-window__interior,
-.burger-service-window__shutter {
+.burger-truck-wheel--front { left: 7%; }
+.burger-truck-wheel--rear { right: 10%; }
+.hybrid-truck__stripe {
+  position: absolute;
+  z-index: 5;
+  right: 0;
+  bottom: 16%;
+  left: 0;
+  display: block;
+  height: 8%;
+  border-block: 2px solid rgba(60,41,28,.52);
+  background: #dd513b;
+}
+.hybrid-truck__bumper {
+  position: absolute;
+  z-index: 6;
+  right: -1%;
+  bottom: 7%;
+  width: 9%;
+  height: 5%;
+  border: 3px solid #3c291c;
+  border-radius: 999px;
+  background: #f8e7bb;
+}
+.burger-service-window {
+  position: absolute;
+  z-index: 5;
+  top: 38%;
+  right: 7%;
+  bottom: 14%;
+  left: 7%;
+  overflow: hidden;
+  border: 3px solid #3c291c;
+  border-radius: .42rem;
+  background: #493328;
+  box-shadow: 0 .22rem 0 rgba(60,41,28,.28);
+}
+.burger-service-window__interior {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: 50% 54%;
+  filter: saturate(.82) contrast(1.03);
   user-select: none;
   -webkit-user-drag: none;
 }
-.burger-service-window__shutter {
+.burger-service-window__grain {
   position: absolute;
-  z-index: 2;
+  z-index: 1;
   inset: 0;
-  transform: translateY(-102%);
-  will-change: transform;
+  display: block;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      rgba(255,241,196,.045) 0 1px,
+      transparent 1px 4px
+    );
+  pointer-events: none;
 }
-.burger-truck-camera.is-arriving .burger-service-window__shutter {
-  animation: burger-service-shutter-open 1.08s 2.72s cubic-bezier(.28,.78,.22,1) both;
-}
-.burger-menu-machine {
-  z-index: 7;
-  top: -2%;
-  left: 33.8%;
-  width: 43.5%;
-  aspect-ratio: 1100 / 445;
-  filter: drop-shadow(0 .2rem .18rem rgba(60,37,23,.28));
-}
-.burger-menu-machine__frame {
+.burger-service-window__shutter {
   position: absolute;
   z-index: 3;
   inset: 0;
+  display: grid;
+  grid-template-rows: repeat(5, 1fr);
+  border-bottom: 3px solid #3c291c;
+  background: #fff0c2;
+  transform: translateY(-102%);
+  will-change: transform;
+}
+.burger-service-window__shutter i {
   display: block;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
+  border-bottom: 2px solid rgba(60,41,28,.55);
+  background: #fff0c2;
+}
+.burger-service-window__shutter i:nth-child(even) { background: #e9543e; }
+.burger-truck-camera.is-arriving .burger-service-window__shutter {
+  animation: burger-service-shutter-open 1.05s 2.55s cubic-bezier(.28,.78,.22,1) both;
+}
+.burger-menu-machine {
+  position: absolute;
+  z-index: 7;
+  top: 15%;
+  right: 7%;
+  left: 7%;
+  height: 20%;
+  overflow: hidden;
+  border: 3px solid #3c291c;
+  border-radius: .48rem;
+  background: #315a50;
+  box-shadow: 0 .18rem 0 rgba(60,41,28,.25);
+}
+.burger-menu-machine__label {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  left: 3%;
+  width: 24%;
+  color: #fff0bf;
+  font-size: clamp(.38rem, 1.6vw, .56rem);
+  font-weight: 950;
+  letter-spacing: .08em;
+  text-align: center;
+  transform: translateY(-50%);
 }
 .burger-menu-panels {
   position: absolute;
   z-index: 2;
-  inset: 18.2% 7.4% 17.4%;
+  inset: 8% 2.2% 8% 29%;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 4.9%;
+  gap: 2.4%;
 }
 .burger-menu-panel {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  border-radius: .14rem;
+  border: 2px solid #d8a64f;
+  border-radius: .2rem;
+  background: #fff2ca;
   perspective: 16rem;
 }
 .burger-menu-panel__rotor {
@@ -440,25 +688,54 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   height: 100%;
   object-fit: cover;
   object-position: 50% 51%;
+  filter: saturate(.72) contrast(1.05);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
 .burger-menu-panel__face--back { transform: rotateY(180deg); }
-.burger-truck-marquee {
+.hybrid-truck__counter {
+  position: absolute;
   z-index: 8;
-  top: -47%;
-  left: 33.7%;
-  width: 34%;
-  height: auto;
-  filter:
-    drop-shadow(0 .22rem .18rem rgba(105,55,20,.28))
-    saturate(1.04);
+  right: 7%;
+  bottom: 5%;
+  left: 7%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: .35rem;
+  height: 8%;
+  padding: 0 .42rem;
+  border: 2px solid #3c291c;
+  border-radius: .28rem;
+  color: #fff4cf;
+  background: #b64f34;
+  font-size: clamp(.33rem, 1.4vw, .47rem);
 }
-.burger-truck-camera.is-arriving .burger-truck-shell {
+.hybrid-truck__counter span {
+  padding: .08rem .28rem;
+  border-radius: 999px;
+  color: #943c2b;
+  background: #fff0c6;
+  font-weight: 950;
+}
+.hybrid-truck__counter strong {
+  justify-self: center;
+  letter-spacing: .09em;
+}
+.hybrid-truck__counter i {
+  width: .65rem;
+  height: .24rem;
+  border-radius: 999px;
+  background: #f6c85f;
+}
+.burger-truck-camera.is-arriving .hybrid-truck__body {
   animation: burger-truck-brake-bounce 3.15s cubic-bezier(.2,.72,.16,1) both;
 }
 .burger-truck-camera.is-arriving .burger-truck-wheel {
   animation: burger-truck-wheel-roll 2.85s cubic-bezier(.18,.62,.32,1) both;
+}
+.burger-truck-camera.is-arriving .hybrid-truck__roof-sign {
+  animation: hybrid-truck-sign-pop .72s 2.66s cubic-bezier(.2,.88,.2,1.16) both;
 }
 .truck-replay,
 .truck-service-control {
@@ -558,11 +835,11 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 @keyframes burger-truck-camera-arrive {
   0% {
     opacity: 0;
-    filter: saturate(.88) brightness(.92);
-    transform: translate3d(126%,1.5%,0) scale(.84);
+    filter: saturate(.88) brightness(.96);
+    transform: translate3d(132%,1.5%,0) scale(.8);
   }
   5% { opacity: 1; }
-  18% { transform: translate3d(73%,.8%,0) scale(.9); }
+  19% { transform: translate3d(72%,.8%,0) scale(.88); }
   43% {
     filter: saturate(1) brightness(1);
     transform: translate3d(0,0,0) scale(1);
@@ -570,11 +847,11 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   49% { transform: translate3d(-2.6%,.4%,0) scale(1.01); }
   54% { transform: translate3d(.75%,-.15%,0) scale(1); }
   60% { transform: translate3d(0,0,0) scale(1); }
-  72% { transform: translate3d(0,0,0) scale(1); }
+  70% { transform: translate3d(0,0,0) scale(1); }
   100% {
     opacity: 1;
-    filter: saturate(1.03) brightness(1.01);
-    transform: translate3d(0,0,0) scale(2.1);
+    filter: saturate(1) brightness(1);
+    transform: translate3d(-4%,-12%,0) scale(1.72);
   }
 }
 @keyframes burger-truck-brake-bounce {
@@ -591,6 +868,11 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 @keyframes burger-service-shutter-open {
   0%, 18% { transform: translateY(0); }
   100% { transform: translateY(-102%); }
+}
+@keyframes hybrid-truck-sign-pop {
+  0% { opacity: 0; transform: translateY(.7rem) rotate(-1deg) scale(.86); }
+  70% { opacity: 1; transform: translateY(-.08rem) rotate(-1deg) scale(1.03); }
+  100% { opacity: 1; transform: translateY(0) rotate(-1deg) scale(1); }
 }
 @keyframes burger-menu-panel-rotate {
   0%, 32% { transform: rotateY(0deg); }

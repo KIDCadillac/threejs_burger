@@ -1,4 +1,4 @@
-"""Create visual QA evidence for the layered burger-truck scene."""
+"""Create visual QA evidence for the flat/AI hybrid burger-truck scene."""
 
 from __future__ import annotations
 
@@ -10,19 +10,15 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSET_DIR = ROOT / "art" / "home" / "layered-truck"
-OUTPUT_DIR = ROOT / "output" / "burger-truck-layered"
-IMPLEMENTATION = OUTPUT_DIR / "browser-final-phone-v3.png"
+OUTPUT_DIR = ROOT / "output" / "burger-truck-hybrid"
+ARRIVAL = OUTPUT_DIR / "browser-arrival-phone.png"
+FINAL = OUTPUT_DIR / "browser-final-phone.png"
 
 ASSETS = [
-    ("truck body", "truck-body.webp"),
-    ("wheel", "truck-wheel.webp"),
-    ("service window", "service-window.webp"),
-    ("rolling shutter", "service-shutter.webp"),
-    ("burger marquee", "burger-marquee.webp"),
-    ("menu frame", "menu-frame.webp"),
-    ("burger card", "menu-burger.webp"),
-    ("fries card", "menu-fries.webp"),
-    ("drink card", "menu-drink.webp"),
+    ("service-window insert", "service-window.webp"),
+    ("flat burger card", "menu-burger.webp"),
+    ("flat fries card", "menu-fries.webp"),
+    ("flat drink card", "menu-drink.webp"),
 ]
 
 
@@ -43,31 +39,53 @@ def fit_panel(source: Image.Image, size: tuple[int, int], background: str) -> Im
     return panel
 
 
+def crop_reference_phone(reference: Image.Image) -> Image.Image:
+    """Isolate the phone mockup from the user's annotated reference screenshot."""
+    width, height = reference.size
+    if width >= 900 and height >= 300:
+        return reference.crop((22, 18, 166, min(height - 10, 276)))
+    return reference
+
+
 def build_comparison(reference_path: Path) -> None:
-    reference = Image.open(reference_path)
-    implementation = Image.open(IMPLEMENTATION)
-    panel_size = (430, 760)
-    label_height = 42
-    gap = 22
-    canvas = Image.new("RGB", (panel_size[0] * 2 + gap, panel_size[1] + label_height), "#2b211c")
+    with Image.open(reference_path) as source:
+        reference = crop_reference_phone(source.copy())
+    with Image.open(ARRIVAL) as source:
+        arrival = source.copy()
+    with Image.open(FINAL) as source:
+        final = source.copy()
+
+    panel_size = (372, 744)
+    label_height = 46
+    gap = 18
+    canvas = Image.new(
+        "RGB",
+        (panel_size[0] * 3 + gap * 2, panel_size[1] + label_height),
+        "#241b17",
+    )
     draw = ImageDraw.Draw(canvas)
     font = ImageFont.load_default()
-    canvas.paste(fit_panel(reference, panel_size, "#f8d36d"), (0, label_height))
-    canvas.paste(fit_panel(implementation, panel_size, "#f8d36d"), (panel_size[0] + gap, label_height))
-    draw.text((12, 14), "SOURCE: selected service-window direction", fill="#fff4d8", font=font)
-    draw.text((panel_size[0] + gap + 12, 14), "IMPLEMENTATION: layered final camera", fill="#fff4d8", font=font)
-    canvas.save(OUTPUT_DIR / "reference-vs-layered-final.png", optimize=True)
+    entries = (
+        ("SOURCE: flat mobile-game language", reference),
+        ("ARRIVAL: full truck", arrival),
+        ("FINAL: service-window focus", final),
+    )
+    for index, (label, image) in enumerate(entries):
+        x = index * (panel_size[0] + gap)
+        canvas.paste(fit_panel(image, panel_size, "#f8d36d"), (x, label_height))
+        draw.text((x + 12, 16), label, fill="#fff4d8", font=font)
+    canvas.save(OUTPUT_DIR / "reference-vs-hybrid.png", optimize=True)
 
 
 def build_contact_sheet() -> None:
-    cell = (360, 250)
+    cell = (420, 300)
     label_height = 30
-    sheet = Image.new("RGB", (cell[0] * 3, (cell[1] + label_height) * 3), "#30241e")
+    sheet = Image.new("RGB", (cell[0] * 2, (cell[1] + label_height) * 2), "#30241e")
     draw = ImageDraw.Draw(sheet)
     font = ImageFont.load_default()
     for index, (label, filename) in enumerate(ASSETS):
-        x = (index % 3) * cell[0]
-        y = (index // 3) * (cell[1] + label_height)
+        x = (index % 2) * cell[0]
+        y = (index // 2) * (cell[1] + label_height)
         background = checkerboard(cell)
         with Image.open(ASSET_DIR / filename) as asset:
             thumb = ImageOps.contain(asset.convert("RGBA"), (cell[0] - 24, cell[1] - 24), Image.Resampling.LANCZOS)
@@ -78,7 +96,7 @@ def build_contact_sheet() -> None:
             )
         sheet.paste(background, (x, y))
         draw.text((x + 10, y + cell[1] + 10), label, fill="#fff4d8", font=font)
-    sheet.save(OUTPUT_DIR / "layer-assets-contact-sheet.png", optimize=True)
+    sheet.save(OUTPUT_DIR / "hybrid-raster-assets.png", optimize=True)
 
 
 def main() -> None:
