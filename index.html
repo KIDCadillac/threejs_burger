@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f8c948">
     <title>开饭啦 · 汉堡小馆</title>
-    <link rel="stylesheet" href="./home.css?v=20260727-burgertruck1">
-    <script type="module" src="./home-lobby-app.mjs?v=20260727-burgertruck1"></script>
+    <link rel="stylesheet" href="./home.css?v=20260727-burgertruck2">
+    <script type="module" src="./home-lobby-app.mjs?v=20260727-burgertruck2"></script>
   </head>
   <body>
     <main class="lobby-shell">
@@ -54,33 +54,95 @@
                 </div>
                 <div class="diner-scene diner-scene--burger">
                   <div class="burger-truck-camera is-arriving" data-truck-camera aria-hidden="true">
-                    <div class="burger-truck-camera__asset">
+                    <div class="burger-truck-rig">
                       <img
-                        class="burger-truck-camera__art"
-                        src="./art/home/burger-truck-master.png"
+                        class="burger-truck-wheel burger-truck-wheel--front"
+                        src="./art/home/layered-truck/truck-wheel.webp"
                         alt=""
-                        width="941"
-                        height="1672"
+                        width="560"
+                        height="563"
                         loading="eager"
                         decoding="async"
                       >
-                      <div class="burger-menu-flip" aria-hidden="true">
-                        <div class="burger-menu-flip__rotor">
+                      <img
+                        class="burger-truck-wheel burger-truck-wheel--rear"
+                        src="./art/home/layered-truck/truck-wheel.webp"
+                        alt=""
+                        width="560"
+                        height="563"
+                        loading="eager"
+                        decoding="async"
+                      >
+                      <div class="burger-truck-shell">
+                        <img
+                          class="burger-truck-body"
+                          src="./art/home/layered-truck/truck-body.webp"
+                          alt=""
+                          width="1407"
+                          height="690"
+                          loading="eager"
+                          decoding="async"
+                        >
+                        <div class="burger-service-window">
                           <img
-                            class="burger-menu-flip__face burger-menu-flip__face--front"
-                            src="./art/home/burger-menu-front.png"
+                            class="burger-service-window__interior"
+                            src="./art/home/layered-truck/service-window.webp"
                             alt=""
-                            width="458"
-                            height="160"
+                            width="1300"
+                            height="732"
+                            loading="eager"
+                            decoding="async"
                           >
                           <img
-                            class="burger-menu-flip__face burger-menu-flip__face--back"
-                            src="./art/home/burger-menu-back.png"
+                            class="burger-service-window__shutter"
+                            src="./art/home/layered-truck/service-shutter.webp"
                             alt=""
-                            width="458"
-                            height="160"
+                            width="1000"
+                            height="552"
+                            loading="eager"
+                            decoding="async"
                           >
                         </div>
+                        <div class="burger-menu-machine">
+                          <div class="burger-menu-panels">
+                            <div class="burger-menu-panel burger-menu-panel--one">
+                              <div class="burger-menu-panel__rotor">
+                                <img class="burger-menu-panel__face" src="./art/home/layered-truck/menu-burger.webp" alt="">
+                                <img class="burger-menu-panel__face burger-menu-panel__face--back" src="./art/home/layered-truck/menu-fries.webp" alt="">
+                              </div>
+                            </div>
+                            <div class="burger-menu-panel burger-menu-panel--two">
+                              <div class="burger-menu-panel__rotor">
+                                <img class="burger-menu-panel__face" src="./art/home/layered-truck/menu-fries.webp" alt="">
+                                <img class="burger-menu-panel__face burger-menu-panel__face--back" src="./art/home/layered-truck/menu-drink.webp" alt="">
+                              </div>
+                            </div>
+                            <div class="burger-menu-panel burger-menu-panel--three">
+                              <div class="burger-menu-panel__rotor">
+                                <img class="burger-menu-panel__face" src="./art/home/layered-truck/menu-drink.webp" alt="">
+                                <img class="burger-menu-panel__face burger-menu-panel__face--back" src="./art/home/layered-truck/menu-burger.webp" alt="">
+                              </div>
+                            </div>
+                          </div>
+                          <img
+                            class="burger-menu-machine__frame"
+                            src="./art/home/layered-truck/menu-frame.webp"
+                            alt=""
+                            width="1100"
+                            height="445"
+                            loading="eager"
+                            decoding="async"
+                          >
+                        </div>
+                        <img
+                          class="burger-truck-marquee"
+                          src="./art/home/layered-truck/burger-marquee.webp"
+                          alt=""
+                          width="900"
+                          height="790"
+                          loading="eager"
+                          decoding="async"
+                        >
                       </div>
                     </div>
                   </div>

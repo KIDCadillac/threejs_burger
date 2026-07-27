@@ -1,159 +1,18 @@
 # 汉堡游戏：笔记本 → 台式机交接
 
 最后更新：2026-07-27
+
 仓库：`https://github.com/KIDCadillac/threejs_burger`
-当前工作分支：`codex/burger-art-redesign`
-分支基线：`3f7b27c feat: animate mode crew transitions`
-餐车实现提交：`19294c2 feat: redesign burger truck arrival`
 
-## 当前同步状态
+工作分支：`codex/burger-art-redesign`
 
-- `main` 与 `origin/main` 仍指向同一个基线提交 `3f7b27c`。
-- 餐车改造在独立分支 `codex/burger-art-redesign` 上进行，没有直接覆盖 `main`。
-- 本轮已经修改首页运行代码并新增正式餐车美术资产。
-- 餐车实现已提交为 `19294c2`；本文件所在提交是随后补充的交接记录。
-- 远端交接入口：`origin/codex/burger-art-redesign`。
-- `output/` 里同时包含旧审计证据和本轮 QA 证据；提交时只应选择需要交接的文件，不要把 raw 截图全部加入 Git。
+## 先看结论
 
-## 本轮选定方案
+第一版餐车实现已被用户正确否决：它只有一张 `burger-truck-master.png`，动画只是整图位移和缩放，属于“会动的海报”，与页面割裂。该版本保留在 Git 历史提交 `19294c2`，当前分支已经换成真正的分层实现。
 
-用户明确选择：
+现在的餐车由独立车身、两只独立车轮、出餐窗口、卷帘、顶部汉堡招牌、三联菜单机械框和三张食物卡组成。车轮旋转、车身刹停、卷帘打开、镜头推进和菜单翻转分别运动。
 
-- 第 1 张概念图作为动画起点：整台餐车从右侧驶入卡片。
-- 第 2 张概念图作为最终画面：镜头推进到出餐窗口局部。
-- 必须有连续动画，不是两张截图硬切。
-
-最终镜头顺序：
-
-1. 右侧为空，餐车逐步进入卡片。
-2. 整车停到中央，轻微刹停回弹。
-3. 镜头平滑推进到菜单灯箱和出餐窗口。
-4. 最终不显示轮胎，只保留灯箱、厨师双手、主汉堡和出餐台。
-5. 镜头结束后菜单灯箱自动翻面，食品顺序切换。
-
-## 本轮已经实现
-
-### 正式美术资产
-
-- `art/home/burger-truck-master.png`
-  - 941 × 1672。
-  - 暖奶油色、红黄条纹、美式餐车、汉堡发光招牌、开放出餐窗。
-  - 两个轮胎始终位于车身下部。
-  - 窗口里包含厨师双手、分层清楚的汉堡、薯条和饮料。
-- `art/home/burger-menu-front.png`
-- `art/home/burger-menu-back.png`
-  - 两张均为 458 × 160。
-  - 作为翻转菜单灯箱的前后面，循环切换汉堡、薯条和饮料顺序。
-
-### 首页代码
-
-修改文件：
-
-- `index.html`
-- `home.css`
-- `home-lobby-app.mjs`
-
-具体变化：
-
-- 删除汉堡卡片里原来的 CSS 拼装餐车、CSS 汉堡、CSS 厨师和大圆轮胎节点。
-- 使用一张完整餐车原画作为同一镜头源，避免不同图片切换造成跳变。
-- 新增 4.8 秒餐车镜头动画：驶入、刹停、停稳、推进。
-- 最终镜头缩放为 2.32，轮胎退出画面，焦点落在出餐窗口。
-- 新增菜单灯箱 3D 翻面循环。
-- 新增 `重播进场` 按钮。
-- 保留并重做 `开门营业 / 关门打烊` 按钮；营业状态仍写入原来的首页状态逻辑。
-- 重播期间两个按钮使用 `hidden` 隐藏，动画结束后恢复。
-- 修复重播按钮点击穿透到料理台的问题。
-- 保留现有 `prefers-reduced-motion` 降级。
-- 更新首页 CSS 与 JS 查询版本为 `20260727-burgertruck1`。
-
-### 黑色圆坨处理
-
-- 新实现里没有任何大号黑色圆盘、备用轮胎、锅、扬声器或无语义圆形物。
-- 轮胎只存在于餐车原画底部。
-- 最终近景会把轮胎完整裁出卡片视野。
-- 台式机如果仍看到黑色圆坨，说明它来自台式机未提交差异或旧缓存，不是本分支的新实现。
-
-## 已完成工作
-
-### 1. 完整产品审计
-
-- 已重新检查首页、模式切换、配方选择、3D 料理台和双人流程。
-- 本地报告：`output/product-design-audit/audit-report.md`
-- 本地截图：`output/product-design-audit/01-first-entry.png` 至 `09-after-drag.png`
-- Figma 审计板：
-  `https://www.figma.com/design/3DwMt8gCEgwh00Vdx3Repi`
-
-主要结论：
-
-- 首页缺少明确的开始 CTA。
-- 模式切换依赖隐藏手势。
-- 双人流程的 A/B 身份和设备交接不清楚。
-- 料理台拖拽可用，但缺少落点、层次、声音和接触反馈。
-- 首页 CSS 卡通、emoji、3D 模型和深色工具 UI 是四套不同的美术语言。
-
-### 2. 汉堡本体美术评估
-
-- 新报告：`output/burger-art-audit/audit-report.md`
-- 当前首页截图：`output/burger-art-audit/01-home-burger-current.png`
-- 当前 3D 四层成品截图：`output/burger-art-audit/02-assembled-burger-current.png`
-- 用户补充黑色圆坨截图：`output/burger-art-audit/03-user-reference-black-blob.png`
-
-评估结论：
-
-- 首页汉堡是规则 CSS 图形，像贴纸。
-- 3D 汉堡主要由圆柱和旋转体组成，番茄和芝士容易被肉饼遮住。
-- 用户截图中的黑色圆坨更像错误放大的轮胎/轮毂或无语义生成物。
-- 当前笔记本 `main` 无法复现黑色圆坨，台式机接手后必须先检查未提交差异。
-
-### 3. 用户确认的美术方向
-
-整体方向：
-
-- 美式汉堡餐车和快餐店。
-- 红色、黄色、黑色、暖白色。
-- 鲜艳、有食欲、稍微卡通化。
-- 不照搬麦当劳品牌标志。
-- 统一为“暖色餐车 + 手作黏土 3D”。
-
-场景必须包含：
-
-- 汉堡餐车。
-- 大型发光门头。
-- 出餐区上方菜单灯箱。
-- 可自动翻转、翻页或滚动换画的动态广告灯牌。
-- 灯牌轮播汉堡、薯条、饮料和套餐。
-
-可使用的名称：
-
-- 旋转灯箱
-- 翻转菜单灯箱
-- 滚动换画灯箱
-- 三面翻广告牌
-
-## 已确认的餐车卡片镜头
-
-用户要求：
-
-> 一整台餐车以渐进方式进入卡片，然后镜头推进，最终只显示局部出餐位置。
-
-实现阶段建议：
-
-1. 整台餐车从右侧驶入卡片。
-2. 车辆停稳并轻微回弹。
-3. 镜头或卡片内容向出餐窗口推进。
-4. 最终只保留出餐窗口、菜单灯箱、厨师和主汉堡。
-5. 轮胎和保险杠必须处在车身下层，并被窗口遮罩裁掉。
-6. 车辆停稳后，动态广告灯牌开始轮播。
-
-## 台式机首先要做的检查
-
-1. 执行 `git status --short --branch`。
-2. 检查是否存在笔记本没有的未提交文件或修改。
-3. 查找黑色圆坨对应的 DOM、Canvas 或 3D 节点。
-4. 如果它只存在于生成图，直接废弃该图，不要继续修补。
-5. 如果它存在于台式机代码，记录节点名和文件位置后删除。
-6. 笔记本分支推送后，台式机执行：
+## 台式机接手命令
 
 ```powershell
 git fetch origin
@@ -161,114 +20,169 @@ git switch codex/burger-art-redesign
 git pull --ff-only
 ```
 
-7. 不要在台式机直接覆盖 `main`；先确认本分支页面正常，再决定是否合并。
+不要直接覆盖台式机上的未提交文件。先执行：
 
-## 下一轮实施顺序
+```powershell
+git status --short --branch
+```
 
-### 已完成：餐车卡片
+如果台式机有本地修改，先记录文件列表并保存，再切换分支。
 
-- 完整餐车进入、停稳、聚焦出餐窗口的三阶段动画已经完成。
-- 黑色圆盘遮挡问题在新实现中已经消失。
-- 菜单灯箱翻面、动画重播和营业状态切换已经完成。
-- reduced-motion 使用项目原有全局降级规则。
+## 当前美术资产
 
-### P0：汉堡可读性
+正式网页资产都在：
 
-预计修改：
+`art/home/layered-truck/`
 
-- `burger-model-3d.mjs`
-- `burger-tuning.mjs`
-- `cooking-solo-stage.mjs`
+- `truck-body.webp`：无轮餐车车身和空出餐口。
+- `truck-wheel.webp`：单独车轮，前后轮复用。
+- `service-window.webp`：厨房、厨师双手和主汉堡。
+- `service-shutter.webp`：独立滚动卷帘。
+- `burger-marquee.webp`：顶部发光汉堡招牌。
+- `menu-frame.webp`：带三个透明开口的菜单机械框。
+- `menu-burger.webp`
+- `menu-fries.webp`
+- `menu-drink.webp`
 
-目标：
+这些资产统一使用奶油白、番茄红、芥末黄、深棕和暖白灯光，属于同一套软质黏土 3D 风格，没有品牌 Logo。
 
-- 放大料理台成品。
-- 使用偏低的三分之四视角。
-- 肉饼改为暖棕色并增加不规则边缘。
-- 芝士扩大并自然下垂。
-- 番茄改为可辨认切片。
-- 生菜改为多层褶皱。
-- 保证每一层都有可见轮廓和接触阴影。
+旧的单图文件 `burger-truck-master.png`、`burger-menu-front.png` 和 `burger-menu-back.png` 已从当前版本删除；需要追溯时查看提交 `19294c2`。
 
-### P1：统一美术语言
+## 代码改动
 
-- 首页汉堡不再使用规则 CSS 拼图作为最终资产。
-- 首页与料理台使用同一套比例、色板、材质和轮廓规则。
-- 菜单灯箱、按钮、配方图标和 3D 食材统一圆角、描边和光照。
+### `index.html`
 
-### P2：动态灯牌与声音
+- 删除单张整车截图和镜像菜单裁图。
+- 改为 13 个实际图片节点：
+  - 2 个车轮节点；
+  - 1 个车身；
+  - 1 个出餐窗口；
+  - 1 个卷帘；
+  - 6 个菜单正反面；
+  - 1 个菜单机械框；
+  - 1 个顶部招牌。
+- 首页 CSS 和 JS 缓存版本更新为 `20260727-burgertruck2`。
 
-- 灯牌翻面与汉堡、薯条、饮料顺序切换已经完成。
-- 套餐画面可以在下一轮增加第三张灯牌面。
-- 增加车轮、停车、灯箱翻页和出餐提示音。
+### `home.css`
 
-## 本轮 QA 与证据
+- `.burger-truck-rig`：整车舞台。
+- `.burger-truck-shell`：车身、窗口、灯箱和招牌组合层。
+- `.burger-truck-wheel--front / --rear`：独立车轮。
+- `.burger-service-window`：出餐窗口裁切区域。
+- `.burger-service-window__shutter`：卷帘。
+- `.burger-menu-machine`：菜单框。
+- `.burger-menu-panel__rotor`：三块错峰翻转面板。
+- `.burger-truck-marquee`：顶部汉堡灯牌。
+
+关键动画：
+
+1. `burger-truck-camera-arrive`：整车从右侧驶入，停稳后把镜头推进到出餐窗口。
+2. `burger-truck-wheel-roll`：车轮独立旋转。
+3. `burger-truck-brake-bounce`：车身刹停回弹。
+4. `burger-service-shutter-open`：卷帘上升。
+5. `burger-menu-panel-rotate`：菜单面板错峰翻页。
+
+最终镜头缩放为 2.1，焦点位于菜单灯箱和出餐窗口。轮胎会退出最终画面，符合“最后只显示局部出餐位置”的要求。
+
+### `home-lobby-app.mjs`
+
+- 沿用已有重播逻辑。
+- 重播期间隐藏 `重播进场` 和营业按钮。
+- `burger-truck-camera-arrive` 结束后恢复控件。
+- 重播按钮点击不会穿透进入料理台。
+- 营业按钮继续同步 `aria-pressed`、文字与 toast。
+
+## 动画时间线
+
+1. 餐车从卡片右侧驶入；车轮旋转。
+2. 整车完整进入卡片并刹停；车身轻微回弹。
+3. 出餐卷帘上升，厨房和主汉堡出现。
+4. 镜头从 1 倍推进到 2.1 倍，聚焦菜单灯箱和出餐窗口。
+5. 三块菜单面板持续错峰翻转，轮换汉堡、薯条和饮料。
+6. 动画结束后恢复重播和营业控件。
+
+## QA 证据
 
 根目录报告：
 
 - `design-qa.md`
 - 最终结果：`passed`
 
-处理后的关键帧：
+关键证据：
 
-- `output/burger-truck-implementation/01-arrival.png`
-- `output/burger-truck-implementation/02-brake.png`
-- `output/burger-truck-implementation/03-focus.png`
+- `output/burger-truck-layered/browser-final-phone.png`：最终带交互近景。
+- `output/burger-truck-layered/browser-final-full.png`：浏览器完整截图。
+- `output/burger-truck-layered/reference-vs-layered-final.png`：选定概念图与最终实现同屏比较。
+- `output/burger-truck-layered/layer-assets-contact-sheet.png`：九类独立资产总览。
 
-比较证据：
+已验证：
 
-- `output/burger-truck-implementation/source-option2.png`
-- `output/burger-truck-implementation/qa-comparison-full.png`
-- `output/burger-truck-implementation/qa-comparison-focus.png`
-
-已经验证：
-
-- 390 × 844 主视口。
-- 320 × 700 窄屏覆盖，没有横向溢出。
-- 重播按钮不会误进料理台。
-- 重播期间按钮隐藏，动画结束后恢复。
-- 开门 / 打烊状态和 `aria-pressed` 同步。
-- 菜单灯箱会翻面并切换食品顺序。
+- 13 个餐车图片节点全部加载成功。
+- 车轮、车身、卷帘、镜头和菜单不是同一个动画。
+- 重播按钮工作，不会误进料理台。
+- 开门/打烊状态按 `false → true → false` 正常切换。
 - 页面控制台错误为 0。
-- `home-lobby-app.mjs` 通过 Node.js 语法检查。
+- 装饰图为空 `alt`，按钮保留可访问名称和焦点样式。
+- `prefers-reduced-motion` 沿用项目原有全局降级。
 
-## 本地运行与验证
+## 本地运行
 
-在仓库根目录运行：
+在仓库根目录：
 
 ```powershell
 python -m http.server 4173 --bind 127.0.0.1
 ```
 
-检查页面：
+检查：
 
 - 首页：`http://127.0.0.1:4173/`
 - 料理台：`http://127.0.0.1:4173/cooking.html`
 - 双人模式：`http://127.0.0.1:4173/replica-duel.html`
 
-必须验证：
+## 生成与压缩工具
 
-1. 390 × 844 主竖屏，以及 320 × 700 窄屏。
-2. 餐车进场过程中没有对象盖住出餐窗口。
-3. 运动结束后仅显示局部出餐位置。
-4. reduced-motion 模式没有长距离驶入或缩放。
-5. 四层基础汉堡里，面包、肉饼、芝士、番茄都能明显辨认。
-6. 首页汉堡与料理台汉堡在色板和造型上属于同一套美术。
+- `scripts/optimize-layered-truck-assets.py`：透明边缘裁切、尺寸限制和 WebP 输出。
+- `scripts/extract-browser-snapshot.mjs`：从 Codex 浏览器会话元数据提取最新 QA 截图。
+- `scripts/build-burger-truck-qa-evidence.py`：生成参考图对比和分层资产总览。
 
-## 提交前注意
+正式网页只引用压缩后的 WebP。原始生成 PNG 不提交到仓库，避免继续膨胀仓库。
 
-- 建议提交处理后的 3 张关键帧、Source 和 2 张比较图。
-- 不要提交 `*-raw.png`；内置浏览器原始截图是 3 × 3 重复画面，只用于本机裁切。
-- 不要一次性提交整个 `output/`，因为里面还包含旧审计和临时证据。
-- 提交信息应拆分为：
-  1. 餐车卡片与镜头
-  2. 汉堡模型与材质
-  3. 动态灯牌与声音
-- 每个提交都附一张变更前后对比截图。
+## 下一轮工作
 
-## 仍未完成
+### P0：料理台里的 3D 汉堡
 
-- 料理台 3D 汉堡模型尚未修改。
-- 车轮、刹停、灯箱翻页和出餐提示音尚未加入。
-- 餐车主 PNG 约 1.78 MB，后续可转 WebP/AVIF。
-- 本轮代码、正式资产、审计证据、QA 报告和本文档均通过 `codex/burger-art-redesign` 分支交接；台式机不要重新生成这些资产。
+首页餐车已经修好，但料理台 Three.js 汉堡模型仍是旧版本。下一轮重点：
+
+- 面包、肉饼、芝士、番茄和生菜每层都要有明确轮廓。
+- 芝士扩大并自然下垂。
+- 肉饼改为暖棕色，增加不规则边缘。
+- 番茄改为可辨认切片，生菜改为多层褶皱。
+- 成品镜头改为偏低的三分之四视角，放大成品。
+- 让首页汉堡和料理台汉堡共享同一色板、材质和比例。
+
+预计涉及：
+
+- `burger-model-3d.mjs`
+- `burger-tuning.mjs`
+- `cooking-solo-stage.mjs`
+
+### P1：音效与触觉节奏
+
+- 轮胎滚动。
+- 刹车停稳。
+- 卷帘上升。
+- 菜单翻页。
+- 出餐提示。
+
+### P2：菜单扩展
+
+- 增加套餐卡作为第四种内容。
+- 将三块面板的轮播顺序和营业状态关联。
+- 为低性能设备提供更轻量的翻页周期。
+
+## 不要再做
+
+- 不要回退到一张整车截图。
+- 不要用 CSS 圆形、CSS 汉堡、div 画车轮或假菜单。
+- 不要把同一张菜单裁图镜像后当成另一面。
+- 不要在没有浏览器截图和同屏比较的情况下写 `passed`。
