@@ -1,0 +1,299 @@
+[data-layout-id] {
+  translate: var(--layout-x, 0px) var(--layout-y, 0px);
+  rotate: var(--layout-rotate, 0deg);
+  scale: var(--layout-scale, 1);
+  opacity: var(--layout-opacity, 1);
+}
+
+html.layout-editor-active [data-layout-id] {
+  cursor: grab;
+}
+
+html.layout-editor-active [data-layout-id]:hover {
+  outline: 2px dashed rgba(80, 217, 255, 0.78);
+  outline-offset: 3px;
+}
+
+html.layout-editor-active,
+html.layout-editor-active body {
+  overscroll-behavior: none;
+}
+
+.layout-editor-toolbar,
+.layout-editor-inspector,
+.layout-editor-selection {
+  font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+.layout-editor-toolbar {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  z-index: 2147483600;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  width: min(560px, calc(100vw - 24px));
+  padding: 10px;
+  border: 1px solid rgba(255, 239, 191, 0.28);
+  border-radius: 18px;
+  background: rgba(34, 24, 23, 0.94);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.32);
+  color: #fff3d0;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.layout-editor-toolbar__title {
+  display: flex;
+  align-items: center;
+  min-width: 100%;
+  padding: 1px 3px 3px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.layout-editor-toolbar button,
+.layout-editor-inspector button,
+.layout-editor-import-label {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 239, 191, 0.26);
+  border-radius: 12px;
+  background: #4a3430;
+  color: #fff3d0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.layout-editor-toolbar button:hover,
+.layout-editor-inspector button:hover,
+.layout-editor-import-label:hover {
+  background: #664539;
+}
+
+.layout-editor-toolbar button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.layout-editor-toolbar .layout-editor-primary {
+  background: #ffc241;
+  color: #3b251d;
+}
+
+.layout-editor-toolbar .layout-editor-danger {
+  background: #923c32;
+}
+
+.layout-editor-import-label {
+  display: inline-flex;
+  align-items: center;
+}
+
+.layout-editor-import-label input {
+  display: none;
+}
+
+.layout-editor-inspector {
+  position: fixed;
+  top: max(118px, calc(env(safe-area-inset-top) + 118px));
+  right: max(12px, env(safe-area-inset-right));
+  z-index: 2147483599;
+  width: min(310px, calc(100vw - 24px));
+  max-height: calc(100vh - 142px);
+  overflow: auto;
+  padding: 13px;
+  border: 1px solid rgba(255, 239, 191, 0.26);
+  border-radius: 18px;
+  background: rgba(45, 30, 28, 0.95);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.3);
+  color: #fff3d0;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.layout-editor-inspector[hidden] {
+  display: none;
+}
+
+.layout-editor-inspector__heading {
+  margin-bottom: 10px;
+  font-size: 15px;
+  font-weight: 800;
+  word-break: break-all;
+}
+
+.layout-editor-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.layout-editor-field {
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+  color: #eacba5;
+}
+
+.layout-editor-field input[type="number"],
+.layout-editor-field input[type="range"] {
+  width: 100%;
+}
+
+.layout-editor-field input[type="number"] {
+  box-sizing: border-box;
+  min-height: 36px;
+  padding: 0 9px;
+  border: 1px solid rgba(255, 239, 191, 0.24);
+  border-radius: 10px;
+  background: #241918;
+  color: #fff8e7;
+  font: inherit;
+}
+
+.layout-editor-toggle-row,
+.layout-editor-action-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 11px;
+}
+
+.layout-editor-toggle-row label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+}
+
+.layout-editor-selection {
+  position: fixed;
+  z-index: 2147483598;
+  box-sizing: border-box;
+  border: 2px solid #4fe0ff;
+  border-radius: 8px;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 1px rgba(14, 32, 38, 0.72),
+    0 0 18px rgba(79, 224, 255, 0.5);
+}
+
+.layout-editor-selection[hidden] {
+  display: none;
+}
+
+.layout-editor-selection__label {
+  position: absolute;
+  left: -2px;
+  bottom: calc(100% + 5px);
+  max-width: min(260px, 70vw);
+  overflow: hidden;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: #123841;
+  color: white;
+  font-size: 11px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layout-editor-handle {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border: 2px solid #102f36;
+  border-radius: 50%;
+  background: #66e9ff;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.34);
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.layout-editor-handle--scale {
+  right: -14px;
+  bottom: -14px;
+  cursor: nwse-resize;
+}
+
+.layout-editor-handle--rotate {
+  top: -42px;
+  left: calc(50% - 13px);
+  cursor: grab;
+}
+
+.layout-editor-handle--rotate::after {
+  content: "↻";
+  display: grid;
+  height: 100%;
+  place-items: center;
+  color: #123841;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.layout-editor-toast {
+  position: fixed;
+  left: 50%;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  z-index: 2147483601;
+  translate: -50% 16px;
+  padding: 10px 15px;
+  border-radius: 999px;
+  background: rgba(31, 23, 22, 0.94);
+  color: #fff3d0;
+  font: 700 13px/1.25 "PingFang SC", "Microsoft YaHei", sans-serif;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease, translate 160ms ease;
+}
+
+.layout-editor-toast.is-visible {
+  translate: -50% 0;
+  opacity: 1;
+}
+
+@media (max-width: 760px) {
+  .layout-editor-toolbar {
+    top: auto;
+    right: max(8px, env(safe-area-inset-right));
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: max(8px, env(safe-area-inset-left));
+    width: auto;
+    max-height: 128px;
+    overflow: auto;
+    border-radius: 15px;
+  }
+
+  .layout-editor-toolbar__title {
+    min-width: auto;
+    flex: 1 0 100%;
+  }
+
+  .layout-editor-toolbar button,
+  .layout-editor-import-label {
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
+  .layout-editor-inspector {
+    top: max(8px, env(safe-area-inset-top));
+    right: max(8px, env(safe-area-inset-right));
+    width: min(270px, calc(100vw - 16px));
+    max-height: calc(100vh - 154px);
+    padding: 11px;
+  }
+
+  .layout-editor-fields {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .layout-editor-field {
+    font-size: 11px;
+  }
+}

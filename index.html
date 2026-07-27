@@ -6,11 +6,13 @@
     <meta name="theme-color" content="#f8c948">
     <title>开饭啦 · 汉堡小馆</title>
     <link rel="stylesheet" href="./home.css?v=20260727-burgertruck10">
+    <link rel="stylesheet" href="./home-layout-editor.css?v=20260727-layout1">
     <script type="module" src="./home-lobby-app.mjs?v=20260727-burgertruck10"></script>
+    <script type="module" src="./home-layout-editor.mjs?v=20260727-layout1"></script>
   </head>
   <body>
     <main class="lobby-shell">
-      <header class="lobby-hud" aria-label="玩家状态">
+      <header class="lobby-hud" aria-label="玩家状态" data-layout-id="global.hud">
         <button class="round-button" type="button" data-home-action="settings" aria-label="游戏设置">
           <span aria-hidden="true">⚙</span>
         </button>
@@ -30,34 +32,35 @@
       </header>
 
       <section class="lobby-stage" aria-labelledby="lobby-title">
-        <div class="diner-sign" aria-live="polite">
+        <div class="diner-sign" aria-live="polite" data-layout-id="global.title">
           <h1 id="lobby-title" class="sr-only">汉堡小馆</h1>
           <div class="map-caption-track" id="map-caption-track" aria-hidden="true"></div>
         </div>
 
-        <div class="map-carousel" data-card-wheel>
-          <button class="home-map-arrow home-map-arrow--left" type="button" data-map-direction="-1" aria-label="上一张地图">‹</button>
+        <div class="map-carousel" data-card-wheel data-layout-id="global.carousel">
+          <button class="home-map-arrow home-map-arrow--left" type="button" data-map-direction="-1" aria-label="上一张地图" data-layout-id="global.arrow-left">‹</button>
           <div
             class="home-map-viewport"
             id="home-map-viewport"
+            data-layout-id="global.viewport"
             tabindex="0"
             role="region"
             aria-roledescription="地图轮播"
             aria-label="料理地图，左右滑动切换地图"
           >
-            <div class="home-map-track" id="home-map-track">
-              <article class="home-map-slide is-truck-replaying" data-home-map="burger" data-map-template aria-label="汉堡小馆，已开放">
-                <div class="home-card-mode-indicator" data-card-mode-indicator aria-hidden="true">
+            <div class="home-map-track" id="home-map-track" data-layout-id="global.track">
+              <article class="home-map-slide is-truck-replaying" data-home-map="burger" data-map-template aria-label="汉堡小馆，已开放" data-layout-id="burger.card">
+                <div class="home-card-mode-indicator" data-card-mode-indicator aria-hidden="true" data-layout-id="burger.mode">
                   <small>当前玩法</small>
                   <strong data-card-mode-label>自由练习</strong>
                   <span data-card-mode-hint>不限时间</span>
                 </div>
-                <div class="diner-scene diner-scene--burger">
-                  <div class="burger-truck-camera is-arriving" data-truck-camera aria-hidden="true">
-                    <div class="burger-truck-rig">
+                <div class="diner-scene diner-scene--burger" data-layout-id="burger.scene">
+                  <div class="burger-truck-camera is-arriving" data-truck-camera aria-hidden="true" data-layout-id="burger.camera">
+                    <div class="burger-truck-rig" data-layout-id="burger.truck">
                       <div class="silver-truck">
-                        <div class="silver-truck__service">
-                          <div class="burger-menu-machine">
+                        <div class="silver-truck__service" data-layout-id="burger.service">
+                          <div class="burger-menu-machine" data-layout-id="burger.menu">
                             <div class="burger-menu-machine__label">今日菜单</div>
                             <div class="burger-menu-panels">
                               <div class="burger-menu-panel burger-menu-panel--one">
@@ -81,7 +84,7 @@
                             </div>
                           </div>
 
-                          <div class="burger-service-window">
+                          <div class="burger-service-window" data-layout-id="burger.window">
                             <img
                               class="burger-service-window__interior"
                               src="./art/home/layered-truck/service-window-centered.webp"
@@ -94,6 +97,7 @@
                           </div>
                           <img
                             class="burger-service-window__shutter"
+                            data-layout-id="burger.shutter"
                             src="./art/home/layered-truck/silver-truck-shutter.webp"
                             alt=""
                             width="1280"
@@ -104,6 +108,7 @@
 
                         <img
                           class="silver-truck__body"
+                          data-layout-id="burger.body"
                           src="./art/home/layered-truck/silver-truck-body.webp"
                           alt=""
                           width="1539"
@@ -113,6 +118,7 @@
                         >
                         <img
                           class="burger-truck-wheel burger-truck-wheel--front"
+                          data-layout-id="burger.wheel-front"
                           src="./art/home/layered-truck/silver-truck-wheel.webp"
                           alt=""
                           width="560"
@@ -121,13 +127,14 @@
                         >
                         <img
                           class="burger-truck-wheel burger-truck-wheel--rear"
+                          data-layout-id="burger.wheel-rear"
                           src="./art/home/layered-truck/silver-truck-wheel.webp"
                           alt=""
                           width="560"
                           height="572"
                           decoding="async"
                         >
-                        <div class="silver-truck__sign">
+                        <div class="silver-truck__sign" data-layout-id="burger.sign">
                           <img src="./art/home/layered-truck/menu-burger.webp" alt="">
                           <span>
                             <strong>汉堡餐车</strong>
@@ -140,6 +147,7 @@
                   <button class="truck-replay" type="button" data-truck-replay hidden>重播进场</button>
                   <button
                     class="truck-service-control"
+                    data-layout-id="burger.service-control"
                     type="button"
                     data-business-toggle
                     aria-label="汉堡小馆已打烊，点击开门营业"
@@ -153,36 +161,37 @@
                 </div>
               </article>
 
-              <article class="home-map-slide" data-home-map="sushi" data-map-template aria-label="深夜寿司店，筹备中">
-                <div class="home-card-mode-indicator" data-card-mode-indicator aria-hidden="true">
+              <article class="home-map-slide" data-home-map="sushi" data-map-template aria-label="深夜寿司店，筹备中" data-layout-id="sushi.card">
+                <div class="home-card-mode-indicator" data-card-mode-indicator aria-hidden="true" data-layout-id="sushi.mode">
                   <small>当前玩法</small>
                   <strong data-card-mode-label>寿司店</strong>
                   <span data-card-mode-hint>筹备中</span>
                 </div>
-                <div class="diner-scene diner-scene--sushi" aria-hidden="true">
-                  <div class="awning awning--sushi"><i></i><i></i><i></i><i></i><i></i></div>
-                  <div class="sushi-window">
+                <div class="diner-scene diner-scene--sushi" aria-hidden="true" data-layout-id="sushi.scene">
+                  <div class="awning awning--sushi" data-layout-id="sushi.awning"><i></i><i></i><i></i><i></i><i></i></div>
+                  <div class="sushi-window" data-layout-id="sushi.window">
                     <span class="night-moon"></span>
                     <span class="paper-lantern paper-lantern--left">鮨</span>
                     <span class="paper-lantern paper-lantern--right">月</span>
-                    <div class="sushi-preview-copy">
+                    <div class="sushi-preview-copy" data-layout-id="sushi.preview-copy">
                       <small>新店预告</small>
                       <strong>深夜寿司店</strong>
                       <span>切鱼 · 卷寿司 · 双人出餐</span>
                     </div>
-                    <div class="sushi-master">
+                    <div class="sushi-master" data-layout-id="sushi.master">
                       <i class="sushi-master__band"></i>
                       <i class="sushi-master__head"></i>
                       <i class="sushi-master__body"></i>
                     </div>
-                    <div class="sushi-stone-service"></div>
-                    <div class="sushi-platter" data-store-emblem="sushi">
+                    <div class="sushi-stone-service" data-layout-id="sushi.service"></div>
+                    <div class="sushi-platter" data-store-emblem="sushi" data-layout-id="sushi.platter">
                       <i class="sushi-piece sushi-piece--salmon"><b></b></i>
                       <i class="sushi-piece sushi-piece--tuna"><b></b></i>
                       <i class="sushi-piece sushi-piece--cucumber"><b></b></i>
                     </div>
                     <button
                       class="shop-shutter shop-shutter--sushi"
+                      data-layout-id="sushi.shutter"
                       type="button"
                       data-business-toggle
                       aria-label="寿司店暂未营业，新店筹备中"
@@ -198,9 +207,9 @@
                       <span class="shop-shutter__grip" data-business-grip>新店筹备中</span>
                     </button>
                   </div>
-                  <div class="sushi-counter"><span></span><span></span><span></span></div>
-                  <div class="sushi-bar-seats"><i></i><i></i><i></i></div>
-                  <span class="map-lock-note" aria-disabled="true">新店预告 · 寿司店筹备中</span>
+                  <div class="sushi-counter" data-layout-id="sushi.counter"><span></span><span></span><span></span></div>
+                  <div class="sushi-bar-seats" data-layout-id="sushi.seats"><i></i><i></i><i></i></div>
+                  <span class="map-lock-note" aria-disabled="true" data-layout-id="sushi.lock-note">新店预告 · 寿司店筹备中</span>
                 </div>
               </article>
             </div>
@@ -209,19 +218,19 @@
               <span id="home-mode-hint">不限时间</span>
             </div>
           </div>
-          <button class="home-map-arrow home-map-arrow--right" type="button" data-map-direction="1" aria-label="下一张地图">›</button>
+          <button class="home-map-arrow home-map-arrow--right" type="button" data-map-direction="1" aria-label="下一张地图" data-layout-id="global.arrow-right">›</button>
         </div>
 
       </section>
 
-      <nav class="bottom-nav" aria-label="主页导航">
+      <nav class="bottom-nav" aria-label="主页导航" data-layout-id="global.bottom-nav">
         <button class="bottom-nav__item is-active" type="button" aria-current="page"><span aria-hidden="true">⌂</span><strong>小馆</strong></button>
         <button class="bottom-nav__item" type="button" data-home-action="cookbook"><span aria-hidden="true">▦</span><strong>图鉴</strong></button>
         <button class="bottom-nav__item" type="button" data-home-action="daily-checkin"><span aria-hidden="true">✓</span><strong>签到</strong></button>
         <button class="bottom-nav__item" type="button" data-home-action="settings"><span aria-hidden="true">≡</span><strong>更多</strong></button>
       </nav>
 
-      <p class="health-note">健康游戏忠告：适度游戏益脑，沉迷游戏伤身，合理安排时间。</p>
+      <p class="health-note" data-layout-id="global.health-note">健康游戏忠告：适度游戏益脑，沉迷游戏伤身，合理安排时间。</p>
     </main>
 
     <div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
