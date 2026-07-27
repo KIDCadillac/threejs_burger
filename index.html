@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f8c948">
     <title>开饭啦 · 汉堡小馆</title>
-    <link rel="stylesheet" href="./home.css?v=20260727-burgertruck3">
-    <script type="module" src="./home-lobby-app.mjs?v=20260727-burgertruck3"></script>
+    <link rel="stylesheet" href="./home.css?v=20260727-burgertruck10">
+    <script type="module" src="./home-lobby-app.mjs?v=20260727-burgertruck10"></script>
   </head>
   <body>
     <main class="lobby-shell">
@@ -55,84 +55,85 @@
                 <div class="diner-scene diner-scene--burger">
                   <div class="burger-truck-camera is-arriving" data-truck-camera aria-hidden="true">
                     <div class="burger-truck-rig">
-                      <div class="hybrid-truck">
-                        <div class="hybrid-truck__roof-sign">
-                          <span class="hybrid-sign-burger">
-                            <i></i><i></i><i></i>
-                          </span>
+                      <div class="silver-truck">
+                        <div class="silver-truck__service">
+                          <div class="burger-menu-machine">
+                            <div class="burger-menu-machine__label">今日菜单</div>
+                            <div class="burger-menu-panels">
+                              <div class="burger-menu-panel burger-menu-panel--one">
+                                <div class="burger-menu-panel__rotor">
+                                  <img class="burger-menu-panel__face" src="./art/home/layered-truck/menu-burger.webp" alt="">
+                                  <img class="burger-menu-panel__face burger-menu-panel__face--back" src="./art/home/layered-truck/menu-fries.webp" alt="">
+                                </div>
+                              </div>
+                              <div class="burger-menu-panel burger-menu-panel--two">
+                                <div class="burger-menu-panel__rotor">
+                                  <img class="burger-menu-panel__face" src="./art/home/layered-truck/menu-fries.webp" alt="">
+                                  <img class="burger-menu-panel__face burger-menu-panel__face--back" src="./art/home/layered-truck/menu-drink.webp" alt="">
+                                </div>
+                              </div>
+                              <div class="burger-menu-panel burger-menu-panel--three">
+                                <div class="burger-menu-panel__rotor">
+                                  <img class="burger-menu-panel__face" src="./art/home/layered-truck/menu-drink.webp" alt="">
+                                  <img class="burger-menu-panel__face burger-menu-panel__face--back" src="./art/home/layered-truck/menu-burger.webp" alt="">
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="burger-service-window">
+                            <img
+                              class="burger-service-window__interior"
+                              src="./art/home/layered-truck/service-window-centered.webp"
+                              alt=""
+                              width="1300"
+                              height="349"
+                              loading="eager"
+                              decoding="async"
+                            >
+                          </div>
+                          <img
+                            class="burger-service-window__shutter"
+                            src="./art/home/layered-truck/silver-truck-shutter.webp"
+                            alt=""
+                            width="1280"
+                            height="450"
+                            decoding="async"
+                          >
+                        </div>
+
+                        <img
+                          class="silver-truck__body"
+                          src="./art/home/layered-truck/silver-truck-body.webp"
+                          alt=""
+                          width="1539"
+                          height="638"
+                          loading="eager"
+                          decoding="async"
+                        >
+                        <img
+                          class="burger-truck-wheel burger-truck-wheel--front"
+                          src="./art/home/layered-truck/silver-truck-wheel.webp"
+                          alt=""
+                          width="560"
+                          height="572"
+                          decoding="async"
+                        >
+                        <img
+                          class="burger-truck-wheel burger-truck-wheel--rear"
+                          src="./art/home/layered-truck/silver-truck-wheel.webp"
+                          alt=""
+                          width="560"
+                          height="572"
+                          decoding="async"
+                        >
+                        <div class="silver-truck__sign">
+                          <img src="./art/home/layered-truck/menu-burger.webp" alt="">
                           <span>
                             <strong>汉堡餐车</strong>
                             <small>现做 · 热乎 · 出餐</small>
                           </span>
                         </div>
-
-                        <div class="hybrid-truck__body">
-                          <div class="hybrid-truck__cab">
-                            <span class="hybrid-truck__windshield"></span>
-                            <span class="hybrid-truck__door-window"></span>
-                            <span class="hybrid-truck__door-line"></span>
-                            <span class="hybrid-truck__headlight"></span>
-                            <span class="hybrid-truck__mirror"></span>
-                          </div>
-
-                          <div class="hybrid-truck__shop">
-                            <div class="hybrid-truck__awning">
-                              <i></i><i></i><i></i><i></i><i></i>
-                            </div>
-
-                            <div class="burger-menu-machine">
-                              <div class="burger-menu-machine__label">今日菜单</div>
-                              <div class="burger-menu-panels">
-                                <div class="burger-menu-panel burger-menu-panel--one">
-                                  <div class="burger-menu-panel__rotor">
-                                    <img class="burger-menu-panel__face" src="./art/home/layered-truck/menu-burger.webp" alt="">
-                                    <img class="burger-menu-panel__face burger-menu-panel__face--back" src="./art/home/layered-truck/menu-fries.webp" alt="">
-                                  </div>
-                                </div>
-                                <div class="burger-menu-panel burger-menu-panel--two">
-                                  <div class="burger-menu-panel__rotor">
-                                    <img class="burger-menu-panel__face" src="./art/home/layered-truck/menu-fries.webp" alt="">
-                                    <img class="burger-menu-panel__face burger-menu-panel__face--back" src="./art/home/layered-truck/menu-drink.webp" alt="">
-                                  </div>
-                                </div>
-                                <div class="burger-menu-panel burger-menu-panel--three">
-                                  <div class="burger-menu-panel__rotor">
-                                    <img class="burger-menu-panel__face" src="./art/home/layered-truck/menu-drink.webp" alt="">
-                                    <img class="burger-menu-panel__face burger-menu-panel__face--back" src="./art/home/layered-truck/menu-burger.webp" alt="">
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div class="burger-service-window">
-                              <img
-                                class="burger-service-window__interior"
-                                src="./art/home/layered-truck/service-window.webp"
-                                alt=""
-                                width="1300"
-                                height="751"
-                                loading="eager"
-                                decoding="async"
-                              >
-                              <span class="burger-service-window__grain"></span>
-                              <div class="burger-service-window__shutter">
-                                <i></i><i></i><i></i><i></i><i></i>
-                              </div>
-                            </div>
-
-                            <div class="hybrid-truck__counter">
-                              <span>下单</span>
-                              <strong>新鲜现做</strong>
-                              <i></i>
-                            </div>
-                          </div>
-
-                          <span class="hybrid-truck__stripe"></span>
-                          <span class="hybrid-truck__bumper"></span>
-                        </div>
-
-                        <span class="burger-truck-wheel burger-truck-wheel--front"><i></i></span>
-                        <span class="burger-truck-wheel burger-truck-wheel--rear"><i></i></span>
                       </div>
                     </div>
                   </div>

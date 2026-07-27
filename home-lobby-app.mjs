@@ -355,6 +355,12 @@ function finishWheelTransition() {
     pendingMapStep = 0;
     renderMap();
     resetBufferedWheel({ step: arrivedStep });
+    if (HOME_MAPS[mapIndex]?.id === "burger") {
+      afterNextPaint(
+        (callback) => requestAnimationFrame(callback),
+        () => replayActiveTruckArrival(),
+      );
+    }
   } else {
     renderWheel();
   }
@@ -493,7 +499,7 @@ function renderBusiness() {
   });
 }
 
-function replayTruckArrival(control) {
+function replayTruckArrival(control, { announce = true } = {}) {
   const slide = control?.closest('[data-home-map="burger"]');
   const camera = slide?.querySelector("[data-truck-camera]");
   if (!camera) return;
@@ -504,7 +510,16 @@ function replayTruckArrival(control) {
   camera.classList.remove("is-arriving");
   void camera.offsetWidth;
   camera.classList.add("is-arriving");
-  showToast("餐车重新进场，镜头会推进到出餐窗口");
+  if (announce) showToast("餐车重新进场，镜头会推进到出餐窗口");
+}
+
+function replayActiveTruckArrival() {
+  const control = mapViewport?.querySelector(
+    '.home-map-slide[data-card-offset="0"][data-home-map="burger"] [data-truck-replay]',
+  );
+  if (!control) return false;
+  replayTruckArrival(control, { announce: false });
+  return true;
 }
 
 function replayShutterStatus() {
