@@ -4,7 +4,16 @@
 
 仓库：`https://github.com/KIDCadillac/threejs_burger`
 
-工作分支：`codex/burger-art-redesign`
+台式机接手分支：`main`
+
+美术开发分支：`codex/burger-art-redesign`
+
+## 发布状态
+
+- 银色餐车提交已经先推送到 `codex/burger-art-redesign`。
+- 发布前已把远端 `main` 上新增的 12 个提交合入，包括八单连续出餐和宽屏料理台布局。
+- 首页视觉冲突按本轮用户验收结果处理：保留完整银色餐车、居中厨师和返回自动重播；不保留远端旧的 CSS 像素拼装车。
+- GitHub Pages 由 `.github/workflows/pages.yml` 监听 `main`，推送 `main` 后会自动部署。
 
 ## 本轮结果
 
@@ -29,11 +38,18 @@ git status --short --branch
 
 ```powershell
 git fetch origin
-git switch codex/burger-art-redesign
+git switch main
 git pull --ff-only
 ```
 
-先在本地验收首页餐车与料理台，再决定是否合并 `main`。不要直接在有未提交修改的工作区强行切分支。
+台式机直接以 `main` 为准继续开发。不要在有未提交修改的工作区强行切分支。
+
+## 同步保留的远端功能
+
+- 汉堡营业局从 3 单扩展为 8 单。
+- 订单难度、顾客序号、存档校验、结果文案和首页提示同步支持 8 单。
+- 1000 px 以上料理台使用更完整的左右控制台布局。
+- 合并回归已模拟从第 1 单连续完成到第 8 单，最终状态为 `run-result`，8 个订单和总分均正确。
 
 ## 本轮代码改动
 

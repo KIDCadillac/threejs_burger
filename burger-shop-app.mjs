@@ -1,4 +1,5 @@
 import {
+  BURGER_SHOP_ORDER_COUNT,
   BURGER_SHOP_ORDER_MS,
   applyBurgerShopEvent,
   createBurgerShopRun,
@@ -261,7 +262,7 @@ export function bootBurgerShopPage(
           <small>第 ${run.orderNumber} 单</small>
           <strong>${score}</strong>
           <p>${scoreCopy(reaction)}</p>
-          <button type="button" data-shop-action="next">${run.orderNumber >= 3 ? "查看营业结果" : "迎接下一位顾客"}</button>
+          <button type="button" data-shop-action="next">${run.orderNumber >= BURGER_SHOP_ORDER_COUNT ? "查看营业结果" : "迎接下一位顾客"}</button>
         </div>
       `;
     }
@@ -270,7 +271,7 @@ export function bootBurgerShopPage(
       const summary = summaryFactory(run.orders.map((item) => ({ total: item.score })));
       elements.runResult.innerHTML = `
         <div class="shop-result-card shop-result-card--run">
-          <small>三单营业完成</small>
+          <small>${BURGER_SHOP_ORDER_COUNT} 单营业完成</small>
           <strong>${summary.totalScore}</strong>
           <p>${"★".repeat(summary.stars)}${"☆".repeat(3 - summary.stars)} · 获得 ${summary.coins} 金币</p>
           <button type="button" data-shop-action="restart">再营业一次</button>

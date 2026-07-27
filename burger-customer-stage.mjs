@@ -1,3 +1,5 @@
+import { BURGER_SHOP_ORDER_COUNT } from "./burger-shop-run-state.mjs";
+
 const CUSTOMER_ENTER_MS = 420;
 const CUSTOMER_TASTE_MS = 1_250;
 const CUSTOMER_LEAVE_MS = 360;
@@ -19,7 +21,7 @@ function customerMarkup(customer = {}) {
   const name = escapeMarkup(customer.name || "新顾客");
   const color = /^#[\da-f]{6}$/i.test(customer.color ?? "") ? customer.color : "#df8a55";
   const orderNumber = Number.isInteger(customer.orderNumber)
-    ? Math.max(1, Math.min(3, customer.orderNumber))
+    ? Math.max(1, Math.min(BURGER_SHOP_ORDER_COUNT, customer.orderNumber))
     : 1;
   return `
     <span class="shop-character" aria-hidden="true" style="--customer-color:${color}">
@@ -33,7 +35,7 @@ function customerMarkup(customer = {}) {
       <span class="shop-character__effect"></span>
     </span>
     <span class="shop-customer__copy">
-      <small>第 <b data-shop-order-number>${orderNumber}</b>/3 位顾客</small>
+      <small>第 <b data-shop-order-number>${orderNumber}</b>/${BURGER_SHOP_ORDER_COUNT} 位顾客</small>
       <strong data-shop-customer-name>${name}</strong>
     </span>
   `;
