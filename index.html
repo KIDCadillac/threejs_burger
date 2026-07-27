@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f8c948">
     <title>开饭啦 · 汉堡小馆</title>
-    <link rel="stylesheet" href="./home.css?v=20260726-modecrew1">
-    <script type="module" src="./home-lobby-app.mjs?v=20260726-modecrew1"></script>
+    <link rel="stylesheet" href="./home.css?v=20260727-burgertruck1">
+    <script type="module" src="./home-lobby-app.mjs?v=20260727-burgertruck1"></script>
   </head>
   <body>
     <main class="lobby-shell">
@@ -46,63 +46,57 @@
             aria-label="料理地图，左右滑动切换地图"
           >
             <div class="home-map-track" id="home-map-track">
-              <article class="home-map-slide" data-home-map="burger" data-map-template aria-label="汉堡小馆，已开放">
+              <article class="home-map-slide is-truck-replaying" data-home-map="burger" data-map-template aria-label="汉堡小馆，已开放">
                 <div class="home-card-mode-indicator" data-card-mode-indicator aria-hidden="true">
                   <small>当前玩法</small>
                   <strong data-card-mode-label>自由练习</strong>
                   <span data-card-mode-hint>不限时间</span>
                 </div>
-                <div class="diner-scene" aria-hidden="true">
-                  <div class="awning"><i></i><i></i><i></i><i></i><i></i></div>
-                  <div class="order-window">
-                    <span class="menu-board menu-board--one"></span>
-                    <span class="menu-board menu-board--two"></span>
-                    <div class="chef">
-                      <i class="chef__hat"></i>
-                      <i class="chef__head"></i>
-                      <i class="chef__body"></i>
-                      <i class="chef__hand chef__hand--left"></i>
-                      <i class="chef__hand chef__hand--right"></i>
+                <div class="diner-scene diner-scene--burger">
+                  <div class="burger-truck-camera is-arriving" data-truck-camera aria-hidden="true">
+                    <div class="burger-truck-camera__asset">
+                      <img
+                        class="burger-truck-camera__art"
+                        src="./art/home/burger-truck-master.png"
+                        alt=""
+                        width="941"
+                        height="1672"
+                        loading="eager"
+                        decoding="async"
+                      >
+                      <div class="burger-menu-flip" aria-hidden="true">
+                        <div class="burger-menu-flip__rotor">
+                          <img
+                            class="burger-menu-flip__face burger-menu-flip__face--front"
+                            src="./art/home/burger-menu-front.png"
+                            alt=""
+                            width="458"
+                            height="160"
+                          >
+                          <img
+                            class="burger-menu-flip__face burger-menu-flip__face--back"
+                            src="./art/home/burger-menu-back.png"
+                            alt=""
+                            width="458"
+                            height="160"
+                          >
+                        </div>
+                      </div>
                     </div>
-                    <div class="chef chef--partner">
-                      <i class="chef__hat"></i>
-                      <i class="chef__head"></i>
-                      <i class="chef__body"></i>
-                      <i class="chef__hand chef__hand--left"></i>
-                      <i class="chef__hand chef__hand--right"></i>
-                    </div>
-                    <div class="hero-burger" data-store-emblem="burger">
-                      <i class="hero-burger__top"></i>
-                      <i class="hero-burger__leaf"></i>
-                      <i class="hero-burger__tomato"></i>
-                      <i class="hero-burger__cheese"></i>
-                      <i class="hero-burger__patty"></i>
-                      <i class="hero-burger__bottom"></i>
-                    </div>
-                    <span class="steam steam--one">⌁</span>
-                    <span class="steam steam--two">⌁</span>
-                    <button
-                      class="shop-shutter"
-                      type="button"
-                      data-business-toggle
-                      aria-label="汉堡小馆已打烊，点击开门营业"
-                      aria-pressed="false"
-                    >
-                      <i></i><i></i><i></i><i></i>
-                      <span class="shop-shutter__status">
-                        <small data-business-status>已打烊</small>
-                        <strong data-business-action>点击开门营业</strong>
-                      </span>
-                      <b aria-hidden="true"></b>
-                      <span class="shop-shutter__grip" data-business-grip>已打烊 · 点我开门</span>
-                    </button>
                   </div>
-                  <div class="service-counter"><span></span><span></span><span></span></div>
-                  <div class="food-truck-shell">
-                    <i class="food-truck-wheel food-truck-wheel--left"></i>
-                    <i class="food-truck-wheel food-truck-wheel--right"></i>
-                    <span class="food-truck-bumper"></span>
-                  </div>
+                  <button class="truck-replay" type="button" data-truck-replay hidden>重播进场</button>
+                  <button
+                    class="truck-service-control"
+                    type="button"
+                    data-business-toggle
+                    aria-label="汉堡小馆已打烊，点击开门营业"
+                    aria-pressed="false"
+                    hidden
+                  >
+                    <small data-business-status>已打烊</small>
+                    <strong data-business-action>点击开门营业</strong>
+                    <span data-business-grip>已打烊 · 点我开门</span>
+                  </button>
                 </div>
               </article>
 

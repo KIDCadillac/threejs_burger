@@ -493,6 +493,20 @@ function renderBusiness() {
   });
 }
 
+function replayTruckArrival(control) {
+  const slide = control?.closest('[data-home-map="burger"]');
+  const camera = slide?.querySelector("[data-truck-camera]");
+  if (!camera) return;
+  slide.classList.add("is-truck-replaying");
+  slide.querySelectorAll(".truck-replay, .truck-service-control").forEach((button) => {
+    button.hidden = true;
+  });
+  camera.classList.remove("is-arriving");
+  void camera.offsetWidth;
+  camera.classList.add("is-arriving");
+  showToast("餐车重新进场，镜头会推进到出餐窗口");
+}
+
 function replayShutterStatus() {
   const status = mapViewport
     ?.querySelector('.home-map-slide[data-card-offset="0"] [data-business-toggle]')
@@ -760,6 +774,12 @@ mapViewport?.addEventListener("click", (event) => {
     event.preventDefault();
     return;
   }
+  const truckReplayControl = event.target.closest("[data-truck-replay]");
+  if (truckReplayControl) {
+    event.preventDefault();
+    replayTruckArrival(truckReplayControl);
+    return;
+  }
   const businessControl = event.target.closest("[data-business-toggle]");
   if (businessControl) {
     event.preventDefault();
@@ -771,6 +791,17 @@ mapViewport?.addEventListener("click", (event) => {
 mapViewport?.addEventListener("animationend", (event) => {
   if (event.target.classList?.contains("shop-shutter__status")) {
     event.target.classList.remove("is-changing");
+  }
+  if (
+    event.animationName === "burger-truck-camera-arrive"
+    && event.target.matches?.("[data-truck-camera]")
+  ) {
+    event.target.classList.remove("is-arriving");
+    const slide = event.target.closest(".home-map-slide");
+    slide?.classList.remove("is-truck-replaying");
+    slide?.querySelectorAll(".truck-replay, .truck-service-control").forEach((button) => {
+      button.hidden = false;
+    });
   }
 });
 mapViewport?.addEventListener("keydown", (event) => {
