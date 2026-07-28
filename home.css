@@ -329,12 +329,22 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   z-index: 2;
   inset: 0;
   overflow: hidden;
-  transform: translate3d(-12%,-28%,0) scale(1.76);
+  transform:
+    translate3d(
+      var(--truck-camera-end-x, -12%),
+      var(--truck-camera-end-y, -28%),
+      0
+    )
+    scale(var(--truck-camera-end-scale, 1.76));
   transform-origin: 66% 72%;
   will-change: transform, opacity, filter;
 }
 .burger-truck-camera.is-arriving {
-  animation: burger-truck-camera-arrive 5.25s cubic-bezier(.2,.72,.16,1) both;
+  animation:
+    burger-truck-camera-arrive
+    var(--truck-camera-duration, 5250ms)
+    cubic-bezier(.2,.72,.16,1)
+    both;
 }
 .burger-truck-rig {
   position: absolute;
@@ -420,7 +430,12 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   -webkit-user-drag: none;
 }
 .burger-truck-camera.is-arriving .silver-truck__service > .burger-service-window__shutter {
-  animation: burger-service-shutter-open 1.05s 2.55s cubic-bezier(.28,.78,.22,1) both;
+  animation:
+    burger-service-shutter-open
+    var(--truck-shutter-duration, 1050ms)
+    var(--truck-shutter-delay, 2550ms)
+    cubic-bezier(.28,.78,.22,1)
+    both;
 }
 .burger-menu-machine {
   position: absolute;
@@ -466,10 +481,18 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   width: 100%;
   height: 100%;
   transform-style: preserve-3d;
-  animation: burger-menu-panel-rotate 6.8s cubic-bezier(.55,.05,.25,.95) infinite;
+  animation:
+    burger-menu-panel-rotate
+    var(--truck-menu-duration, 6800ms)
+    cubic-bezier(.55,.05,.25,.95)
+    infinite;
 }
-.burger-menu-panel--two .burger-menu-panel__rotor { animation-delay: .16s; }
-.burger-menu-panel--three .burger-menu-panel__rotor { animation-delay: .32s; }
+.burger-menu-panel--two .burger-menu-panel__rotor {
+  animation-delay: var(--truck-menu-delay-two, 160ms);
+}
+.burger-menu-panel--three .burger-menu-panel__rotor {
+  animation-delay: var(--truck-menu-delay-three, 320ms);
+}
 .burger-menu-panel__face {
   position: absolute;
   inset: 0;
@@ -530,13 +553,26 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   white-space: nowrap;
 }
 .burger-truck-camera.is-arriving .silver-truck__body {
-  animation: burger-truck-brake-bounce 3.15s cubic-bezier(.2,.72,.16,1) both;
+  animation:
+    burger-truck-brake-bounce
+    var(--truck-body-duration, 3150ms)
+    cubic-bezier(.2,.72,.16,1)
+    both;
 }
 .burger-truck-camera.is-arriving .burger-truck-wheel {
-  animation: burger-truck-wheel-roll 2.85s cubic-bezier(.18,.62,.32,1) both;
+  animation:
+    burger-truck-wheel-roll
+    var(--truck-wheel-duration, 2850ms)
+    cubic-bezier(.18,.62,.32,1)
+    both;
 }
 .burger-truck-camera.is-arriving .silver-truck__sign {
-  animation: hybrid-truck-sign-pop .72s 2.66s cubic-bezier(.2,.88,.2,1.16) both;
+  animation:
+    hybrid-truck-sign-pop
+    var(--truck-sign-duration, 720ms)
+    var(--truck-sign-delay, 2660ms)
+    cubic-bezier(.2,.88,.2,1.16)
+    both;
 }
 .truck-replay,
 .truck-service-control {
@@ -637,7 +673,13 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   0% {
     opacity: 0;
     filter: saturate(.88) brightness(.96);
-    transform: translate3d(132%,1.5%,0) scale(.8);
+    transform:
+      translate3d(
+        var(--truck-camera-start-x, 132%),
+        var(--truck-camera-start-y, 1.5%),
+        0
+      )
+      scale(var(--truck-camera-start-scale, .8));
   }
   5% { opacity: 1; }
   19% { transform: translate3d(72%,.8%,0) scale(.88); }
@@ -652,7 +694,13 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   100% {
     opacity: 1;
     filter: saturate(1) brightness(1);
-    transform: translate3d(-12%,-28%,0) scale(1.76);
+    transform:
+      translate3d(
+        var(--truck-camera-end-x, -12%),
+        var(--truck-camera-end-y, -28%),
+        0
+      )
+      scale(var(--truck-camera-end-scale, 1.76));
   }
 }
 @keyframes burger-truck-brake-bounce {
@@ -664,7 +712,7 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 @keyframes burger-truck-wheel-roll {
   0% { transform: rotate(0deg); }
   86% { transform: rotate(-1080deg); }
-  100% { transform: rotate(-1108deg); }
+  100% { transform: rotate(var(--truck-wheel-turns, -1108deg)); }
 }
 @keyframes burger-service-shutter-open {
   0%, 18% { transform: translateY(0); }

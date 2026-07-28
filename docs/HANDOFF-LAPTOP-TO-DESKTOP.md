@@ -1,21 +1,36 @@
 # 汉堡游戏：笔记本 → 台式机交接
 
-最后更新：2026-07-27
+最后更新：2026-07-28
 
 仓库：`https://github.com/KIDCadillac/threejs_burger`
 
-台式机接手分支：`main`
+台式机接手分支：`codex/layout-motion-editor`
 
 美术开发分支：`codex/burger-art-redesign`
 
 ## 发布状态
 
+- 2026-07-28 的 UI 与动画开发工具位于 `codex/layout-motion-editor`，尚未合并 `main`。
+- 这轮不再继续堆自制拖拽和动画面板；已接入 Moveable 0.53.0 与 Theatre.js 0.7.2 Studio。
+- 编辑入口为 `/?layout=1`；普通玩家首页不显示开发工具。
 - 银色餐车提交已经先推送到 `codex/burger-art-redesign`。
 - 发布前已把远端 `main` 上新增的 12 个提交合入，包括八单连续出餐和宽屏料理台布局。
 - 首页视觉冲突按本轮用户验收结果处理：保留完整银色餐车、居中厨师和返回自动重播；不保留远端旧的 CSS 像素拼装车。
 - GitHub Pages 由 `.github/workflows/pages.yml` 监听 `main`，推送 `main` 后会自动部署。
 
 ## 本轮结果
+
+### UI 与动画开发工具
+
+- 从只能编辑 35 个预设外框，升级为约 221 个真实 UI 子元素可选。
+- Moveable 负责拖拽、尺寸、旋转和吸附手柄。
+- Theatre.js Studio 负责属性、关键帧、缓动曲线和正式时间轴。
+- 左侧图层树可以搜索餐车、菜单、按钮、文字、HUD 和各弹窗子元素。
+- 顶部可以切换主画面、签到、图鉴和设置四种编辑状态。
+- 餐车镜头、车身、车轮、卷帘、招牌和三块菜单的原生时间参数已经映射到 Theatre。
+- 保存和导出会同时包含布局文档与 Theatre 项目状态。
+
+完整说明：`docs/UI-MOTION-EDITOR.md`
 
 首页汉堡卡片已经换成连贯的银色餐车：
 
@@ -38,11 +53,13 @@ git status --short --branch
 
 ```powershell
 git fetch origin
-git switch main
-git pull --ff-only
+git switch codex/layout-motion-editor
+git pull --ff-only origin codex/layout-motion-editor
 ```
 
-台式机直接以 `main` 为准继续开发。不要在有未提交修改的工作区强行切分支。
+台式机先以 `codex/layout-motion-editor` 为准继续开发。不要在有未提交修改的工作区强行切分支。
+
+如果笔记本已经在编辑器里调整过参数，还要从顶部“导出 JSON”，在台式机的 `?layout=1` 页面点“导入”。Git 只同步代码，不同步浏览器 `localStorage`。
 
 ## 同步保留的远端功能
 

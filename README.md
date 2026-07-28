@@ -8,3 +8,5 @@
 - 当前是单人做菜主模式；双人陷阱与角色反应会在后续版本接入。
 
 访问 GitHub Pages 首页即可试玩。原始实验文件 `real_3d_burger.html` 保留未改动。
+
+开发者可在首页地址后增加 `?layout=1`，打开 Moveable + Theatre.js 驱动的 UI 与动画工作台。使用说明见 `docs/UI-MOTION-EDITOR.md`。

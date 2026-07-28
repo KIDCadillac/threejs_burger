@@ -1,0 +1,2 @@
+# Vendored upstream bundles and license files are kept byte-for-byte.
+vendor/** -whitespace

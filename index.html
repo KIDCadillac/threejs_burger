@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f8c948">
     <title>开饭啦 · 汉堡小馆</title>
-    <link rel="stylesheet" href="./home.css?v=20260727-burgertruck10">
-    <link rel="stylesheet" href="./home-layout-editor.css?v=20260727-layout1">
+    <link rel="stylesheet" href="./home.css?v=20260728-motion3">
+    <link rel="stylesheet" href="./home-layout-editor.css?v=20260728-motion3">
     <script type="module" src="./home-lobby-app.mjs?v=20260727-burgertruck10"></script>
-    <script type="module" src="./home-layout-editor.mjs?v=20260727-layout1"></script>
+    <script type="module" src="./home-layout-editor.mjs?v=20260728-motion3"></script>
   </head>
   <body>
     <main class="lobby-shell">
@@ -233,9 +233,9 @@
       <p class="health-note" data-layout-id="global.health-note">健康游戏忠告：适度游戏益脑，沉迷游戏伤身，合理安排时间。</p>
     </main>
 
-    <div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
+    <div class="sheet-backdrop" id="sheet-backdrop" data-layout-id="sheet.backdrop" hidden></div>
 
-    <section class="lobby-sheet daily-sheet" id="daily-checkin" role="dialog" aria-modal="true" aria-labelledby="daily-title" aria-hidden="true" data-open="false" hidden>
+    <section class="lobby-sheet daily-sheet" id="daily-checkin" role="dialog" aria-modal="true" aria-labelledby="daily-title" aria-hidden="true" data-open="false" data-layout-id="sheet.daily" hidden>
       <div class="sheet-ribbon">每日签到</div>
       <button class="sheet-close" type="button" data-close-sheet aria-label="关闭">×</button>
       <p class="sheet-kicker">每天来小馆看看</p>
@@ -256,7 +256,7 @@
       <p class="sheet-status" id="daily-status" role="status"></p>
     </section>
 
-    <section class="lobby-sheet" id="cookbook-sheet" role="dialog" aria-modal="true" aria-labelledby="cookbook-title" aria-hidden="true" data-open="false" hidden>
+    <section class="lobby-sheet" id="cookbook-sheet" role="dialog" aria-modal="true" aria-labelledby="cookbook-title" aria-hidden="true" data-open="false" data-layout-id="sheet.cookbook" hidden>
       <button class="sheet-close" type="button" data-close-sheet aria-label="关闭">×</button>
       <p class="sheet-kicker">我的拿手菜单</p>
       <h2 id="cookbook-title">汉堡图鉴</h2>
@@ -270,7 +270,7 @@
       </div>
     </section>
 
-    <section class="lobby-sheet lobby-sheet--compact" id="settings-sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title" aria-hidden="true" data-open="false" hidden>
+    <section class="lobby-sheet lobby-sheet--compact" id="settings-sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title" aria-hidden="true" data-open="false" data-layout-id="sheet.settings" hidden>
       <button class="sheet-close" type="button" data-close-sheet aria-label="关闭">×</button>
       <p class="sheet-kicker">小馆选项</p>
       <h2 id="settings-title">游戏设置</h2>
@@ -281,6 +281,6 @@
       <p class="rating-note"><b>8+</b><span>适龄提示<br>测试版不含付费项目</span></p>
     </section>
 
-    <div class="home-toast" id="home-toast" role="status" aria-live="polite"></div>
+    <div class="home-toast" id="home-toast" role="status" aria-live="polite" data-layout-id="global.toast"></div>
   </body>
 </html>

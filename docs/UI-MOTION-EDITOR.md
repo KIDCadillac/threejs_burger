@@ -1,0 +1,134 @@
+# 汉堡小馆 UI 与动画开发工具
+
+最后更新：2026-07-28
+
+编辑入口：`http://127.0.0.1:4173/?layout=1`
+
+这不是面向玩家的功能，而是给项目所有者和 Codex 调整首页 UI、餐车构图和动画使用的开发工作台。普通首页不显示 Studio、图层树或编辑手柄。
+
+## 采用的成熟工具
+
+### Moveable 0.53.0
+
+- 负责页面元素的拖拽、缩放、旋转、尺寸手柄和吸附参考线。
+- 直接操作当前真实 DOM，不把首页重建成另一套编辑器画布。
+- 项目：`https://daybrush.com/moveable/`
+- 许可证：MIT，副本位于 `vendor/moveable/LICENSE`。
+
+### Theatre.js 0.7.2
+
+- `@theatre/studio` 提供正式的属性面板、关键帧、缓动曲线、时间轴、播放头、撤销和项目状态。
+- `@theatre/core` 把 Studio 数值实时写回游戏中的 DOM；已保存的 Theatre 时间轴也能在普通页面用 core-only 版本播放。
+- 项目：`https://www.theatrejs.com/`
+- Studio 仅在 `?layout=1` 开发入口加载；普通页面不会加载 Studio。
+- `@theatre/studio` 为 AGPL-3.0，`@theatre/core` 为 Apache-2.0；许可证副本位于 `vendor/theatre/`。
+
+### 项目自己的连接层
+
+成熟工具不会自动理解本项目的轮播克隆、弹窗和餐车原生 CSS 动画，因此保留了一层很薄的项目连接代码：
+
+- 自动为预设根节点里的子元素生成稳定编辑 ID。
+- 同一个餐车元素的三份轮播克隆共用同一组参数。
+- 左侧图层树负责从约 221 个 UI 元素里搜索和选中目标。
+- 顶部可切换主画面、签到、图鉴和设置弹窗，方便编辑不同页面状态。
+- “餐车时序参数”把镜头、车身、车轮、卷帘、招牌和菜单的原生时长映射进 Theatre 属性面板。
+- 布局状态、餐车原生时间和 Theatre 项目状态可以合并为一个 JSON。
+
+## 日常使用
+
+先启动本地静态服务器：
+
+```powershell
+python -m http.server 4173 --bind 127.0.0.1
+```
+
+打开：
+
+```text
+http://127.0.0.1:4173/?layout=1
+```
+
+### 调整任意 UI
+
+1. 直接点击画布元素，或者在左侧“页面图层”搜索并选择。
+2. 使用 Moveable 蓝色手柄拖拽、改尺寸和旋转。
+3. Theatre 右侧属性面板会自动切到同一个对象。
+4. `layout` 里调整 X、Y、宽高、缩放、旋转、层级、透明度、显示和锁定。
+5. `style` 里调整亮度、饱和度、模糊、圆角、背景和文字颜色。
+
+### 制作关键帧动画
+
+1. 选择需要动画的 UI。
+2. 在 Theatre 属性右侧点击 `Sequence this prop`，把该属性加入时间轴。
+3. 移动底部播放头，再修改属性数值；Theatre 会在当前位置写入关键帧。
+4. 在底部时间轴调整关键帧位置和缓动曲线。
+5. 顶部“播放时间轴”从头预览。
+
+适合直接做：
+
+- 餐车或招牌进入、退出。
+- HUD、按钮、文字的弹入和淡入。
+- 菜单灯箱、卷帘或出餐控件的位移、旋转、缩放、透明度动画。
+- 页面切换后的回弹和强调动画。
+
+### 调整餐车原生进场
+
+1. 点击顶部“餐车时序参数”。
+2. Theatre 右侧会显示镜头起点/终点、聚焦缩放、车身回弹、车轮滚动、卷帘、招牌和菜单周期。
+3. 修改数值后点击“重播餐车”。
+4. 镜头动画名称仍为 `burger-truck-camera-arrive`，不会破坏现有进场结束监听。
+
+## 保存、导入和跨电脑交接
+
+顶部“保存”会写入当前浏览器：
+
+- `burger.home.layout.v2`：布局、样式、快速动画和餐车原生时间。
+- `burger.home.theatre.v1`：Theatre 项目、关键帧和时间轴。
+
+顶部“导出 JSON”会下载一个组合文件：
+
+```json
+{
+  "format": "burger-ui-workbench",
+  "version": 1,
+  "layoutDocument": {},
+  "theatreState": {}
+}
+```
+
+在另一台电脑上：
+
+1. 拉取同一个 Git 分支。
+2. 打开 `?layout=1`。
+3. 点击“导入”，选择组合 JSON。
+4. 页面会自动重载，布局和 Theatre 时间轴一起恢复。
+
+注意：浏览器 `localStorage` 不会通过 Git 自动同步。笔记本做完参数后必须导出 JSON，或者让 Codex 把确认后的参数固化到代码。
+
+## 代码结构
+
+- `home-layout-editor-state.mjs`：v2 数据规范、迁移、校验、撤销历史。
+- `home-layout-editor.mjs`：深层元素注册、Moveable/Theatre 连接、导入导出和餐车参数映射。
+- `home-layout-editor.css`：开发工作台、图层树和 Moveable 视觉。
+- `home.css`：餐车动画 CSS 变量和原生关键帧。
+- `vendor/moveable/`：Moveable 浏览器构建与许可证。
+- `vendor/theatre/`：Theatre Studio/core 浏览器构建与许可证。
+- `tests/home-layout-editor-*.test.mjs`：状态模型和接线回归。
+
+## 已验证
+
+- 12 个 Node 测试全部通过。
+- 页面识别约 221 个可编辑 UI 元素。
+- 左侧图层选中 `burger.sign` 后，Theatre Studio 同步选中同一对象。
+- 在 Theatre 属性面板把 X 改为 `18`，三份轮播餐车克隆全部写入 `--layout-x: 18px`。
+- Moveable 控制框正常挂到当前选中元素。
+- 主画面、签到、图鉴、设置四种编辑状态可切换。
+- 餐车镜头终点参数和整车重播生效。
+- 当前浏览器回归控制台错误为 0。
+
+## 已知边界
+
+- 自动生成的子元素 ID 依赖同一根节点里的 DOM 顺序；大改 HTML 后要重新确认旧 JSON。
+- Studio 是开发工具，不会在 GitHub Pages 普通首页出现。
+- Theatre 关键帧保存到浏览器和导出 JSON，但不会自动改写源代码；需要 Codex 在确认后固化默认值。
+- 原生餐车动画与 Theatre 通用 UI 时间轴是两套可组合轨道：前者用“重播餐车”，后者用“播放时间轴”。
