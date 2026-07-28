@@ -7,8 +7,8 @@ const root = new URL("../", import.meta.url);
 test("homepage loads the v2 UI motion editor assets", async () => {
   const html = await readFile(new URL("index.html", root), "utf8");
 
-  assert.match(html, /home-layout-editor\.css\?v=20260728-motion4/);
-  assert.match(html, /home-layout-editor\.mjs\?v=20260728-motion4/);
+  assert.match(html, /home-layout-editor\.css\?v=20260728-motion10/);
+  assert.match(html, /home-layout-editor\.mjs\?v=20260728-motion10/);
 });
 
 test("homepage exposes main scenes and sheets as editable roots", async () => {
@@ -58,6 +58,12 @@ test("editor supports deep selection, tabs, motion preview and timeline replay",
   assert.match(source, /LAYER_CATEGORY_DEFINITIONS/);
   assert.match(source, /data-layer-group/);
   assert.match(source, /下载调整文件/);
+  assert.match(source, /data-action="truck-overview"/);
+  assert.match(source, /previewTruckAnimation/);
+  assert.match(source, /layout-editor-truck-overview/);
+  assert.match(source, /layout-editor-wheel-mode/);
+  assert.match(source, /layout-editor-selected-target/);
+  assert.match(source, /burger:editor-select-map/);
   assert.match(source, /query\.get\("layout"\) === "1"/);
   assert.match(source, /localStorage\.setItem/);
 });
@@ -71,4 +77,52 @@ test("truck CSS uses editor-controlled timing and focus variables", async () => 
   assert.match(css, /--truck-shutter-delay/);
   assert.match(css, /--truck-menu-duration/);
   assert.match(css, /@keyframes burger-truck-camera-arrive/);
+});
+
+test("editor freezes the full truck while wheels are adjusted", async () => {
+  const css = await readFile(new URL("home-layout-editor.css", root), "utf8");
+  const source = await readFile(
+    new URL("home-layout-editor.mjs", root),
+    "utf8",
+  );
+
+  assert.match(css, /layout-editor-truck-overview/);
+  assert.match(css, /burger-truck-camera/);
+  assert.match(css, /scale\(0\.9\)/);
+  assert.match(css, /burger-truck-wheel/);
+  assert.match(css, /animation: none !important/);
+  assert.match(css, /layout-editor-wheel-mode/);
+  assert.match(css, /pointer-events: none !important/);
+  assert.match(css, /z-index: 8 !important/);
+  assert.match(
+    css,
+    /layout-editor-selected-target[\s\S]*pointer-events: auto !important/,
+  );
+  assert.match(
+    css,
+    /layout-editor-moveable\.layout-editor-wheel-mode[\s\S]*layout-editor-selection/,
+  );
+  assert.match(
+    source,
+    /useDirectWheelDrag = isWheelLayer\(id\)[\s\S]*startOperation\(event,\s*"move"\)/,
+  );
+  assert.match(source, /if \(selectedId !== id\) setSelected\(id\)/);
+  assert.match(source, /id && !isWheelLayer\(id\) \? preferredElement\(id\) : null/);
+  assert.match(
+    source,
+    /Object\.entries\(patch\)[\s\S]*set\(object\.props\[scope\]\[key\], value\)/,
+  );
+});
+
+test("homepage carousel gestures stand down while the editor is active", async () => {
+  const source = await readFile(
+    new URL("home-lobby-app.mjs", root),
+    "utf8",
+  );
+
+  assert.match(source, /beginMapDrag\(event\)/);
+  assert.match(source, /layout-editor-active/);
+  assert.match(source, /event\.isTrusted/);
+  assert.match(source, /burger:editor-select-map/);
+  assert.match(source, /persist: false/);
 });

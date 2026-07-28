@@ -602,6 +602,9 @@ function snapWheelBack(fromProgress = 0) {
 }
 
 function beginMapDrag(event) {
+  if (document.documentElement.classList.contains("layout-editor-active")) {
+    return;
+  }
   wheelFrameScheduler.cancel();
   if (wheelTransitioning) settleWheelForInteraction();
   if (HOME_MAPS.length < 2) return;
@@ -776,14 +779,31 @@ document.addEventListener("click", (event) => {
 });
 
 mapArrows.forEach((arrow) => {
-  arrow.addEventListener("click", () => moveMap(Number(arrow.dataset.mapDirection)));
+  arrow.addEventListener("click", () => {
+    if (document.documentElement.classList.contains("layout-editor-active")) {
+      return;
+    }
+    moveMap(Number(arrow.dataset.mapDirection));
+  });
 });
 
 mapViewport?.addEventListener("pointerdown", beginMapDrag);
 mapViewport?.addEventListener("pointermove", updateMapDrag);
 mapViewport?.addEventListener("pointerup", (event) => endMapDrag(event));
 mapViewport?.addEventListener("pointercancel", (event) => endMapDrag(event, true));
+window.addEventListener("burger:editor-select-map", (event) => {
+  const mapId = event.detail?.mapId;
+  const targetIndex = HOME_MAPS.findIndex((map) => map.id === mapId);
+  if (targetIndex >= 0) selectMap(targetIndex, { persist: false });
+});
 mapViewport?.addEventListener("click", (event) => {
+  if (
+    event.isTrusted &&
+    document.documentElement.classList.contains("layout-editor-active")
+  ) {
+    event.preventDefault();
+    return;
+  }
   if (suppressMapClick) {
     suppressMapClick = false;
     event.preventDefault();
@@ -820,6 +840,9 @@ mapViewport?.addEventListener("animationend", (event) => {
   }
 });
 mapViewport?.addEventListener("keydown", (event) => {
+  if (document.documentElement.classList.contains("layout-editor-active")) {
+    return;
+  }
   if (event.key === "ArrowLeft") {
     event.preventDefault();
     moveMap(-1);

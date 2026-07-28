@@ -100,6 +100,13 @@ html.layout-editor-active body {
   gap: 7px;
 }
 
+.layout-editor-topbar__actions button.is-active {
+  border-color: #69dff0;
+  color: #eaffff;
+  background: #214d54;
+  box-shadow: inset 0 0 0 1px rgba(105, 223, 240, 0.24);
+}
+
 .layout-editor-ui button,
 .layout-editor-import-label {
   min-height: 34px;
@@ -143,6 +150,80 @@ html.layout-editor-active body {
 
 .layout-editor-import-label input {
   display: none;
+}
+
+html.layout-editor-active.layout-editor-truck-overview
+  .burger-truck-camera {
+  overflow: visible !important;
+  opacity: 1 !important;
+  filter: none !important;
+  animation: none !important;
+  transform: translate3d(0, 0, 0) scale(0.9) !important;
+  transform-origin: 50% 50% !important;
+}
+
+html.layout-editor-active.layout-editor-truck-overview
+  .burger-truck-rig {
+  right: 0 !important;
+  bottom: 24% !important;
+  width: 100% !important;
+}
+
+html.layout-editor-active.layout-editor-truck-overview
+  .silver-truck__body,
+html.layout-editor-active.layout-editor-truck-overview
+  .burger-truck-wheel,
+html.layout-editor-active.layout-editor-truck-overview
+  .silver-truck__sign,
+html.layout-editor-active.layout-editor-truck-overview
+  .burger-service-window__shutter,
+html.layout-editor-active.layout-editor-truck-overview
+  .burger-menu-panel__rotor {
+  animation: none !important;
+}
+
+html.layout-editor-active.layout-editor-truck-overview
+  .silver-truck__body,
+html.layout-editor-active.layout-editor-truck-overview
+  .burger-truck-wheel {
+  transform: none !important;
+}
+
+html.layout-editor-active.layout-editor-truck-overview
+  .silver-truck__sign {
+  transform: rotate(-1deg) !important;
+}
+
+html.layout-editor-active.layout-editor-truck-overview
+  .burger-service-window__shutter {
+  transform: translateY(-105%) !important;
+}
+
+html.layout-editor-active.layout-editor-truck-overview
+  .burger-menu-panel__rotor {
+  transform: rotateY(0deg) !important;
+}
+
+html.layout-editor-active.layout-editor-wheel-mode
+  .silver-truck__body {
+  pointer-events: none !important;
+}
+
+html.layout-editor-active.layout-editor-wheel-mode
+  .burger-truck-wheel {
+  z-index: 8 !important;
+  pointer-events: auto !important;
+}
+
+html.layout-editor-active.layout-editor-wheel-mode
+  .burger-truck-wheel.layout-editor-selected-target {
+  filter: drop-shadow(0 0 4px #4fe0ff)
+    drop-shadow(0 0 7px rgba(79, 224, 255, 0.72)) !important;
+}
+
+html.layout-editor-active .layout-editor-selected-target {
+  z-index: 12 !important;
+  pointer-events: auto !important;
 }
 
 .layout-editor-layers,
@@ -700,6 +781,15 @@ html.layout-editor-devtools .layout-editor-layers {
 
 html.layout-editor-devtools .moveable-control-box {
   z-index: 2147483596 !important;
+}
+
+html.layout-editor-moveable.layout-editor-wheel-mode
+  .layout-editor-selection:not([hidden]) {
+  display: block !important;
+}
+
+html.layout-editor-wheel-mode .moveable-control-box {
+  display: none !important;
 }
 
 html.layout-editor-devtools .moveable-line {

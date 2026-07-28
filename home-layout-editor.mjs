@@ -56,6 +56,7 @@ let activeEditorView = "home";
 let operation = null;
 let overlayFrame = 0;
 let toastTimer = 0;
+let truckPreviewTimer = 0;
 
 const LAYER_CATEGORY_DEFINITIONS = [
   {
@@ -405,7 +406,9 @@ function setTheatrePatch(id, scope, patch) {
   const object = ensureTheatreObject(id);
   if (!object || !theatreStudio) return false;
   theatreStudio.transaction(({ set }) => {
-    set(object.props[scope], patch);
+    Object.entries(patch).forEach(([key, value]) => {
+      set(object.props[scope][key], value);
+    });
   });
   return true;
 }
@@ -415,14 +418,17 @@ function captureTheatrePatch(id, scope, patch) {
   if (!object || !theatreStudio) return false;
   if (!moveableScrub) moveableScrub = theatreStudio.scrub();
   moveableScrub.capture(({ set }) => {
-    set(object.props[scope], patch);
+    Object.entries(patch).forEach(([key, value]) => {
+      set(object.props[scope][key], value);
+    });
   });
   return true;
 }
 
 function selectInDeveloperTools(id) {
   if (devMoveable) {
-    devMoveable.target = id ? preferredElement(id) : null;
+    devMoveable.target =
+      id && !isWheelLayer(id) ? preferredElement(id) : null;
     window.requestAnimationFrame(() => devMoveable?.updateRect());
   }
   if (theatreStudio && id) {
@@ -632,6 +638,10 @@ function layerCategory(id) {
   );
 }
 
+function isWheelLayer(id) {
+  return Boolean(id && layerCategory(id).key === "burger-wheel");
+}
+
 function layerDisplayName(id, label = "") {
   const baseId = baseLayoutId(id);
   const rootName = LAYER_DISPLAY_NAMES[baseId] || baseId;
@@ -712,6 +722,26 @@ function updateOverlay() {
 
 function setSelected(id) {
   selectedId = id || "";
+  const wheelMode = isWheelLayer(selectedId);
+  document.documentElement.classList.toggle(
+    "layout-editor-wheel-mode",
+    Boolean(wheelMode),
+  );
+  if (wheelMode) {
+    setTruckOverview(true);
+  }
+  document
+    .querySelectorAll(".layout-editor-selected-target")
+    .forEach((element) =>
+      element.classList.remove("layout-editor-selected-target"),
+    );
+  if (selectedId) {
+    document
+      .querySelectorAll(selectorFor(selectedId))
+      .forEach((element) =>
+        element.classList.add("layout-editor-selected-target"),
+      );
+  }
   openSelectedLayerGroup(selectedId);
   document
     .querySelectorAll(".layout-editor-layer.is-selected")
@@ -776,6 +806,14 @@ function setEditorView(view) {
   scheduleOverlay();
 }
 
+function requestEditorMap(mapId) {
+  window.dispatchEvent(
+    new CustomEvent("burger:editor-select-map", {
+      detail: { mapId },
+    }),
+  );
+}
+
 function buildEditor() {
   document.documentElement.classList.add("layout-editor-active");
 
@@ -797,7 +835,8 @@ function buildEditor() {
       <button type="button" data-action="redo">重做</button>
       <button type="button" data-action="play-theatre">播放时间轴</button>
       <button type="button" data-action="select-truck-timing">餐车时序参数</button>
-      <button type="button" data-action="replay-truck">重播餐车</button>
+      <button type="button" data-action="truck-overview" class="is-active">全车编辑视图</button>
+      <button type="button" data-action="replay-truck">预览餐车动画</button>
       <button type="button" data-action="save">暂存到浏览器</button>
       <button type="button" data-action="export" class="layout-editor-primary">下载调整文件</button>
       <label class="layout-editor-import-label">导入调整文件<input type="file" accept="application/json,.json" data-action="import"></label>
@@ -902,7 +941,7 @@ function buildEditor() {
         ${truckField("menuDuration", "菜单翻转周期 ms", 100)}
         ${truckField("menuStagger", "菜单错峰 ms", 10)}
       </div>
-      <button type="button" class="layout-editor-wide-button layout-editor-primary" data-action="replay-truck">重播整车进场</button>
+      <button type="button" class="layout-editor-wide-button layout-editor-primary" data-action="replay-truck">预览整车进场</button>
     </section>
     <div class="layout-editor-action-row">
       <button type="button" data-action="reset-selected">复位所选</button>
@@ -915,7 +954,7 @@ function buildEditor() {
   timeline.innerHTML = `
     <div class="layout-editor-timeline__head">
       <strong>餐车进场时间轴</strong>
-      <button type="button" data-action="replay-truck">▶ 重播</button>
+      <button type="button" data-action="replay-truck">▶ 预览</button>
       <output data-timeline-total></output>
     </div>
     <div class="layout-editor-timeline__tracks">
@@ -937,6 +976,8 @@ function buildEditor() {
 
   document.body.append(topbar, layers, inspector, timeline, overlay);
   bindEditor(topbar, layers, inspector, timeline, overlay);
+  requestEditorMap("burger");
+  setTruckOverview(true);
   renderLayerList();
   syncToolbar();
   setEditorView("home");
@@ -1165,6 +1206,29 @@ function playElementMotion(id, force = false) {
   animationById.set(id, animations);
 }
 
+function setTruckOverview(enabled, { announce = false } = {}) {
+  window.clearTimeout(truckPreviewTimer);
+  truckPreviewTimer = 0;
+  document.documentElement.classList.toggle(
+    "layout-editor-truck-overview",
+    enabled,
+  );
+  document
+    .querySelectorAll('[data-action="truck-overview"]')
+    .forEach((button) => button.classList.toggle("is-active", enabled));
+  if (enabled) {
+    document.querySelectorAll("[data-truck-camera]").forEach((camera) => {
+      camera.classList.remove("is-arriving");
+    });
+    document
+      .querySelectorAll(".home-map-slide.is-truck-replaying")
+      .forEach((slide) => slide.classList.remove("is-truck-replaying"));
+  }
+  scheduleOverlay();
+  window.requestAnimationFrame(() => devMoveable?.updateRect());
+  if (announce) showToast("已回到完整餐车视图，可以直接调整前后轮");
+}
+
 function replayTruck() {
   const replayButton = document.querySelector("[data-truck-replay]");
   if (replayButton) {
@@ -1176,7 +1240,15 @@ function replayTruck() {
       camera.classList.add("is-arriving");
     });
   }
-  showToast("正在按当前时间轴重播餐车");
+  showToast("正在预览餐车动画，结束后自动回到全车视图", 3200);
+}
+
+function previewTruckAnimation() {
+  setTruckOverview(false);
+  replayTruck();
+  truckPreviewTimer = window.setTimeout(() => {
+    setTruckOverview(true, { announce: true });
+  }, workingDocument.truckTimeline.cameraDuration + 300);
 }
 
 function exportDocument() {
@@ -1259,9 +1331,11 @@ function handleAction(action) {
     setSelected("");
   } else if (action === "preview-motion" && selectedId) {
     playElementMotion(selectedId, true);
+  } else if (action === "truck-overview") {
+    setTruckOverview(true, { announce: true });
   } else if (action === "replay-truck") {
     switchTab("truck");
-    replayTruck();
+    previewTruckAnimation();
   } else if (action === "play-theatre" && theatreSheet) {
     theatreSheet.sequence.position = 0;
     theatreSheet.sequence.play({ iterationCount: 1 }).catch(() => {});
@@ -1332,6 +1406,9 @@ function bindEditor(topbar, layers, inspector, timeline, overlay) {
       if (!details) return;
       if (details.open) openLayerGroups.add(details.dataset.layerGroup);
       else openLayerGroups.delete(details.dataset.layerGroup);
+      if (details.open && details.dataset.layerGroup === "burger-wheel") {
+        setTruckOverview(true);
+      }
     },
     true,
   );
@@ -1398,9 +1475,11 @@ function bindEditor(topbar, layers, inspector, timeline, overlay) {
         if (!devMoveable) setSelected("");
         return;
       }
+      const id = elementId(element);
+      const useDirectWheelDrag = isWheelLayer(id);
       event.preventDefault();
-      setSelected(elementId(element));
-      if (devMoveable) return;
+      if (selectedId !== id) setSelected(id);
+      if (devMoveable && !useDirectWheelDrag) return;
       event.stopImmediatePropagation();
       startOperation(event, "move");
     },
