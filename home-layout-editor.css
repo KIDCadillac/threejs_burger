@@ -162,7 +162,7 @@ html.layout-editor-active body {
 
 .layout-editor-layers {
   left: max(12px, env(safe-area-inset-left));
-  width: 286px;
+  width: 318px;
 }
 
 .layout-editor-inspector {
@@ -231,6 +231,25 @@ html.layout-editor-active body {
   font-size: 11px;
 }
 
+.layout-editor-transfer-tip {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 3px;
+  margin: 10px 10px 0;
+  padding: 9px 10px;
+  border: 1px solid #775f45;
+  border-radius: 9px;
+  color: #d9c6b4;
+  background: #3b2c24;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.layout-editor-transfer-tip b {
+  color: #ffcf6c;
+  font-size: 11px;
+}
+
 .layout-editor-search input,
 .layout-editor-field input,
 .layout-editor-field select {
@@ -261,7 +280,7 @@ html.layout-editor-active body {
   display: flex;
   min-height: 34px;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   padding: 0 9px;
   color: #e2c7ae;
   font-size: 12px;
@@ -270,11 +289,51 @@ html.layout-editor-active body {
   list-style: none;
 }
 
+.layout-editor-layer-groups summary::before {
+  content: "›";
+  flex: 0 0 auto;
+  color: #ffca65;
+  font-size: 18px;
+  line-height: 1;
+  transform: rotate(0deg);
+  transition: transform 150ms ease;
+}
+
+.layout-editor-layer-groups details[open] summary::before {
+  transform: rotate(90deg);
+}
+
 .layout-editor-layer-groups summary::-webkit-details-marker {
   display: none;
 }
 
+.layout-editor-layer-groups summary > span {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 1px;
+}
+
+.layout-editor-layer-groups summary > span strong,
+.layout-editor-layer-groups summary > span small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layout-editor-layer-groups summary > span strong {
+  color: #f4dfc5;
+  font-size: 12px;
+}
+
+.layout-editor-layer-groups summary > span small {
+  color: #927f75;
+  font-size: 9px;
+  font-weight: 520;
+}
+
 .layout-editor-layer-groups summary b {
+  flex: 0 0 auto;
   color: #8c796f;
   font-size: 10px;
 }
@@ -636,7 +695,7 @@ html.layout-editor-moveable .layout-editor-selection {
 html.layout-editor-devtools .layout-editor-layers {
   top: max(78px, calc(env(safe-area-inset-top) + 78px));
   bottom: max(16px, calc(env(safe-area-inset-bottom) + 16px));
-  width: 258px;
+  width: 318px;
 }
 
 html.layout-editor-devtools .moveable-control-box {

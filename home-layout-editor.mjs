@@ -1,8 +1,10 @@
 import {
   DEFAULT_LAYOUT_VALUE,
+  createWorkbenchFile,
   createLayoutHistory,
   normalizeLayoutDocument,
   parseLayoutDocument,
+  parseWorkbenchFile,
   updateLayoutElement,
   updateTruckTimeline,
 } from "./home-layout-editor-state.mjs";
@@ -16,6 +18,7 @@ const editorEnabled = query.get("layout") === "1";
 const editableSelector = "[data-layout-id],[data-layout-runtime-id]";
 const animationById = new Map();
 const theatreObjects = new Map();
+const openLayerGroups = new Set(["burger-vehicle"]);
 let theatreCore = null;
 let theatreStudio = null;
 let theatreProject = null;
@@ -53,6 +56,134 @@ let activeEditorView = "home";
 let operation = null;
 let overlayFrame = 0;
 let toastTimer = 0;
+
+const LAYER_CATEGORY_DEFINITIONS = [
+  {
+    key: "burger-vehicle",
+    label: "整车与镜头",
+    description: "完整餐车、车身、镜头与场景",
+    matches: (baseId) =>
+      [
+        "burger.card",
+        "burger.scene",
+        "burger.camera",
+        "burger.truck",
+        "burger.body",
+      ].includes(baseId),
+  },
+  {
+    key: "burger-service",
+    label: "出餐窗口与招牌",
+    description: "厨师、窗口、卷帘、招牌和营业按钮",
+    matches: (baseId) =>
+      [
+        "burger.window",
+        "burger.service",
+        "burger.shutter",
+        "burger.sign",
+        "burger.service-control",
+      ].includes(baseId),
+  },
+  {
+    key: "burger-menu",
+    label: "菜单灯箱",
+    description: "今日菜单与三面翻画面",
+    matches: (baseId) => baseId === "burger.menu",
+  },
+  {
+    key: "burger-wheel",
+    label: "车轮",
+    description: "餐车前轮与后轮",
+    matches: (baseId) => baseId.startsWith("burger.wheel"),
+  },
+  {
+    key: "burger-mode",
+    label: "玩法信息",
+    description: "自由练习、营业状态等文字",
+    matches: (baseId) => baseId === "burger.mode",
+  },
+  {
+    key: "global-hud",
+    label: "顶部状态与标题",
+    description: "体力、金币、店名和健康提示",
+    matches: (baseId) =>
+      ["global.hud", "global.title", "global.health-note"].includes(baseId),
+  },
+  {
+    key: "global-carousel",
+    label: "轮播与左右按钮",
+    description: "餐厅卡片轨道与切换按钮",
+    matches: (baseId) =>
+      ["global.carousel", "global.arrow-left", "global.arrow-right"].includes(
+        baseId,
+      ),
+  },
+  {
+    key: "global-navigation",
+    label: "底部导航",
+    description: "小馆、图鉴、签到和更多",
+    matches: (baseId) => baseId === "global.bottom-nav",
+  },
+  {
+    key: "sheet-daily",
+    label: "签到弹窗",
+    description: "每日签到界面中的全部元素",
+    matches: (baseId) => baseId.startsWith("sheet.daily"),
+  },
+  {
+    key: "sheet-cookbook",
+    label: "图鉴弹窗",
+    description: "菜品图鉴界面中的全部元素",
+    matches: (baseId) => baseId.startsWith("sheet.cookbook"),
+  },
+  {
+    key: "sheet-settings",
+    label: "设置弹窗",
+    description: "游戏设置界面中的全部元素",
+    matches: (baseId) => baseId.startsWith("sheet.settings"),
+  },
+  {
+    key: "sushi",
+    label: "寿司店（筹备）",
+    description: "未开放地图的卡片和场景",
+    matches: (baseId) => baseId.startsWith("sushi."),
+  },
+  {
+    key: "other",
+    label: "其他元素",
+    description: "尚未归入固定分类的页面元素",
+    matches: () => true,
+  },
+];
+
+const LAYER_DISPLAY_NAMES = {
+  "burger.card": "汉堡餐车卡片",
+  "burger.scene": "汉堡场景",
+  "burger.camera": "餐车镜头",
+  "burger.truck": "完整餐车",
+  "burger.body": "银色车身",
+  "burger.window": "出餐窗口",
+  "burger.service": "出餐区域",
+  "burger.shutter": "银色卷帘",
+  "burger.sign": "餐车招牌",
+  "burger.menu": "三面翻菜单",
+  "burger.wheel-front": "前轮",
+  "burger.wheel-rear": "后轮",
+  "burger.mode": "玩法标签",
+  "burger.service-control": "开门营业按钮",
+  "global.hud": "顶部玩家状态",
+  "global.title": "店铺标题",
+  "global.carousel": "餐厅轮播轨道",
+  "global.arrow-left": "向左切换按钮",
+  "global.arrow-right": "向右切换按钮",
+  "global.bottom-nav": "底部导航栏",
+  "global.health-note": "健康游戏提示",
+  "sushi.card": "寿司店卡片",
+  "sushi.scene": "寿司店场景",
+  "sheet.daily": "签到弹窗",
+  "sheet.cookbook": "图鉴弹窗",
+  "sheet.settings": "设置弹窗",
+};
 
 function loadTheatreState() {
   try {
@@ -444,7 +575,7 @@ function saveDocument() {
   }
 }
 
-function showToast(message) {
+function showToast(message, duration = 1800) {
   if (!editorEnabled) return;
   let toast = document.querySelector(".layout-editor-toast");
   if (!toast) {
@@ -457,7 +588,7 @@ function showToast(message) {
   window.clearTimeout(toastTimer);
   toastTimer = window.setTimeout(
     () => toast.classList.remove("is-visible"),
-    1800,
+    duration,
   );
 }
 
@@ -486,6 +617,67 @@ function elementLabel(id) {
   return `${element.tagName.toLowerCase()}${classes ? `.${classes}` : ""}${
     text ? ` · ${text}` : ""
   }`;
+}
+
+function baseLayoutId(id) {
+  return String(id).split("::")[0];
+}
+
+function layerCategory(id) {
+  const baseId = baseLayoutId(id);
+  return (
+    LAYER_CATEGORY_DEFINITIONS.find((definition) =>
+      definition.matches(baseId),
+    ) || LAYER_CATEGORY_DEFINITIONS.at(-1)
+  );
+}
+
+function layerDisplayName(id, label = "") {
+  const baseId = baseLayoutId(id);
+  const rootName = LAYER_DISPLAY_NAMES[baseId] || baseId;
+  if (!String(id).includes("::")) return rootName;
+  const lowered = label.toLowerCase();
+  let part = "内层元素";
+  if (lowered.includes("burger-menu-panel--one")) part = "菜单灯箱 1";
+  else if (lowered.includes("burger-menu-panel--two")) part = "菜单灯箱 2";
+  else if (lowered.includes("burger-menu-panel--three")) part = "菜单灯箱 3";
+  else if (lowered.includes("burger-menu-panel__rotor")) part = "菜单翻转层";
+  else if (lowered.includes("burger-menu-panel__face")) part = "菜单画面";
+  else if (lowered.includes("silver-truck")) part = "餐车主体层";
+  else if (lowered.startsWith("img")) part = "图片";
+  else if (lowered.startsWith("button")) part = "按钮";
+  else if (lowered.startsWith("strong")) part = "主文字";
+  else if (lowered.startsWith("small")) part = "说明文字";
+  else if (lowered.startsWith("span")) part = "文字容器";
+  else if (lowered.startsWith("nav")) part = "导航容器";
+  else if (lowered.startsWith("article")) part = "卡片容器";
+  else if (lowered.startsWith("div")) part = "布局容器";
+  return `${rootName} / ${part}`;
+}
+
+function escapeMarkup(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function openSelectedLayerGroup(id, scroll = false) {
+  if (!id) return;
+  const category = layerCategory(id);
+  openLayerGroups.add(category.key);
+  const details = document.querySelector(
+    `[data-layer-group="${escapeSelector(category.key)}"]`,
+  );
+  if (details) details.open = true;
+  if (scroll) {
+    document
+      .querySelector(
+        `.layout-editor-layer[data-id="${escapeSelector(id)}"]`,
+      )
+      ?.scrollIntoView({ block: "nearest" });
+  }
 }
 
 function scheduleOverlay() {
@@ -520,6 +712,7 @@ function updateOverlay() {
 
 function setSelected(id) {
   selectedId = id || "";
+  openSelectedLayerGroup(selectedId);
   document
     .querySelectorAll(".layout-editor-layer.is-selected")
     .forEach((button) => button.classList.remove("is-selected"));
@@ -527,6 +720,7 @@ function setSelected(id) {
     document
       .querySelector(`.layout-editor-layer[data-id="${escapeSelector(selectedId)}"]`)
       ?.classList.add("is-selected");
+    openSelectedLayerGroup(selectedId, true);
   }
   syncInspector();
   scheduleOverlay();
@@ -590,7 +784,7 @@ function buildEditor() {
   topbar.innerHTML = `
     <div class="layout-editor-brand">
       <strong>汉堡小馆 · Moveable + Theatre.js</strong>
-      <span>点选元素拖拽；正式时间轴由 Theatre Studio 编辑</span>
+      <span>展开分类 → 点选元素 → 拖动调整 → 下载文件发给 Codex</span>
     </div>
     <div class="layout-editor-view-switcher" aria-label="编辑页面状态">
       <button type="button" class="is-active" data-editor-view="home">主画面</button>
@@ -604,9 +798,9 @@ function buildEditor() {
       <button type="button" data-action="play-theatre">播放时间轴</button>
       <button type="button" data-action="select-truck-timing">餐车时序参数</button>
       <button type="button" data-action="replay-truck">重播餐车</button>
-      <button type="button" data-action="save" class="layout-editor-primary">保存</button>
-      <button type="button" data-action="export">导出 JSON</button>
-      <label class="layout-editor-import-label">导入<input type="file" accept="application/json,.json" data-action="import"></label>
+      <button type="button" data-action="save">暂存到浏览器</button>
+      <button type="button" data-action="export" class="layout-editor-primary">下载调整文件</button>
+      <label class="layout-editor-import-label">导入调整文件<input type="file" accept="application/json,.json" data-action="import"></label>
       <button type="button" data-action="reset-all" class="layout-editor-danger">全部复位</button>
       <button type="button" data-action="done">退出编辑</button>
     </div>
@@ -617,6 +811,11 @@ function buildEditor() {
   layers.innerHTML = `
     <div class="layout-editor-panel-title">
       <strong>页面图层</strong><span data-layer-count></span>
+    </div>
+    <div class="layout-editor-transfer-tip">
+      <b>怎么用</b>
+      <span>展开分类，点选中间元素后直接拖动、缩放或旋转。</span>
+      <span>完成后点“下载调整文件”，把 JSON 发给 Codex。</span>
     </div>
     <label class="layout-editor-search">
       <span>搜索</span>
@@ -800,28 +999,51 @@ function renderLayerList() {
     .querySelector("[data-layer-search]")
     ?.value.trim()
     .toLowerCase();
-  const groups = new Map();
+  const groups = new Map(
+    LAYER_CATEGORY_DEFINITIONS.map((definition) => [
+      definition.key,
+      { definition, items: [] },
+    ]),
+  );
   for (const id of allLayoutIds()) {
     const label = elementLabel(id);
-    if (search && !`${id} ${label}`.toLowerCase().includes(search)) continue;
-    const group = id.split(/[.:]/)[0] || "other";
-    if (!groups.has(group)) groups.set(group, []);
-    groups.get(group).push({ id, label });
+    const displayName = layerDisplayName(id, label);
+    const category = layerCategory(id);
+    if (
+      search &&
+      !`${id} ${label} ${displayName} ${category.label}`
+        .toLowerCase()
+        .includes(search)
+    ) {
+      continue;
+    }
+    groups.get(category.key).items.push({ id, label, displayName });
   }
 
-  container.innerHTML = [...groups.entries()]
+  container.innerHTML = [...groups.values()]
+    .filter(({ items }) => items.length)
     .map(
-      ([group, items]) => `
-        <details open>
-          <summary><span>${group}</span><b>${items.length}</b></summary>
+      ({ definition, items }) => `
+        <details data-layer-group="${escapeMarkup(definition.key)}" ${
+          search ||
+          openLayerGroups.has(definition.key) ||
+          (selectedId && definition.key === layerCategory(selectedId).key)
+            ? "open"
+            : ""
+        }>
+          <summary>
+            <span><strong>${escapeMarkup(definition.label)}</strong><small>${escapeMarkup(definition.description)}</small></span>
+            <b>${items.length}</b>
+          </summary>
           <div class="layout-editor-layer-list">
             ${items
               .map(
-                ({ id, label }) => `
+                ({ id, label, displayName }) => `
                   <button type="button" class="layout-editor-layer${
                     id === selectedId ? " is-selected" : ""
-                  }" data-id="${id.replaceAll('"', "&quot;")}">
-                    <strong>${id.split("::").at(-1)}</strong><small>${label}</small>
+                  }" data-id="${escapeMarkup(id)}">
+                    <strong>${escapeMarkup(displayName)}</strong>
+                    <small>${escapeMarkup(id)} · ${escapeMarkup(label)}</small>
                   </button>`,
               )
               .join("")}
@@ -962,23 +1184,20 @@ function exportDocument() {
     theatreStudio && theatreProject
       ? theatreStudio.createContentOfSaveFile(THEATRE_PROJECT_ID)
       : loadTheatreState();
-  const payload = {
-    format: "burger-ui-workbench",
-    version: 1,
-    layoutDocument: workingDocument,
-    theatreState,
-  };
+  const payload = createWorkbenchFile(workingDocument, theatreState, {
+    sourcePage: window.location.href,
+  });
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: "application/json",
   });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `burger-ui-motion-${new Date()
-    .toISOString()
-    .slice(0, 10)}.json`;
+  const timestamp = new Date().toISOString().replaceAll(":", "-").slice(0, 19);
+  link.download = `汉堡小馆-UI调整-${timestamp}.json`;
   link.click();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showToast("调整文件已下载：把这个 JSON 直接发给 Codex 即可", 4200);
 }
 
 function handleAction(action) {
@@ -1072,10 +1291,9 @@ function bindEditor(topbar, layers, inspector, timeline, overlay) {
       const [file] = event.target.files;
       if (!file) return;
       try {
-        const parsed = JSON.parse(await file.text());
-        const layoutDocument = parsed.layoutDocument || parsed;
+        const parsed = parseWorkbenchFile(await file.text());
         workingDocument = history.replace(
-          parseLayoutDocument(JSON.stringify(layoutDocument)),
+          parsed.layoutDocument,
         );
         window.localStorage.setItem(
           STORAGE_KEY,
@@ -1086,13 +1304,15 @@ function bindEditor(topbar, layers, inspector, timeline, overlay) {
             THEATRE_STORAGE_KEY,
             JSON.stringify(parsed.theatreState),
           );
+        } else {
+          window.localStorage.removeItem(THEATRE_STORAGE_KEY);
         }
         applyDocument();
         renderLayerList();
-        showToast("布局与 Theatre 时间轴已导入，正在重载");
+        showToast("调整文件已导入，布局与时间轴正在恢复");
         window.setTimeout(() => window.location.reload(), 240);
       } catch {
-        showToast("文件不是有效的 UI 动画 JSON");
+        showToast("文件不是有效的汉堡小馆 UI 调整文件");
       }
       event.target.value = "";
       syncToolbar();
@@ -1105,6 +1325,16 @@ function bindEditor(topbar, layers, inspector, timeline, overlay) {
     const button = event.target.closest("[data-id]");
     if (button) setSelected(button.dataset.id);
   });
+  layers.addEventListener(
+    "toggle",
+    (event) => {
+      const details = event.target.closest("[data-layer-group]");
+      if (!details) return;
+      if (details.open) openLayerGroups.add(details.dataset.layerGroup);
+      else openLayerGroups.delete(details.dataset.layerGroup);
+    },
+    true,
+  );
 
   inspector.addEventListener("click", (event) => {
     const tab = event.target.closest("[data-tab]")?.dataset.tab;

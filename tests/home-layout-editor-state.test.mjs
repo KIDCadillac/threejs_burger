@@ -5,12 +5,15 @@ import {
   DEFAULT_LAYOUT_VALUE,
   DEFAULT_TRUCK_TIMELINE,
   LAYOUT_VERSION,
+  WORKBENCH_FILE_FORMAT,
+  createWorkbenchFile,
   createLayoutHistory,
   normalizeLayoutDocument,
   normalizeLayoutValue,
   normalizeMotionValue,
   normalizeTruckTimeline,
   parseLayoutDocument,
+  parseWorkbenchFile,
   updateLayoutElement,
   updateTruckTimeline,
 } from "../home-layout-editor-state.mjs";
@@ -84,6 +87,40 @@ test("migrates v1 documents and supplies the truck timeline", () => {
   assert.equal(parsed.version, LAYOUT_VERSION);
   assert.equal(parsed.elements.hud.x, 9);
   assert.deepEqual(parsed.truckTimeline, DEFAULT_TRUCK_TIMELINE);
+});
+
+test("creates a Codex handoff file and imports it again", () => {
+  const payload = createWorkbenchFile(
+    {
+      elements: {
+        "burger.sign": { x: 18, y: -4 },
+      },
+    },
+    { sheetsById: { main: {} } },
+    {
+      createdAt: "2026-07-28T09:00:00.000Z",
+      sourcePage: "https://kidcadillac.github.io/threejs_burger/?layout=1",
+    },
+  );
+
+  assert.equal(payload.format, WORKBENCH_FILE_FORMAT);
+  assert.equal(payload.summary.editedElementCount, 1);
+  assert.deepEqual(payload.summary.editedElementIds, ["burger.sign"]);
+  assert.equal(payload.summary.includesTheatreTimeline, true);
+  assert.match(payload.handoff.instruction, /上传给 Codex/);
+
+  const imported = parseWorkbenchFile(JSON.stringify(payload));
+  assert.equal(imported.layoutDocument.elements["burger.sign"].x, 18);
+  assert.deepEqual(imported.theatreState, payload.theatreState);
+});
+
+test("imports legacy layout-only files", () => {
+  const imported = parseWorkbenchFile(
+    JSON.stringify({ elements: { "global.title": { y: 12 } } }),
+  );
+  assert.equal(imported.format, "legacy-layout-document");
+  assert.equal(imported.layoutDocument.elements["global.title"].y, 12);
+  assert.equal(imported.theatreState, null);
 });
 
 test("updates nested element motion without mutating layout values", () => {

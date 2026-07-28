@@ -1,4 +1,6 @@
 export const LAYOUT_VERSION = 2;
+export const WORKBENCH_FILE_FORMAT = "burger-ui-adjustment";
+export const WORKBENCH_FILE_VERSION = 2;
 
 export const DEFAULT_MOTION_VALUE = Object.freeze({
   enabled: false,
@@ -382,6 +384,57 @@ export function parseLayoutDocument(text) {
   }
 
   return normalizeLayoutDocument(parsed);
+}
+
+export function createWorkbenchFile(
+  document,
+  theatreState = null,
+  metadata = {},
+) {
+  const layoutDocument = normalizeLayoutDocument(document);
+  const editedElementIds = Object.keys(layoutDocument.elements).sort((a, b) =>
+    a.localeCompare(b),
+  );
+
+  return {
+    format: WORKBENCH_FILE_FORMAT,
+    version: WORKBENCH_FILE_VERSION,
+    project: metadata.project || "KIDCadillac/threejs_burger",
+    createdAt: metadata.createdAt || new Date().toISOString(),
+    sourcePage: metadata.sourcePage || "",
+    handoff: {
+      purpose: "把可视化 UI 与动画调整交给 Codex，并固化到项目代码",
+      instruction:
+        "请将此 JSON 文件直接上传给 Codex；layoutDocument 是布局调整，theatreState 是关键帧与时间轴。",
+    },
+    summary: {
+      editedElementCount: editedElementIds.length,
+      editedElementIds,
+      includesTheatreTimeline: Boolean(theatreState),
+    },
+    layoutDocument,
+    theatreState,
+  };
+}
+
+export function parseWorkbenchFile(text) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error("调整文件不是有效 JSON");
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("调整文件结构无效");
+  }
+
+  const layoutSource = parsed.layoutDocument || parsed;
+  return {
+    format: parsed.format || "legacy-layout-document",
+    version: parsed.version || 1,
+    layoutDocument: parseLayoutDocument(JSON.stringify(layoutSource)),
+    theatreState: parsed.theatreState ?? null,
+  };
 }
 
 export function createLayoutHistory(initialDocument = {}) {
