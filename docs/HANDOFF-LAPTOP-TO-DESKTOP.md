@@ -4,15 +4,16 @@
 
 仓库：`https://github.com/KIDCadillac/threejs_burger`
 
-台式机接手分支：`codex/layout-motion-editor`
+台式机接手分支：`main`
 
 美术开发分支：`codex/burger-art-redesign`
 
 ## 发布状态
 
-- 2026-07-28 的 UI 与动画开发工具位于 `codex/layout-motion-editor`，尚未合并 `main`。
+- 2026-07-28 的 UI 与动画开发工具已经合并并发布到 `main`。
 - 这轮不再继续堆自制拖拽和动画面板；已接入 Moveable 0.53.0 与 Theatre.js 0.7.2 Studio。
 - 编辑入口为 `/?layout=1`；普通玩家首页不显示开发工具。
+- 公网编辑入口：`https://kidcadillac.github.io/threejs_burger/?layout=1`。
 - 银色餐车提交已经先推送到 `codex/burger-art-redesign`。
 - 发布前已把远端 `main` 上新增的 12 个提交合入，包括八单连续出餐和宽屏料理台布局。
 - 首页视觉冲突按本轮用户验收结果处理：保留完整银色餐车、居中厨师和返回自动重播；不保留远端旧的 CSS 像素拼装车。
@@ -53,11 +54,11 @@ git status --short --branch
 
 ```powershell
 git fetch origin
-git switch codex/layout-motion-editor
-git pull --ff-only origin codex/layout-motion-editor
+git switch main
+git pull --ff-only origin main
 ```
 
-台式机先以 `codex/layout-motion-editor` 为准继续开发。不要在有未提交修改的工作区强行切分支。
+台式机先以 `main` 为准继续开发。不要在有未提交修改的工作区强行切分支。
 
 如果笔记本已经在编辑器里调整过参数，还要从顶部“导出 JSON”，在台式机的 `?layout=1` 页面点“导入”。Git 只同步代码，不同步浏览器 `localStorage`。
 
