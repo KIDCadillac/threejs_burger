@@ -7,8 +7,8 @@ const root = new URL("../", import.meta.url);
 test("homepage loads the v2 UI motion editor assets", async () => {
   const html = await readFile(new URL("index.html", root), "utf8");
 
-  assert.match(html, /home-layout-editor\.css\?v=20260730-nudge1/);
-  assert.match(html, /home-layout-editor\.mjs\?v=20260730-nudge1/);
+  assert.match(html, /home-layout-editor\.css\?v=20260730-wheeldefaults1/);
+  assert.match(html, /home-layout-editor\.mjs\?v=20260730-wheeldefaults1/);
 });
 
 test("homepage exposes main scenes and sheets as editable roots", async () => {
@@ -119,6 +119,29 @@ test("editor freezes the full truck while wheels are adjusted", async () => {
   assert.match(
     source,
     /Object\.entries\(patch\)[\s\S]*set\(object\.props\[scope\]\[key\], value\)/,
+  );
+});
+
+test("editor loads and resets to the approved wheel baseline", async () => {
+  const source = await readFile(
+    new URL("home-layout-editor.mjs", root),
+    "utf8",
+  );
+
+  assert.match(
+    source,
+    /home-layout-editor-state\.mjs\?v=20260730-wheeldefaults1/,
+  );
+  assert.match(source, /mergeProjectDefaultLayout\(parseLayoutDocument\(raw\)\)/);
+  assert.match(source, /createProjectDefaultLayoutDocument\(\)/);
+  assert.match(
+    source,
+    /history\.replace\(createProjectDefaultLayoutDocument\(\)\)/,
+  );
+  assert.match(source, /projectDefaultLayoutValue\(selectedId\)/);
+  assert.match(
+    source,
+    /mergeProjectDefaultLayout\(parsed\.layoutDocument\)/,
   );
 });
 

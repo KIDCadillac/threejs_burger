@@ -5,15 +5,19 @@ import {
   DEFAULT_LAYOUT_VALUE,
   DEFAULT_TRUCK_TIMELINE,
   LAYOUT_VERSION,
+  PROJECT_DEFAULT_LAYOUT_ELEMENTS,
   WORKBENCH_FILE_FORMAT,
+  createProjectDefaultLayoutDocument,
   createWorkbenchFile,
   createLayoutHistory,
+  mergeProjectDefaultLayout,
   normalizeLayoutDocument,
   normalizeLayoutValue,
   normalizeMotionValue,
   normalizeTruckTimeline,
   parseLayoutDocument,
   parseWorkbenchFile,
+  projectDefaultLayoutValue,
   updateLayoutElement,
   updateTruckTimeline,
 } from "../home-layout-editor-state.mjs";
@@ -68,6 +72,37 @@ test("fills missing element fields from v2 defaults", () => {
     ...DEFAULT_LAYOUT_VALUE,
     x: 4,
   });
+});
+
+test("uses the approved wheel adjustment file as the project baseline", () => {
+  const defaults = createProjectDefaultLayoutDocument();
+
+  assert.deepEqual(PROJECT_DEFAULT_LAYOUT_ELEMENTS["burger.wheel-front"], {
+    x: -26.1,
+    y: 43.3,
+    scale: 0.8,
+  });
+  assert.equal(defaults.elements["burger.wheel-front"].x, -26.1);
+  assert.equal(defaults.elements["burger.wheel-front"].y, 43.3);
+  assert.equal(defaults.elements["burger.wheel-front"].scale, 0.8);
+  assert.equal(defaults.elements["burger.wheel-rear"].x, 19.2);
+  assert.equal(defaults.elements["burger.wheel-rear"].y, 43.4);
+  assert.equal(defaults.elements["burger.wheel-rear"].scale, 0.8);
+  assert.deepEqual(projectDefaultLayoutValue("unknown"), DEFAULT_LAYOUT_VALUE);
+});
+
+test("adds project wheel defaults without replacing explicit local edits", () => {
+  const merged = mergeProjectDefaultLayout({
+    elements: {
+      "burger.sign": { x: 8 },
+      "burger.wheel-rear": { x: 21, y: 44, scale: 0.9 },
+    },
+  });
+
+  assert.equal(merged.elements["burger.wheel-front"].x, -26.1);
+  assert.equal(merged.elements["burger.sign"].x, 8);
+  assert.equal(merged.elements["burger.wheel-rear"].x, 21);
+  assert.equal(merged.elements["burger.wheel-rear"].scale, 0.9);
 });
 
 test("normalizes generic motion settings", () => {

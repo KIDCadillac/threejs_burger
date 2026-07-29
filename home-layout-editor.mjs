@@ -1,13 +1,17 @@
 import {
   DEFAULT_LAYOUT_VALUE,
+  PROJECT_DEFAULT_LAYOUT_ELEMENTS,
   createWorkbenchFile,
+  createProjectDefaultLayoutDocument,
   createLayoutHistory,
+  mergeProjectDefaultLayout,
   normalizeLayoutDocument,
   parseLayoutDocument,
   parseWorkbenchFile,
+  projectDefaultLayoutValue,
   updateLayoutElement,
   updateTruckTimeline,
-} from "./home-layout-editor-state.mjs?v=20260730-truckfocus1";
+} from "./home-layout-editor-state.mjs?v=20260730-wheeldefaults1";
 import {
   alignmentPatch,
   normalizeAlignmentSettings,
@@ -75,9 +79,11 @@ function loadSavedDocument() {
     const raw =
       window.localStorage.getItem(STORAGE_KEY) ||
       window.localStorage.getItem(LEGACY_STORAGE_KEY);
-    return raw ? parseLayoutDocument(raw) : normalizeLayoutDocument({});
+    return raw
+      ? mergeProjectDefaultLayout(parseLayoutDocument(raw))
+      : createProjectDefaultLayoutDocument();
   } catch {
-    return normalizeLayoutDocument({});
+    return createProjectDefaultLayoutDocument();
   }
 }
 
@@ -2137,7 +2143,7 @@ function handleAction(action) {
     exportDocument();
   } else if (action === "reset-all") {
     if (!window.confirm("确定复位全部 UI 与动画参数吗？")) return;
-    workingDocument = history.replace(normalizeLayoutDocument({}));
+    workingDocument = history.replace(createProjectDefaultLayoutDocument());
     applyDocument();
     setSelected("burger.truck");
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(workingDocument));
@@ -2150,40 +2156,59 @@ function handleAction(action) {
     next.searchParams.delete("layout");
     window.location.href = next.toString();
   } else if (action === "reset-selected" && selectedId) {
+    const defaultValue = projectDefaultLayoutValue(selectedId);
+    let nextDocument;
+    if (
+      Object.prototype.hasOwnProperty.call(
+        PROJECT_DEFAULT_LAYOUT_ELEMENTS,
+        selectedId,
+      )
+    ) {
+      nextDocument = updateLayoutElement(
+        workingDocument,
+        selectedId,
+        defaultValue,
+      );
+    } else {
+      const elements = { ...workingDocument.elements };
+      delete elements[selectedId];
+      nextDocument = normalizeLayoutDocument({
+        ...workingDocument,
+        elements,
+      });
+    }
+    workingDocument = nextDocument;
     const object = ensureTheatreObject(selectedId);
     if (theatreStudio && object) {
       theatreStudio.transaction(({ set }) => {
         set(object.props.layout, {
-          x: 0,
-          y: 0,
-          width: 0,
-          height: 0,
-          scale: 1,
-          rotate: 0,
-          perspective: 0,
-          rotateX: 0,
-          rotateY: 0,
-          originX: 50,
-          originY: 50,
-          z: 0,
-          opacity: 1,
-          visible: true,
-          locked: false,
+          x: defaultValue.x,
+          y: defaultValue.y,
+          width: defaultValue.width,
+          height: defaultValue.height,
+          scale: defaultValue.scale,
+          rotate: defaultValue.rotate,
+          perspective: defaultValue.perspective,
+          rotateX: defaultValue.rotateX,
+          rotateY: defaultValue.rotateY,
+          originX: defaultValue.originX,
+          originY: defaultValue.originY,
+          z: defaultValue.z,
+          opacity: defaultValue.opacity,
+          visible: defaultValue.visible,
+          locked: defaultValue.locked,
         });
         set(object.props.style, {
-          brightness: 1,
-          saturate: 1,
-          blur: 0,
-          radius: -1,
-          background: "",
-          color: "",
+          brightness: defaultValue.brightness,
+          saturate: defaultValue.saturate,
+          blur: defaultValue.blur,
+          radius: defaultValue.radius,
+          background: defaultValue.background,
+          color: defaultValue.color,
         });
       });
-    } else {
-      const elements = { ...workingDocument.elements };
-      delete elements[selectedId];
-      commitDocument({ ...workingDocument, elements });
     }
+    commitDocument(nextDocument);
   } else if (action === "deselect") {
     setSelected("");
   } else if (action === "preview-motion" && selectedId) {
@@ -2234,7 +2259,7 @@ function bindEditor(
       try {
         const parsed = parseWorkbenchFile(await file.text());
         workingDocument = history.replace(
-          parsed.layoutDocument,
+          mergeProjectDefaultLayout(parsed.layoutDocument),
         );
         window.localStorage.setItem(
           STORAGE_KEY,

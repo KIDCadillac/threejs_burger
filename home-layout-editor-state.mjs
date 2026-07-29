@@ -42,6 +42,21 @@ export const DEFAULT_LAYOUT_VALUE = Object.freeze({
   motion: DEFAULT_MOTION_VALUE,
 });
 
+// 2026-07-29 用户通过“下载调整文件”验收并交回的餐车基准。
+// 这里只记录相对原始 CSS 真正发生变化的零件；其余字段继续由 v2 默认值补齐。
+export const PROJECT_DEFAULT_LAYOUT_ELEMENTS = Object.freeze({
+  "burger.wheel-front": Object.freeze({
+    x: -26.1,
+    y: 43.3,
+    scale: 0.8,
+  }),
+  "burger.wheel-rear": Object.freeze({
+    x: 19.2,
+    y: 43.4,
+    scale: 0.8,
+  }),
+});
+
 export const DEFAULT_TRUCK_TIMELINE = Object.freeze({
   cameraStartX: 132,
   cameraStartY: 1.5,
@@ -359,6 +374,28 @@ export function normalizeLayoutDocument(input = {}) {
     elements,
     truckTimeline: normalizeTruckTimeline(input?.truckTimeline),
   };
+}
+
+export function createProjectDefaultLayoutDocument() {
+  return normalizeLayoutDocument({
+    elements: PROJECT_DEFAULT_LAYOUT_ELEMENTS,
+  });
+}
+
+export function mergeProjectDefaultLayout(document = {}) {
+  const defaults = createProjectDefaultLayoutDocument();
+  const source = normalizeLayoutDocument(document);
+  return normalizeLayoutDocument({
+    elements: {
+      ...defaults.elements,
+      ...source.elements,
+    },
+    truckTimeline: source.truckTimeline,
+  });
+}
+
+export function projectDefaultLayoutValue(id) {
+  return normalizeLayoutValue(PROJECT_DEFAULT_LAYOUT_ELEMENTS[id]);
 }
 
 export function updateLayoutElement(document, id, patch) {
