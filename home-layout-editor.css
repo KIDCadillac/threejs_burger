@@ -494,6 +494,112 @@ html.layout-editor-active.layout-editor-truck-focus .layout-editor-inspector {
   font-size: 9px;
 }
 
+.layout-editor-nudge-section {
+  gap: 7px;
+}
+
+.layout-editor-nudge-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.layout-editor-nudge-heading > b {
+  color: #d9c0a9;
+  font-size: 10px;
+}
+
+.layout-editor-nudge-heading label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #aa968b;
+  font-size: 9px;
+}
+
+.layout-editor-nudge-heading select {
+  min-height: 28px;
+  padding: 0 22px 0 7px;
+  border: 1px solid #5c4740;
+  border-radius: 7px;
+  outline: 0;
+  color: #fff5df;
+  background: #1f1715;
+  font: inherit;
+}
+
+.layout-editor-nudge-grid {
+  display: grid;
+  grid-template-columns: 48px minmax(92px, 1fr) 48px;
+  grid-template-rows: 38px 42px 38px;
+  align-items: stretch;
+  justify-content: center;
+  gap: 5px;
+}
+
+.layout-editor-nudge-grid button {
+  display: flex;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0;
+  border-color: #675147;
+  background: #392924;
+  font-size: 18px;
+}
+
+.layout-editor-nudge-grid button:hover:not(:disabled) {
+  border-color: #62dcec;
+  color: #fff;
+  background: #24454a;
+}
+
+.layout-editor-nudge-grid button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.layout-editor-nudge-grid kbd {
+  min-width: 16px;
+  padding: 1px 3px;
+  border: 1px solid #6c554c;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  color: #d7bda8;
+  background: #211816;
+  font: 700 8px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.layout-editor-nudge-up {
+  grid-area: 1 / 2;
+}
+
+.layout-editor-nudge-left {
+  grid-area: 2 / 1;
+}
+
+.layout-editor-nudge-grid > output {
+  display: grid;
+  grid-area: 2 / 2;
+  place-items: center;
+  padding: 0 6px;
+  border: 1px solid #4b6566;
+  border-radius: 8px;
+  color: #83e6f0;
+  background: #172526;
+  font: 750 10px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace;
+  text-align: center;
+}
+
+.layout-editor-nudge-right {
+  grid-area: 2 / 3;
+}
+
+.layout-editor-nudge-down {
+  grid-area: 3 / 2;
+}
+
 .layout-editor-align-buttons {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

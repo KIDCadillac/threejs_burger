@@ -7,8 +7,8 @@ const root = new URL("../", import.meta.url);
 test("homepage loads the v2 UI motion editor assets", async () => {
   const html = await readFile(new URL("index.html", root), "utf8");
 
-  assert.match(html, /home-layout-editor\.css\?v=20260730-truckfocus1/);
-  assert.match(html, /home-layout-editor\.mjs\?v=20260730-truckfocus1/);
+  assert.match(html, /home-layout-editor\.css\?v=20260730-nudge1/);
+  assert.match(html, /home-layout-editor\.mjs\?v=20260730-nudge1/);
 });
 
 test("homepage exposes main scenes and sheets as editable roots", async () => {
@@ -153,9 +153,18 @@ test("editor exposes visible alignment, snapping and perspective controls", asyn
   assert.match(source, /data-quick-field="perspective"/);
   assert.match(source, /snapDragLayout/);
   assert.match(source, /ArrowLeft/);
+  assert.match(source, /Numpad2/);
+  assert.match(source, /Numpad4/);
+  assert.match(source, /Numpad6/);
+  assert.match(source, /Numpad8/);
+  assert.match(source, /data-nudge-step/);
+  assert.match(source, /data-nudge="left"/);
+  assert.match(source, /data-nudge="right"/);
+  assert.match(source, /nudgeSelectedDirection/);
   assert.match(css, /layout-editor-grid-surface/);
   assert.match(css, /layout-editor-guide-line\.is-active/);
   assert.match(css, /layout-editor-align-buttons/);
+  assert.match(css, /layout-editor-nudge-grid/);
   assert.match(state, /perspective: 0/);
   assert.match(state, /rotateX: 0/);
   assert.match(state, /rotateY: 0/);

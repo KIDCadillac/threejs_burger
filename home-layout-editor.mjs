@@ -37,6 +37,16 @@ const TRUCK_EDITOR_BASE_IDS = new Set([
   "burger.wheel-front",
   "burger.wheel-rear",
 ]);
+const NUDGE_DIRECTION_BY_KEY = Object.freeze({
+  ArrowLeft: "left",
+  ArrowRight: "right",
+  ArrowUp: "up",
+  ArrowDown: "down",
+  Numpad4: "left",
+  Numpad6: "right",
+  Numpad8: "up",
+  Numpad2: "down",
+});
 let theatreCore = null;
 let theatreStudio = null;
 let theatreProject = null;
@@ -1158,6 +1168,25 @@ function nudgeSelected(deltaX, deltaY) {
   });
 }
 
+function selectedNudgeStep() {
+  const input = document.querySelector("[data-nudge-step]");
+  const value = Number(input?.value);
+  return Number.isFinite(value) && value > 0 ? value : 1;
+}
+
+function nudgeSelectedDirection(direction, { boost = false } = {}) {
+  const vectors = {
+    left: [-1, 0],
+    right: [1, 0],
+    up: [0, -1],
+    down: [0, 1],
+  };
+  const vector = vectors[direction];
+  if (!vector) return;
+  const step = selectedNudgeStep() * (boost ? 10 : 1);
+  nudgeSelected(vector[0] * step, vector[1] * step);
+}
+
 function snappedDragPatch(
   element,
   startValue,
@@ -1515,6 +1544,27 @@ function buildEditor() {
         <button type="button" data-wheel-align>两轮轮心同高</button>
       </div>
     </div>
+    <div class="layout-editor-align-section layout-editor-nudge-section">
+      <div class="layout-editor-nudge-heading">
+        <b>精细移动</b>
+        <label>每次
+          <select data-nudge-step aria-label="微调步长">
+            <option value="0.1">0.1px</option>
+            <option value="1" selected>1px</option>
+            <option value="5">5px</option>
+            <option value="10">10px</option>
+          </select>
+        </label>
+      </div>
+      <div class="layout-editor-nudge-grid" role="group" aria-label="所选零件精细移动">
+        <button type="button" class="layout-editor-nudge-up" data-nudge="up" aria-label="向上微调" title="方向键上 / 小键盘 8"><span>↑</span><kbd>8</kbd></button>
+        <button type="button" class="layout-editor-nudge-left" data-nudge="left" aria-label="向左微调" title="方向键左 / 小键盘 4"><span>←</span><kbd>4</kbd></button>
+        <output data-nudge-position>X — · Y —</output>
+        <button type="button" class="layout-editor-nudge-right" data-nudge="right" aria-label="向右微调" title="方向键右 / 小键盘 6"><span>→</span><kbd>6</kbd></button>
+        <button type="button" class="layout-editor-nudge-down" data-nudge="down" aria-label="向下微调" title="方向键下 / 小键盘 2"><span>↓</span><kbd>2</kbd></button>
+      </div>
+      <small class="layout-editor-nudge-hint">方向键或小键盘 2 / 4 / 6 / 8；按住 Shift 为当前步长 ×10</small>
+    </div>
     <div class="layout-editor-align-section">
       <b>对齐到当前容器</b>
       <div class="layout-editor-align-buttons">
@@ -1553,7 +1603,6 @@ function buildEditor() {
         <label><span>横向透视</span><input type="number" min="-180" max="180" step="1" data-quick-field="rotateY"></label>
         <label><span>纵向透视</span><input type="number" min="-180" max="180" step="1" data-quick-field="rotateX"></label>
       </div>
-      <small class="layout-editor-nudge-hint">方向键微调 1px；Shift + 方向键微调 10px</small>
     </div>
   `;
 
@@ -1785,6 +1834,15 @@ function syncAlignmentDock() {
   dock.querySelectorAll("[data-layer-order]").forEach((button) => {
     button.disabled = !hasSelection || value.locked;
   });
+  dock.querySelectorAll("[data-nudge]").forEach((button) => {
+    button.disabled = !hasSelection || value.locked;
+  });
+  const nudgePosition = dock.querySelector("[data-nudge-position]");
+  if (nudgePosition) {
+    nudgePosition.textContent = hasSelection
+      ? `X ${round(value.x)} · Y ${round(value.y)}`
+      : "X — · Y —";
+  }
   const wheelCheck = dock.querySelector("[data-wheel-check]");
   const wheelStatus = dock.querySelector("[data-wheel-status]");
   const wheelInfo = wheelAlignmentInfo();
@@ -2238,6 +2296,11 @@ function bindEditor(
       changeSelectedLayer(layerOrder);
       return;
     }
+    const nudgeDirection = event.target.closest("[data-nudge]")?.dataset.nudge;
+    if (nudgeDirection) {
+      nudgeSelectedDirection(nudgeDirection);
+      return;
+    }
     if (event.target.closest("[data-wheel-align]")) {
       alignSelectedWheelHeight();
     }
@@ -2429,27 +2492,19 @@ function bindEditor(
   window.addEventListener("resize", scheduleOverlay);
   window.addEventListener("scroll", scheduleOverlay, true);
   document.addEventListener("keydown", (event) => {
+    const nudgeDirection =
+      NUDGE_DIRECTION_BY_KEY[event.code] ||
+      NUDGE_DIRECTION_BY_KEY[event.key];
+    const editingField = event.target.closest(
+      "input, textarea, select, [contenteditable]",
+    );
     if (
       selectedId &&
-      ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(
-        event.key,
-      ) &&
-      !event.target.closest("input, textarea, select, [contenteditable]")
+      nudgeDirection &&
+      (!editingField || editingField.matches("[data-nudge-step]"))
     ) {
       event.preventDefault();
-      const step = event.shiftKey ? 10 : 1;
-      nudgeSelected(
-        event.key === "ArrowLeft"
-          ? -step
-          : event.key === "ArrowRight"
-            ? step
-            : 0,
-        event.key === "ArrowUp"
-          ? -step
-          : event.key === "ArrowDown"
-            ? step
-            : 0,
-      );
+      nudgeSelectedDirection(nudgeDirection, { boost: event.shiftKey });
       return;
     }
     if (event.key === "Escape") setSelected("");
