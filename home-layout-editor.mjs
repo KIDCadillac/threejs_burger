@@ -11,15 +11,18 @@ import {
   projectDefaultLayoutValue,
   updateLayoutElement,
   updateTruckTimeline,
-} from "./home-layout-editor-state.mjs?v=20260730-wheeldefaults1";
+} from "./home-layout-editor-state.mjs?v=20260730-puppet3";
 import {
   alignmentPatch,
   normalizeAlignmentSettings,
   snapDragLayout,
 } from "./home-layout-guides.mjs?v=20260730-truckfocus1";
 
-const STORAGE_KEY = "burger.home.layout.v2";
-const LEGACY_STORAGE_KEY = "burger.home.layout.v1";
+const STORAGE_KEY = "burger.home.layout.v3";
+const LEGACY_STORAGE_KEYS = [
+  "burger.home.layout.v2",
+  "burger.home.layout.v1",
+];
 const THEATRE_STORAGE_KEY = "burger.home.theatre.v1";
 const ALIGNMENT_STORAGE_KEY = "burger.home.editor-guides.v2";
 const THEATRE_PROJECT_ID = "Burger UI Workbench";
@@ -78,7 +81,9 @@ function loadSavedDocument() {
   try {
     const raw =
       window.localStorage.getItem(STORAGE_KEY) ||
-      window.localStorage.getItem(LEGACY_STORAGE_KEY);
+      LEGACY_STORAGE_KEYS
+        .map((key) => window.localStorage.getItem(key))
+        .find(Boolean);
     return raw
       ? mergeProjectDefaultLayout(parseLayoutDocument(raw))
       : createProjectDefaultLayoutDocument();
@@ -109,8 +114,8 @@ let truckPreviewTimer = 0;
 const LAYER_CATEGORY_DEFINITIONS = [
   {
     key: "burger-vehicle",
-    label: "整车与镜头",
-    description: "完整餐车、车身、镜头与场景",
+    label: "整车与舞台",
+    description: "完整餐车、车身、提线吊台与场景",
     matches: (baseId) =>
       [
         "burger.card",
@@ -208,7 +213,7 @@ const LAYER_CATEGORY_DEFINITIONS = [
 const LAYER_DISPLAY_NAMES = {
   "burger.card": "汉堡餐车卡片",
   "burger.scene": "汉堡场景",
-  "burger.camera": "餐车镜头",
+  "burger.camera": "餐车舞台",
   "burger.truck": "完整餐车",
   "burger.body": "银色车身",
   "burger.window": "出餐窗口",
@@ -1680,22 +1685,18 @@ function buildEditor() {
       <button type="button" class="layout-editor-wide-button" data-action="preview-motion">预览所选元素动画</button>
     </section>
     <section class="layout-editor-tab" data-panel="truck">
-      <p class="layout-editor-help">调整后点“重播整车进场”，镜头、车身、车轮、卷帘、招牌和三面翻菜单会使用新参数。</p>
+      <p class="layout-editor-help">这里控制提线吊台的整车下降、停摆和开门。车轮作为整车零件一起移动，不会被进场动画改层级或位置。</p>
       <div class="layout-editor-fields">
-        ${truckField("cameraStartX", "镜头起点 X%", 1)}
-        ${truckField("cameraStartY", "镜头起点 Y%", 1)}
-        ${truckField("cameraStartScale", "镜头起点缩放", 0.05)}
-        ${truckField("cameraEndX", "聚焦终点 X%", 1)}
-        ${truckField("cameraEndY", "聚焦终点 Y%", 1)}
-        ${truckField("cameraEndScale", "聚焦终点缩放", 0.05)}
-        ${truckField("cameraDuration", "镜头时长 ms", 50)}
-        ${truckField("bodyDuration", "车身回弹 ms", 50)}
-        ${truckField("wheelDuration", "车轮滚动 ms", 50)}
-        ${truckField("wheelTurns", "车轮旋转角度", 10)}
+        ${truckField("cameraStartX", "吊台起点 X%", 1)}
+        ${truckField("cameraStartY", "吊台起点 Y%", 1)}
+        ${truckField("cameraStartScale", "吊台起点缩放", 0.05)}
+        ${truckField("cameraEndX", "停靠位置 X%", 1)}
+        ${truckField("cameraEndY", "停靠位置 Y%", 1)}
+        ${truckField("cameraEndScale", "最终整车缩放", 0.05)}
+        ${truckField("cameraDuration", "整段时长 ms", 50)}
+        ${truckField("bodyDuration", "下降与停摆 ms", 50)}
         ${truckField("shutterDelay", "卷帘延迟 ms", 50)}
         ${truckField("shutterDuration", "卷帘时长 ms", 50)}
-        ${truckField("signDelay", "招牌延迟 ms", 50)}
-        ${truckField("signDuration", "招牌时长 ms", 50)}
         ${truckField("menuDuration", "菜单翻转周期 ms", 100)}
         ${truckField("menuStagger", "菜单错峰 ms", 10)}
       </div>
@@ -1716,7 +1717,7 @@ function buildEditor() {
       <output data-timeline-total></output>
     </div>
     <div class="layout-editor-timeline__tracks">
-      ${["镜头", "车身", "车轮", "卷帘", "招牌", "菜单"].map((label, index) => `
+      ${["舞台总时长", "整车吊降", "卷帘开门", "菜单灯箱"].map((label, index) => `
         <div class="layout-editor-timeline__row" data-track="${index}">
           <span>${label}</span><div class="layout-editor-timeline__rail"><i></i></div>
         </div>`).join("")}
@@ -1966,9 +1967,7 @@ function syncTimeline() {
   const tracks = [
     [0, t.cameraDuration],
     [0, t.bodyDuration],
-    [0, t.wheelDuration],
     [t.shutterDelay, t.shutterDuration],
-    [t.signDelay, t.signDuration],
     [0, t.menuDuration + t.menuStagger * 2],
   ];
   const total = Math.max(...tracks.map(([start, duration]) => start + duration));
@@ -2102,7 +2101,7 @@ function replayTruck() {
       camera.classList.add("is-arriving");
     });
   }
-  showToast("正在预览餐车动画，结束后自动回到全车视图", 3200);
+  showToast("正在预览提线吊台：整车下降、轻摆停稳，再打开卷帘", 3200);
 }
 
 function previewTruckAnimation() {

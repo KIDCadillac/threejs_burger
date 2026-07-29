@@ -1,6 +1,6 @@
-export const LAYOUT_VERSION = 2;
+export const LAYOUT_VERSION = 3;
 export const WORKBENCH_FILE_FORMAT = "burger-ui-adjustment";
-export const WORKBENCH_FILE_VERSION = 2;
+export const WORKBENCH_FILE_VERSION = 3;
 
 export const DEFAULT_MOTION_VALUE = Object.freeze({
   enabled: false,
@@ -58,20 +58,20 @@ export const PROJECT_DEFAULT_LAYOUT_ELEMENTS = Object.freeze({
 });
 
 export const DEFAULT_TRUCK_TIMELINE = Object.freeze({
-  cameraStartX: 132,
-  cameraStartY: 1.5,
-  cameraStartScale: 0.8,
-  cameraEndX: -12,
-  cameraEndY: -28,
-  cameraEndScale: 1.76,
-  cameraDuration: 5250,
-  bodyDuration: 3150,
-  wheelDuration: 2850,
-  wheelTurns: 1108,
-  shutterDelay: 2550,
-  shutterDuration: 1050,
-  signDelay: 2660,
-  signDuration: 720,
+  cameraStartX: 0,
+  cameraStartY: -190,
+  cameraStartScale: 1,
+  cameraEndX: 0,
+  cameraEndY: 0,
+  cameraEndScale: 1,
+  cameraDuration: 3100,
+  bodyDuration: 2100,
+  wheelDuration: 100,
+  wheelTurns: 0,
+  shutterDelay: 2100,
+  shutterDuration: 650,
+  signDelay: 0,
+  signDuration: 100,
   menuDuration: 6800,
   menuStagger: 160,
 });
@@ -351,6 +351,10 @@ export function normalizeTruckTimeline(value = {}) {
 }
 
 export function normalizeLayoutDocument(input = {}) {
+  const inputVersion = Number(input?.version);
+  const sourceVersion = Number.isFinite(inputVersion)
+    ? inputVersion
+    : LAYOUT_VERSION;
   const rawElements = input?.elements;
   if (
     rawElements !== undefined &&
@@ -372,7 +376,11 @@ export function normalizeLayoutDocument(input = {}) {
   return {
     version: LAYOUT_VERSION,
     elements,
-    truckTimeline: normalizeTruckTimeline(input?.truckTimeline),
+    truckTimeline: normalizeTruckTimeline(
+      sourceVersion < LAYOUT_VERSION
+        ? DEFAULT_TRUCK_TIMELINE
+        : input?.truckTimeline,
+    ),
   };
 }
 

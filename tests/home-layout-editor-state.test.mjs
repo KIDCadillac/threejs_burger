@@ -67,7 +67,7 @@ test("normalizes layout, style and visibility values", () => {
   assert.equal(value.background, "#fff");
 });
 
-test("fills missing element fields from v2 defaults", () => {
+test("fills missing element fields from v3 defaults", () => {
   assert.deepEqual(normalizeLayoutValue({ x: 4 }), {
     ...DEFAULT_LAYOUT_VALUE,
     x: 4,
@@ -131,6 +131,28 @@ test("migrates v1 documents and supplies the truck timeline", () => {
   );
   assert.equal(parsed.version, LAYOUT_VERSION);
   assert.equal(parsed.elements.hud.x, 9);
+  assert.deepEqual(parsed.truckTimeline, DEFAULT_TRUCK_TIMELINE);
+});
+
+test("migrates the cropped v2 camera timeline without losing wheel edits", () => {
+  const parsed = parseLayoutDocument(
+    JSON.stringify({
+      version: 2,
+      elements: {
+        "burger.wheel-front": { x: -26.1, y: 43.3, scale: 0.8 },
+        "burger.wheel-rear": { x: 19.2, y: 43.4, scale: 0.8 },
+      },
+      truckTimeline: {
+        cameraEndX: -12,
+        cameraEndY: -28,
+        cameraEndScale: 1.76,
+      },
+    }),
+  );
+
+  assert.equal(parsed.version, LAYOUT_VERSION);
+  assert.equal(parsed.elements["burger.wheel-front"].x, -26.1);
+  assert.equal(parsed.elements["burger.wheel-rear"].x, 19.2);
   assert.deepEqual(parsed.truckTimeline, DEFAULT_TRUCK_TIMELINE);
 });
 
@@ -206,7 +228,7 @@ test("history supports undo and redo across layout and timeline changes", () => 
   history.commit(updateTruckTimeline(history.current(), { cameraEndY: -40 }));
 
   assert.equal(history.current().truckTimeline.cameraEndY, -40);
-  assert.equal(history.undo().truckTimeline.cameraEndY, -28);
+  assert.equal(history.undo().truckTimeline.cameraEndY, 0);
   assert.equal(history.undo().elements.hud.x, 0);
   assert.equal(history.redo().elements.hud.x, 20);
 });

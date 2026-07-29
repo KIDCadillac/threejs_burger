@@ -4,13 +4,15 @@ import test from "node:test";
 
 const root = new URL("../", import.meta.url);
 
-test("homepage loads the v2 UI motion editor assets", async () => {
+test("homepage loads the marionette UI motion editor assets", async () => {
   const html = await readFile(new URL("index.html", root), "utf8");
 
-  assert.match(html, /home\.css\?v=20260730-streetrow1/);
-  assert.match(html, /home-lobby-app\.mjs\?v=20260730-streetrow1/);
-  assert.match(html, /home-layout-editor\.css\?v=20260730-streetrow1/);
-  assert.match(html, /home-layout-editor\.mjs\?v=20260730-streetrow1/);
+  assert.match(html, /home\.css\?v=20260730-puppet3/);
+  assert.match(html, /home-lobby-app\.mjs\?v=20260730-puppet3/);
+  assert.match(html, /home-layout-editor\.css\?v=20260730-puppet3/);
+  assert.match(html, /home-layout-editor\.mjs\?v=20260730-puppet3/);
+  assert.match(html, /marionette-rig\.png/);
+  assert.match(html, /class="burger-truck-puppet"/);
 });
 
 test("homepage exposes main scenes and sheets as editable roots", async () => {
@@ -43,6 +45,7 @@ test("editor supports deep selection, tabs, motion preview and timeline replay",
     "utf8",
   );
 
+  assert.match(source, /burger\.home\.layout\.v3/);
   assert.match(source, /burger\.home\.layout\.v2/);
   assert.match(source, /data-layout-runtime-id/);
   assert.match(source, /data-tab="motion"/);
@@ -76,10 +79,15 @@ test("truck CSS uses editor-controlled timing and focus variables", async () => 
 
   assert.match(css, /--truck-camera-duration/);
   assert.match(css, /--truck-camera-end-x/);
-  assert.match(css, /--truck-wheel-turns/);
   assert.match(css, /--truck-shutter-delay/);
   assert.match(css, /--truck-menu-duration/);
   assert.match(css, /@keyframes burger-truck-camera-arrive/);
+  assert.match(css, /@keyframes burger-truck-marionette-drop/);
+  assert.match(css, /@keyframes burger-truck-marionette-strings/);
+  assert.doesNotMatch(
+    css,
+    /\.burger-truck-camera\.is-arriving \.burger-truck-wheel\s*\{[\s\S]*?animation:/,
+  );
 });
 
 test("editor freezes the full truck while wheels are adjusted", async () => {
@@ -132,7 +140,7 @@ test("editor loads and resets to the approved wheel baseline", async () => {
 
   assert.match(
     source,
-    /home-layout-editor-state\.mjs\?v=20260730-wheeldefaults1/,
+    /home-layout-editor-state\.mjs\?v=20260730-puppet3/,
   );
   assert.match(source, /mergeProjectDefaultLayout\(parseLayoutDocument\(raw\)\)/);
   assert.match(source, /createProjectDefaultLayoutDocument\(\)/);

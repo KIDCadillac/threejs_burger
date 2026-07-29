@@ -174,10 +174,20 @@ html.layout-editor-active.layout-editor-truck-overview
 }
 
 html.layout-editor-active.layout-editor-truck-overview
-  .burger-truck-rig {
+  .burger-truck-puppet {
   right: 0 !important;
   bottom: 24% !important;
   width: 100% !important;
+  opacity: 1 !important;
+  animation: none !important;
+  transform: translate3d(0, 0, 0) scale(1) !important;
+}
+
+html.layout-editor-active.layout-editor-truck-overview
+  .burger-truck-marionette-rig {
+  opacity: .2 !important;
+  animation: none !important;
+  clip-path: none !important;
 }
 
 html.layout-editor-active.layout-editor-truck-overview
