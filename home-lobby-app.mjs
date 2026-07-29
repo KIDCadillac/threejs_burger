@@ -273,7 +273,9 @@ function renderWheel(progress = 0) {
     const offset = Number(slide.dataset.cardOffset) || 0;
     const pose = streetShopPose(offset - dragProgress);
     const motion = `translate3d(${pose.translatePercent}%, ${pose.translateYPercent}%, 0) scale(${pose.scale})`;
-    slide.style.transform = motion;
+    // Keep the carousel motion in its own CSS variable. The layout editor uses
+    // independent transform controls and must never erase the shop row motion.
+    slide.style.setProperty("--map-carousel-transform", motion);
     slide.style.opacity = String(pose.opacity);
     slide.style.setProperty("--map-shade-opacity", String(pose.shadeOpacity));
     slide.style.setProperty(

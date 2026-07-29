@@ -328,7 +328,11 @@ function applyValue(element, value) {
     "--layout-transform-3d",
     perspectiveTransform || "translateZ(0)",
   );
-  element.style.transform = hasPerspective ? perspectiveTransform : "";
+  // Do not write to the element's inline `transform`: the homepage carousel,
+  // truck camera and other components own that property for runtime motion.
+  // A class applies the optional editor perspective without clearing motion
+  // when perspective is disabled.
+  element.classList.toggle("layout-editor-has-perspective", hasPerspective);
   element.style.transformOrigin =
     hasPerspective || value.originX !== 50 || value.originY !== 50
       ? `${value.originX}% ${value.originY}%`

@@ -7,8 +7,10 @@ const root = new URL("../", import.meta.url);
 test("homepage loads the v2 UI motion editor assets", async () => {
   const html = await readFile(new URL("index.html", root), "utf8");
 
-  assert.match(html, /home-layout-editor\.css\?v=20260730-wheeldefaults1/);
-  assert.match(html, /home-layout-editor\.mjs\?v=20260730-wheeldefaults1/);
+  assert.match(html, /home\.css\?v=20260730-streetrow1/);
+  assert.match(html, /home-lobby-app\.mjs\?v=20260730-streetrow1/);
+  assert.match(html, /home-layout-editor\.css\?v=20260730-streetrow1/);
+  assert.match(html, /home-layout-editor\.mjs\?v=20260730-streetrow1/);
 });
 
 test("homepage exposes main scenes and sheets as editable roots", async () => {
@@ -156,6 +158,27 @@ test("homepage carousel gestures stand down while the editor is active", async (
   assert.match(source, /event\.isTrusted/);
   assert.match(source, /burger:editor-select-map/);
   assert.match(source, /persist: false/);
+});
+
+test("layout controls preserve the component-owned street row transform", async () => {
+  const [lobby, editor, homeCss, editorCss] = await Promise.all([
+    readFile(new URL("home-lobby-app.mjs", root), "utf8"),
+    readFile(new URL("home-layout-editor.mjs", root), "utf8"),
+    readFile(new URL("home.css", root), "utf8"),
+    readFile(new URL("home-layout-editor.css", root), "utf8"),
+  ]);
+
+  assert.match(lobby, /--map-carousel-transform/);
+  assert.match(homeCss, /var\(\s*--map-carousel-transform/);
+  assert.match(editor, /layout-editor-has-perspective/);
+  assert.doesNotMatch(
+    editor,
+    /element\.style\.transform\s*=\s*hasPerspective/,
+  );
+  assert.match(
+    editorCss,
+    /\.home-map-slide\.layout-editor-has-perspective[\s\S]*--map-carousel-transform/,
+  );
 });
 
 test("editor exposes visible alignment, snapping and perspective controls", async () => {

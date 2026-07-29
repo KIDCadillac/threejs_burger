@@ -6,6 +6,17 @@
   opacity: var(--layout-opacity, 1);
 }
 
+[data-layout-id].layout-editor-has-perspective,
+[data-layout-runtime-id].layout-editor-has-perspective {
+  transform: var(--layout-transform-3d, translateZ(0));
+}
+
+.home-map-slide.layout-editor-has-perspective {
+  transform:
+    var(--map-carousel-transform, translate3d(0, 0, 0) scale(1))
+    var(--layout-transform-3d, translateZ(0));
+}
+
 html.layout-editor-active [data-layout-id],
 html.layout-editor-active [data-layout-runtime-id] {
   cursor: grab;
