@@ -24,6 +24,11 @@ export const DEFAULT_LAYOUT_VALUE = Object.freeze({
   height: 0,
   scale: 1,
   rotate: 0,
+  perspective: 0,
+  rotateX: 0,
+  rotateY: 0,
+  originX: 50,
+  originY: 50,
   z: 0,
   opacity: 1,
   visible: true,
@@ -150,6 +155,31 @@ export function normalizeLayoutValue(value = {}) {
       finiteNumber(value.rotate, DEFAULT_LAYOUT_VALUE.rotate),
       -1080,
       1080,
+    ),
+    perspective: clamp(
+      finiteNumber(value.perspective, DEFAULT_LAYOUT_VALUE.perspective),
+      0,
+      4000,
+    ),
+    rotateX: clamp(
+      finiteNumber(value.rotateX, DEFAULT_LAYOUT_VALUE.rotateX),
+      -180,
+      180,
+    ),
+    rotateY: clamp(
+      finiteNumber(value.rotateY, DEFAULT_LAYOUT_VALUE.rotateY),
+      -180,
+      180,
+    ),
+    originX: clamp(
+      finiteNumber(value.originX, DEFAULT_LAYOUT_VALUE.originX),
+      0,
+      100,
+    ),
+    originY: clamp(
+      finiteNumber(value.originY, DEFAULT_LAYOUT_VALUE.originY),
+      0,
+      100,
     ),
     z: Math.round(
       clamp(finiteNumber(value.z, DEFAULT_LAYOUT_VALUE.z), -999, 999),

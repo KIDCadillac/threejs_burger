@@ -7,8 +7,8 @@ const root = new URL("../", import.meta.url);
 test("homepage loads the v2 UI motion editor assets", async () => {
   const html = await readFile(new URL("index.html", root), "utf8");
 
-  assert.match(html, /home-layout-editor\.css\?v=20260728-motion10/);
-  assert.match(html, /home-layout-editor\.mjs\?v=20260728-motion10/);
+  assert.match(html, /home-layout-editor\.css\?v=20260729-align1/);
+  assert.match(html, /home-layout-editor\.mjs\?v=20260729-align1/);
 });
 
 test("homepage exposes main scenes and sheets as editable roots", async () => {
@@ -125,4 +125,30 @@ test("homepage carousel gestures stand down while the editor is active", async (
   assert.match(source, /event\.isTrusted/);
   assert.match(source, /burger:editor-select-map/);
   assert.match(source, /persist: false/);
+});
+
+test("editor exposes visible alignment, snapping and perspective controls", async () => {
+  const [source, css, state] = await Promise.all([
+    readFile(new URL("home-layout-editor.mjs", root), "utf8"),
+    readFile(new URL("home-layout-editor.css", root), "utf8"),
+    readFile(new URL("home-layout-editor-state.mjs", root), "utf8"),
+  ]);
+
+  assert.match(source, /home-layout-guides\.mjs\?v=20260729-align1/);
+  assert.match(source, /className = "layout-editor-align-dock/);
+  assert.match(source, /data-align="left"/);
+  assert.match(source, /data-align="hcenter"/);
+  assert.match(source, /data-align="right"/);
+  assert.match(source, /data-guide-setting="gridSize"/);
+  assert.match(source, /data-guide-setting="snapping"/);
+  assert.match(source, /data-quick-field="opacity"/);
+  assert.match(source, /data-quick-field="perspective"/);
+  assert.match(source, /snapDragLayout/);
+  assert.match(source, /ArrowLeft/);
+  assert.match(css, /layout-editor-grid-surface/);
+  assert.match(css, /layout-editor-guide-line\.is-active/);
+  assert.match(css, /layout-editor-align-buttons/);
+  assert.match(state, /perspective: 0/);
+  assert.match(state, /rotateX: 0/);
+  assert.match(state, /rotateY: 0/);
 });

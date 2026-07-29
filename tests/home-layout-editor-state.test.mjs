@@ -26,6 +26,11 @@ test("normalizes layout, style and visibility values", () => {
     height: 9000,
     scale: 99,
     rotate: -9999,
+    perspective: 9999,
+    rotateX: -999,
+    rotateY: 999,
+    originX: -20,
+    originY: 300,
     z: 100000,
     opacity: -1,
     visible: 0,
@@ -42,6 +47,11 @@ test("normalizes layout, style and visibility values", () => {
   assert.equal(value.height, 4000);
   assert.equal(value.scale, 8);
   assert.equal(value.rotate, -1080);
+  assert.equal(value.perspective, 4000);
+  assert.equal(value.rotateX, -180);
+  assert.equal(value.rotateY, 180);
+  assert.equal(value.originX, 0);
+  assert.equal(value.originY, 100);
   assert.equal(value.z, 999);
   assert.equal(value.opacity, 0);
   assert.equal(value.visible, false);
