@@ -212,7 +212,6 @@ html.layout-editor-active.layout-editor-wheel-mode
 
 html.layout-editor-active.layout-editor-wheel-mode
   .burger-truck-wheel {
-  z-index: 8 !important;
   pointer-events: auto !important;
 }
 
@@ -223,8 +222,119 @@ html.layout-editor-active.layout-editor-wheel-mode
 }
 
 html.layout-editor-active .layout-editor-selected-target {
-  z-index: 12 !important;
   pointer-events: auto !important;
+}
+
+html.layout-editor-active.layout-editor-truck-focus,
+html.layout-editor-active.layout-editor-truck-focus body {
+  overflow: hidden;
+  background: #665b55;
+}
+
+html.layout-editor-active.layout-editor-truck-focus .lobby-shell {
+  position: fixed;
+  top: 90px;
+  bottom: 22px;
+  left: calc(50vw + 167px);
+  display: block;
+  width: clamp(360px, calc(100vw - 1048px), 860px);
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  transform: translateX(-50%);
+}
+
+html.layout-editor-active.layout-editor-truck-focus
+  :is(
+    .lobby-hud,
+    .diner-sign,
+    .home-map-arrow,
+    .home-card-mode-indicator,
+    .bottom-nav,
+    .health-note,
+    .truck-replay,
+    .truck-service-control
+  ) {
+  display: none !important;
+}
+
+html.layout-editor-active.layout-editor-truck-focus
+  :is(.lobby-stage, .map-carousel, .home-map-viewport, .home-map-track) {
+  position: relative;
+  inset: auto;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: visible;
+  border-radius: 0;
+  perspective: none;
+}
+
+html.layout-editor-active.layout-editor-truck-focus .home-map-slide {
+  display: none !important;
+}
+
+html.layout-editor-active.layout-editor-truck-focus
+  .home-map-slide[data-home-map="burger"][data-card-offset="0"] {
+  position: absolute;
+  inset: 0;
+  display: block !important;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  opacity: 1 !important;
+  pointer-events: auto;
+  transform: none !important;
+}
+
+html.layout-editor-active.layout-editor-truck-focus
+  .home-map-slide[data-home-map="burger"][data-card-offset="0"]::before,
+html.layout-editor-active.layout-editor-truck-focus
+  .diner-scene--burger::after {
+  display: none;
+}
+
+html.layout-editor-active.layout-editor-truck-focus .diner-scene--burger {
+  position: absolute;
+  inset: clamp(54px, 8vh, 86px) 0 auto;
+  width: 100%;
+  height: min(64vh, 560px);
+  overflow: visible;
+  border: 2px solid rgba(255, 230, 185, 0.32);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.08), transparent 42%),
+    #403936;
+  box-shadow:
+    0 22px 50px rgba(20, 15, 13, 0.34),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+html.layout-editor-active.layout-editor-truck-focus.layout-editor-truck-overview
+  .burger-truck-camera {
+  transform: translate3d(0, 0, 0) scale(0.96) !important;
+}
+
+html.layout-editor-active.layout-editor-truck-focus .layout-editor-timeline {
+  display: none !important;
+}
+
+html.layout-editor-active.layout-editor-truck-focus
+  :is(
+    .layout-editor-view-switcher,
+    [data-action="play-theatre"],
+    [data-action="select-truck-timing"]
+  ) {
+  display: none !important;
+}
+
+html.layout-editor-active.layout-editor-truck-focus .layout-editor-inspector {
+  bottom: max(16px, env(safe-area-inset-bottom));
 }
 
 .layout-editor-layers,
@@ -317,6 +427,71 @@ html.layout-editor-active .layout-editor-selected-target {
 .layout-editor-align-section > b {
   color: #d9c0a9;
   font-size: 10px;
+}
+
+.layout-editor-layer-context p {
+  margin: 0;
+  color: #fff1d0;
+  font-size: 11px;
+  font-weight: 760;
+  line-height: 1.45;
+}
+
+.layout-editor-layer-context > output {
+  padding: 7px 8px;
+  border: 1px solid #59443d;
+  border-radius: 7px;
+  color: #9ee8f2;
+  background: #1d292a;
+  font-size: 10px;
+}
+
+.layout-editor-layer-order {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.layout-editor-layer-order button {
+  min-height: 30px;
+  padding: 0 4px;
+  font-size: 9px;
+}
+
+.layout-editor-layer-order .layout-editor-layer-original {
+  grid-column: 1 / -1;
+  color: #ffdaa0;
+}
+
+.layout-editor-wheel-check {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid #5d5140;
+  border-radius: 8px;
+  background: #282820;
+}
+
+.layout-editor-wheel-check[hidden] {
+  display: none;
+}
+
+.layout-editor-wheel-check output {
+  color: #ffc87a;
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.layout-editor-wheel-check output.is-aligned {
+  color: #86e39b;
+}
+
+.layout-editor-wheel-check button {
+  min-height: 29px;
+  padding: 0 7px;
+  font-size: 9px;
 }
 
 .layout-editor-align-buttons {
@@ -979,8 +1154,8 @@ html.layout-editor-devtools .layout-editor-brand span {
   display: none;
 }
 
-html.layout-editor-devtools .layout-editor-inspector,
-html.layout-editor-devtools .layout-editor-timeline,
+html.layout-editor-studio-visible .layout-editor-inspector,
+html.layout-editor-studio-visible .layout-editor-timeline,
 html.layout-editor-moveable .layout-editor-selection {
   display: none !important;
 }

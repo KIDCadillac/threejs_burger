@@ -7,17 +7,17 @@ import {
   parseWorkbenchFile,
   updateLayoutElement,
   updateTruckTimeline,
-} from "./home-layout-editor-state.mjs?v=20260729-align1";
+} from "./home-layout-editor-state.mjs?v=20260730-truckfocus1";
 import {
   alignmentPatch,
   normalizeAlignmentSettings,
   snapDragLayout,
-} from "./home-layout-guides.mjs?v=20260729-align1";
+} from "./home-layout-guides.mjs?v=20260730-truckfocus1";
 
 const STORAGE_KEY = "burger.home.layout.v2";
 const LEGACY_STORAGE_KEY = "burger.home.layout.v1";
 const THEATRE_STORAGE_KEY = "burger.home.theatre.v1";
-const ALIGNMENT_STORAGE_KEY = "burger.home.editor-guides.v1";
+const ALIGNMENT_STORAGE_KEY = "burger.home.editor-guides.v2";
 const THEATRE_PROJECT_ID = "Burger UI Workbench";
 const query = new URLSearchParams(window.location.search);
 const editorEnabled = query.get("layout") === "1";
@@ -25,6 +25,18 @@ const editableSelector = "[data-layout-id],[data-layout-runtime-id]";
 const animationById = new Map();
 const theatreObjects = new Map();
 const openLayerGroups = new Set(["burger-vehicle"]);
+const TRUCK_EDITOR_BASE_IDS = new Set([
+  "burger.camera",
+  "burger.truck",
+  "burger.body",
+  "burger.service",
+  "burger.menu",
+  "burger.window",
+  "burger.shutter",
+  "burger.sign",
+  "burger.wheel-front",
+  "burger.wheel-rear",
+]);
 let theatreCore = null;
 let theatreStudio = null;
 let theatreProject = null;
@@ -35,6 +47,8 @@ let moveableScrub = null;
 let moveableStartValue = null;
 let moveableStartRect = null;
 let moveableReferenceRect = null;
+let truckFocusEnabled = true;
+let studioVisible = false;
 
 const round = (value, digits = 1) => {
   const factor = 10 ** digits;
@@ -613,6 +627,7 @@ async function setupDeveloperTools() {
     "layout-editor-devtools",
     "layout-editor-moveable",
   );
+  setStudioVisibility(false);
   setupMoveable();
   selectInDeveloperTools(selectedId);
   showToast("Moveable 与 Theatre.js Studio 已接管编辑");
@@ -714,8 +729,102 @@ function layerCategory(id) {
   );
 }
 
+function isTruckEditorId(id) {
+  return TRUCK_EDITOR_BASE_IDS.has(baseLayoutId(id));
+}
+
+function truckEditorRootId(id) {
+  const baseId = baseLayoutId(id);
+  return TRUCK_EDITOR_BASE_IDS.has(baseId) ? baseId : "";
+}
+
 function isWheelLayer(id) {
   return Boolean(id && layerCategory(id).key === "burger-wheel");
+}
+
+function numericZIndex(element) {
+  if (!element) return 0;
+  const value = Number.parseInt(window.getComputedStyle(element).zIndex, 10);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function nativeLayerValue(element) {
+  if (!element?.style.zIndex) return numericZIndex(element);
+  const inlineValue = element.style.zIndex;
+  element.style.zIndex = "";
+  const nativeValue = numericZIndex(element);
+  element.style.zIndex = inlineValue;
+  return nativeValue;
+}
+
+function effectiveLayerValue(id, element = preferredElement(id)) {
+  if (!id || !element) return 0;
+  const explicit = layoutValue(id).z;
+  return explicit === 0 ? nativeLayerValue(element) : explicit;
+}
+
+function selectedLayerContext() {
+  const element = selectedId ? preferredElement(selectedId) : null;
+  if (!element) {
+    return {
+      element: null,
+      path: "请选择餐车零件",
+      current: 0,
+      original: 0,
+      explicit: false,
+      min: 0,
+      max: 0,
+    };
+  }
+  const value = layoutValue(selectedId);
+  const category = layerCategory(selectedId);
+  const displayName = layerDisplayName(selectedId, elementLabel(selectedId));
+  const peers = [...(element.parentElement?.children || [])].filter(
+    (peer) =>
+      peer instanceof HTMLElement &&
+      peer.getClientRects().length &&
+      window.getComputedStyle(peer).position !== "static",
+  );
+  const peerLayers = peers.map((peer) => {
+    const peerId = elementId(peer);
+    return peerId
+      ? effectiveLayerValue(peerId, peer)
+      : numericZIndex(peer);
+  });
+  const current = effectiveLayerValue(selectedId, element);
+  return {
+    element,
+    path: `${category.label} › ${displayName}`,
+    current,
+    original: nativeLayerValue(element),
+    explicit: value.z !== 0,
+    min: peerLayers.length ? Math.min(...peerLayers) : current,
+    max: peerLayers.length ? Math.max(...peerLayers) : current,
+  };
+}
+
+function wheelAlignmentInfo() {
+  if (!isWheelLayer(selectedId)) return null;
+  const selected = preferredElement(selectedId);
+  const partnerId =
+    baseLayoutId(selectedId) === "burger.wheel-front"
+      ? "burger.wheel-rear"
+      : "burger.wheel-front";
+  const partner = preferredElement(partnerId);
+  if (!selected || !partner) return null;
+  const selectedRect = selected.getBoundingClientRect();
+  const partnerRect = partner.getBoundingClientRect();
+  const delta =
+    selectedRect.top +
+    selectedRect.height / 2 -
+    (partnerRect.top + partnerRect.height / 2);
+  return {
+    selected,
+    partner,
+    partnerId,
+    delta,
+    aligned: Math.abs(delta) <= 0.5,
+  };
 }
 
 function plainRect(rect) {
@@ -769,6 +878,10 @@ function viewportDeltaToLayout(element, deltaX, deltaY) {
 
 function alignmentReference(element) {
   if (!element) return null;
+  const service = element.closest(".silver-truck__service");
+  if (service && service !== element) return service;
+  const truck = element.closest(".silver-truck");
+  if (truck && truck !== element) return truck;
   const scene = element.closest(".diner-scene");
   if (scene && scene !== element) return scene;
   const slide = element.closest(
@@ -784,6 +897,8 @@ function alignmentReference(element) {
 
 function alignmentReferenceLabel(reference) {
   if (!reference) return "未找到对齐范围";
+  if (reference.matches(".silver-truck__service")) return "出餐区边界";
+  if (reference.matches(".silver-truck")) return "完整餐车边界";
   if (reference.matches(".diner-scene")) return "餐厅场景边界";
   if (reference.matches(".home-map-slide")) return "当前餐厅卡片";
   if (reference.matches(".lobby-stage")) return "主页舞台";
@@ -947,10 +1062,14 @@ function applySelectedLayoutPatch(patch, message = "") {
       typeof value === "number" ? round(value) : value,
     ]),
   );
-  if (!setTheatrePatch(selectedId, "layout", normalizedPatch)) {
-    updateSelectedPreview(normalizedPatch);
-  }
-  commitDocument(workingDocument);
+  const nextDocument = updateLayoutElement(
+    workingDocument,
+    selectedId,
+    normalizedPatch,
+  );
+  workingDocument = nextDocument;
+  setTheatrePatch(selectedId, "layout", normalizedPatch);
+  commitDocument(nextDocument);
   scheduleOverlay();
   if (message) showToast(message);
 }
@@ -990,6 +1109,44 @@ function alignSelected(mode) {
     mode === "hcenter" ? "center" : ["left", "right"].includes(mode) ? mode : "",
     mode === "vcenter" ? "middle" : ["top", "bottom"].includes(mode) ? mode : "",
   );
+}
+
+function changeSelectedLayer(action) {
+  if (!selectedId || layoutValue(selectedId).locked) return;
+  const context = selectedLayerContext();
+  if (!context.element) return;
+  let next = context.current;
+  if (action === "forward") next = context.current + 1;
+  else if (action === "backward") next = context.current - 1;
+  else if (action === "front") next = context.max + 1;
+  else if (action === "back") next = context.min - 1;
+  else if (action === "original") next = 0;
+  applySelectedLayoutPatch(
+    { z: next },
+    action === "original"
+      ? "已恢复零件原始图层"
+      : `当前显示层：${next}`,
+  );
+  syncAlignmentDock();
+}
+
+function alignSelectedWheelHeight() {
+  const info = wheelAlignmentInfo();
+  if (!info) {
+    showToast("请选择前轮或后轮");
+    return;
+  }
+  const value = layoutValue(selectedId);
+  const correction = viewportDeltaToLayout(
+    info.selected,
+    0,
+    -info.delta,
+  );
+  applySelectedLayoutPatch(
+    { y: value.y + correction.y },
+    "两只车轮的轮心已经同高",
+  );
+  showSnapFeedback("", "middle");
 }
 
 function nudgeSelected(deltaX, deltaY) {
@@ -1120,8 +1277,10 @@ function updateOverlay() {
   overlay.style.top = `${rect.top}px`;
   overlay.style.width = `${rect.width}px`;
   overlay.style.height = `${rect.height}px`;
+  const displayName = layerDisplayName(selectedId, elementLabel(selectedId));
+  const layer = effectiveLayerValue(selectedId, element);
   overlay.querySelector(".layout-editor-selection__label").textContent =
-    selectedId;
+    `${displayName} · 层 ${layer}`;
 }
 
 function setSelected(id) {
@@ -1218,6 +1377,71 @@ function requestEditorMap(mapId) {
   );
 }
 
+function activateBurgerMapForFocus() {
+  if (!truckFocusEnabled) return;
+  requestEditorMap("burger");
+  scheduleOverlay();
+  window.requestAnimationFrame(() => devMoveable?.updateRect());
+}
+
+function setStudioVisibility(visible, { announce = false } = {}) {
+  if (!theatreStudio?.ui) return;
+  studioVisible = Boolean(visible);
+  if (studioVisible) theatreStudio.ui.restore();
+  else theatreStudio.ui.hide();
+  document.documentElement.classList.toggle(
+    "layout-editor-studio-visible",
+    studioVisible,
+  );
+  document
+    .querySelectorAll('[data-action="toggle-studio"]')
+    .forEach((button) => {
+      button.classList.toggle("is-active", studioVisible);
+      button.textContent = studioVisible ? "关闭高级动画面板" : "高级动画面板";
+    });
+  if (announce) {
+    showToast(
+      studioVisible
+        ? "已打开高级动画面板"
+        : "已关闭高级动画面板，继续专心调整餐车",
+    );
+  }
+}
+
+function setTruckFocus(enabled, { announce = false } = {}) {
+  truckFocusEnabled = Boolean(enabled);
+  document.documentElement.classList.toggle(
+    "layout-editor-truck-focus",
+    truckFocusEnabled,
+  );
+  document
+    .querySelectorAll('[data-action="toggle-truck-focus"]')
+    .forEach((button) => {
+      button.classList.toggle("is-active", truckFocusEnabled);
+      button.textContent = truckFocusEnabled ? "餐车专注 ✓" : "进入餐车专注";
+    });
+  if (truckFocusEnabled) {
+    activateBurgerMapForFocus();
+    [120, 480, 1200].forEach((delay) => {
+      window.setTimeout(activateBurgerMapForFocus, delay);
+    });
+    setEditorView("home");
+    setTruckOverview(true);
+    const focusedId = truckEditorRootId(selectedId);
+    setSelected(focusedId || "burger.truck");
+  }
+  renderLayerList();
+  scheduleOverlay();
+  window.requestAnimationFrame(() => devMoveable?.updateRect());
+  if (announce) {
+    showToast(
+      truckFocusEnabled
+        ? "已进入餐车专注：只显示餐车零件"
+        : "已返回整页 UI 编辑",
+    );
+  }
+}
+
 function buildEditor() {
   document.documentElement.classList.add("layout-editor-active");
 
@@ -1225,8 +1449,8 @@ function buildEditor() {
   topbar.className = "layout-editor-topbar layout-editor-ui";
   topbar.innerHTML = `
     <div class="layout-editor-brand">
-      <strong>汉堡小馆 · Moveable + Theatre.js</strong>
-      <span>展开分类 → 点选元素 → 拖动调整 → 下载文件发给 Codex</span>
+      <strong>汉堡小馆 · 餐车工作台</strong>
+      <span>选零件 → 拖动或对齐 → 调整图层 → 下载文件</span>
     </div>
     <div class="layout-editor-view-switcher" aria-label="编辑页面状态">
       <button type="button" class="is-active" data-editor-view="home">主画面</button>
@@ -1239,8 +1463,9 @@ function buildEditor() {
       <button type="button" data-action="redo">重做</button>
       <button type="button" data-action="play-theatre">播放时间轴</button>
       <button type="button" data-action="select-truck-timing">餐车时序参数</button>
-      <button type="button" data-action="truck-overview" class="is-active">全车编辑视图</button>
+      <button type="button" data-action="toggle-truck-focus" class="is-active">餐车专注 ✓</button>
       <button type="button" data-action="replay-truck">预览餐车动画</button>
+      <button type="button" data-action="toggle-studio">高级动画面板</button>
       <button type="button" data-action="save">暂存到浏览器</button>
       <button type="button" data-action="export" class="layout-editor-primary">下载调整文件</button>
       <label class="layout-editor-import-label">导入调整文件<input type="file" accept="application/json,.json" data-action="import"></label>
@@ -1253,16 +1478,16 @@ function buildEditor() {
   layers.className = "layout-editor-layers layout-editor-ui";
   layers.innerHTML = `
     <div class="layout-editor-panel-title">
-      <strong>页面图层</strong><span data-layer-count></span>
+      <strong data-layer-panel-title>餐车图层</strong><span data-layer-count></span>
     </div>
     <div class="layout-editor-transfer-tip">
       <b>怎么用</b>
-      <span>展开分类，点选中间元素后直接拖动、缩放或旋转。</span>
-      <span>完成后点“下载调整文件”，把 JSON 发给 Codex。</span>
+      <span>这里只列餐车零件。选中后会显示所属层级和对齐状态。</span>
+      <span>拖动只改位置，不会自动改变前后图层。</span>
     </div>
     <label class="layout-editor-search">
       <span>搜索</span>
-      <input type="search" placeholder="餐车、按钮、文字…" data-layer-search>
+      <input type="search" placeholder="车轮、车身、窗口、招牌…" data-layer-search>
     </label>
     <div class="layout-editor-layer-groups" data-layer-groups></div>
   `;
@@ -1273,6 +1498,22 @@ function buildEditor() {
     <div class="layout-editor-align-dock__heading">
       <span><strong>对齐与外观</strong><small data-align-reference>请选择元素</small></span>
       <output data-align-status>拖动时会自动吸附</output>
+    </div>
+    <div class="layout-editor-align-section layout-editor-layer-context">
+      <b>当前零件与图层</b>
+      <p data-layer-path>请选择餐车零件</p>
+      <output data-layer-status>当前显示层：—</output>
+      <div class="layout-editor-layer-order">
+        <button type="button" data-layer-order="backward" title="向车身后面移动一层">下一层</button>
+        <button type="button" data-layer-order="forward" title="向画面前面移动一层">上一层</button>
+        <button type="button" data-layer-order="back" title="放到同级零件最后面">置底</button>
+        <button type="button" data-layer-order="front" title="放到同级零件最前面">置顶</button>
+        <button type="button" data-layer-order="original" class="layout-editor-layer-original">恢复原层</button>
+      </div>
+      <div class="layout-editor-wheel-check" data-wheel-check hidden>
+        <output data-wheel-status>正在检查两只车轮</output>
+        <button type="button" data-wheel-align>两轮轮心同高</button>
+      </div>
     </div>
     <div class="layout-editor-align-section">
       <b>对齐到当前容器</b>
@@ -1458,7 +1699,7 @@ function buildEditor() {
   bindEditor(topbar, layers, alignmentDock, inspector, timeline, overlay);
   requestEditorMap("burger");
   setTruckOverview(true);
-  renderLayerList();
+  setTruckFocus(true);
   syncToolbar();
   setEditorView("home");
   [400, 1200, 2500].forEach((delay) => {
@@ -1530,6 +1771,36 @@ function syncAlignmentDock() {
   if (opacityOutput) {
     opacityOutput.textContent = `${Math.round(value.opacity * 100)}%`;
   }
+  const layerContext = selectedLayerContext();
+  const layerPath = dock.querySelector("[data-layer-path]");
+  const layerStatus = dock.querySelector("[data-layer-status]");
+  if (layerPath) layerPath.textContent = layerContext.path;
+  if (layerStatus) {
+    layerStatus.textContent = hasSelection
+      ? layerContext.explicit
+        ? `当前显示层：${layerContext.current}（原始 ${layerContext.original}）`
+        : `当前显示层：原始 ${layerContext.original}`
+      : "当前显示层：—";
+  }
+  dock.querySelectorAll("[data-layer-order]").forEach((button) => {
+    button.disabled = !hasSelection || value.locked;
+  });
+  const wheelCheck = dock.querySelector("[data-wheel-check]");
+  const wheelStatus = dock.querySelector("[data-wheel-status]");
+  const wheelInfo = wheelAlignmentInfo();
+  if (wheelCheck) wheelCheck.hidden = !wheelInfo;
+  if (wheelInfo && wheelStatus) {
+    const partnerName =
+      baseLayoutId(wheelInfo.partnerId) === "burger.wheel-front"
+        ? "前轮"
+        : "后轮";
+    wheelStatus.textContent = wheelInfo.aligned
+      ? `✓ 与${partnerName}轮心同高`
+      : `与${partnerName}轮心相差 ${Math.abs(wheelInfo.delta).toFixed(1)}px（${
+          wheelInfo.delta > 0 ? "当前更低" : "当前更高"
+        }）`;
+    wheelStatus.classList.toggle("is-aligned", wheelInfo.aligned);
+  }
   dock.querySelectorAll("[data-guide-setting]").forEach((input) => {
     if (document.activeElement === input) return;
     const field = input.dataset.guideSetting;
@@ -1555,6 +1826,9 @@ function syncToolbar() {
 function renderLayerList() {
   const container = document.querySelector("[data-layer-groups]");
   if (!container) return;
+  const visibleIds = allLayoutIds().filter(
+    (id) => !truckFocusEnabled || TRUCK_EDITOR_BASE_IDS.has(id),
+  );
   const search = document
     .querySelector("[data-layer-search]")
     ?.value.trim()
@@ -1565,7 +1839,7 @@ function renderLayerList() {
       { definition, items: [] },
     ]),
   );
-  for (const id of allLayoutIds()) {
+  for (const id of visibleIds) {
     const label = elementLabel(id);
     const displayName = layerDisplayName(id, label);
     const category = layerCategory(id);
@@ -1611,9 +1885,10 @@ function renderLayerList() {
         </details>`,
     )
     .join("");
-  document.querySelector("[data-layer-count]").textContent = `${
-    allLayoutIds().length
-  } 个`;
+  const title = document.querySelector("[data-layer-panel-title]");
+  if (title) title.textContent = truckFocusEnabled ? "餐车图层" : "页面图层";
+  document.querySelector("[data-layer-count]").textContent =
+    `${visibleIds.length} 个`;
 }
 
 function syncTimeline() {
@@ -1735,9 +2010,6 @@ function setTruckOverview(enabled, { announce = false } = {}) {
     "layout-editor-truck-overview",
     enabled,
   );
-  document
-    .querySelectorAll('[data-action="truck-overview"]')
-    .forEach((button) => button.classList.toggle("is-active", enabled));
   if (enabled) {
     document.querySelectorAll("[data-truck-camera]").forEach((camera) => {
       camera.classList.remove("is-arriving");
@@ -1858,8 +2130,10 @@ function handleAction(action) {
     setSelected("");
   } else if (action === "preview-motion" && selectedId) {
     playElementMotion(selectedId, true);
-  } else if (action === "truck-overview") {
-    setTruckOverview(true, { announce: true });
+  } else if (action === "toggle-truck-focus") {
+    setTruckFocus(!truckFocusEnabled, { announce: true });
+  } else if (action === "toggle-studio") {
+    setStudioVisibility(!studioVisible, { announce: true });
   } else if (action === "replay-truck") {
     switchTab("truck");
     previewTruckAnimation();
@@ -1867,6 +2141,7 @@ function handleAction(action) {
     theatreSheet.sequence.position = 0;
     theatreSheet.sequence.play({ iterationCount: 1 }).catch(() => {});
   } else if (action === "select-truck-timing" && theatreStudio) {
+    switchTab("truck");
     const object = ensureTruckTimelineObject();
     if (object) theatreStudio.setSelection([object]);
   }
@@ -1953,7 +2228,19 @@ function bindEditor(
   });
   alignmentDock.addEventListener("click", (event) => {
     const mode = event.target.closest("[data-align]")?.dataset.align;
-    if (mode) alignSelected(mode);
+    if (mode) {
+      alignSelected(mode);
+      return;
+    }
+    const layerOrder = event.target.closest("[data-layer-order]")?.dataset
+      .layerOrder;
+    if (layerOrder) {
+      changeSelectedLayer(layerOrder);
+      return;
+    }
+    if (event.target.closest("[data-wheel-align]")) {
+      alignSelectedWheelHeight();
+    }
   });
   alignmentDock.addEventListener("input", (event) => {
     const settingInput = event.target.closest("[data-guide-setting]");
@@ -2048,7 +2335,12 @@ function bindEditor(
         if (!devMoveable) setSelected("");
         return;
       }
-      const id = elementId(element);
+      const rawId = elementId(element);
+      const id = truckFocusEnabled ? truckEditorRootId(rawId) : rawId;
+      if (truckFocusEnabled && !id) {
+        event.preventDefault();
+        return;
+      }
       const useDirectWheelDrag = isWheelLayer(id);
       event.preventDefault();
       if (selectedId !== id) setSelected(id);

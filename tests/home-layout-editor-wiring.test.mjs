@@ -7,8 +7,8 @@ const root = new URL("../", import.meta.url);
 test("homepage loads the v2 UI motion editor assets", async () => {
   const html = await readFile(new URL("index.html", root), "utf8");
 
-  assert.match(html, /home-layout-editor\.css\?v=20260729-align1/);
-  assert.match(html, /home-layout-editor\.mjs\?v=20260729-align1/);
+  assert.match(html, /home-layout-editor\.css\?v=20260730-truckfocus1/);
+  assert.match(html, /home-layout-editor\.mjs\?v=20260730-truckfocus1/);
 });
 
 test("homepage exposes main scenes and sheets as editable roots", async () => {
@@ -58,7 +58,8 @@ test("editor supports deep selection, tabs, motion preview and timeline replay",
   assert.match(source, /LAYER_CATEGORY_DEFINITIONS/);
   assert.match(source, /data-layer-group/);
   assert.match(source, /下载调整文件/);
-  assert.match(source, /data-action="truck-overview"/);
+  assert.match(source, /data-action="toggle-truck-focus"/);
+  assert.match(source, /data-action="toggle-studio"/);
   assert.match(source, /previewTruckAnimation/);
   assert.match(source, /layout-editor-truck-overview/);
   assert.match(source, /layout-editor-wheel-mode/);
@@ -93,10 +94,17 @@ test("editor freezes the full truck while wheels are adjusted", async () => {
   assert.match(css, /animation: none !important/);
   assert.match(css, /layout-editor-wheel-mode/);
   assert.match(css, /pointer-events: none !important/);
-  assert.match(css, /z-index: 8 !important/);
   assert.match(
     css,
     /layout-editor-selected-target[\s\S]*pointer-events: auto !important/,
+  );
+  assert.doesNotMatch(
+    css,
+    /layout-editor-selected-target\s*\{[^}]*z-index:/,
+  );
+  assert.doesNotMatch(
+    css,
+    /layout-editor-wheel-mode[\s\S]{0,100}\.burger-truck-wheel\s*\{[^}]*z-index:/,
   );
   assert.match(
     css,
@@ -134,7 +142,7 @@ test("editor exposes visible alignment, snapping and perspective controls", asyn
     readFile(new URL("home-layout-editor-state.mjs", root), "utf8"),
   ]);
 
-  assert.match(source, /home-layout-guides\.mjs\?v=20260729-align1/);
+  assert.match(source, /home-layout-guides\.mjs\?v=20260730-truckfocus1/);
   assert.match(source, /className = "layout-editor-align-dock/);
   assert.match(source, /data-align="left"/);
   assert.match(source, /data-align="hcenter"/);
@@ -151,4 +159,36 @@ test("editor exposes visible alignment, snapping and perspective controls", asyn
   assert.match(state, /perspective: 0/);
   assert.match(state, /rotateX: 0/);
   assert.match(state, /rotateY: 0/);
+});
+
+test("truck focus isolates the vehicle and exposes explicit layer controls", async () => {
+  const [source, css, guides] = await Promise.all([
+    readFile(new URL("home-layout-editor.mjs", root), "utf8"),
+    readFile(new URL("home-layout-editor.css", root), "utf8"),
+    readFile(new URL("home-layout-guides.mjs", root), "utf8"),
+  ]);
+
+  assert.match(source, /TRUCK_EDITOR_BASE_IDS/);
+  assert.match(source, /TRUCK_EDITOR_BASE_IDS\.has\(id\)/);
+  assert.match(source, /truckEditorRootId/);
+  assert.match(source, /layout-editor-truck-focus/);
+  assert.match(source, /data-layer-order="backward"/);
+  assert.match(source, /data-layer-order="forward"/);
+  assert.match(source, /data-layer-order="back"/);
+  assert.match(source, /data-layer-order="front"/);
+  assert.match(source, /data-layer-order="original"/);
+  assert.match(source, /data-wheel-align/);
+  assert.match(source, /alignSelectedWheelHeight/);
+  assert.match(source, /const nextDocument = updateLayoutElement/);
+  assert.match(source, /commitDocument\(nextDocument\)/);
+  assert.match(source, /theatreStudio\.ui\.hide/);
+  assert.match(css, /layout-editor-truck-focus/);
+  assert.match(
+    css,
+    /home-map-slide\[data-home-map="burger"\]\[data-card-offset="0"\]/,
+  );
+  assert.match(css, /layout-editor-layer-order/);
+  assert.match(css, /data-action="play-theatre"/);
+  assert.match(css, /data-action="select-truck-timing"/);
+  assert.match(guides, /showGrid: false/);
 });

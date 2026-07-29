@@ -1,6 +1,6 @@
 export const DEFAULT_ALIGNMENT_SETTINGS = Object.freeze({
   snapping: true,
-  showGrid: true,
+  showGrid: false,
   gridSize: 8,
   inset: 0,
   threshold: 7,
