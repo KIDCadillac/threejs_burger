@@ -35,6 +35,7 @@ import {
 } from "./home-mode-switch-state.mjs?v=20260726-modecrew1";
 
 const storage = window.localStorage;
+const visualQaMode = new URLSearchParams(window.location.search).has("visualQa");
 const energyValue = document.querySelector("#energy-value");
 const coinValue = document.querySelector("#coin-value");
 const dailyDot = document.querySelector("#daily-dot");
@@ -891,6 +892,6 @@ requestAnimationFrame(() => {
   renderMode();
   renderBusiness();
 });
-if (progress.lastClaimDay !== dayStamp()) {
+if (!visualQaMode && progress.lastClaimDay !== dayStamp()) {
   window.setTimeout(() => showSheet("daily-checkin"), 280);
 }

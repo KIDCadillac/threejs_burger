@@ -11,7 +11,7 @@ import {
   projectDefaultLayoutValue,
   updateLayoutElement,
   updateTruckTimeline,
-} from "./home-layout-editor-state.mjs?v=20260730-booth2";
+} from "./home-layout-editor-state.mjs?v=20260730-theatre2";
 import {
   alignmentPatch,
   normalizeAlignmentSettings,

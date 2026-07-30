@@ -1,3 +1,12 @@
 .playwright-cli/
 __pycache__/
 *.py[cod]
+
+# Discarded browser timing probes; keep only the final 24-27 QA sequence.
+output/booth-redesign-audit/0[5-7]-*.jpg
+output/booth-redesign-audit/09-*.jpg
+output/booth-redesign-audit/1[0-9]-*.jpg
+output/booth-redesign-audit/2[0-3]-*.jpg
+output/booth-redesign-audit/09-editor-theatre.png
+output/booth-redesign-audit/09-editor-theatre-crop.png
+output/booth-redesign-audit/09-editor-theatre-crop2.png

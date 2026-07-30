@@ -14,13 +14,28 @@
 
 台式机继续开发时，不要根据旧截图、旧 JSON 或旧文档恢复驾驶室、车轮、轮眉和道路行驶动画。
 
+### 2026-07-30 视觉重构补充
+
+第一版“裁切银色车壳 + 木质横杆 + V 形长绳”已被否决，不要恢复。
+
+当前基准改为完整的扁平银色木偶小剧场：
+
+- 新框体：`art/home/layered-truck/silver-puppet-booth-frame.png`
+- 新提线：`art/home/layered-truck/puppet-booth-strings.png`
+- 缓存版本：`20260730-theatre2`
+- 终态截图：`output/booth-redesign-audit/03-puppet-theatre-final.png`
+- 同屏对比：`output/booth-redesign-audit/04-reference-before-after.png`
+- 动画四阶段：`output/booth-redesign-audit/08-animation-contact-sheet.png`
+
+新框体有完整顶篷、侧框、透明出餐口和厚底座；两根提线近乎垂直，页面里不再有操偶横杆。
+
 ## 笔记本本轮完成内容
 
 ### 1. 首页视觉
 
 - 从主页 DOM 中删除旧车身图片和前后轮图片。
-- 新增透明银色档口边框：
-  - `art/home/layered-truck/silver-service-booth-frame.png`
+- 新增透明银色木偶剧场边框：
+  - `art/home/layered-truck/silver-puppet-booth-frame.png`
 - 继续复用经过确认的后厨与厨师：
   - `art/home/layered-truck/service-window-centered.webp`
 - 保留三块菜单翻牌、银色卷帘和档口招牌。
@@ -29,9 +44,9 @@
 ### 2. 提线木偶式出场
 
 - 新提线素材：
-  - `art/home/layered-truck/marionette-rig.png`
-- 操偶结构只使用一根横杆和两根承重绳。
-- 两根绳已对准档口边框上沿；缓存版本提升为 `20260730-booth2`，避免浏览器继续读取悬空的旧绳索图。
+  - `art/home/layered-truck/puppet-booth-strings.png`
+- 操偶结构只使用两根短直提线和档口顶角铜环，不再显示横杆。
+- 两根绳已对准档口顶角铜环；缓存版本提升为 `20260730-theatre2`。
 - 整个窗口作为一个刚性组合运动：
   1. 从上方垂直下落。
   2. 到位后轻微过冲。
@@ -93,7 +108,7 @@
 
 - `index.html`
   - 悬吊档口 DOM
-  - 新素材路径与 `booth2` 缓存版本
+  - 新素材路径与 `theatre2` 缓存版本
 - `home.css`
   - 档口构图
   - 垂直吊降、过冲、递减摆动和卷帘动画
@@ -108,14 +123,17 @@
 - `scripts/build-suspended-service-booth.py`
   - 从已确认的银色源图生成透明档口边框
 - `scripts/build-marionette-rig.py`
-  - 生成透明操偶横杆和两根提线
-- `scripts/build-suspended-booth-qa.py`
-  - 生成最终截图和前后对比图
+  - 生成两根透明短提线
+- `scripts/build-puppet-theatre-qa.py`
+  - 生成终态、前后对比和动画四阶段图
 
 ## 视觉验收材料
 
-- 新终态：`output/suspended-booth/final-mobile.png`
-- 旧整车 vs 新档口：`output/suspended-booth/reference-vs-suspended-booth.png`
+- 新终态：`output/booth-redesign-audit/03-puppet-theatre-final.png`
+- 扁平参考 / 被否决旧版 / 新档口：`output/booth-redesign-audit/04-reference-before-after.png`
+- 吊降动画四阶段：`output/booth-redesign-audit/08-animation-contact-sheet.png`
+- 档口专注编辑器：`output/booth-redesign-audit/09-editor-theatre-final.png`
+- 重构判断记录：`output/booth-redesign-audit/audit.md`
 - 详细检查：`design-qa.md`
 - 美术规则：`docs/art-direction/BURGER-ART-DIRECTION.md`
 - 编辑器说明：`docs/UI-MOTION-EDITOR.md`
@@ -140,7 +158,7 @@ git log -1 --oneline
 1. 先确认 `git log -1` 已是本轮提交。
 2. 等待 Pages 部署完成。
 3. 强制刷新页面。
-4. 检查 HTML 中资源版本是否为 `20260730-booth2`。
+4. 检查 HTML 中资源版本是否为 `20260730-theatre2`。
 
 不要用 `git reset --hard` 覆盖台式机未提交工作；先 `git status`，有本地修改就先提交或暂存。
 

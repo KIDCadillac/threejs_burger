@@ -7,13 +7,13 @@ const root = new URL("../", import.meta.url);
 test("homepage loads the suspended service booth assets", async () => {
   const html = await readFile(new URL("index.html", root), "utf8");
 
-  assert.match(html, /home\.css\?v=20260730-booth2/);
-  assert.match(html, /home-lobby-app\.mjs\?v=20260730-booth2/);
-  assert.match(html, /home-layout-editor\.css\?v=20260730-booth2/);
-  assert.match(html, /home-layout-editor\.mjs\?v=20260730-booth2/);
-  assert.match(html, /marionette-rig\.png/);
+  assert.match(html, /home\.css\?v=20260730-theatre2/);
+  assert.match(html, /home-lobby-app\.mjs\?v=20260730-theatre2/);
+  assert.match(html, /home-layout-editor\.css\?v=20260730-theatre2/);
+  assert.match(html, /home-layout-editor\.mjs\?v=20260730-theatre2/);
+  assert.match(html, /puppet-booth-strings\.png/);
   assert.match(html, /class="burger-truck-puppet"/);
-  assert.match(html, /silver-service-booth-frame\.png/);
+  assert.match(html, /silver-puppet-booth-frame\.png/);
   assert.match(html, /data-layout-id="burger\.frame"/);
   assert.doesNotMatch(html, /silver-truck__body/);
   assert.doesNotMatch(html, /burger-truck-wheel/);
@@ -88,6 +88,7 @@ test("truck CSS uses editor-controlled timing and focus variables", async () => 
   assert.match(css, /@keyframes burger-truck-camera-arrive/);
   assert.match(css, /@keyframes burger-truck-marionette-drop/);
   assert.match(css, /@keyframes burger-truck-marionette-strings/);
+  assert.match(css, /@keyframes burger-puppet-stage-idle/);
   assert.doesNotMatch(
     css,
     /\.burger-truck-camera\.is-arriving \.burger-truck-wheel\s*\{[\s\S]*?animation:/,
@@ -130,7 +131,7 @@ test("editor loads and resets the v4 suspended booth baseline", async () => {
 
   assert.match(
     source,
-    /home-layout-editor-state\.mjs\?v=20260730-booth2/,
+    /home-layout-editor-state\.mjs\?v=20260730-theatre2/,
   );
   assert.match(source, /mergeProjectDefaultLayout\(parseLayoutDocument\(raw\)\)/);
   assert.match(source, /createProjectDefaultLayoutDocument\(\)/);

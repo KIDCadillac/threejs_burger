@@ -1,8 +1,8 @@
-"""Build the transparent marionette control-bar overlay used on the home card.
+"""Build the two short cords that lower the puppet-theatre booth.
 
-The booth is treated as one rigid piece of scenery, so it uses two clear
-weight-bearing cords rather than the four busy strings from the full truck.
-The asset is intentionally flat and geometric to match the existing game art.
+The previous horizontal control bar looked like a crane and the long diagonal
+cords made the booth feel mechanically hoisted. Two near-vertical, slightly
+imperfect cords are enough to communicate a hand-operated puppet stage.
 """
 
 from pathlib import Path
@@ -11,7 +11,7 @@ from PIL import Image, ImageDraw
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "art" / "home" / "layered-truck" / "marionette-rig.png"
+OUTPUT = ROOT / "art" / "home" / "layered-truck" / "puppet-booth-strings.png"
 SCALE = 4
 WIDTH = 764
 HEIGHT = 790
@@ -24,82 +24,44 @@ def scaled_box(box):
 canvas = Image.new("RGBA", (WIDTH * SCALE, HEIGHT * SCALE), (0, 0, 0, 0))
 draw = ImageDraw.Draw(canvas)
 
-outline = (60, 41, 28, 245)
-wood = (184, 104, 52, 255)
-wood_light = (239, 177, 87, 255)
-wood_shadow = (116, 62, 37, 255)
-cord_shadow = (60, 41, 28, 150)
-cord_light = (255, 240, 197, 210)
+outline = (60, 41, 28, 205)
+cord_shadow = (60, 41, 28, 160)
+cord_light = (255, 240, 197, 205)
+brass = (224, 159, 63, 255)
 
-# Horizontal theatre control bar.
-draw.rounded_rectangle(
-    scaled_box((178, 82, 586, 116)),
-    radius=12 * SCALE,
-    fill=outline,
-)
-draw.rounded_rectangle(
-    scaled_box((184, 87, 580, 110)),
-    radius=8 * SCALE,
-    fill=wood,
-)
-draw.rounded_rectangle(
-    scaled_box((201, 91, 563, 97)),
-    radius=2 * SCALE,
-    fill=wood_light,
-)
-draw.rounded_rectangle(
-    scaled_box((219, 104, 545, 109)),
-    radius=2 * SCALE,
-    fill=wood_shadow,
-)
-
-# Short central grip, like a stagehand's marionette controller.
-draw.rounded_rectangle(
-    scaled_box((365, 67, 399, 130)),
-    radius=10 * SCALE,
-    fill=outline,
-)
-draw.rounded_rectangle(
-    scaled_box((371, 72, 393, 125)),
-    radius=6 * SCALE,
-    fill=wood,
-)
-draw.rounded_rectangle(
-    scaled_box((376, 77, 383, 118)),
-    radius=3 * SCALE,
-    fill=wood_light,
-)
-
-# Two load-bearing cords attach to the booth's upper frame. Fewer, stronger
-# strings make the weight and suspension legible at mobile size.
+# The cords are almost vertical, with one-pixel-scale deviations that feel
+# hand-tensioned rather than computer-perfect.
 cords = (
-    ((238, 109), (108, 382)),
-    ((526, 109), (656, 382)),
+    ((150, -8), (149, 70), (152, 145), (150, 220), (151, 280)),
+    ((614, -8), (615, 74), (612, 150), (614, 224), (613, 280)),
 )
-for start, end in cords:
+for points in cords:
+    scaled_points = [
+        tuple(value * SCALE for value in point_value)
+        for point_value in points
+    ]
     draw.line(
-        (tuple(value * SCALE for value in start), tuple(value * SCALE for value in end)),
+        scaled_points,
         fill=cord_shadow,
         width=3 * SCALE,
+        joint="curve",
     )
     draw.line(
-        (
-            tuple(value * SCALE for value in (start[0] - 1, start[1])),
-            tuple(value * SCALE for value in (end[0] - 1, end[1])),
-        ),
+        [(x - SCALE, y) for x, y in scaled_points],
         fill=cord_light,
         width=SCALE,
+        joint="curve",
     )
 
-# Small metal attachment eyes at the lower cord ends.
-for x, y in ((108, 382), (656, 382)):
+# Small hook knots meet the frame's two brass attachment eyes.
+for x, y in ((151, 280), (613, 280)):
     draw.ellipse(
         scaled_box((x - 5, y - 5, x + 5, y + 5)),
         fill=outline,
     )
     draw.ellipse(
         scaled_box((x - 2, y - 2, x + 2, y + 2)),
-        fill=wood_light,
+        fill=brass,
     )
 
 canvas = canvas.resize((WIDTH, HEIGHT), Image.Resampling.LANCZOS)
