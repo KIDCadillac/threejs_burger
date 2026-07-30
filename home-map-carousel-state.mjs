@@ -123,10 +123,10 @@ export function streetShopPose(rawOffset) {
     return Object.is(rounded, -0) ? 0 : rounded;
   };
   return {
-    translatePercent: round(offset * 88),
+    translatePercent: round(offset * 104),
     translateYPercent: round(distance * 2.5),
     scale: round(Math.max(0.8, 1 - distance * 0.1)),
-    opacity: distance >= 1.6 ? 0 : round(Math.max(0, 1 - distance * 0.2)),
+    opacity: distance >= 1.6 ? 0 : 1,
     zIndex: Math.round(30 - distance * 12),
     shadeOpacity: round(Math.min(0.44, distance * 0.22)),
   };

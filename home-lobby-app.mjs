@@ -21,7 +21,7 @@ import {
   shiftBufferedCardOffset,
   streetShopPose,
   wheelSettleDuration,
-} from "./home-map-carousel-state.mjs?v=20260726-captionfollow1";
+} from "./home-map-carousel-state.mjs?v=20260730-pendulum3";
 import {
   HOME_BUSINESS_KEY,
   HOME_MODE_KEY,
@@ -283,7 +283,9 @@ function renderWheel(progress = 0) {
       "--shop-open-progress",
       String(shopOpenProgress({ offset, dragProgress })),
     );
-    slide.style.zIndex = String(pose.zIndex);
+    // Runtime carousel stacking owns its own variable. The layout editor may
+    // override `z-index`, but resetting an edit must not erase carousel order.
+    slide.style.setProperty("--map-carousel-z", String(pose.zIndex));
   });
   renderMapCaptions(dragProgress);
 }

@@ -193,9 +193,11 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 }
 .home-map-slide {
   --map-shade-opacity: 0;
+  --map-carousel-z: 0;
   --shop-open-progress: 0;
   --wheel-settle-ms: 280ms;
   position: absolute;
+  z-index: var(--map-carousel-z);
   inset: 0 1.75rem .2rem;
   overflow: hidden;
   clip-path: inset(0 round 2rem 2rem 1.25rem 1.25rem);
@@ -340,7 +342,7 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .burger-truck-camera.is-arriving {
   animation:
     burger-truck-camera-arrive
-    var(--truck-camera-duration, 1850ms)
+    var(--truck-camera-duration, 1440ms)
     linear
     both;
 }
@@ -348,15 +350,32 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   position: absolute;
   z-index: 1;
   inset: 0;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  opacity: .78;
+  pointer-events: none;
+  user-select: none;
+}
+.burger-truck-marionette-string {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
   object-fit: fill;
-  opacity: .74;
-  transform-origin: 50% 0;
   pointer-events: none;
   user-select: none;
+  will-change: transform;
   -webkit-user-drag: none;
+}
+.burger-truck-marionette-string--left {
+  clip-path: inset(0 50% 0 0);
+  transform-origin: 19.7% 0;
+}
+.burger-truck-marionette-string--right {
+  clip-path: inset(0 0 0 50%);
+  transform-origin: 80.3% 0;
 }
 .burger-truck-puppet {
   position: absolute;
@@ -372,7 +391,7 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
       0
     )
     scale(var(--truck-camera-end-scale, 1));
-  transform-origin: 50% -55%;
+  transform-origin: 50% -48%;
   filter: drop-shadow(0 .34rem .18rem rgba(59,35,22,.24));
   will-change: transform, opacity;
 }
@@ -574,21 +593,28 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .burger-truck-camera.is-arriving .burger-truck-puppet {
   animation:
     burger-truck-marionette-drop
-    var(--truck-body-duration, 1380ms)
+    var(--truck-body-duration, 1080ms)
     linear
     both;
 }
 .burger-truck-camera.is-arriving .burger-truck-marionette-rig {
   animation:
     burger-truck-marionette-strings
-    var(--truck-body-duration, 1380ms)
+    var(--truck-body-duration, 1080ms)
+    linear
+    both;
+}
+.burger-truck-camera.is-arriving .burger-truck-marionette-string {
+  animation:
+    burger-truck-marionette-string-swing
+    var(--truck-body-duration, 1080ms)
     linear
     both;
 }
 .burger-truck-camera:not(.is-arriving) .burger-truck-puppet {
   animation: burger-puppet-stage-idle 7200ms ease-in-out infinite;
 }
-.burger-truck-camera:not(.is-arriving) .burger-truck-marionette-rig {
+.burger-truck-camera:not(.is-arriving) .burger-truck-marionette-string {
   animation: burger-puppet-strings-idle 7200ms ease-in-out infinite;
 }
 .burger-truck-camera.is-arriving .burger-menu-panel__rotor {
@@ -692,6 +718,7 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .home-map-slide:not([data-card-offset="0"]) .burger-truck-camera,
 .home-map-slide:not([data-card-offset="0"]) .burger-truck-puppet,
 .home-map-slide:not([data-card-offset="0"]) .burger-truck-marionette-rig,
+.home-map-slide:not([data-card-offset="0"]) .burger-truck-marionette-string,
 .home-map-slide:not([data-card-offset="0"]) .burger-menu-panel__rotor {
   animation-play-state: paused;
 }
@@ -701,50 +728,72 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 }
 @keyframes burger-truck-marionette-drop {
   0% {
-    opacity: .35;
+    opacity: .45;
     transform:
       translate3d(
-        var(--truck-camera-start-x, 0%),
-        var(--truck-camera-start-y, -140%),
+        calc(var(--truck-camera-start-x, 0%) - 5.4%),
+        var(--truck-camera-start-y, -128%),
         0
       )
       scale(var(--truck-camera-start-scale, 1))
+      rotate(-3deg);
+    animation-timing-function: cubic-bezier(.52,.02,.78,.24);
+  }
+  10% { opacity: 1; }
+  45% {
+    transform:
+      translate3d(
+        calc(var(--truck-camera-end-x, 0%) - 2.2%),
+        calc(var(--truck-camera-end-y, 0%) - 38%),
+        0
+      )
+      scale(var(--truck-camera-end-scale, 1))
       rotate(-1.15deg);
-    animation-timing-function: cubic-bezier(.56,.04,.82,.22);
+    animation-timing-function: cubic-bezier(.34,.02,.74,.26);
   }
-  12% { opacity: 1; }
-  66% {
+  64% {
     transform:
       translate3d(
-        var(--truck-camera-end-x, 0%),
-        calc(var(--truck-camera-end-y, 0%) + 5.1%),
+        calc(var(--truck-camera-end-x, 0%) + 5.2%),
+        calc(var(--truck-camera-end-y, 0%) + 2.8%),
         0
       )
       scale(var(--truck-camera-end-scale, 1))
-      rotate(.72deg);
-    animation-timing-function: cubic-bezier(.12,.76,.24,1);
+      rotate(2.8deg);
+    animation-timing-function: cubic-bezier(.12,.74,.22,1);
   }
-  80% {
+  77% {
     transform:
       translate3d(
-        var(--truck-camera-end-x, 0%),
-        calc(var(--truck-camera-end-y, 0%) - 1.25%),
+        calc(var(--truck-camera-end-x, 0%) - 3.35%),
+        calc(var(--truck-camera-end-y, 0%) - .75%),
         0
       )
       scale(var(--truck-camera-end-scale, 1))
-      rotate(-.32deg);
-    animation-timing-function: cubic-bezier(.28,.06,.28,1);
+      rotate(-1.75deg);
+    animation-timing-function: cubic-bezier(.18,.68,.22,1);
   }
-  91% {
+  88% {
     transform:
       translate3d(
-        var(--truck-camera-end-x, 0%),
-        calc(var(--truck-camera-end-y, 0%) + .42%),
+        calc(var(--truck-camera-end-x, 0%) + 1.45%),
+        calc(var(--truck-camera-end-y, 0%) + .22%),
         0
       )
       scale(var(--truck-camera-end-scale, 1))
-      rotate(.12deg);
-    animation-timing-function: cubic-bezier(.2,.74,.2,1);
+      rotate(.78deg);
+    animation-timing-function: cubic-bezier(.2,.7,.2,1);
+  }
+  96% {
+    transform:
+      translate3d(
+        calc(var(--truck-camera-end-x, 0%) - .32%),
+        calc(var(--truck-camera-end-y, 0%) - .06%),
+        0
+      )
+      scale(var(--truck-camera-end-scale, 1))
+      rotate(-.18deg);
+    animation-timing-function: ease-out;
   }
   100% {
     opacity: 1;
@@ -761,34 +810,27 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 @keyframes burger-truck-marionette-strings {
   0% {
     opacity: 0;
-    clip-path: inset(0 0 100% 0);
-    transform: rotate(-1.15deg);
-    animation-timing-function: cubic-bezier(.56,.04,.82,.22);
+    animation-timing-function: cubic-bezier(.48,.02,.76,.22);
   }
-  12% { opacity: .76; }
-  66% {
-    opacity: .8;
-    clip-path: inset(0 0 0 0);
-    transform: rotate(.72deg);
-    animation-timing-function: cubic-bezier(.12,.76,.24,1);
+  10%, 64% { opacity: .84; }
+  100% { opacity: .78; }
+}
+@keyframes burger-truck-marionette-string-swing {
+  0% { transform: rotate(-2.6deg) scaleY(.02); }
+  10% { transform: rotate(-2.1deg) scaleY(.08); }
+  45% { transform: rotate(-1.15deg) scaleY(.38); }
+  64% {
+    transform: rotate(5.4deg) scaleY(1);
+    animation-timing-function: cubic-bezier(.18,.68,.22,1);
   }
-  80% {
-    opacity: .77;
-    clip-path: inset(0 0 0 0);
-    transform: rotate(-.32deg);
-    animation-timing-function: cubic-bezier(.28,.06,.28,1);
+  72% { transform: rotate(2.35deg) scaleY(1); }
+  81% {
+    transform: rotate(-3.45deg) scaleY(1);
+    animation-timing-function: cubic-bezier(.2,.66,.22,1);
   }
-  91% {
-    opacity: .75;
-    clip-path: inset(0 0 0 0);
-    transform: rotate(.12deg);
-    animation-timing-function: cubic-bezier(.2,.74,.2,1);
-  }
-  100% {
-    opacity: .74;
-    clip-path: inset(0 0 0 0);
-    transform: rotate(0);
-  }
+  90% { transform: rotate(1.35deg) scaleY(1); }
+  97% { transform: rotate(-.32deg) scaleY(1); }
+  100% { transform: rotate(0) scaleY(1); }
 }
 @keyframes burger-puppet-stage-idle {
   0%, 100% {
@@ -813,8 +855,8 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   }
 }
 @keyframes burger-puppet-strings-idle {
-  0%, 100% { transform: rotate(-.04deg); }
-  50% { transform: rotate(.05deg); }
+  0%, 100% { transform: rotate(-.08deg) scaleY(1); }
+  50% { transform: rotate(.1deg) scaleY(1); }
 }
 @keyframes burger-service-shutter-open {
   0%, 18% { transform: translateY(0); }

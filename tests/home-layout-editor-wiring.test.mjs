@@ -7,12 +7,14 @@ const root = new URL("../", import.meta.url);
 test("homepage loads the suspended service booth assets", async () => {
   const html = await readFile(new URL("index.html", root), "utf8");
 
-  assert.match(html, /home\.css\?v=20260730-weight2/);
-  assert.match(html, /home-lobby-app\.mjs\?v=20260730-weight2/);
-  assert.match(html, /home-layout-editor\.css\?v=20260730-weight2/);
-  assert.match(html, /home-layout-editor\.mjs\?v=20260730-weight2/);
+  assert.match(html, /home\.css\?v=20260730-pendulum3/);
+  assert.match(html, /home-lobby-app\.mjs\?v=20260730-pendulum3/);
+  assert.match(html, /home-layout-editor\.css\?v=20260730-pendulum3/);
+  assert.match(html, /home-layout-editor\.mjs\?v=20260730-pendulum3/);
   assert.match(html, /puppet-booth-strings\.png/);
   assert.match(html, /class="burger-truck-puppet"/);
+  assert.match(html, /burger-truck-marionette-string--left/);
+  assert.match(html, /burger-truck-marionette-string--right/);
   assert.match(html, /silver-puppet-booth-frame\.png/);
   assert.match(html, /data-layout-id="burger\.frame"/);
   assert.doesNotMatch(html, /silver-truck__body/);
@@ -49,6 +51,7 @@ test("editor supports deep selection, tabs, motion preview and timeline replay",
     "utf8",
   );
 
+  assert.match(source, /burger\.home\.layout\.v6/);
   assert.match(source, /burger\.home\.layout\.v5/);
   assert.match(source, /burger\.home\.layout\.v4/);
   assert.match(source, /burger\.home\.layout\.v3/);
@@ -93,8 +96,9 @@ test("truck CSS uses editor-controlled timing and focus variables", async () => 
   assert.match(css, /@keyframes burger-truck-marionette-drop/);
   assert.match(css, /@keyframes burger-truck-marionette-strings/);
   assert.match(css, /@keyframes burger-puppet-stage-idle/);
-  assert.match(css, /var\(--truck-body-duration, 1380ms\)/);
-  assert.match(css, /calc\(var\(--truck-camera-end-y, 0%\) \+ 5\.1%\)/);
+  assert.match(css, /var\(--truck-body-duration, 1080ms\)/);
+  assert.match(css, /burger-truck-marionette-string-swing/);
+  assert.match(css, /calc\(var\(--truck-camera-end-x, 0%\) \+ 5\.2%\)/);
   assert.match(css, /\.home-map-slide\.is-business-open \.burger-service-window__shutter/);
   assert.match(lobby, /classList\.toggle\("is-business-open", available && businessOpen\)/);
   assert.match(css, /width: 100%/);
@@ -132,7 +136,7 @@ test("editor isolates the suspended booth without legacy vehicle layers", async 
   assert.doesNotMatch(css, /burger-truck-wheel/);
 });
 
-test("editor loads and resets the v5 weighted booth baseline", async () => {
+test("editor loads and resets the v6 pendulum booth baseline", async () => {
   const source = await readFile(
     new URL("home-layout-editor.mjs", root),
     "utf8",
@@ -140,7 +144,7 @@ test("editor loads and resets the v5 weighted booth baseline", async () => {
 
   assert.match(
     source,
-    /home-layout-editor-state\.mjs\?v=20260730-weight2/,
+    /home-layout-editor-state\.mjs\?v=20260730-pendulum3/,
   );
   assert.match(source, /mergeProjectDefaultLayout\(parseLayoutDocument\(raw\)\)/);
   assert.match(source, /createProjectDefaultLayoutDocument\(\)/);
@@ -177,7 +181,10 @@ test("layout controls preserve the component-owned street row transform", async 
   ]);
 
   assert.match(lobby, /--map-carousel-transform/);
+  assert.match(lobby, /--map-carousel-z/);
+  assert.match(lobby, /home-map-carousel-state\.mjs\?v=20260730-pendulum3/);
   assert.match(homeCss, /var\(\s*--map-carousel-transform/);
+  assert.match(homeCss, /z-index:\s*var\(--map-carousel-z\)/);
   assert.match(editor, /layout-editor-has-perspective/);
   assert.doesNotMatch(
     editor,

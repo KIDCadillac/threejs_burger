@@ -1,4 +1,4 @@
-# 笔记本 → 台式机交接：悬吊汉堡档口
+# 笔记本 → 台式机交接：双绳摆坠档口 v6
 
 更新：2026-07-30
 
@@ -6,146 +6,102 @@
 
 目标分支：`main`
 
-## 先看这一条
+## 当前美术方向
 
-本轮方向已经覆盖早期的“完整银色餐车”方案：
+首页不再使用完整餐车。不要恢复车头、车门、车轮、轮眉或道路行驶动画。
 
-> 首页不再保留车头和轮子，只显示一块银色出餐窗口；它像木偶戏布景一样从舞台上方吊下。
+当前主体是一块完整的银色出餐档口：它由两根绳从舞台上方吊下，像提线木偶布景一样快速坠落、左右摆动、短暂回摆，然后打开卷帘。
 
-台式机继续开发时，不要根据旧截图、旧 JSON 或旧文档恢复驾驶室、车轮、轮眉和道路行驶动画。
+重要边界：
 
-### 2026-07-30 视觉重构补充
+- “提线木偶”针对厨师人物的动作方式。
+- 汉堡和食材继续使用当前装配逻辑，不做木偶化。
+- 下一轮只拆人物关节，不重做档口和汉堡。
 
-第一版“裁切银色车壳 + 木质横杆 + V 形长绳”已被否决，不要恢复。
+## 本轮笔记本完成内容
 
-当前基准改为完整的扁平银色木偶小剧场：
+### 1. 双绳摆坠动画
 
-- 新框体：`art/home/layered-truck/silver-puppet-booth-frame.png`
-- 新提线：`art/home/layered-truck/puppet-booth-strings.png`
-- 缓存版本：`20260730-weight2`
-- 本轮前态：`output/ui-reassessment/01-current-ui.png`
-- 本轮终态：`output/ui-reassessment/07-final-stable.png`
-- 参考对比：`output/ui-reassessment/09-reference-vs-final.png`
-- 动画四阶段：`output/ui-reassessment/08-weighted-motion-contact-sheet.png`
+- 两根绳由同一透明素材分成左右两个实例，各自拥有固定顶部锚点。
+- 绳索使用 `scaleY` 随主体下落放长，不会提前垂到档口下面。
+- 档口主体时长由 `1380ms` 缩短为 `1080ms`，镜头总时长由 `1850ms` 缩短为 `1440ms`。
+- 档口从左偏进入，在第一次落点向右冲摆，再向左回摆并快速收稳。
+- 当前关键幅度：
+  - 起始 X：`-5.4%`
+  - 第一次冲摆 X：`+5.2%`
+  - 回摆 X：`-3.35%`
+  - 最大旋转：约 `±3°`
+- 卷帘延迟 `930ms`，时长 `360ms`。
 
-新框体有完整顶篷、侧框、透明出餐口和厚底座；两根提线近乎垂直，页面里不再有操偶横杆。
+### 2. 左右卡片切换
 
-## 笔记本本轮完成内容
+- 邻卡距离由 `88%` 改为 `104%`，稳定时不会在中间卡片两侧露边。
+- 轮播层级改由 `--map-carousel-z` 单独管理，不再与布局编辑器的 `z-index` 互相覆盖。
+- 当前卡 / 目标卡：`z=30`。
+- 邻卡 / 离场卡：`z=18`。
+- 外层缓存卡：`z=6`，并保持不可见。
+- 左右返回汉堡卡片都会重新播放档口入场。
 
-### 1. 首页视觉
+### 3. 编辑器数据升级
 
-- 从主页 DOM 中删除旧车身图片和前后轮图片。
-- 新增透明银色木偶剧场边框：
-  - `art/home/layered-truck/silver-puppet-booth-frame.png`
-- 继续复用经过确认的后厨与厨师：
-  - `art/home/layered-truck/service-window-centered.webp`
-- 保留三块菜单翻牌、银色卷帘和档口招牌。
-- 档口宽度占场景 `100%`，人物落在画面中线附近；招牌、菜单和人物随之增大，不再像一张缩小贴图。
-
-### 2. 提线木偶式出场
-
-- 新提线素材：
-  - `art/home/layered-truck/puppet-booth-strings.png`
-- 操偶结构只使用两根短直提线和档口顶角铜环，不再显示横杆。
-- 两根绳已对准档口顶角铜环；缓存版本提升为 `20260730-weight2`。
-- 整个窗口作为一个刚性组合运动：
-  1. 从上方受重力加速下落。
-  2. 约 `0.9s` 到达重落点。
-  3. 只做一次小回弹和一次更小的压缩。
-  4. `1.38s` 停稳，随后打开卷帘。
-  5. 菜单灯箱恢复错峰翻面。
-- 车轮滚动、车身刹车、招牌独立弹出全部取消。
-- “营业中 / 已打烊”按钮现在会真实控制银色卷帘，不再只换文字。
-
-### 3. 整排店铺切换
-
-- 主页仍保留 `-2 / -1 / 0 / 1 / 2` 五个缓冲卡位。
-- 左右切换由完整卡片做水平运动。
-- 汉堡卡片回到中间后，再触发独立的垂直吊降。
-- 从左边和右边返回都已验证会重播，不会只在一个方向有动画。
-
-### 4. 编辑器
-
-编辑地址仍为：
-
-`https://kidcadillac.github.io/threejs_burger/?layout=1`
-
-默认“档口专注”只列 8 个逻辑图层：
-
-1. `burger.camera` — 档口镜头
-2. `burger.truck` — 完整悬吊档口组合
-3. `burger.frame` — 银色档口边框
-4. `burger.service` — 出餐区域
-5. `burger.menu` — 菜单灯箱
-6. `burger.window` — 后厨与人物
-7. `burger.shutter` — 卷帘
-8. `burger.sign` — 汉堡档口招牌
-
-原来的车身、前轮、后轮图层已删除。编辑器仍支持：
-
-- 鼠标拖动、缩放、旋转。
-- 方向键每次微调 `1px`，`Shift + 方向键` 每次 `10px`。
-- 数字小键盘 `2 / 4 / 6 / 8` 微调。
-- 左/中/右、上/中/下对齐。
-- 网格和边缘吸附。
-- 上一层、下一层、置顶、置底、恢复原层。
-- 透明度、透视和 X/Y 旋转。
-- 下载与导入调整文件。
-
-### 5. 调整文件升级
-
-- 当前布局版本：v5
-- 当前浏览器存储键：`burger.home.layout.v5`
-- 仍会读取：v1、v2、v3、v4
-- 导入旧文件时会过滤：
+- 布局版本：`v6`
+- 工作台文件版本：`v6`
+- 浏览器存储键：`burger.home.layout.v6`
+- 继续读取：v1、v2、v3、v4、v5
+- 导入 v5 时保留布局和样式调整，但采用 v6 的摆坠时间轴。
+- 旧车辆图层仍会被过滤：
   - `burger.body`
   - `burger.wheel-front`
   - `burger.wheel-rear`
-- 其他 UI 调整继续保留。
-- v5 导出文件不再包含车轮转速、车轮圈数或招牌独立弹跳参数。
-- 导入 v4 时会保留布局、对齐与样式，但旧慢速时间轴会迁移到 v5 重落基线。
 
-因此，之前上传的 `汉堡小馆-UI调整-2026-07-29T17-03-58.json` 仍可导入，但其中车轮数据会被主动忽略。
+### 4. 缓存版本
 
-## 关键代码
+页面代码资源版本统一为：
+
+`20260730-pendulum3`
+
+银色档口与绳索图片本身没有改像素，仍使用已有 `weight2` 素材版本。
+
+## 关键文件
 
 - `index.html`
-  - 悬吊档口 DOM
-  - 新素材路径与 `weight2` 缓存版本
+  - 双绳 DOM
+  - `pendulum3` 页面资源版本
 - `home.css`
-  - 档口构图
-  - 垂直吊降、过冲、递减摆动和卷帘动画
+  - 双绳锚点
+  - 档口摆坠、回摆、停稳与卷帘动画
+  - `--map-carousel-z` 层级入口
+- `home-map-carousel-state.mjs`
+  - `104%` 邻卡位置
+  - 卡片透明度与层级计算
 - `home-lobby-app.mjs`
-  - 回到汉堡卡片时重播进场
+  - 轮播层级写入
+  - 返回汉堡时重播动画
 - `home-layout-editor-state.mjs`
-  - v5 数据格式、重落时间轴与旧车辆图层过滤
+  - v6 数据格式和默认时间轴
 - `home-layout-editor.mjs`
-  - 8 个档口逻辑图层和编辑器交互
+  - v6 浏览器存储与 v5 迁移
 - `home-layout-editor.css`
-  - 档口专注视图
-- `scripts/build-suspended-service-booth.py`
-  - 从已确认的银色源图生成透明档口边框
-- `scripts/build-marionette-rig.py`
-  - 生成两根透明短提线
-- `scripts/build-puppet-theatre-qa.py`
-  - 生成终态、前后对比和动画四阶段图
+  - 编辑器专注视图中停止绳索动画，便于选中和对齐
+- `tests/`
+  - v6、双绳、摆坠节奏和轮播间距测试
 
-## 视觉验收材料
+## 视觉验收证据
 
-- 本轮前态：`output/ui-reassessment/01-current-ui.png`
-- 新终态：`output/ui-reassessment/07-final-stable.png`
-- 扁平参考 / 新档口：`output/ui-reassessment/09-reference-vs-final.png`
-- 重落动画四阶段：`output/ui-reassessment/08-weighted-motion-contact-sheet.png`
-- 本轮审查记录：`output/ui-reassessment/audit.md`
-- 档口专注编辑器：`output/booth-redesign-audit/09-editor-theatre-final.png`
-- 重构判断记录：`output/booth-redesign-audit/audit.md`
-- 详细检查：`design-qa.md`
-- 美术规则：`docs/art-direction/BURGER-ART-DIRECTION.md`
-- 编辑器说明：`docs/UI-MOTION-EDITOR.md`
+- 最终摆坠四阶段：`output/ui-pendulum-qa/07-final-swing-contact-sheet.png`
+- 最终稳定画面：`output/ui-pendulum-qa/10-final-stable.png`
+- 修改前后同屏：`output/ui-pendulum-qa/11-before-after-comparison.png`
+- 详细报告：`design-qa.md`
 
 ## 台式机接手步骤
 
-在台式机仓库目录执行：
+先保护台式机本地未提交内容：
+
+```bash
+git status
+```
+
+如果工作区干净，再执行：
 
 ```bash
 git checkout main
@@ -153,37 +109,25 @@ git pull origin main
 git log -1 --oneline
 ```
 
-然后打开：
+打开：
 
 - 普通首页：`https://kidcadillac.github.io/threejs_burger/`
-- 编辑器：`https://kidcadillac.github.io/threejs_burger/?layout=1`
+- UI 编辑器：`https://kidcadillac.github.io/threejs_burger/?layout=1`
 
-如果 GitHub Pages 仍显示旧整车：
+如果 GitHub Pages 仍显示旧版：
 
-1. 先确认 `git log -1` 已是本轮提交。
-2. 等待 Pages 部署完成。
-3. 强制刷新页面。
-4. 检查 HTML 中资源版本是否为 `20260730-weight2`。
+1. 等待 Pages 部署完成。
+2. 强制刷新页面。
+3. 检查 `index.html` 的资源版本是否为 `20260730-pendulum3`。
+4. 不要用 `git reset --hard` 覆盖台式机未提交工作。
 
-不要用 `git reset --hard` 覆盖台式机未提交工作；先 `git status`，有本地修改就先提交或暂存。
+## 本轮验证结果
 
-## 验收基线
+- Node 测试：`30/30` 通过。
+- `git diff --check`：通过。
+- 浏览器控制台：`0` 条 error / warning。
+- 稳定状态左右邻卡进入主视口：`0px`。
 
-当前必须同时满足：
+## 下一步只做一件事
 
-- 看不到车头。
-- 看不到任何车轮。
-- 只显示完整银色出餐窗口。
-- 两根提线直接连接窗口上沿。
-- 厨师居中，菜单与卷帘不被裁切。
-- 初次进入和左右返回都有吊降动画。
-- 停稳后才打开卷帘。
-- 营业按钮能真实打开和关闭卷帘。
-- 普通首页不显示开发编辑器。
-- 编辑器不再出现车身和车轮图层。
-
-自动测试结果：`30/30` 通过。
-
-## 下一步建议
-
-下一步只做一个最小人物动作样片：把厨师拆成躯干、上臂、前臂和双手，完成一次“手从待机位伸向汉堡—放置食材—回位”。汉堡和食材继续沿用当前装配逻辑，不改成木偶。
+制作一个最小人物木偶样片：只拆厨师躯干、上臂、前臂和双手，完成一次“手伸向汉堡 → 放置一层食材 → 双手回位”。不要修改汉堡和食材的现有装配方式。

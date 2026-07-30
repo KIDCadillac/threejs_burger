@@ -31,10 +31,13 @@ test("left and right neighbors use mirrored row positions", () => {
   assert.equal(center.translatePercent, 0);
   assert.equal(center.scale, 1);
   assert.equal(center.opacity, 1);
+  assert.equal(right.translatePercent, 104);
+  assert.equal(right.opacity, 1);
   assert.equal(left.translatePercent, -right.translatePercent);
   assert.equal(left.translateYPercent, right.translateYPercent);
   assert.equal(left.scale, right.scale);
   assert.equal(left.opacity, right.opacity);
+  assert.equal(streetShopPose(2).opacity, 0);
 });
 
 test("buffered cards recycle symmetrically when moving out and returning", () => {

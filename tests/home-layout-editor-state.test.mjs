@@ -67,14 +67,14 @@ test("normalizes layout, style and visibility values", () => {
   assert.equal(value.background, "#fff");
 });
 
-test("fills missing element fields from v5 defaults", () => {
+test("fills missing element fields from v6 defaults", () => {
   assert.deepEqual(normalizeLayoutValue({ x: 4 }), {
     ...DEFAULT_LAYOUT_VALUE,
     x: 4,
   });
 });
 
-test("v5 project baseline contains no retired vehicle parts", () => {
+test("v6 project baseline contains no retired vehicle parts", () => {
   const defaults = createProjectDefaultLayoutDocument();
 
   assert.deepEqual(PROJECT_DEFAULT_LAYOUT_ELEMENTS, {});
@@ -166,8 +166,8 @@ test("creates a Codex handoff file and imports it again", () => {
   );
 
   assert.equal(payload.format, WORKBENCH_FILE_FORMAT);
-  assert.equal(payload.version, 5);
-  assert.equal(payload.layoutDocument.version, 5);
+  assert.equal(payload.version, 6);
+  assert.equal(payload.layoutDocument.version, 6);
   assert.equal(payload.summary.editedElementCount, 1);
   assert.deepEqual(payload.summary.editedElementIds, ["burger.sign"]);
   assert.equal(payload.summary.includesTheatreTimeline, true);

@@ -1,6 +1,6 @@
-export const LAYOUT_VERSION = 5;
+export const LAYOUT_VERSION = 6;
 export const WORKBENCH_FILE_FORMAT = "burger-ui-adjustment";
-export const WORKBENCH_FILE_VERSION = 5;
+export const WORKBENCH_FILE_VERSION = 6;
 
 export const DEFAULT_MOTION_VALUE = Object.freeze({
   enabled: false,
@@ -42,7 +42,7 @@ export const DEFAULT_LAYOUT_VALUE = Object.freeze({
   motion: DEFAULT_MOTION_VALUE,
 });
 
-// v5 保留无车体档口，并以更短、更有重量的吊降节奏作为项目基准。
+// v6 保留无车体档口，并以双绳摇坠、短停摆作为项目基准。
 export const PROJECT_DEFAULT_LAYOUT_ELEMENTS = Object.freeze({});
 
 const REMOVED_LAYOUT_IDS = new Set([
@@ -53,15 +53,15 @@ const REMOVED_LAYOUT_IDS = new Set([
 
 export const DEFAULT_TRUCK_TIMELINE = Object.freeze({
   cameraStartX: 0,
-  cameraStartY: -140,
+  cameraStartY: -128,
   cameraStartScale: 1,
   cameraEndX: 0,
   cameraEndY: 0,
   cameraEndScale: 1,
-  cameraDuration: 1850,
-  bodyDuration: 1380,
-  shutterDelay: 1360,
-  shutterDuration: 440,
+  cameraDuration: 1440,
+  bodyDuration: 1080,
+  shutterDelay: 930,
+  shutterDuration: 360,
   menuDuration: 6800,
   menuStagger: 160,
 });

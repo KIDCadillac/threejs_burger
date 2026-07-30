@@ -191,6 +191,12 @@ html.layout-editor-active.layout-editor-truck-overview
 }
 
 html.layout-editor-active.layout-editor-truck-overview
+  .burger-truck-marionette-string {
+  animation: none !important;
+  transform: none !important;
+}
+
+html.layout-editor-active.layout-editor-truck-overview
   .burger-service-booth__frame,
 html.layout-editor-active.layout-editor-truck-overview
   .burger-service-booth__sign,
