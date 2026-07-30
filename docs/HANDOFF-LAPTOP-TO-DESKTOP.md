@@ -22,10 +22,11 @@
 
 - 新框体：`art/home/layered-truck/silver-puppet-booth-frame.png`
 - 新提线：`art/home/layered-truck/puppet-booth-strings.png`
-- 缓存版本：`20260730-theatre2`
-- 终态截图：`output/booth-redesign-audit/03-puppet-theatre-final.png`
-- 同屏对比：`output/booth-redesign-audit/04-reference-before-after.png`
-- 动画四阶段：`output/booth-redesign-audit/08-animation-contact-sheet.png`
+- 缓存版本：`20260730-weight2`
+- 本轮前态：`output/ui-reassessment/01-current-ui.png`
+- 本轮终态：`output/ui-reassessment/07-final-stable.png`
+- 参考对比：`output/ui-reassessment/09-reference-vs-final.png`
+- 动画四阶段：`output/ui-reassessment/08-weighted-motion-contact-sheet.png`
 
 新框体有完整顶篷、侧框、透明出餐口和厚底座；两根提线近乎垂直，页面里不再有操偶横杆。
 
@@ -39,21 +40,22 @@
 - 继续复用经过确认的后厨与厨师：
   - `art/home/layered-truck/service-window-centered.webp`
 - 保留三块菜单翻牌、银色卷帘和档口招牌。
-- 档口宽度约为场景 `94%`，人物落在画面中线附近。
+- 档口宽度占场景 `100%`，人物落在画面中线附近；招牌、菜单和人物随之增大，不再像一张缩小贴图。
 
 ### 2. 提线木偶式出场
 
 - 新提线素材：
   - `art/home/layered-truck/puppet-booth-strings.png`
 - 操偶结构只使用两根短直提线和档口顶角铜环，不再显示横杆。
-- 两根绳已对准档口顶角铜环；缓存版本提升为 `20260730-theatre2`。
+- 两根绳已对准档口顶角铜环；缓存版本提升为 `20260730-weight2`。
 - 整个窗口作为一个刚性组合运动：
-  1. 从上方垂直下落。
-  2. 到位后轻微过冲。
-  3. 左右摆幅逐次减小。
-  4. 停稳后卷帘打开。
+  1. 从上方受重力加速下落。
+  2. 约 `0.9s` 到达重落点。
+  3. 只做一次小回弹和一次更小的压缩。
+  4. `1.38s` 停稳，随后打开卷帘。
   5. 菜单灯箱恢复错峰翻面。
 - 车轮滚动、车身刹车、招牌独立弹出全部取消。
+- “营业中 / 已打烊”按钮现在会真实控制银色卷帘，不再只换文字。
 
 ### 3. 整排店铺切换
 
@@ -92,15 +94,16 @@
 
 ### 5. 调整文件升级
 
-- 当前布局版本：v4
-- 当前浏览器存储键：`burger.home.layout.v4`
-- 仍会读取：v1、v2、v3
+- 当前布局版本：v5
+- 当前浏览器存储键：`burger.home.layout.v5`
+- 仍会读取：v1、v2、v3、v4
 - 导入旧文件时会过滤：
   - `burger.body`
   - `burger.wheel-front`
   - `burger.wheel-rear`
 - 其他 UI 调整继续保留。
-- v4 导出文件不再包含车轮转速、车轮圈数或招牌独立弹跳参数。
+- v5 导出文件不再包含车轮转速、车轮圈数或招牌独立弹跳参数。
+- 导入 v4 时会保留布局、对齐与样式，但旧慢速时间轴会迁移到 v5 重落基线。
 
 因此，之前上传的 `汉堡小馆-UI调整-2026-07-29T17-03-58.json` 仍可导入，但其中车轮数据会被主动忽略。
 
@@ -108,14 +111,14 @@
 
 - `index.html`
   - 悬吊档口 DOM
-  - 新素材路径与 `theatre2` 缓存版本
+  - 新素材路径与 `weight2` 缓存版本
 - `home.css`
   - 档口构图
   - 垂直吊降、过冲、递减摆动和卷帘动画
 - `home-lobby-app.mjs`
   - 回到汉堡卡片时重播进场
 - `home-layout-editor-state.mjs`
-  - v4 数据格式与旧车辆图层过滤
+  - v5 数据格式、重落时间轴与旧车辆图层过滤
 - `home-layout-editor.mjs`
   - 8 个档口逻辑图层和编辑器交互
 - `home-layout-editor.css`
@@ -129,9 +132,11 @@
 
 ## 视觉验收材料
 
-- 新终态：`output/booth-redesign-audit/03-puppet-theatre-final.png`
-- 扁平参考 / 被否决旧版 / 新档口：`output/booth-redesign-audit/04-reference-before-after.png`
-- 吊降动画四阶段：`output/booth-redesign-audit/08-animation-contact-sheet.png`
+- 本轮前态：`output/ui-reassessment/01-current-ui.png`
+- 新终态：`output/ui-reassessment/07-final-stable.png`
+- 扁平参考 / 新档口：`output/ui-reassessment/09-reference-vs-final.png`
+- 重落动画四阶段：`output/ui-reassessment/08-weighted-motion-contact-sheet.png`
+- 本轮审查记录：`output/ui-reassessment/audit.md`
 - 档口专注编辑器：`output/booth-redesign-audit/09-editor-theatre-final.png`
 - 重构判断记录：`output/booth-redesign-audit/audit.md`
 - 详细检查：`design-qa.md`
@@ -158,7 +163,7 @@ git log -1 --oneline
 1. 先确认 `git log -1` 已是本轮提交。
 2. 等待 Pages 部署完成。
 3. 强制刷新页面。
-4. 检查 HTML 中资源版本是否为 `20260730-theatre2`。
+4. 检查 HTML 中资源版本是否为 `20260730-weight2`。
 
 不要用 `git reset --hard` 覆盖台式机未提交工作；先 `git status`，有本地修改就先提交或暂存。
 
@@ -173,6 +178,7 @@ git log -1 --oneline
 - 厨师居中，菜单与卷帘不被裁切。
 - 初次进入和左右返回都有吊降动画。
 - 停稳后才打开卷帘。
+- 营业按钮能真实打开和关闭卷帘。
 - 普通首页不显示开发编辑器。
 - 编辑器不再出现车身和车轮图层。
 

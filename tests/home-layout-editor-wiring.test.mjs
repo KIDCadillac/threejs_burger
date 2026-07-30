@@ -7,10 +7,10 @@ const root = new URL("../", import.meta.url);
 test("homepage loads the suspended service booth assets", async () => {
   const html = await readFile(new URL("index.html", root), "utf8");
 
-  assert.match(html, /home\.css\?v=20260730-theatre2/);
-  assert.match(html, /home-lobby-app\.mjs\?v=20260730-theatre2/);
-  assert.match(html, /home-layout-editor\.css\?v=20260730-theatre2/);
-  assert.match(html, /home-layout-editor\.mjs\?v=20260730-theatre2/);
+  assert.match(html, /home\.css\?v=20260730-weight2/);
+  assert.match(html, /home-lobby-app\.mjs\?v=20260730-weight2/);
+  assert.match(html, /home-layout-editor\.css\?v=20260730-weight2/);
+  assert.match(html, /home-layout-editor\.mjs\?v=20260730-weight2/);
   assert.match(html, /puppet-booth-strings\.png/);
   assert.match(html, /class="burger-truck-puppet"/);
   assert.match(html, /silver-puppet-booth-frame\.png/);
@@ -49,6 +49,7 @@ test("editor supports deep selection, tabs, motion preview and timeline replay",
     "utf8",
   );
 
+  assert.match(source, /burger\.home\.layout\.v5/);
   assert.match(source, /burger\.home\.layout\.v4/);
   assert.match(source, /burger\.home\.layout\.v3/);
   assert.match(source, /burger\.home\.layout\.v2/);
@@ -79,7 +80,10 @@ test("editor supports deep selection, tabs, motion preview and timeline replay",
 });
 
 test("truck CSS uses editor-controlled timing and focus variables", async () => {
-  const css = await readFile(new URL("home.css", root), "utf8");
+  const [css, lobby] = await Promise.all([
+    readFile(new URL("home.css", root), "utf8"),
+    readFile(new URL("home-lobby-app.mjs", root), "utf8"),
+  ]);
 
   assert.match(css, /--truck-camera-duration/);
   assert.match(css, /--truck-camera-end-x/);
@@ -89,6 +93,11 @@ test("truck CSS uses editor-controlled timing and focus variables", async () => 
   assert.match(css, /@keyframes burger-truck-marionette-drop/);
   assert.match(css, /@keyframes burger-truck-marionette-strings/);
   assert.match(css, /@keyframes burger-puppet-stage-idle/);
+  assert.match(css, /var\(--truck-body-duration, 1380ms\)/);
+  assert.match(css, /calc\(var\(--truck-camera-end-y, 0%\) \+ 5\.1%\)/);
+  assert.match(css, /\.home-map-slide\.is-business-open \.burger-service-window__shutter/);
+  assert.match(lobby, /classList\.toggle\("is-business-open", available && businessOpen\)/);
+  assert.match(css, /width: 100%/);
   assert.doesNotMatch(
     css,
     /\.burger-truck-camera\.is-arriving \.burger-truck-wheel\s*\{[\s\S]*?animation:/,
@@ -123,7 +132,7 @@ test("editor isolates the suspended booth without legacy vehicle layers", async 
   assert.doesNotMatch(css, /burger-truck-wheel/);
 });
 
-test("editor loads and resets the v4 suspended booth baseline", async () => {
+test("editor loads and resets the v5 weighted booth baseline", async () => {
   const source = await readFile(
     new URL("home-layout-editor.mjs", root),
     "utf8",
@@ -131,7 +140,7 @@ test("editor loads and resets the v4 suspended booth baseline", async () => {
 
   assert.match(
     source,
-    /home-layout-editor-state\.mjs\?v=20260730-theatre2/,
+    /home-layout-editor-state\.mjs\?v=20260730-weight2/,
   );
   assert.match(source, /mergeProjectDefaultLayout\(parseLayoutDocument\(raw\)\)/);
   assert.match(source, /createProjectDefaultLayoutDocument\(\)/);

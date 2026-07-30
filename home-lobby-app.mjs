@@ -480,6 +480,7 @@ function renderBusiness() {
     const action = control.querySelector("[data-business-action]");
     const grip = control.querySelector("[data-business-grip]");
 
+    slide?.classList.toggle("is-business-open", available && businessOpen);
     control.toggleAttribute("disabled", !available);
     control.classList.toggle("is-disabled", !available);
     control.setAttribute("aria-disabled", String(!available));

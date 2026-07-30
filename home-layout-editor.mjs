@@ -11,15 +11,16 @@ import {
   projectDefaultLayoutValue,
   updateLayoutElement,
   updateTruckTimeline,
-} from "./home-layout-editor-state.mjs?v=20260730-theatre2";
+} from "./home-layout-editor-state.mjs?v=20260730-weight2";
 import {
   alignmentPatch,
   normalizeAlignmentSettings,
   snapDragLayout,
 } from "./home-layout-guides.mjs?v=20260730-truckfocus1";
 
-const STORAGE_KEY = "burger.home.layout.v4";
+const STORAGE_KEY = "burger.home.layout.v5";
 const LEGACY_STORAGE_KEYS = [
+  "burger.home.layout.v4",
   "burger.home.layout.v3",
   "burger.home.layout.v2",
   "burger.home.layout.v1",
