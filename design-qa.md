@@ -1,41 +1,69 @@
-# 汉堡餐车提线吊台 Design QA
+# 悬吊出餐档口 Design QA
 
-最后检查：2026-07-30
+日期：2026-07-30
 
-## 设计目标
+## 本轮视觉结论
 
-1. 保留主页横向店铺轮播。
-2. 汉堡卡片居中后，整台餐车从舞台上方吊下，轻摆停稳，再打开卷帘。
-3. 最终必须显示完整银色餐车、居中厨师和两个完整车轮，不再放大裁成局部近景。
-4. 不改用户保存的车轮布局：前轮 `X=-26.1 / Y=43.3 / 缩放=0.8`，后轮 `X=19.2 / Y=43.4 / 缩放=0.8`。
-5. 向左或向右离开汉堡页后，返回时都必须重新播放吊降动画。
+首页汉堡场景不再表达“车辆开进来”，而是一个可移动的木偶戏布景：
 
-## 同屏比较证据
+- 只保留银色出餐窗口、菜单灯箱、厨师、卷帘和档口招牌。
+- 车头、车身下半部、轮眉和前后轮全部取消。
+- 一根木质操偶横杆和两根承重绳从舞台上方悬吊整块档口。
+- 档口作为一个刚性整体下落、轻微过冲、递减摆动，停稳后卷帘打开。
+- 横向换店仍由整排卡片负责；档口自身不再模拟车辆横向行驶。
 
-- 用户确认的完整餐车与车轮布局：`output/marionette-truck/reference-user-full-truck.png`
-- 最终手机页面：`output/marionette-truck/final-mobile.png`
-- 参考与实现同屏对比：`output/marionette-truck/reference-vs-implementation.png`
-- 提线横杆透明素材：`art/home/layered-truck/marionette-rig.png`
+这条结论覆盖仓库里早期“必须保留完整餐车”的旧方案。
 
-## Findings
+## 同屏对比
 
-当前没有未解决的 P0、P1 或 P2。
+- 旧版参考：`output/marionette-truck/final-mobile.png`
+- 新版浏览器终态：`output/suspended-booth/final-mobile.png`
+- 同屏验收图：`output/suspended-booth/reference-vs-suspended-booth.png`
 
-- 构图：最终车身左右边界都在餐车场景内，保留驾驶室、完整车身、服务窗口、厨师和两轮。
-- 车轮：浏览器计算值仍为前轮 `-26.1px 43.3px`、后轮 `19.2px 43.4px`，两轮层级均为原始 `2`。
-- 遮挡：整车上移到舞台台面，两个车轮完整露出；车轮底边与营业按钮顶边只接触到亚像素误差，不再被按钮盖住。
-- 美术：新增的是透明 PNG 提线横杆与细线，使用现有深棕描边和暖木色；没有替换银色餐车、厨师或汉堡原画。
-- 动画：所有餐车零件由同一个 `.burger-truck-puppet` 容器吊降，车轮不再独立滚动，招牌不再单独弹出，因此不会出现零件割裂。
-- 时序：整车先下降并做递减摆动；下降与停摆结束后才打开卷帘；菜单灯箱在进场期间暂停，结束后恢复。
-- 回播：右切到寿司再左切回来、左切到寿司再右切回来，两次都确认活动页为 `burger` 且 `is-arriving=true`。
-- 资源：活动汉堡卡片图片全部 `complete` 且 `naturalWidth > 0`。
-- 控制台：页面错误为 0。
+对比图已经人工检查：新版移除了驾驶室和两只车轮，窗口宽度增加，厨师和出餐台成为唯一视觉中心；两根提线直接接到银色边框上沿，没有悬空。
 
-## 回归结果
+## 结构检查
 
-- Node 自动化：30 项通过，0 失败。
-- v2 布局迁移：保留所有元素和已验收轮子，只把旧的 `-12% / -28% / 1.76x` 裁切镜头迁移为 v3 提线吊台时序。
-- 动画结束监听继续使用 `burger-truck-camera-arrive`，原有控件恢复逻辑没有断开。
-- `prefers-reduced-motion` 降级规则保留。
+- 页面中的驾驶室/车身节点：`0`
+- 页面中的车轮节点：`0`
+- 悬吊档口可编辑层：`8`
+  - `burger.camera`
+  - `burger.truck`
+  - `burger.frame`
+  - `burger.service`
+  - `burger.menu`
+  - `burger.window`
+  - `burger.shutter`
+  - `burger.sign`
+- 新边框素材：`art/home/layered-truck/silver-service-booth-frame.png`
+- 提线素材：`art/home/layered-truck/marionette-rig.png`
+- 浏览器破损图片：`0`
 
-final result: passed
+## 动画检查
+
+- 初始高度：`cameraStartY = -165`
+- 档口吊降与停摆：`bodyDuration = 2200ms`
+- 总镜头阶段：`cameraDuration = 3150ms`
+- 卷帘延迟：`2200ms`
+- 卷帘打开：`620ms`
+- 三块菜单灯箱仍按错峰循环翻面。
+- 从左侧和右侧返回汉堡页都会重新触发吊降；完成后 `is-arriving` 与 `is-truck-replaying` 都会清除。
+- 车轮与招牌独立弹跳参数已经从 v4 文件格式移除。
+
+## 旧调整文件迁移
+
+- 布局格式升级为 v4，浏览器存储键为 `burger.home.layout.v4`。
+- 仍会读取 v1、v2、v3 文件。
+- 导入旧文件时会主动丢弃 `burger.body`、`burger.wheel-front`、`burger.wheel-rear`，避免台式机把旧整车布局带回来。
+- 其他 UI 调整和 Theatre 时间轴状态继续保留。
+
+## 自动化验证
+
+- Node 测试：`30/30` 通过。
+- 普通首页：编辑工具不显示。
+- 编辑模式：默认只显示悬吊档口相关图层。
+- 左右方向键与数字小键盘 `2 / 4 / 6 / 8` 的微调能力保留。
+
+## 后续边界
+
+下一阶段如果做“提线木偶人物装汉堡”，只拆厨师的头、躯干、上臂、前臂和手；汉堡食材继续沿用现在的装配逻辑，不把汉堡本体做成木偶。

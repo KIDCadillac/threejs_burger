@@ -339,7 +339,7 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .burger-truck-camera.is-arriving {
   animation:
     burger-truck-camera-arrive
-    var(--truck-camera-duration, 3100ms)
+    var(--truck-camera-duration, 3150ms)
     linear
     both;
 }
@@ -351,7 +351,7 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   width: 100%;
   height: 100%;
   object-fit: fill;
-  opacity: .34;
+  opacity: .52;
   pointer-events: none;
   user-select: none;
   -webkit-user-drag: none;
@@ -359,10 +359,10 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .burger-truck-puppet {
   position: absolute;
   z-index: 2;
-  right: 0;
-  bottom: 18%;
-  width: 100%;
-  aspect-ratio: 1539 / 638;
+  right: 3%;
+  bottom: 20%;
+  width: 94%;
+  aspect-ratio: 1079 / 500;
   transform:
     translate3d(
       var(--truck-camera-end-x, 0%),
@@ -370,7 +370,8 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
       0
     )
     scale(var(--truck-camera-end-scale, 1));
-  transform-origin: 50% -118%;
+  transform-origin: 50% -70%;
+  filter: drop-shadow(0 .34rem .18rem rgba(59,35,22,.24));
   will-change: transform, opacity;
 }
 .burger-truck-rig {
@@ -379,11 +380,11 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   width: 100%;
   height: 100%;
 }
-.silver-truck {
+.burger-service-booth {
   position: absolute;
   inset: 0;
 }
-.silver-truck__body {
+.burger-service-booth__frame {
   position: absolute;
   z-index: 3;
   display: block;
@@ -394,30 +395,17 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   user-select: none;
   -webkit-user-drag: none;
 }
-.silver-truck__service {
+.burger-service-booth__service {
   position: absolute;
   z-index: 1;
-  top: 18.3%;
-  left: 34.2%;
-  width: 61.3%;
-  height: 49.8%;
+  top: 21.2%;
+  left: 5.7%;
+  width: 89.1%;
+  height: 65.8%;
   overflow: hidden;
   border-radius: .36rem;
   background: #2f251f;
 }
-.burger-truck-wheel {
-  position: absolute;
-  z-index: 2;
-  bottom: -4.5%;
-  display: block;
-  width: 18%;
-  height: auto;
-  transform-origin: 50% 50%;
-  user-select: none;
-  -webkit-user-drag: none;
-}
-.burger-truck-wheel--front { left: 10.6%; }
-.burger-truck-wheel--rear { right: 10.8%; }
 .burger-service-window {
   position: absolute;
   z-index: 2;
@@ -436,7 +424,7 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   object-fit: cover;
   object-position: 50% 51%;
   filter: saturate(.88) contrast(1.03);
-  transform: scale(1.25);
+  transform: scale(1.16);
   transform-origin: 50% 25%;
   user-select: none;
   -webkit-user-drag: none;
@@ -454,11 +442,11 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   user-select: none;
   -webkit-user-drag: none;
 }
-.burger-truck-camera.is-arriving .silver-truck__service > .burger-service-window__shutter {
+.burger-truck-camera.is-arriving .burger-service-booth__service > .burger-service-window__shutter {
   animation:
     burger-service-shutter-open
-    var(--truck-shutter-duration, 650ms)
-    var(--truck-shutter-delay, 2100ms)
+    var(--truck-shutter-duration, 620ms)
+    var(--truck-shutter-delay, 2200ms)
     cubic-bezier(.28,.78,.22,1)
     both;
 }
@@ -531,11 +519,11 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   -webkit-backface-visibility: hidden;
 }
 .burger-menu-panel__face--back { transform: rotateY(180deg); }
-.silver-truck__sign {
+.burger-service-booth__sign {
   position: absolute;
   z-index: 5;
-  top: -16%;
-  left: 46%;
+  top: -22%;
+  left: 33%;
   display: flex;
   width: 34%;
   min-height: 22%;
@@ -551,7 +539,7 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
     0 .28rem 0 #b74832;
   transform: rotate(-1deg);
 }
-.silver-truck__sign img {
+.burger-service-booth__sign img {
   display: block;
   flex: 0 0 2rem;
   width: 2rem;
@@ -560,18 +548,18 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   border-radius: .55rem;
   object-fit: cover;
 }
-.silver-truck__sign span {
+.burger-service-booth__sign span {
   display: grid;
   gap: .04rem;
   min-width: 0;
 }
-.silver-truck__sign strong {
+.burger-service-booth__sign strong {
   font-size: clamp(.56rem, 2.3vw, .78rem);
   line-height: 1;
   letter-spacing: .08em;
   white-space: nowrap;
 }
-.silver-truck__sign small {
+.burger-service-booth__sign small {
   color: #9b5339;
   font-size: clamp(.3rem, 1.25vw, .42rem);
   font-weight: 850;
@@ -580,14 +568,14 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .burger-truck-camera.is-arriving .burger-truck-puppet {
   animation:
     burger-truck-marionette-drop
-    var(--truck-body-duration, 2100ms)
+    var(--truck-body-duration, 2200ms)
     linear
     both;
 }
 .burger-truck-camera.is-arriving .burger-truck-marionette-rig {
   animation:
     burger-truck-marionette-strings
-    var(--truck-body-duration, 2100ms)
+    var(--truck-body-duration, 2200ms)
     linear
     both;
 }
@@ -701,44 +689,44 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
     transform:
       translate3d(
         var(--truck-camera-start-x, 0%),
-        var(--truck-camera-start-y, -190%),
+        var(--truck-camera-start-y, -165%),
         0
       )
       scale(var(--truck-camera-start-scale, 1))
-      rotate(-1.15deg);
+      rotate(-1.4deg);
   }
-  7% { opacity: 1; }
-  54% {
+  8% { opacity: 1; }
+  56% {
     transform:
       translate3d(
         var(--truck-camera-end-x, 0%),
-        calc(var(--truck-camera-end-y, 0%) + 2.2%),
+        calc(var(--truck-camera-end-y, 0%) + 3.2%),
         0
       )
       scale(var(--truck-camera-end-scale, 1))
-      rotate(1.25deg);
+      rotate(1.15deg);
   }
-  68% {
+  70% {
     transform:
       translate3d(
         var(--truck-camera-end-x, 0%),
-        calc(var(--truck-camera-end-y, 0%) - .8%),
+        calc(var(--truck-camera-end-y, 0%) - 1.15%),
         0
       )
       scale(var(--truck-camera-end-scale, 1))
-      rotate(-.66deg);
+      rotate(-.58deg);
   }
-  80% {
+  82% {
     transform:
       translate3d(
         var(--truck-camera-end-x, 0%),
-        calc(var(--truck-camera-end-y, 0%) + .32%),
+        calc(var(--truck-camera-end-y, 0%) + .42%),
         0
       )
       scale(var(--truck-camera-end-scale, 1))
-      rotate(.27deg);
+      rotate(.24deg);
   }
-  90% {
+  92% {
     transform:
       translate3d(
         var(--truck-camera-end-x, 0%),
@@ -763,15 +751,15 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 @keyframes burger-truck-marionette-strings {
   0% {
     opacity: 0;
-    clip-path: inset(0 0 92% 0);
+    clip-path: inset(0 0 76% 0);
   }
-  10% { opacity: .68; }
-  54% {
-    opacity: .62;
+  12% { opacity: .78; }
+  56% {
+    opacity: .68;
     clip-path: inset(0 0 0 0);
   }
   100% {
-    opacity: .34;
+    opacity: .52;
     clip-path: inset(0 0 0 0);
   }
 }
@@ -864,55 +852,6 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   background: #b95731;
 }
 .service-counter span { border-right: 2px solid rgba(60,37,23,.3); }
-.food-truck-shell {
-  position: absolute;
-  z-index: 9;
-  right: .55rem;
-  bottom: .2rem;
-  left: .55rem;
-  height: 3.25rem;
-  border: 3px solid var(--ink);
-  border-radius: .75rem 1.1rem .65rem .65rem;
-  background:
-    linear-gradient(90deg, transparent 0 67%, #f7d56f 67% 72%, transparent 72%),
-    linear-gradient(180deg, #cf6136 0 42%, #a5452c 42% 100%);
-  box-shadow: inset 0 .5rem rgba(255,255,255,.08);
-  pointer-events: none;
-}
-.food-truck-shell::before {
-  content: "";
-  position: absolute;
-  top: .45rem;
-  right: 1rem;
-  left: 1rem;
-  height: .34rem;
-  border-radius: 999px;
-  background: #f4d476;
-  box-shadow: 0 2px 0 rgba(59,31,21,.48);
-}
-.food-truck-wheel {
-  position: absolute;
-  bottom: -.65rem;
-  width: 2.05rem;
-  height: 2.05rem;
-  border: .42rem solid #2e211c;
-  border-radius: 50%;
-  background: #e8b765;
-  box-shadow: inset 0 0 0 .18rem #8e4c31;
-}
-.food-truck-wheel--left { left: 1.25rem; }
-.food-truck-wheel--right { right: 1.25rem; }
-.food-truck-bumper {
-  position: absolute;
-  right: -.4rem;
-  bottom: .25rem;
-  width: 1.25rem;
-  height: .42rem;
-  border: 2px solid #372218;
-  border-radius: 999px;
-  background: #f3d48a;
-}
-
 .chef { position: absolute; z-index: 2; bottom: .2rem; left: 50%; width: 7.4rem; height: 11.5rem; transform: translateX(-50%); }
 .chef i { position: absolute; display: block; }
 .chef__hat { top: 0; left: 1.2rem; width: 5rem; height: 3.1rem; border: 3px solid var(--ink); border-radius: 2.5rem 2.5rem .6rem .6rem; background: #fff5d7; }
@@ -1111,19 +1050,6 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   0% { opacity: .2; transform: translateX(-50%) translateY(.8rem) scale(.72); }
   72% { opacity: 1; transform: translateX(-50%) translateY(-.16rem) scale(1.06); }
   100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
-}
-@keyframes food-truck-arrive {
-  0% { transform: translateX(.85rem) translateY(.18rem); }
-  72% { transform: translateX(-.08rem) translateY(-.06rem); }
-  100% { transform: translateY(0); }
-}
-@keyframes food-truck-depart-rumble {
-  0% { transform: translateX(0); }
-  45% { transform: translateX(-.1rem) translateY(.03rem); }
-  100% { transform: translateX(.18rem); }
-}
-@keyframes food-truck-wheel-spin {
-  to { transform: rotate(360deg); }
 }
 @keyframes sushi-bar-close {
   0% { transform: translateX(0); }

@@ -11,15 +11,16 @@ import {
   projectDefaultLayoutValue,
   updateLayoutElement,
   updateTruckTimeline,
-} from "./home-layout-editor-state.mjs?v=20260730-puppet3";
+} from "./home-layout-editor-state.mjs?v=20260730-booth2";
 import {
   alignmentPatch,
   normalizeAlignmentSettings,
   snapDragLayout,
 } from "./home-layout-guides.mjs?v=20260730-truckfocus1";
 
-const STORAGE_KEY = "burger.home.layout.v3";
+const STORAGE_KEY = "burger.home.layout.v4";
 const LEGACY_STORAGE_KEYS = [
+  "burger.home.layout.v3",
   "burger.home.layout.v2",
   "burger.home.layout.v1",
 ];
@@ -31,18 +32,16 @@ const editorEnabled = query.get("layout") === "1";
 const editableSelector = "[data-layout-id],[data-layout-runtime-id]";
 const animationById = new Map();
 const theatreObjects = new Map();
-const openLayerGroups = new Set(["burger-vehicle"]);
+const openLayerGroups = new Set(["burger-booth"]);
 const TRUCK_EDITOR_BASE_IDS = new Set([
   "burger.camera",
   "burger.truck",
-  "burger.body",
+  "burger.frame",
   "burger.service",
   "burger.menu",
   "burger.window",
   "burger.shutter",
   "burger.sign",
-  "burger.wheel-front",
-  "burger.wheel-rear",
 ]);
 const NUDGE_DIRECTION_BY_KEY = Object.freeze({
   ArrowLeft: "left",
@@ -113,16 +112,16 @@ let truckPreviewTimer = 0;
 
 const LAYER_CATEGORY_DEFINITIONS = [
   {
-    key: "burger-vehicle",
-    label: "整车与舞台",
-    description: "完整餐车、车身、提线吊台与场景",
+    key: "burger-booth",
+    label: "悬吊档口与舞台",
+    description: "完整档口、银色边框、提线吊台与场景",
     matches: (baseId) =>
       [
         "burger.card",
         "burger.scene",
         "burger.camera",
         "burger.truck",
-        "burger.body",
+        "burger.frame",
       ].includes(baseId),
   },
   {
@@ -143,12 +142,6 @@ const LAYER_CATEGORY_DEFINITIONS = [
     label: "菜单灯箱",
     description: "今日菜单与三面翻画面",
     matches: (baseId) => baseId === "burger.menu",
-  },
-  {
-    key: "burger-wheel",
-    label: "车轮",
-    description: "餐车前轮与后轮",
-    matches: (baseId) => baseId.startsWith("burger.wheel"),
   },
   {
     key: "burger-mode",
@@ -211,18 +204,16 @@ const LAYER_CATEGORY_DEFINITIONS = [
 ];
 
 const LAYER_DISPLAY_NAMES = {
-  "burger.card": "汉堡餐车卡片",
+  "burger.card": "汉堡档口卡片",
   "burger.scene": "汉堡场景",
-  "burger.camera": "餐车舞台",
-  "burger.truck": "完整餐车",
-  "burger.body": "银色车身",
+  "burger.camera": "提线舞台",
+  "burger.truck": "完整悬吊档口",
+  "burger.frame": "银色档口边框",
   "burger.window": "出餐窗口",
   "burger.service": "出餐区域",
   "burger.shutter": "银色卷帘",
-  "burger.sign": "餐车招牌",
+  "burger.sign": "档口招牌",
   "burger.menu": "三面翻菜单",
-  "burger.wheel-front": "前轮",
-  "burger.wheel-rear": "后轮",
   "burger.mode": "玩法标签",
   "burger.service-control": "开门营业按钮",
   "global.hud": "顶部玩家状态",
@@ -367,12 +358,8 @@ function applyTruckTimeline() {
   root.style.setProperty("--truck-camera-end-scale", timeline.cameraEndScale);
   root.style.setProperty("--truck-camera-duration", `${timeline.cameraDuration}ms`);
   root.style.setProperty("--truck-body-duration", `${timeline.bodyDuration}ms`);
-  root.style.setProperty("--truck-wheel-duration", `${timeline.wheelDuration}ms`);
-  root.style.setProperty("--truck-wheel-turns", `${-timeline.wheelTurns}deg`);
   root.style.setProperty("--truck-shutter-delay", `${timeline.shutterDelay}ms`);
   root.style.setProperty("--truck-shutter-duration", `${timeline.shutterDuration}ms`);
-  root.style.setProperty("--truck-sign-delay", `${timeline.signDelay}ms`);
-  root.style.setProperty("--truck-sign-duration", `${timeline.signDuration}ms`);
   root.style.setProperty("--truck-menu-duration", `${timeline.menuDuration}ms`);
   root.style.setProperty("--truck-menu-delay-two", `${timeline.menuStagger}ms`);
   root.style.setProperty("--truck-menu-delay-three", `${timeline.menuStagger * 2}ms`);
@@ -453,7 +440,7 @@ function ensureTruckTimelineObject() {
   if (!theatreSheet || truckTimelineObject) return truckTimelineObject;
   const value = workingDocument.truckTimeline;
   truckTimelineObject = theatreSheet.object(
-    "餐车原生进场参数",
+    "悬吊档口进场参数",
     {
       cameraStartX: theatreNumber(value.cameraStartX, -500, 500),
       cameraStartY: theatreNumber(value.cameraStartY, -500, 500),
@@ -463,12 +450,8 @@ function ensureTruckTimelineObject() {
       cameraEndScale: theatreNumber(value.cameraEndScale, 0.05, 8, 0.05),
       cameraDuration: theatreNumber(value.cameraDuration, 200, 30000, 50),
       bodyDuration: theatreNumber(value.bodyDuration, 100, 30000, 50),
-      wheelDuration: theatreNumber(value.wheelDuration, 100, 30000, 50),
-      wheelTurns: theatreNumber(value.wheelTurns, 0, 10000, 10),
       shutterDelay: theatreNumber(value.shutterDelay, 0, 30000, 50),
       shutterDuration: theatreNumber(value.shutterDuration, 100, 30000, 50),
-      signDelay: theatreNumber(value.signDelay, 0, 30000, 50),
-      signDuration: theatreNumber(value.signDuration, 100, 30000, 50),
       menuDuration: theatreNumber(value.menuDuration, 300, 30000, 100),
       menuStagger: theatreNumber(value.menuStagger, 0, 5000, 10),
     },
@@ -508,7 +491,7 @@ function captureTheatrePatch(id, scope, patch) {
 
 function selectInDeveloperTools(id) {
   if (devMoveable) {
-    const target = id && !isWheelLayer(id) ? preferredElement(id) : null;
+    const target = id ? preferredElement(id) : null;
     devMoveable.target = target;
     devMoveable.snappable = alignmentSettings.snapping;
     devMoveable.snapThreshold = alignmentSettings.threshold;
@@ -763,10 +746,6 @@ function truckEditorRootId(id) {
   return TRUCK_EDITOR_BASE_IDS.has(baseId) ? baseId : "";
 }
 
-function isWheelLayer(id) {
-  return Boolean(id && layerCategory(id).key === "burger-wheel");
-}
-
 function numericZIndex(element) {
   if (!element) return 0;
   const value = Number.parseInt(window.getComputedStyle(element).zIndex, 10);
@@ -793,7 +772,7 @@ function selectedLayerContext() {
   if (!element) {
     return {
       element: null,
-      path: "请选择餐车零件",
+      path: "请选择档口零件",
       current: 0,
       original: 0,
       explicit: false,
@@ -825,30 +804,6 @@ function selectedLayerContext() {
     explicit: value.z !== 0,
     min: peerLayers.length ? Math.min(...peerLayers) : current,
     max: peerLayers.length ? Math.max(...peerLayers) : current,
-  };
-}
-
-function wheelAlignmentInfo() {
-  if (!isWheelLayer(selectedId)) return null;
-  const selected = preferredElement(selectedId);
-  const partnerId =
-    baseLayoutId(selectedId) === "burger.wheel-front"
-      ? "burger.wheel-rear"
-      : "burger.wheel-front";
-  const partner = preferredElement(partnerId);
-  if (!selected || !partner) return null;
-  const selectedRect = selected.getBoundingClientRect();
-  const partnerRect = partner.getBoundingClientRect();
-  const delta =
-    selectedRect.top +
-    selectedRect.height / 2 -
-    (partnerRect.top + partnerRect.height / 2);
-  return {
-    selected,
-    partner,
-    partnerId,
-    delta,
-    aligned: Math.abs(delta) <= 0.5,
   };
 }
 
@@ -903,9 +858,9 @@ function viewportDeltaToLayout(element, deltaX, deltaY) {
 
 function alignmentReference(element) {
   if (!element) return null;
-  const service = element.closest(".silver-truck__service");
+  const service = element.closest(".burger-service-booth__service");
   if (service && service !== element) return service;
-  const truck = element.closest(".silver-truck");
+  const truck = element.closest(".burger-service-booth");
   if (truck && truck !== element) return truck;
   const scene = element.closest(".diner-scene");
   if (scene && scene !== element) return scene;
@@ -922,8 +877,8 @@ function alignmentReference(element) {
 
 function alignmentReferenceLabel(reference) {
   if (!reference) return "未找到对齐范围";
-  if (reference.matches(".silver-truck__service")) return "出餐区边界";
-  if (reference.matches(".silver-truck")) return "完整餐车边界";
+  if (reference.matches(".burger-service-booth__service")) return "出餐区边界";
+  if (reference.matches(".burger-service-booth")) return "完整档口边界";
   if (reference.matches(".diner-scene")) return "餐厅场景边界";
   if (reference.matches(".home-map-slide")) return "当前餐厅卡片";
   if (reference.matches(".lobby-stage")) return "主页舞台";
@@ -1155,25 +1110,6 @@ function changeSelectedLayer(action) {
   syncAlignmentDock();
 }
 
-function alignSelectedWheelHeight() {
-  const info = wheelAlignmentInfo();
-  if (!info) {
-    showToast("请选择前轮或后轮");
-    return;
-  }
-  const value = layoutValue(selectedId);
-  const correction = viewportDeltaToLayout(
-    info.selected,
-    0,
-    -info.delta,
-  );
-  applySelectedLayoutPatch(
-    { y: value.y + correction.y },
-    "两只车轮的轮心已经同高",
-  );
-  showSnapFeedback("", "middle");
-}
-
 function nudgeSelected(deltaX, deltaY) {
   if (!selectedId || layoutValue(selectedId).locked) return;
   const value = layoutValue(selectedId);
@@ -1257,7 +1193,7 @@ function layerDisplayName(id, label = "") {
   else if (lowered.includes("burger-menu-panel--three")) part = "菜单灯箱 3";
   else if (lowered.includes("burger-menu-panel__rotor")) part = "菜单翻转层";
   else if (lowered.includes("burger-menu-panel__face")) part = "菜单画面";
-  else if (lowered.includes("silver-truck")) part = "餐车主体层";
+  else if (lowered.includes("service-booth")) part = "悬吊档口主体层";
   else if (lowered.startsWith("img")) part = "图片";
   else if (lowered.startsWith("button")) part = "按钮";
   else if (lowered.startsWith("strong")) part = "主文字";
@@ -1329,14 +1265,6 @@ function updateOverlay() {
 
 function setSelected(id) {
   selectedId = id || "";
-  const wheelMode = isWheelLayer(selectedId);
-  document.documentElement.classList.toggle(
-    "layout-editor-wheel-mode",
-    Boolean(wheelMode),
-  );
-  if (wheelMode) {
-    setTruckOverview(true);
-  }
   document
     .querySelectorAll(".layout-editor-selected-target")
     .forEach((element) =>
@@ -1447,7 +1375,7 @@ function setStudioVisibility(visible, { announce = false } = {}) {
     showToast(
       studioVisible
         ? "已打开高级动画面板"
-        : "已关闭高级动画面板，继续专心调整餐车",
+        : "已关闭高级动画面板，继续专心调整悬吊档口",
     );
   }
 }
@@ -1462,7 +1390,7 @@ function setTruckFocus(enabled, { announce = false } = {}) {
     .querySelectorAll('[data-action="toggle-truck-focus"]')
     .forEach((button) => {
       button.classList.toggle("is-active", truckFocusEnabled);
-      button.textContent = truckFocusEnabled ? "餐车专注 ✓" : "进入餐车专注";
+      button.textContent = truckFocusEnabled ? "档口专注 ✓" : "进入档口专注";
     });
   if (truckFocusEnabled) {
     activateBurgerMapForFocus();
@@ -1480,7 +1408,7 @@ function setTruckFocus(enabled, { announce = false } = {}) {
   if (announce) {
     showToast(
       truckFocusEnabled
-        ? "已进入餐车专注：只显示餐车零件"
+        ? "已进入档口专注：只显示悬吊档口零件"
         : "已返回整页 UI 编辑",
     );
   }
@@ -1493,7 +1421,7 @@ function buildEditor() {
   topbar.className = "layout-editor-topbar layout-editor-ui";
   topbar.innerHTML = `
     <div class="layout-editor-brand">
-      <strong>汉堡小馆 · 餐车工作台</strong>
+      <strong>汉堡小馆 · 悬吊档口工作台</strong>
       <span>选零件 → 拖动或对齐 → 调整图层 → 下载文件</span>
     </div>
     <div class="layout-editor-view-switcher" aria-label="编辑页面状态">
@@ -1506,9 +1434,9 @@ function buildEditor() {
       <button type="button" data-action="undo">撤销</button>
       <button type="button" data-action="redo">重做</button>
       <button type="button" data-action="play-theatre">播放时间轴</button>
-      <button type="button" data-action="select-truck-timing">餐车时序参数</button>
-      <button type="button" data-action="toggle-truck-focus" class="is-active">餐车专注 ✓</button>
-      <button type="button" data-action="replay-truck">预览餐车动画</button>
+      <button type="button" data-action="select-truck-timing">档口时序参数</button>
+      <button type="button" data-action="toggle-truck-focus" class="is-active">档口专注 ✓</button>
+      <button type="button" data-action="replay-truck">预览档口动画</button>
       <button type="button" data-action="toggle-studio">高级动画面板</button>
       <button type="button" data-action="save">暂存到浏览器</button>
       <button type="button" data-action="export" class="layout-editor-primary">下载调整文件</button>
@@ -1522,16 +1450,16 @@ function buildEditor() {
   layers.className = "layout-editor-layers layout-editor-ui";
   layers.innerHTML = `
     <div class="layout-editor-panel-title">
-      <strong data-layer-panel-title>餐车图层</strong><span data-layer-count></span>
+      <strong data-layer-panel-title>档口图层</strong><span data-layer-count></span>
     </div>
     <div class="layout-editor-transfer-tip">
       <b>怎么用</b>
-      <span>这里只列餐车零件。选中后会显示所属层级和对齐状态。</span>
+      <span>这里只列悬吊档口零件。选中后会显示所属层级和对齐状态。</span>
       <span>拖动只改位置，不会自动改变前后图层。</span>
     </div>
     <label class="layout-editor-search">
       <span>搜索</span>
-      <input type="search" placeholder="车轮、车身、窗口、招牌…" data-layer-search>
+      <input type="search" placeholder="边框、窗口、卷帘、招牌…" data-layer-search>
     </label>
     <div class="layout-editor-layer-groups" data-layer-groups></div>
   `;
@@ -1545,18 +1473,14 @@ function buildEditor() {
     </div>
     <div class="layout-editor-align-section layout-editor-layer-context">
       <b>当前零件与图层</b>
-      <p data-layer-path>请选择餐车零件</p>
+      <p data-layer-path>请选择档口零件</p>
       <output data-layer-status>当前显示层：—</output>
       <div class="layout-editor-layer-order">
-        <button type="button" data-layer-order="backward" title="向车身后面移动一层">下一层</button>
+        <button type="button" data-layer-order="backward" title="向画面后面移动一层">下一层</button>
         <button type="button" data-layer-order="forward" title="向画面前面移动一层">上一层</button>
         <button type="button" data-layer-order="back" title="放到同级零件最后面">置底</button>
         <button type="button" data-layer-order="front" title="放到同级零件最前面">置顶</button>
         <button type="button" data-layer-order="original" class="layout-editor-layer-original">恢复原层</button>
-      </div>
-      <div class="layout-editor-wheel-check" data-wheel-check hidden>
-        <output data-wheel-status>正在检查两只车轮</output>
-        <button type="button" data-wheel-align>两轮轮心同高</button>
       </div>
     </div>
     <div class="layout-editor-align-section layout-editor-nudge-section">
@@ -1632,7 +1556,7 @@ function buildEditor() {
       <button type="button" class="is-active" data-tab="layout">布局</button>
       <button type="button" data-tab="style">样式</button>
       <button type="button" data-tab="motion">动画</button>
-      <button type="button" data-tab="truck">餐车时间轴</button>
+      <button type="button" data-tab="truck">档口时间轴</button>
     </div>
     <section class="layout-editor-tab is-active" data-panel="layout">
       <div class="layout-editor-fields">
@@ -1685,14 +1609,14 @@ function buildEditor() {
       <button type="button" class="layout-editor-wide-button" data-action="preview-motion">预览所选元素动画</button>
     </section>
     <section class="layout-editor-tab" data-panel="truck">
-      <p class="layout-editor-help">这里控制提线吊台的整车下降、停摆和开门。车轮作为整车零件一起移动，不会被进场动画改层级或位置。</p>
+      <p class="layout-editor-help">这里控制整块出餐档口的吊降、重力停摆和卷帘开门。车头与车轮已经从场景和编辑器中移除。</p>
       <div class="layout-editor-fields">
         ${truckField("cameraStartX", "吊台起点 X%", 1)}
         ${truckField("cameraStartY", "吊台起点 Y%", 1)}
         ${truckField("cameraStartScale", "吊台起点缩放", 0.05)}
         ${truckField("cameraEndX", "停靠位置 X%", 1)}
         ${truckField("cameraEndY", "停靠位置 Y%", 1)}
-        ${truckField("cameraEndScale", "最终整车缩放", 0.05)}
+        ${truckField("cameraEndScale", "最终档口缩放", 0.05)}
         ${truckField("cameraDuration", "整段时长 ms", 50)}
         ${truckField("bodyDuration", "下降与停摆 ms", 50)}
         ${truckField("shutterDelay", "卷帘延迟 ms", 50)}
@@ -1700,7 +1624,7 @@ function buildEditor() {
         ${truckField("menuDuration", "菜单翻转周期 ms", 100)}
         ${truckField("menuStagger", "菜单错峰 ms", 10)}
       </div>
-      <button type="button" class="layout-editor-wide-button layout-editor-primary" data-action="replay-truck">预览整车进场</button>
+      <button type="button" class="layout-editor-wide-button layout-editor-primary" data-action="replay-truck">预览档口进场</button>
     </section>
     <div class="layout-editor-action-row">
       <button type="button" data-action="reset-selected">复位所选</button>
@@ -1712,12 +1636,12 @@ function buildEditor() {
   timeline.className = "layout-editor-timeline layout-editor-ui";
   timeline.innerHTML = `
     <div class="layout-editor-timeline__head">
-      <strong>餐车进场时间轴</strong>
+      <strong>悬吊档口进场时间轴</strong>
       <button type="button" data-action="replay-truck">▶ 预览</button>
       <output data-timeline-total></output>
     </div>
     <div class="layout-editor-timeline__tracks">
-      ${["舞台总时长", "整车吊降", "卷帘开门", "菜单灯箱"].map((label, index) => `
+      ${["舞台总时长", "档口吊降", "卷帘开门", "菜单灯箱"].map((label, index) => `
         <div class="layout-editor-timeline__row" data-track="${index}">
           <span>${label}</span><div class="layout-editor-timeline__rail"><i></i></div>
         </div>`).join("")}
@@ -1854,22 +1778,6 @@ function syncAlignmentDock() {
       ? `X ${round(value.x)} · Y ${round(value.y)}`
       : "X — · Y —";
   }
-  const wheelCheck = dock.querySelector("[data-wheel-check]");
-  const wheelStatus = dock.querySelector("[data-wheel-status]");
-  const wheelInfo = wheelAlignmentInfo();
-  if (wheelCheck) wheelCheck.hidden = !wheelInfo;
-  if (wheelInfo && wheelStatus) {
-    const partnerName =
-      baseLayoutId(wheelInfo.partnerId) === "burger.wheel-front"
-        ? "前轮"
-        : "后轮";
-    wheelStatus.textContent = wheelInfo.aligned
-      ? `✓ 与${partnerName}轮心同高`
-      : `与${partnerName}轮心相差 ${Math.abs(wheelInfo.delta).toFixed(1)}px（${
-          wheelInfo.delta > 0 ? "当前更低" : "当前更高"
-        }）`;
-    wheelStatus.classList.toggle("is-aligned", wheelInfo.aligned);
-  }
   dock.querySelectorAll("[data-guide-setting]").forEach((input) => {
     if (document.activeElement === input) return;
     const field = input.dataset.guideSetting;
@@ -1955,7 +1863,7 @@ function renderLayerList() {
     )
     .join("");
   const title = document.querySelector("[data-layer-panel-title]");
-  if (title) title.textContent = truckFocusEnabled ? "餐车图层" : "页面图层";
+  if (title) title.textContent = truckFocusEnabled ? "档口图层" : "页面图层";
   document.querySelector("[data-layer-count]").textContent =
     `${visibleIds.length} 个`;
 }
@@ -2087,7 +1995,7 @@ function setTruckOverview(enabled, { announce = false } = {}) {
   }
   scheduleOverlay();
   window.requestAnimationFrame(() => devMoveable?.updateRect());
-  if (announce) showToast("已回到完整餐车视图，可以直接调整前后轮");
+  if (announce) showToast("已回到完整悬吊档口视图，可以继续调整窗口、卷帘和招牌");
 }
 
 function replayTruck() {
@@ -2101,7 +2009,7 @@ function replayTruck() {
       camera.classList.add("is-arriving");
     });
   }
-  showToast("正在预览提线吊台：整车下降、轻摆停稳，再打开卷帘", 3200);
+  showToast("正在预览提线吊台：档口下降、重力停摆，再打开卷帘", 3200);
 }
 
 function previewTruckAnimation() {
@@ -2329,9 +2237,6 @@ function bindEditor(
       nudgeSelectedDirection(nudgeDirection);
       return;
     }
-    if (event.target.closest("[data-wheel-align]")) {
-      alignSelectedWheelHeight();
-    }
   });
   alignmentDock.addEventListener("input", (event) => {
     const settingInput = event.target.closest("[data-guide-setting]");
@@ -2432,10 +2337,9 @@ function bindEditor(
         event.preventDefault();
         return;
       }
-      const useDirectWheelDrag = isWheelLayer(id);
       event.preventDefault();
       if (selectedId !== id) setSelected(id);
-      if (devMoveable && !useDirectWheelDrag) return;
+      if (devMoveable) return;
       event.stopImmediatePropagation();
       startOperation(event, "move");
     },

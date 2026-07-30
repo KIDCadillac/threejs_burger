@@ -67,42 +67,35 @@ test("normalizes layout, style and visibility values", () => {
   assert.equal(value.background, "#fff");
 });
 
-test("fills missing element fields from v3 defaults", () => {
+test("fills missing element fields from v4 defaults", () => {
   assert.deepEqual(normalizeLayoutValue({ x: 4 }), {
     ...DEFAULT_LAYOUT_VALUE,
     x: 4,
   });
 });
 
-test("uses the approved wheel adjustment file as the project baseline", () => {
+test("v4 project baseline contains no retired vehicle parts", () => {
   const defaults = createProjectDefaultLayoutDocument();
 
-  assert.deepEqual(PROJECT_DEFAULT_LAYOUT_ELEMENTS["burger.wheel-front"], {
-    x: -26.1,
-    y: 43.3,
-    scale: 0.8,
-  });
-  assert.equal(defaults.elements["burger.wheel-front"].x, -26.1);
-  assert.equal(defaults.elements["burger.wheel-front"].y, 43.3);
-  assert.equal(defaults.elements["burger.wheel-front"].scale, 0.8);
-  assert.equal(defaults.elements["burger.wheel-rear"].x, 19.2);
-  assert.equal(defaults.elements["burger.wheel-rear"].y, 43.4);
-  assert.equal(defaults.elements["burger.wheel-rear"].scale, 0.8);
+  assert.deepEqual(PROJECT_DEFAULT_LAYOUT_ELEMENTS, {});
+  assert.deepEqual(defaults.elements, {});
+  assert.equal("wheelDuration" in defaults.truckTimeline, false);
+  assert.equal("wheelTurns" in defaults.truckTimeline, false);
   assert.deepEqual(projectDefaultLayoutValue("unknown"), DEFAULT_LAYOUT_VALUE);
 });
 
-test("adds project wheel defaults without replacing explicit local edits", () => {
+test("keeps active edits while filtering retired cab and wheel layers", () => {
   const merged = mergeProjectDefaultLayout({
     elements: {
       "burger.sign": { x: 8 },
       "burger.wheel-rear": { x: 21, y: 44, scale: 0.9 },
+      "burger.body": { x: 12 },
     },
   });
 
-  assert.equal(merged.elements["burger.wheel-front"].x, -26.1);
   assert.equal(merged.elements["burger.sign"].x, 8);
-  assert.equal(merged.elements["burger.wheel-rear"].x, 21);
-  assert.equal(merged.elements["burger.wheel-rear"].scale, 0.9);
+  assert.equal("burger.wheel-rear" in merged.elements, false);
+  assert.equal("burger.body" in merged.elements, false);
 });
 
 test("normalizes generic motion settings", () => {
@@ -134,13 +127,14 @@ test("migrates v1 documents and supplies the truck timeline", () => {
   assert.deepEqual(parsed.truckTimeline, DEFAULT_TRUCK_TIMELINE);
 });
 
-test("migrates the cropped v2 camera timeline without losing wheel edits", () => {
+test("migrates v2 files to the suspended booth and drops vehicle edits", () => {
   const parsed = parseLayoutDocument(
     JSON.stringify({
       version: 2,
       elements: {
         "burger.wheel-front": { x: -26.1, y: 43.3, scale: 0.8 },
         "burger.wheel-rear": { x: 19.2, y: 43.4, scale: 0.8 },
+        "burger.sign": { x: 7 },
       },
       truckTimeline: {
         cameraEndX: -12,
@@ -151,8 +145,9 @@ test("migrates the cropped v2 camera timeline without losing wheel edits", () =>
   );
 
   assert.equal(parsed.version, LAYOUT_VERSION);
-  assert.equal(parsed.elements["burger.wheel-front"].x, -26.1);
-  assert.equal(parsed.elements["burger.wheel-rear"].x, 19.2);
+  assert.equal("burger.wheel-front" in parsed.elements, false);
+  assert.equal("burger.wheel-rear" in parsed.elements, false);
+  assert.equal(parsed.elements["burger.sign"].x, 7);
   assert.deepEqual(parsed.truckTimeline, DEFAULT_TRUCK_TIMELINE);
 });
 
@@ -171,6 +166,8 @@ test("creates a Codex handoff file and imports it again", () => {
   );
 
   assert.equal(payload.format, WORKBENCH_FILE_FORMAT);
+  assert.equal(payload.version, 4);
+  assert.equal(payload.layoutDocument.version, 4);
   assert.equal(payload.summary.editedElementCount, 1);
   assert.deepEqual(payload.summary.editedElementIds, ["burger.sign"]);
   assert.equal(payload.summary.includesTheatreTimeline, true);

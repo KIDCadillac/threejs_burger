@@ -175,9 +175,9 @@ html.layout-editor-active.layout-editor-truck-overview
 
 html.layout-editor-active.layout-editor-truck-overview
   .burger-truck-puppet {
-  right: 0 !important;
-  bottom: 24% !important;
-  width: 100% !important;
+  right: 3% !important;
+  bottom: 20% !important;
+  width: 94% !important;
   opacity: 1 !important;
   animation: none !important;
   transform: translate3d(0, 0, 0) scale(1) !important;
@@ -191,11 +191,9 @@ html.layout-editor-active.layout-editor-truck-overview
 }
 
 html.layout-editor-active.layout-editor-truck-overview
-  .silver-truck__body,
+  .burger-service-booth__frame,
 html.layout-editor-active.layout-editor-truck-overview
-  .burger-truck-wheel,
-html.layout-editor-active.layout-editor-truck-overview
-  .silver-truck__sign,
+  .burger-service-booth__sign,
 html.layout-editor-active.layout-editor-truck-overview
   .burger-service-window__shutter,
 html.layout-editor-active.layout-editor-truck-overview
@@ -204,14 +202,12 @@ html.layout-editor-active.layout-editor-truck-overview
 }
 
 html.layout-editor-active.layout-editor-truck-overview
-  .silver-truck__body,
-html.layout-editor-active.layout-editor-truck-overview
-  .burger-truck-wheel {
+  .burger-service-booth__frame {
   transform: var(--layout-transform-3d, translateZ(0)) !important;
 }
 
 html.layout-editor-active.layout-editor-truck-overview
-  .silver-truck__sign {
+  .burger-service-booth__sign {
   transform: rotate(-1deg)
     var(--layout-transform-3d, translateZ(0)) !important;
 }
@@ -224,22 +220,6 @@ html.layout-editor-active.layout-editor-truck-overview
 html.layout-editor-active.layout-editor-truck-overview
   .burger-menu-panel__rotor {
   transform: rotateY(0deg) !important;
-}
-
-html.layout-editor-active.layout-editor-wheel-mode
-  .silver-truck__body {
-  pointer-events: none !important;
-}
-
-html.layout-editor-active.layout-editor-wheel-mode
-  .burger-truck-wheel {
-  pointer-events: auto !important;
-}
-
-html.layout-editor-active.layout-editor-wheel-mode
-  .burger-truck-wheel.layout-editor-selected-target {
-  filter: drop-shadow(0 0 4px #4fe0ff)
-    drop-shadow(0 0 7px rgba(79, 224, 255, 0.72)) !important;
 }
 
 html.layout-editor-active .layout-editor-selected-target {
@@ -482,37 +462,6 @@ html.layout-editor-active.layout-editor-truck-focus .layout-editor-inspector {
 .layout-editor-layer-order .layout-editor-layer-original {
   grid-column: 1 / -1;
   color: #ffdaa0;
-}
-
-.layout-editor-wheel-check {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 7px;
-  padding: 8px;
-  border: 1px solid #5d5140;
-  border-radius: 8px;
-  background: #282820;
-}
-
-.layout-editor-wheel-check[hidden] {
-  display: none;
-}
-
-.layout-editor-wheel-check output {
-  color: #ffc87a;
-  font-size: 9px;
-  line-height: 1.35;
-}
-
-.layout-editor-wheel-check output.is-aligned {
-  color: #86e39b;
-}
-
-.layout-editor-wheel-check button {
-  min-height: 29px;
-  padding: 0 7px;
-  font-size: 9px;
 }
 
 .layout-editor-nudge-section {
@@ -1300,15 +1249,6 @@ html.layout-editor-devtools .layout-editor-align-dock {
 
 html.layout-editor-devtools .moveable-control-box {
   z-index: 2147483596 !important;
-}
-
-html.layout-editor-moveable.layout-editor-wheel-mode
-  .layout-editor-selection:not([hidden]) {
-  display: block !important;
-}
-
-html.layout-editor-wheel-mode .moveable-control-box {
-  display: none !important;
 }
 
 html.layout-editor-devtools .moveable-line {

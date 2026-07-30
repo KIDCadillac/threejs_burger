@@ -1,7 +1,8 @@
 """Build the transparent marionette control-bar overlay used on the home card.
 
-The asset is intentionally geometric and flat so it matches the existing
-hand-drawn UI instead of introducing another generated illustration style.
+The booth is treated as one rigid piece of scenery, so it uses two clear
+weight-bearing cords rather than the four busy strings from the full truck.
+The asset is intentionally flat and geometric to match the existing game art.
 """
 
 from pathlib import Path
@@ -13,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "art" / "home" / "layered-truck" / "marionette-rig.png"
 SCALE = 4
 WIDTH = 764
-HEIGHT = 1044
+HEIGHT = 790
 
 
 def scaled_box(box):
@@ -32,50 +33,48 @@ cord_light = (255, 240, 197, 210)
 
 # Horizontal theatre control bar.
 draw.rounded_rectangle(
-    scaled_box((239, 132, 525, 160)),
+    scaled_box((178, 82, 586, 116)),
     radius=12 * SCALE,
     fill=outline,
 )
 draw.rounded_rectangle(
-    scaled_box((244, 136, 520, 155)),
+    scaled_box((184, 87, 580, 110)),
     radius=8 * SCALE,
     fill=wood,
 )
 draw.rounded_rectangle(
-    scaled_box((256, 139, 508, 144)),
+    scaled_box((201, 91, 563, 97)),
     radius=2 * SCALE,
     fill=wood_light,
 )
 draw.rounded_rectangle(
-    scaled_box((268, 150, 496, 154)),
+    scaled_box((219, 104, 545, 109)),
     radius=2 * SCALE,
     fill=wood_shadow,
 )
 
 # Short central grip, like a stagehand's marionette controller.
 draw.rounded_rectangle(
-    scaled_box((368, 121, 396, 173)),
+    scaled_box((365, 67, 399, 130)),
     radius=10 * SCALE,
     fill=outline,
 )
 draw.rounded_rectangle(
-    scaled_box((373, 125, 391, 169)),
+    scaled_box((371, 72, 393, 125)),
     radius=6 * SCALE,
     fill=wood,
 )
 draw.rounded_rectangle(
-    scaled_box((377, 128, 383, 163)),
+    scaled_box((376, 77, 383, 118)),
     radius=3 * SCALE,
     fill=wood_light,
 )
 
-# Two pairs of cords terminate around the truck roof and sign. Double strokes
-# keep them visible on both the teal shutters and the warm shop background.
+# Two load-bearing cords attach to the booth's upper frame. Fewer, stronger
+# strings make the weight and suspension legible at mobile size.
 cords = (
-    ((286, 153), (270, 570)),
-    ((333, 154), (344, 594)),
-    ((431, 154), (420, 594)),
-    ((478, 153), (494, 570)),
+    ((238, 109), (108, 382)),
+    ((526, 109), (656, 382)),
 )
 for start, end in cords:
     draw.line(
@@ -93,7 +92,7 @@ for start, end in cords:
     )
 
 # Small metal attachment eyes at the lower cord ends.
-for x, y in ((270, 570), (344, 594), (420, 594), (494, 570)):
+for x, y in ((108, 382), (656, 382)):
     draw.ellipse(
         scaled_box((x - 5, y - 5, x + 5, y + 5)),
         fill=outline,

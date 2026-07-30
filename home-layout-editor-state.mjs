@@ -1,6 +1,6 @@
-export const LAYOUT_VERSION = 3;
+export const LAYOUT_VERSION = 4;
 export const WORKBENCH_FILE_FORMAT = "burger-ui-adjustment";
-export const WORKBENCH_FILE_VERSION = 3;
+export const WORKBENCH_FILE_VERSION = 4;
 
 export const DEFAULT_MOTION_VALUE = Object.freeze({
   enabled: false,
@@ -42,36 +42,26 @@ export const DEFAULT_LAYOUT_VALUE = Object.freeze({
   motion: DEFAULT_MOTION_VALUE,
 });
 
-// 2026-07-29 用户通过“下载调整文件”验收并交回的餐车基准。
-// 这里只记录相对原始 CSS 真正发生变化的零件；其余字段继续由 v2 默认值补齐。
-export const PROJECT_DEFAULT_LAYOUT_ELEMENTS = Object.freeze({
-  "burger.wheel-front": Object.freeze({
-    x: -26.1,
-    y: 43.3,
-    scale: 0.8,
-  }),
-  "burger.wheel-rear": Object.freeze({
-    x: 19.2,
-    y: 43.4,
-    scale: 0.8,
-  }),
-});
+// v4 取消车头、车身和车轮，档口使用 CSS 原位作为新的项目基准。
+export const PROJECT_DEFAULT_LAYOUT_ELEMENTS = Object.freeze({});
+
+const REMOVED_LAYOUT_IDS = new Set([
+  "burger.body",
+  "burger.wheel-front",
+  "burger.wheel-rear",
+]);
 
 export const DEFAULT_TRUCK_TIMELINE = Object.freeze({
   cameraStartX: 0,
-  cameraStartY: -190,
+  cameraStartY: -165,
   cameraStartScale: 1,
   cameraEndX: 0,
   cameraEndY: 0,
   cameraEndScale: 1,
-  cameraDuration: 3100,
-  bodyDuration: 2100,
-  wheelDuration: 100,
-  wheelTurns: 0,
-  shutterDelay: 2100,
-  shutterDuration: 650,
-  signDelay: 0,
-  signDuration: 100,
+  cameraDuration: 3150,
+  bodyDuration: 2200,
+  shutterDelay: 2200,
+  shutterDuration: 620,
   menuDuration: 6800,
   menuStagger: 160,
 });
@@ -290,18 +280,6 @@ export function normalizeTruckTimeline(value = {}) {
         30000,
       ),
     ),
-    wheelDuration: Math.round(
-      clamp(
-        finiteNumber(value.wheelDuration, DEFAULT_TRUCK_TIMELINE.wheelDuration),
-        100,
-        30000,
-      ),
-    ),
-    wheelTurns: clamp(
-      finiteNumber(value.wheelTurns, DEFAULT_TRUCK_TIMELINE.wheelTurns),
-      0,
-      10000,
-    ),
     shutterDelay: Math.round(
       clamp(
         finiteNumber(value.shutterDelay, DEFAULT_TRUCK_TIMELINE.shutterDelay),
@@ -315,20 +293,6 @@ export function normalizeTruckTimeline(value = {}) {
           value.shutterDuration,
           DEFAULT_TRUCK_TIMELINE.shutterDuration,
         ),
-        100,
-        30000,
-      ),
-    ),
-    signDelay: Math.round(
-      clamp(
-        finiteNumber(value.signDelay, DEFAULT_TRUCK_TIMELINE.signDelay),
-        0,
-        30000,
-      ),
-    ),
-    signDuration: Math.round(
-      clamp(
-        finiteNumber(value.signDuration, DEFAULT_TRUCK_TIMELINE.signDuration),
         100,
         30000,
       ),
@@ -370,6 +334,7 @@ export function normalizeLayoutDocument(input = {}) {
     if (!id || !value || typeof value !== "object" || Array.isArray(value)) {
       throw new Error("布局文件结构无效");
     }
+    if (REMOVED_LAYOUT_IDS.has(id)) continue;
     elements[id] = normalizeLayoutValue(value);
   }
 

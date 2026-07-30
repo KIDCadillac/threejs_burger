@@ -512,7 +512,7 @@ function replayTruckArrival(control, { announce = true } = {}) {
   camera.classList.remove("is-arriving");
   void camera.offsetWidth;
   camera.classList.add("is-arriving");
-  if (announce) showToast("餐车从舞台上方吊下，停稳后打开出餐卷帘");
+  if (announce) showToast("汉堡档口从舞台上方吊下，停稳后打开出餐卷帘");
 }
 
 function replayActiveTruckArrival() {

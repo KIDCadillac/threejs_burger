@@ -4,15 +4,19 @@ import test from "node:test";
 
 const root = new URL("../", import.meta.url);
 
-test("homepage loads the marionette UI motion editor assets", async () => {
+test("homepage loads the suspended service booth assets", async () => {
   const html = await readFile(new URL("index.html", root), "utf8");
 
-  assert.match(html, /home\.css\?v=20260730-puppet3/);
-  assert.match(html, /home-lobby-app\.mjs\?v=20260730-puppet3/);
-  assert.match(html, /home-layout-editor\.css\?v=20260730-puppet3/);
-  assert.match(html, /home-layout-editor\.mjs\?v=20260730-puppet3/);
+  assert.match(html, /home\.css\?v=20260730-booth2/);
+  assert.match(html, /home-lobby-app\.mjs\?v=20260730-booth2/);
+  assert.match(html, /home-layout-editor\.css\?v=20260730-booth2/);
+  assert.match(html, /home-layout-editor\.mjs\?v=20260730-booth2/);
   assert.match(html, /marionette-rig\.png/);
   assert.match(html, /class="burger-truck-puppet"/);
+  assert.match(html, /silver-service-booth-frame\.png/);
+  assert.match(html, /data-layout-id="burger\.frame"/);
+  assert.doesNotMatch(html, /silver-truck__body/);
+  assert.doesNotMatch(html, /burger-truck-wheel/);
 });
 
 test("homepage exposes main scenes and sheets as editable roots", async () => {
@@ -45,6 +49,7 @@ test("editor supports deep selection, tabs, motion preview and timeline replay",
     "utf8",
   );
 
+  assert.match(source, /burger\.home\.layout\.v4/);
   assert.match(source, /burger\.home\.layout\.v3/);
   assert.match(source, /burger\.home\.layout\.v2/);
   assert.match(source, /data-layout-runtime-id/);
@@ -67,7 +72,6 @@ test("editor supports deep selection, tabs, motion preview and timeline replay",
   assert.match(source, /data-action="toggle-studio"/);
   assert.match(source, /previewTruckAnimation/);
   assert.match(source, /layout-editor-truck-overview/);
-  assert.match(source, /layout-editor-wheel-mode/);
   assert.match(source, /layout-editor-selected-target/);
   assert.match(source, /burger:editor-select-map/);
   assert.match(source, /query\.get\("layout"\) === "1"/);
@@ -90,7 +94,7 @@ test("truck CSS uses editor-controlled timing and focus variables", async () => 
   );
 });
 
-test("editor freezes the full truck while wheels are adjusted", async () => {
+test("editor isolates the suspended booth without legacy vehicle layers", async () => {
   const css = await readFile(new URL("home-layout-editor.css", root), "utf8");
   const source = await readFile(
     new URL("home-layout-editor.mjs", root),
@@ -100,39 +104,25 @@ test("editor freezes the full truck while wheels are adjusted", async () => {
   assert.match(css, /layout-editor-truck-overview/);
   assert.match(css, /burger-truck-camera/);
   assert.match(css, /scale\(0\.9\)/);
-  assert.match(css, /burger-truck-wheel/);
   assert.match(css, /animation: none !important/);
-  assert.match(css, /layout-editor-wheel-mode/);
-  assert.match(css, /pointer-events: none !important/);
   assert.match(
     css,
     /layout-editor-selected-target[\s\S]*pointer-events: auto !important/,
   );
-  assert.doesNotMatch(
-    css,
-    /layout-editor-selected-target\s*\{[^}]*z-index:/,
-  );
-  assert.doesNotMatch(
-    css,
-    /layout-editor-wheel-mode[\s\S]{0,100}\.burger-truck-wheel\s*\{[^}]*z-index:/,
-  );
-  assert.match(
-    css,
-    /layout-editor-moveable\.layout-editor-wheel-mode[\s\S]*layout-editor-selection/,
-  );
-  assert.match(
-    source,
-    /useDirectWheelDrag = isWheelLayer\(id\)[\s\S]*startOperation\(event,\s*"move"\)/,
-  );
+  assert.match(css, /burger-service-booth__frame/);
+  assert.match(source, /"burger\.frame"/);
+  assert.match(source, /"burger\.service"/);
   assert.match(source, /if \(selectedId !== id\) setSelected\(id\)/);
-  assert.match(source, /id && !isWheelLayer\(id\) \? preferredElement\(id\) : null/);
   assert.match(
     source,
     /Object\.entries\(patch\)[\s\S]*set\(object\.props\[scope\]\[key\], value\)/,
   );
+  assert.doesNotMatch(source, /burger\.wheel-front/);
+  assert.doesNotMatch(source, /burger\.wheel-rear/);
+  assert.doesNotMatch(css, /burger-truck-wheel/);
 });
 
-test("editor loads and resets to the approved wheel baseline", async () => {
+test("editor loads and resets the v4 suspended booth baseline", async () => {
   const source = await readFile(
     new URL("home-layout-editor.mjs", root),
     "utf8",
@@ -140,7 +130,7 @@ test("editor loads and resets to the approved wheel baseline", async () => {
 
   assert.match(
     source,
-    /home-layout-editor-state\.mjs\?v=20260730-puppet3/,
+    /home-layout-editor-state\.mjs\?v=20260730-booth2/,
   );
   assert.match(source, /mergeProjectDefaultLayout\(parseLayoutDocument\(raw\)\)/);
   assert.match(source, /createProjectDefaultLayoutDocument\(\)/);
@@ -224,7 +214,7 @@ test("editor exposes visible alignment, snapping and perspective controls", asyn
   assert.match(state, /rotateY: 0/);
 });
 
-test("truck focus isolates the vehicle and exposes explicit layer controls", async () => {
+test("booth focus isolates eight parts and exposes explicit layer controls", async () => {
   const [source, css, guides] = await Promise.all([
     readFile(new URL("home-layout-editor.mjs", root), "utf8"),
     readFile(new URL("home-layout-editor.css", root), "utf8"),
@@ -240,8 +230,6 @@ test("truck focus isolates the vehicle and exposes explicit layer controls", asy
   assert.match(source, /data-layer-order="back"/);
   assert.match(source, /data-layer-order="front"/);
   assert.match(source, /data-layer-order="original"/);
-  assert.match(source, /data-wheel-align/);
-  assert.match(source, /alignSelectedWheelHeight/);
   assert.match(source, /const nextDocument = updateLayoutElement/);
   assert.match(source, /commitDocument\(nextDocument\)/);
   assert.match(source, /theatreStudio\.ui\.hide/);
@@ -254,4 +242,7 @@ test("truck focus isolates the vehicle and exposes explicit layer controls", asy
   assert.match(css, /data-action="play-theatre"/);
   assert.match(css, /data-action="select-truck-timing"/);
   assert.match(guides, /showGrid: false/);
+  assert.match(source, /"burger\.frame"/);
+  assert.doesNotMatch(source, /data-wheel-align/);
+  assert.doesNotMatch(source, /alignSelectedWheelHeight/);
 });
