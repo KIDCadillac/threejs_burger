@@ -93,5 +93,6 @@ export function resolveModeSwipe({ deltaY, height, velocityY }) {
 }
 
 export function normalizeBusinessOpen(value) {
+  if (value == null) return true;
   return value === true || value === "open";
 }

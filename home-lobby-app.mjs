@@ -21,7 +21,7 @@ import {
   shiftBufferedCardOffset,
   streetShopPose,
   wheelSettleDuration,
-} from "./home-map-carousel-state.mjs?v=20260730-pendulum3";
+} from "./home-map-carousel-state.mjs?v=20260731-entrygate1";
 import {
   HOME_BUSINESS_KEY,
   HOME_MODE_KEY,
@@ -32,10 +32,12 @@ import {
   normalizeBusinessOpen,
   normalizeModeIndex,
   resolveModeSwipe,
-} from "./home-mode-switch-state.mjs?v=20260726-modecrew1";
+} from "./home-mode-switch-state.mjs?v=20260731-entrygate1";
 
 const storage = window.localStorage;
-const visualQaMode = new URLSearchParams(window.location.search).has("visualQa");
+const query = new URLSearchParams(window.location.search);
+const visualQaMode = query.has("visualQa");
+const layoutEditorMode = query.get("layout") === "1";
 const energyValue = document.querySelector("#energy-value");
 const coinValue = document.querySelector("#coin-value");
 const dailyDot = document.querySelector("#daily-dot");
@@ -67,6 +69,11 @@ let wheelTransitioning = false;
 let wheelTimer = 0;
 let modeTransitioning = false;
 let modeTransitionTimer = 0;
+let initialTruckEntryRendered = false;
+let initialTruckEntryAssetsReady = document.readyState === "complete";
+let initialTruckEntryBlocked = false;
+let initialTruckEntryStarted = false;
+let initialTruckEntryTimer = 0;
 let dragPointerId = null;
 let dragStartX = 0;
 let dragStartY = 0;
@@ -256,7 +263,7 @@ function readBusinessOpen() {
   try {
     return normalizeBusinessOpen(storage.getItem(HOME_BUSINESS_KEY));
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -513,9 +520,11 @@ function replayTruckArrival(control, { announce = true } = {}) {
   slide.querySelectorAll(".truck-replay, .truck-service-control").forEach((button) => {
     button.hidden = true;
   });
+  camera.classList.remove("is-entry-pending");
   camera.classList.remove("is-arriving");
   void camera.offsetWidth;
   camera.classList.add("is-arriving");
+  initialTruckEntryStarted = true;
   if (announce) showToast("汉堡档口从舞台上方吊下，停稳后打开出餐卷帘");
 }
 
@@ -526,6 +535,44 @@ function replayActiveTruckArrival() {
   if (!control) return false;
   replayTruckArrival(control, { announce: false });
   return true;
+}
+
+function revealTruckWithoutArrival() {
+  bufferedMapSlides.forEach((slide) => {
+    const camera = slide.querySelector("[data-truck-camera]");
+    camera?.classList.remove("is-entry-pending", "is-arriving");
+    slide.classList.remove("is-truck-replaying");
+    slide.querySelectorAll(".truck-replay, .truck-service-control").forEach((button) => {
+      button.hidden = false;
+    });
+  });
+}
+
+function startInitialTruckArrival() {
+  if (
+    initialTruckEntryStarted
+    || layoutEditorMode
+    || initialTruckEntryBlocked
+    || !initialTruckEntryRendered
+    || !initialTruckEntryAssetsReady
+    || openSheet
+    || document.hidden
+  ) {
+    return false;
+  }
+  businessOpen = true;
+  writeBusinessOpen(true);
+  renderBusiness();
+  if (!replayActiveTruckArrival()) return false;
+  return true;
+}
+
+function scheduleInitialTruckArrival(delay = 120) {
+  if (initialTruckEntryStarted || layoutEditorMode) return;
+  window.clearTimeout(initialTruckEntryTimer);
+  initialTruckEntryTimer = window.setTimeout(() => {
+    startInitialTruckArrival();
+  }, Math.max(0, delay));
 }
 
 function replayShutterStatus() {
@@ -744,6 +791,10 @@ function closeCurrentSheet() {
   openSheet = null;
   window.setTimeout(() => {
     if (closing.dataset.open !== "true") closing.hidden = true;
+    if (!initialTruckEntryStarted) {
+      initialTruckEntryBlocked = false;
+      scheduleInitialTruckArrival(110);
+    }
   }, 190);
 }
 
@@ -887,6 +938,12 @@ window.addEventListener("keydown", (event) => {
 });
 
 renderProgress();
+const shouldOpenDailyCheckin = (
+  !visualQaMode
+  && !layoutEditorMode
+  && progress.lastClaimDay !== dayStamp()
+);
+initialTruckEntryBlocked = shouldOpenDailyCheckin;
 requestAnimationFrame(() => {
   refreshBufferedMapSlides();
   refreshBufferedMapCaptions();
@@ -894,7 +951,22 @@ requestAnimationFrame(() => {
   renderWheel();
   renderMode();
   renderBusiness();
+  initialTruckEntryRendered = true;
+  if (layoutEditorMode) {
+    revealTruckWithoutArrival();
+  } else if (!initialTruckEntryBlocked) {
+    scheduleInitialTruckArrival();
+  }
 });
-if (!visualQaMode && progress.lastClaimDay !== dayStamp()) {
-  window.setTimeout(() => showSheet("daily-checkin"), 280);
+if (!initialTruckEntryAssetsReady) {
+  window.addEventListener("load", () => {
+    initialTruckEntryAssetsReady = true;
+    scheduleInitialTruckArrival();
+  }, { once: true });
+}
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) scheduleInitialTruckArrival();
+});
+if (shouldOpenDailyCheckin) {
+  window.setTimeout(() => showSheet("daily-checkin"), 180);
 }

@@ -11,7 +11,7 @@ import {
   projectDefaultLayoutValue,
   updateLayoutElement,
   updateTruckTimeline,
-} from "./home-layout-editor-state.mjs?v=20260730-pendulum3";
+} from "./home-layout-editor-state.mjs?v=20260731-entrygate1";
 import {
   alignmentPatch,
   normalizeAlignmentSettings,

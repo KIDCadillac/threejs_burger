@@ -7,10 +7,10 @@ const root = new URL("../", import.meta.url);
 test("homepage loads the suspended service booth assets", async () => {
   const html = await readFile(new URL("index.html", root), "utf8");
 
-  assert.match(html, /home\.css\?v=20260730-pendulum3/);
-  assert.match(html, /home-lobby-app\.mjs\?v=20260730-pendulum3/);
-  assert.match(html, /home-layout-editor\.css\?v=20260730-pendulum3/);
-  assert.match(html, /home-layout-editor\.mjs\?v=20260730-pendulum3/);
+  assert.match(html, /home\.css\?v=20260731-entrygate1/);
+  assert.match(html, /home-lobby-app\.mjs\?v=20260731-entrygate1/);
+  assert.match(html, /home-layout-editor\.css\?v=20260731-entrygate1/);
+  assert.match(html, /home-layout-editor\.mjs\?v=20260731-entrygate1/);
   assert.match(html, /puppet-booth-strings\.png/);
   assert.match(html, /class="burger-truck-puppet"/);
   assert.match(html, /burger-truck-marionette-string--left/);
@@ -144,7 +144,7 @@ test("editor loads and resets the v6 pendulum booth baseline", async () => {
 
   assert.match(
     source,
-    /home-layout-editor-state\.mjs\?v=20260730-pendulum3/,
+    /home-layout-editor-state\.mjs\?v=20260731-entrygate1/,
   );
   assert.match(source, /mergeProjectDefaultLayout\(parseLayoutDocument\(raw\)\)/);
   assert.match(source, /createProjectDefaultLayoutDocument\(\)/);
@@ -182,7 +182,7 @@ test("layout controls preserve the component-owned street row transform", async 
 
   assert.match(lobby, /--map-carousel-transform/);
   assert.match(lobby, /--map-carousel-z/);
-  assert.match(lobby, /home-map-carousel-state\.mjs\?v=20260730-pendulum3/);
+  assert.match(lobby, /home-map-carousel-state\.mjs\?v=20260731-entrygate1/);
   assert.match(homeCss, /var\(\s*--map-carousel-transform/);
   assert.match(homeCss, /z-index:\s*var\(--map-carousel-z\)/);
   assert.match(editor, /layout-editor-has-perspective/);

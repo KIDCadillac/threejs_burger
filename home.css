@@ -339,6 +339,10 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
   transform: translateZ(0);
   will-change: opacity;
 }
+.burger-truck-camera.is-entry-pending {
+  opacity: 0;
+  pointer-events: none;
+}
 .burger-truck-camera.is-arriving {
   animation:
     burger-truck-camera-arrive
