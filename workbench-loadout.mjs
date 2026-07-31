@@ -1,4 +1,4 @@
-export const WORKBENCH_LOADOUT_STORAGE_KEY = "solo-cooking-workbench-loadout:v1";
+export const WORKBENCH_LOADOUT_STORAGE_KEY = "solo-cooking-workbench-loadout:v2";
 
 export const WORKBENCH_REGION_OPTIONS = Object.freeze({
   bread: Object.freeze(["bottom-bun", "middle-bun", "top-bun"]),
@@ -36,8 +36,8 @@ export const WORKBENCH_SLOTS = Object.freeze([
   ["bread-left-2", "bread", "middle-bun"],
   ["bread-left-3", "bread", "top-bun"],
   ["filling-back-1", "filling", "patty"],
-  ["filling-back-2", "filling", "cheese"],
-  ["filling-back-3", "filling", "tomato"],
+  ["filling-back-2", "filling", "pickle"],
+  ["filling-back-3", "filling", "onion"],
   ["filling-back-4", "filling", "lettuce"],
   ["sauce-right-1", "sauce", "ketchup"],
   ["sauce-right-2", "sauce", "mustard"],

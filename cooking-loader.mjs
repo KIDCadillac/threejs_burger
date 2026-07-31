@@ -25,6 +25,7 @@ export async function startSoloCookingLoader(
     windowTarget = globalThis,
     importApp = () => import("./cooking-solo-app.mjs"),
     importShopApp = () => import("./burger-shop-app.mjs"),
+    importPuppetPerformer = () => import("./cooking-puppet-performer.mjs"),
     requestFrame = windowTarget?.requestAnimationFrame?.bind(windowTarget)
       ?? ((callback) => windowTarget.setTimeout(callback, 16)),
     setTimeoutFn = windowTarget?.setTimeout?.bind(windowTarget)
@@ -39,6 +40,9 @@ export async function startSoloCookingLoader(
   if (typeof importApp !== "function") throw new TypeError("importApp must be a function");
   if (typeof importShopApp !== "function") {
     throw new TypeError("importShopApp must be a function");
+  }
+  if (typeof importPuppetPerformer !== "function") {
+    throw new TypeError("importPuppetPerformer must be a function");
   }
   if (typeof requestFrame !== "function") throw new TypeError("requestFrame must be a function");
   if (typeof setTimeoutFn !== "function" || typeof clearTimeoutFn !== "function") {
@@ -110,11 +114,23 @@ export async function startSoloCookingLoader(
 
   try {
     const mode = modeFromLocation(windowTarget?.location);
+    try {
+      documentTarget.body.dataset.debug = new URL(
+        windowTarget?.location?.href ?? "http://localhost/",
+      ).searchParams.get("debug") === "1" ? "true" : "false";
+    } catch {
+      documentTarget.body.dataset.debug = "false";
+    }
     const app = await importApp();
     if (typeof app?.bootSoloCookingPage !== "function") {
       throw new TypeError("Cooking page module is missing bootSoloCookingPage");
     }
     update(82, "正在摆放 3D 食材和工具");
+    const performerModule = await importPuppetPerformer();
+    const puppetPerformer = performerModule?.createCookingPuppetPerformer?.(
+      documentTarget,
+      { windowTarget },
+    ) ?? null;
     let shopController = null;
     let pendingStageChange = null;
     const stage = app.bootSoloCookingPage(documentTarget, {
@@ -124,6 +140,7 @@ export async function startSoloCookingLoader(
       mountDefaultActions: mode !== "orders",
       onStageChange: (detail) => {
         pendingStageChange = detail;
+        puppetPerformer?.handleStageChange?.(detail);
         shopController?.handleStageChange?.(detail);
       },
     });

@@ -71,6 +71,20 @@ function recipeStepItems(recipe) {
   ));
 }
 
+function recipeLayerSteps(recipe) {
+  return recipe?.steps?.filter?.((step) => step.kind === "layer") ?? [];
+}
+
+function recipeLayerProgress(recipe, state) {
+  const steps = recipeLayerSteps(recipe);
+  if (!steps.length) return null;
+  return Object.freeze({
+    current: Math.min(state.assembledOrder.length, steps.length),
+    target: steps.length,
+    complete: state.assembledOrder.length >= steps.length,
+  });
+}
+
 function sauceSummary(strokes, instances = {}) {
   const counts = new Map();
   for (const { sauce, layerId } of strokes) {
@@ -154,6 +168,8 @@ export function bootSoloCookingPage(
     recipeReference: documentTarget.querySelector("#recipe-reference"),
     recipeReferenceName: documentTarget.querySelector("#recipe-reference-name"),
     recipeReferenceSteps: documentTarget.querySelector("#recipe-reference-steps"),
+    puppetOrderProgress: documentTarget.querySelector("#puppet-order-progress"),
+    puppetActionLabel: documentTarget.querySelector("#puppet-action-label"),
     recipeCards: [...(documentTarget.querySelectorAll?.('[data-action="recipe-select"]') ?? [])],
     workbenchPicker: documentTarget.querySelector("#workbench-picker"),
     slotControlsRoot: documentTarget.querySelector("#workbench-slot-controls"),
@@ -240,28 +256,55 @@ export function bootSoloCookingPage(
       progress,
       dropIntent = null,
     } = detail;
+    const activeRecipe = state.referenceRecipeId
+      ? RECIPE_BY_ID.get(state.referenceRecipeId) ?? null
+      : null;
+    const activeRecipeProgress = recipeLayerProgress(activeRecipe, state);
+    const canServe = activeRecipeProgress?.complete ?? state.complete;
     highlights?.observe?.({
       layerCount: state.assembledOrder.length,
       finished: state.finished,
     });
-    elements.progress.textContent = progress;
+    elements.progress.textContent = activeRecipeProgress
+      ? `${activeRecipeProgress.current}/${activeRecipeProgress.target}`
+      : progress;
+    if (elements.puppetOrderProgress) {
+      elements.puppetOrderProgress.textContent = elements.progress.textContent;
+    }
     const inventoryEntries = Object.entries(state.inventory ?? {});
     elements.stock.textContent = inventoryEntries.length
       ? inventoryEntries.map(([id, count]) => `${LAYER_NAMES[id] ?? id} ×${count}`).join(" · ")
       : "每种原料库存 ×999";
     elements.objective.textContent = state.finished
-      ? "料理完成，可以继续调整或重新做"
-      : state.assembledOrder.length >= MAX_SOLO_STACK_LAYERS
-        ? `已经叠满 ${MAX_SOLO_STACK_LAYERS} 层，现在可以完成料理`
-        : state.complete
-          ? `已经可以完成料理，还能继续叠 ${MAX_SOLO_STACK_LAYERS - state.assembledOrder.length} 层`
-        : state.assembledOrder.length
-          ? `继续自由叠放，当前 ${state.assembledOrder.length} 层，最多 ${MAX_SOLO_STACK_LAYERS} 层`
-          : `自由叠放食材，最多 ${MAX_SOLO_STACK_LAYERS} 层`;
-    elements.finishButton.disabled = !state.complete || state.finished;
-    elements.finishButton.textContent = state.complete
-      ? "完成料理"
-      : `还差 ${Math.max(0, 2 - state.assembledOrder.length)} 层`;
+      ? "出餐完成，客人正在品尝"
+      : activeRecipeProgress
+        ? activeRecipeProgress.complete
+          ? "汉堡装好了，可以按铃出餐"
+          : `按订单继续装配，还差 ${activeRecipeProgress.target - activeRecipeProgress.current} 层`
+        : state.assembledOrder.length >= MAX_SOLO_STACK_LAYERS
+          ? `已经叠满 ${MAX_SOLO_STACK_LAYERS} 层，现在可以完成料理`
+          : state.complete
+            ? `已经可以完成料理，还能继续叠 ${MAX_SOLO_STACK_LAYERS - state.assembledOrder.length} 层`
+            : state.assembledOrder.length
+              ? `继续自由叠放，当前 ${state.assembledOrder.length} 层，最多 ${MAX_SOLO_STACK_LAYERS} 层`
+              : `自由叠放食材，最多 ${MAX_SOLO_STACK_LAYERS} 层`;
+    elements.finishButton.disabled = !canServe || state.finished;
+    elements.finishButton.textContent = state.finished
+      ? "已出餐"
+      : canServe
+        ? "按铃出餐"
+        : activeRecipeProgress
+          ? `还差 ${activeRecipeProgress.target - activeRecipeProgress.current} 层`
+          : `还差 ${Math.max(0, 2 - state.assembledOrder.length)} 层`;
+    if (elements.puppetActionLabel) {
+      elements.puppetActionLabel.textContent = state.finished
+        ? "出餐完成，辛苦啦！"
+        : canServe
+          ? "汉堡装好了，按铃出餐"
+          : state.assembledOrder.length
+            ? `继续交给厨师，还差 ${activeRecipeProgress?.target - activeRecipeProgress?.current || 1} 层`
+            : "厨师准备好了，先拿下层面包";
+    }
     elements.undoButton.disabled = !state.history.length || state.finished;
     elements.inspectButton.disabled = state.finished || !state.assembledOrder.length;
     elements.inspectButton.textContent = expanded ? "合拢汉堡" : "展开查看";
@@ -681,7 +724,7 @@ export function bootSoloCookingPage(
     } else if (routedRecipeId && RECIPE_BY_ID.has(routedRecipeId)) {
       chooseRecipe(routedRecipeId, { resume: false });
     } else {
-      openRecipeSelector();
+      chooseRecipe("classic-beef", { resume: false });
     }
     const disposeIntegrations = () => {
       let firstError = null;

@@ -4,7 +4,7 @@ import {
   serializeSoloSave,
 } from "./cooking-solo-save.mjs";
 
-export const SOLO_AUTOSAVE_STORAGE_KEY = "solo-cooking-burger-save:v1";
+export const SOLO_AUTOSAVE_STORAGE_KEY = "solo-cooking-burger-save:v3";
 
 function resolveStorage(storage) {
   if (storage !== undefined) return storage;
