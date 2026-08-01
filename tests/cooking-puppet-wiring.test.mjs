@@ -48,6 +48,14 @@ test("cooking loader and app wire the fixed burger loop without a puppet perform
   assert.match(await readFile(new URL("cooking-solo-stage.mjs", root), "utf8"), /reason: "reset-fit"/);
   assert.match(css, /\.first-person-cooking \.cooking-stage/);
   assert.match(css, /\.first-person-cooking \.first-person-action-label/);
+  assert.match(
+    css,
+    /\.first-person-hand--left img \{ transform: rotate\(68deg\) scaleX\(-1\); \}/,
+  );
+  assert.match(
+    css,
+    /\.first-person-hand--right img \{ transform: rotate\(-68deg\); \}/,
+  );
   assert.match(css, /\.first-person-cooking \.workbench-slot-controls \{ display: none; \}/);
   assert.match(css, /\.first-person-cooking\[data-debug="true"\] \.header-actions/);
 });

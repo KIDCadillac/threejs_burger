@@ -58,3 +58,27 @@ test("first-person hand performer settles one-shot placement", () => {
   scheduled();
   assert.equal(root.dataset.handState, "idle");
 });
+
+test("debug hand preview keeps the requested anatomical side visible", () => {
+  const root = { dataset: {} };
+  const body = { dataset: { debug: "true" } };
+  const performer = createCookingFirstPersonHands(
+    {
+      body,
+      querySelector(selector) {
+        return selector === "#first-person-hands" ? root : null;
+      },
+    },
+    {
+      windowTarget: { location: { search: "?debug=1&handPreview=left" } },
+      setTimeoutFn() {},
+      clearTimeoutFn() {},
+    },
+  );
+
+  assert.equal(root.dataset.handState, "reach");
+  assert.equal(root.dataset.handSide, "left");
+  performer.handleStageChange({ reason: "ready" });
+  assert.equal(root.dataset.handState, "reach");
+  assert.equal(root.dataset.handSide, "left");
+});

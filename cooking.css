@@ -3044,8 +3044,10 @@ body[data-game-mode="orders"] .shop-result-card {
 
 .first-person-cooking .first-person-hand--left { left: -13%; }
 .first-person-cooking .first-person-hand--right { right: -13%; }
-.first-person-cooking .first-person-hand--left img { transform: rotate(68deg); }
-.first-person-cooking .first-person-hand--right img { transform: scaleX(-1) rotate(68deg); }
+/* The source PNG is an anatomical right hand. Mirror it in its own upright
+   coordinate space before rotating it into the left-side reach. */
+.first-person-cooking .first-person-hand--left img { transform: rotate(68deg) scaleX(-1); }
+.first-person-cooking .first-person-hand--right img { transform: rotate(-68deg); }
 
 .first-person-cooking .first-person-hands[data-hand-state="reach"][data-hand-side="left"] .first-person-hand--left {
   left: 4%;

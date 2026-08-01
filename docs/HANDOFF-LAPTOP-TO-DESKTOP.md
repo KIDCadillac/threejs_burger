@@ -69,7 +69,8 @@
 - 选择食材时从对应料盒一侧出现。
 - 搬运时只移动到餐盘边缘，短暂辅助“拿住食材”的感觉。
 - 放下或挤酱后立即退场，不会常驻遮挡汉堡。
-- 左右手共用同一透明 PNG，右手由代码镜像，减少两套素材不一致的问题。
+- 左右手共用同一透明 PNG，左手由代码镜像，减少两套素材不一致的问题。
+- 素材原图是右手：左侧出手必须先在素材自身坐标中镜像成左手，再旋转朝向餐盘；右侧保留原始右手。相关回归断言在 `tests/cooking-puppet-wiring.test.mjs`。
 
 素材由 ImageGen 按现有奶油白、快餐红、深棕描边生成；先输出绿色纯色底，再转成透明 PNG。绿色中间文件没有纳入仓库。
 
@@ -136,6 +137,7 @@ node --test tests/*.test.mjs
 - 小手放置牛肉饼：`output/burger-gameplay-qa-2026-08-01/04-cooking-hand.png`
 - 巨型长臂与新小手对比：`output/burger-gameplay-qa-2026-08-01/05-hand-before-after.png`
 - 完整订单结算：`output/burger-gameplay-qa-2026-08-01/06-cooking-finish.png`
+- 左右手方向验收：`output/handedness-fix-2026-08-01/04-left-right-validation.png`
 
 ## 仍没做完
 

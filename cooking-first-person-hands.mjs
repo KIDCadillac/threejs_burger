@@ -66,6 +66,16 @@ export function createCookingFirstPersonHands(
 ) {
   const root = documentTarget?.querySelector?.("#first-person-hands");
   if (!root) return null;
+  const previewSide = (() => {
+    if (documentTarget?.body?.dataset?.debug !== "true") return null;
+    try {
+      const value = new URLSearchParams(windowTarget?.location?.search ?? "")
+        .get("handPreview");
+      return value === "left" || value === "right" ? value : null;
+    } catch {
+      return null;
+    }
+  })();
   let settleTimer = null;
   let beat = 0;
 
@@ -92,12 +102,16 @@ export function createCookingFirstPersonHands(
   };
 
   const handleStageChange = (detail) => {
-    const pose = firstPersonHandPoseForStageChange(detail);
+    const pose = previewSide
+      ? Object.freeze({ state: "reach", side: previewSide, settleAfter: 0 })
+      : firstPersonHandPoseForStageChange(detail);
     if (pose) setPose(pose);
     return pose;
   };
 
-  setPose({ state: "idle", side: "center" });
+  setPose(previewSide
+    ? { state: "reach", side: previewSide }
+    : { state: "idle", side: "center" });
   return Object.freeze({
     handleStageChange,
     dispose() {
