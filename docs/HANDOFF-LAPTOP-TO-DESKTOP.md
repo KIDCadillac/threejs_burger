@@ -8,6 +8,8 @@
 
 发布目标：`main`（GitHub Pages）
 
+当前玩法发布提交：`de577a8`（`feat: restore slot-based condiment rack`）
+
 ## 先看结论
 
 这轮已经放弃“餐车卡片主页”和“整条厨师手臂挡住汉堡”的方向：主页改成一个持续旋转的料理主体；料理页改成固定六步、固定镜头的第一人称操作台。木偶感只保留在短暂出现的小手上。调料恢复为右侧三只常驻的实体瓶：在某只瓶上左右滑只换这只瓶的内容，长按打开三图标指定面板，向上拖则拿起这只实体瓶挤酱。底部全局调料胶囊已经退出当前页面。
@@ -154,7 +156,7 @@ python -m http.server 4173 --bind 127.0.0.1
 node --test tests/*.test.mjs
 ```
 
-当前结果：81/81 通过；缓存入口链统一为 `20260802-gameplay30`。
+当前结果：81/81 通过；缓存入口链统一为 `20260802-gameplay30`。玩法提交 `de577a8` 已推送到 `main`，并在 GitHub Pages 用真实鼠标手势复验到 3/6；页面控制台错误为 `[]`。最终独立盲审为 PASS，全部硬门槛 2/2，无阻断项。
 
 ## 视觉验收证据
 
@@ -194,6 +196,9 @@ node --test tests/*.test.mjs
 - 手瓶保持接触并向牛肉饼挤酱：`output/condiment-rack-remap-2026-08-01/08-release-contact.png`
 - 松手后手朝第一槽退场：`output/condiment-rack-remap-2026-08-01/09-released.png`
 - 三瓶归架、酱线保留并进入 3/6：`output/condiment-rack-remap-2026-08-01/10-settled.png`
+- GitHub Pages 最终 3/6 画面：`output/condiment-rack-remap-2026-08-01/11-pages-gameplay30.png`
+- 线上 URL、缓存链、操作路径、最终槽位与控制台记录：`output/condiment-rack-remap-2026-08-01/browser-verification.json`
+- 独立盲审结论与非阻断改进：`output/condiment-rack-remap-2026-08-01/blind-review.md`
 
 ## 仍没做完
 

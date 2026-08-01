@@ -1,0 +1,35 @@
+{
+  "verifiedAt": "2026-08-02T01:49:26+08:00",
+  "commit": "de577a8",
+  "url": "https://kidcadillac.github.io/threejs_burger/cooking.html?recipe=classic-beef&debug=1&debugSeed=patty&deploy=de577a8&cache=gameplay30",
+  "cache": {
+    "css": "./cooking.css?v=20260802-gameplay30",
+    "loader": "./cooking-loader.mjs?v=20260802-gameplay30"
+  },
+  "criticalPath": [
+    "第二槽向左滑：mustard -> house-sauce，第一槽与第三槽不变",
+    "第二槽向右滑：house-sauce -> mustard，恢复默认",
+    "第一槽真实静止长按：打开番茄、芥末、特调三个瓶形图标",
+    "选择芥末图标：只把第一槽改成 mustard，随后右滑恢复 ketchup",
+    "第一槽先上拨再拖到牛肉饼：订单从 2/6 进入 3/6"
+  ],
+  "finalState": {
+    "step": "3/6",
+    "objective": "下一步：把酸黄瓜放到餐盘中央",
+    "status": "已挤上番茄酱",
+    "oldCapsulePresent": false,
+    "rackState": "idle",
+    "loadout": [
+      { "slot": "sauce-right-1", "content": "ketchup" },
+      { "slot": "sauce-right-2", "content": "mustard" },
+      { "slot": "sauce-right-3", "content": "house-sauce" }
+    ],
+    "lastStageEvent": {
+      "reason": "sauce-gesture",
+      "order": ["bottom-bun", "patty"],
+      "strokes": [{ "sauce": "ketchup", "layerId": "patty" }]
+    }
+  },
+  "consoleErrors": [],
+  "screenshot": "11-pages-gameplay30.png"
+}

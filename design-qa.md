@@ -72,6 +72,9 @@
 - `04-after-long-press-picker.png`：三图标选择器锚定第一只瓶，不遮挡汉堡中心。
 - `04b-after-icon-assign.png`：选择芥末图标后只改变第一槽。
 - `06-pickup-contact.png → 07-carry-to-patty.png → 08-release-contact.png → 09-released.png → 10-settled.png`：同一次手势中，右手与第一槽番茄酱瓶一起离架、挤酱、朝原槽退场并完成 3/6。
+- `11-pages-gameplay30.png`：提交 `de577a8` 部署后的 GitHub Pages 最终 3/6 画面。
+- `browser-verification.json`：线上实测完整记录；缓存链为 `20260802-gameplay30`，槽位恢复为番茄 / 芥末 / 特调，页面控制台错误为 `[]`。
+- `blind-review.md`：最终独立盲审 PASS；全部硬门槛 2/2，综合约 1.85/2，无阻断项。
 
 浏览器实测记录为 `sauce-right-1 → patty → ketchup`；拿取路径擦过其它层仍只提交最终松手层。
 
