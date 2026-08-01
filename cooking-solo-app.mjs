@@ -1,5 +1,5 @@
 import * as THREE from "./vendor/three.module.min.js";
-import { createSoloCookingStage } from "./cooking-solo-stage.mjs?v=20260801-gameplay28";
+import { createSoloCookingStage } from "./cooking-solo-stage.mjs?v=20260802-gameplay30";
 import {
   disposeActiveSoloCookingPage,
   mountSoloCookingLifecycle,
@@ -12,11 +12,10 @@ import {
 import { createCookingHighlightReplayCoordinator } from "./cooking-highlight-replay.mjs";
 import { createCookingTuningPanel } from "./cooking-tuning-panel.mjs";
 import { loadBurgerTuning, saveBurgerTuning } from "./burger-tuning.mjs";
-import { BURGER_RECIPES, SOLO_COOKING_SAUCE_IDS } from "./burger-recipes.mjs";
+import { BURGER_RECIPES } from "./burger-recipes.mjs";
 import { MAX_SOLO_STACK_LAYERS } from "./cooking-solo-state.mjs";
 import { createWorkbenchSlotPicker } from "./cooking-workbench-picker.mjs";
-import { createWorkbenchSlotControls } from "./workbench-slot-controls.mjs";
-import { createSauceCapsuleGesture } from "./cooking-sauce-capsule.mjs?v=20260801-gameplay28";
+import { createCondimentRackControls } from "./cooking-condiment-rack.mjs?v=20260802-gameplay30";
 import {
   loadWorkbenchLoadout,
   saveWorkbenchLoadout,
@@ -127,8 +126,7 @@ export function bootSoloCookingPage(
     highlightFactory = createCookingHighlightReplayCoordinator,
     tuningPanelFactory = createCookingTuningPanel,
     workbenchPickerFactory = createWorkbenchSlotPicker,
-    slotControlsFactory = createWorkbenchSlotControls,
-    sauceCapsuleFactory = createSauceCapsuleGesture,
+    slotControlsFactory = createCondimentRackControls,
     autosaveFactory = createSoloAutosave,
     audioFactory = createBurgerShopAudio,
     manageLoading = true,
@@ -213,7 +211,6 @@ export function bootSoloCookingPage(
     recipeCards: [...(documentTarget.querySelectorAll?.('[data-action="recipe-select"]') ?? [])],
     workbenchPicker: documentTarget.querySelector("#workbench-picker"),
     slotControlsRoot: documentTarget.querySelector("#workbench-slot-controls"),
-    sauceCapsuleRoot: documentTarget.querySelector("#sauce-capsule"),
   };
   const focusManager = createFinishFocusManager({
     dialog: elements.finishSheet,
@@ -228,7 +225,6 @@ export function bootSoloCookingPage(
   let tuningPanel = null;
   let workbenchPicker = null;
   let slotControls = null;
-  let sauceCapsule = null;
   let autosave = null;
   let audio = null;
   let attempt = null;
@@ -466,7 +462,7 @@ export function bootSoloCookingPage(
     }
     elements.focusDeleteButton.disabled = !hasFocusedLayer || !focusCapabilities.canDelete;
     slotControls?.setHidden?.(focused);
-    sauceCapsule?.setDisabled?.(
+    slotControls?.setDisabled?.(
       focused || state.finished || Boolean(stage.isInteractionPaused?.()),
     );
     elements.finishSheet.hidden = !state.finished;
@@ -624,13 +620,10 @@ export function bootSoloCookingPage(
       directCondimentPickup: false,
       reducedMotion: windowTarget.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches,
       onChange: render,
-      onToolGesture: (detail) => {
-        sauceCapsule?.syncToolGesture?.(detail);
-        onToolGesture(detail);
-      },
+      onToolGesture,
       onIngredientGesture,
       onInteractionPause: (detail) => {
-        sauceCapsule?.cancel?.(detail?.reason ?? "interaction-paused");
+        slotControls?.cancel?.(detail?.reason ?? "interaction-paused");
         onInteractionPause(detail);
       },
       onStationSelector: (detail) => openWorkbenchPicker(detail),
@@ -640,39 +633,6 @@ export function bootSoloCookingPage(
       },
     });
     stage.setCameraLocked?.(true);
-    if (elements.sauceCapsuleRoot) {
-      sauceCapsule = sauceCapsuleFactory({
-        element: elements.sauceCapsuleRoot,
-        sauceIds: SOLO_COOKING_SAUCE_IDS,
-        initialSauceId: "ketchup",
-        timers: windowTarget,
-        onSelect: ({ sauceId }) => {
-          elements.status.textContent = `已选择${SAUCE_NAMES[sauceId] ?? sauceId}`;
-        },
-        onPickupStart: ({ sauceId, event }) => (
-          stage.beginSauceGesture?.(sauceId, event) ?? false
-        ),
-        onPickupMove: ({ event }) => stage.moveSauceGesture?.(event),
-        onPickupCommit: ({ event }) => stage.endSauceGesture?.(event),
-        onPickupCancel: ({ reason }) => stage.cancelSauceGesture?.(reason),
-        onFeedback: (kind) => {
-          const duration = { select: 8, armed: 12, pickup: 16, drop: 10, hint: 6 }[kind];
-          if (!duration) return;
-          try { windowTarget.navigator?.vibrate?.(duration); } catch { /* optional haptic */ }
-        },
-      });
-      sauceCapsule.setDisabled?.(
-        Boolean(stage.getState?.()?.finished || stage.isInteractionPaused?.()),
-      );
-      const setStageInteractionPaused = stage.setInteractionPaused?.bind(stage);
-      if (setStageInteractionPaused) {
-        stage.setInteractionPaused = (value) => {
-          const paused = setStageInteractionPaused(value);
-          sauceCapsule?.setDisabled?.(paused || Boolean(stage.getState?.()?.finished));
-          return paused;
-        };
-      }
-    }
     const applyWorkbenchContent = (slotId, contentId) => {
       stage.setSlotContent(slotId, contentId);
       loadout = saveWorkbenchLoadout(
@@ -711,7 +671,7 @@ export function bootSoloCookingPage(
         const height = Number(rect.height) || Number(canvas.clientHeight) || Number(canvas.height) || 1;
         const camera = stage.host?.camera;
         if (!camera) return [];
-        return stage.getSlotControlAnchors().map(({ slotId, region, anchor }) => {
+        return stage.getCondimentRackControlAnchors().map(({ slotId, region, anchor }) => {
           const point = anchor.getWorldPosition(new THREE.Vector3()).project(camera);
           const x = (point.x + 1) * 0.5 * width;
           const y = (1 - point.y) * 0.5 * height;
@@ -734,25 +694,34 @@ export function bootSoloCookingPage(
         subscribeAfterFrame: stage.host?.onAfterFrame?.bind(stage.host),
         onCycle: ({ slotId, contentId }) => applyWorkbenchContent(slotId, contentId),
         onChoose: ({ slotId, contentId }) => applyWorkbenchContent(slotId, contentId),
-        onPreview: (detail) => (
-          detail
-            ? stage.previewSlotContent?.(detail.slotId, detail.contentId)
-            : stage.clearSlotContentPreview?.()
+        onPickupStart: ({ slotId, event }) => (
+          stage.beginCondimentSlotGesture?.(slotId, event) ?? false
         ),
-        onOpenPicker: (detail) => {
-          stage.clearSlotContentPreview?.();
-          return openWorkbenchPicker(detail);
-        },
+        onPickupMove: ({ event }) => stage.moveSauceGesture?.(event),
+        onPickupCommit: ({ event }) => stage.endSauceGesture?.(event),
+        onPickupCancel: ({ reason }) => stage.cancelSauceGesture?.(reason),
         onHighlight: (slotId, value) => stage.workbench?.setSlotHighlighted?.(slotId, value),
         onFeedback: (kind) => {
-          const duration = { switch: 10, open: 18, choose: 14 }[kind];
+          const duration = { switch: 10, open: 18, choose: 14, pickup: 16, drop: 10, hint: 6 }[kind];
           if (!duration) return;
           try { windowTarget.navigator?.vibrate?.(duration); } catch { /* optional haptic */ }
         },
-        storage: pageStorage,
+        onStatus: (message) => {
+          if (elements.status) elements.status.textContent = message;
+        },
         timers: windowTarget,
-        matchMedia: windowTarget.matchMedia?.bind(windowTarget),
       });
+      slotControls.setDisabled?.(
+        Boolean(stage.getState?.()?.finished || stage.isInteractionPaused?.()),
+      );
+      const setStageInteractionPaused = stage.setInteractionPaused?.bind(stage);
+      if (setStageInteractionPaused) {
+        stage.setInteractionPaused = (value) => {
+          const paused = setStageInteractionPaused(value);
+          slotControls?.setDisabled?.(paused || Boolean(stage.getState?.()?.finished));
+          return paused;
+        };
+      }
     }
     const closeTuning = () => {
       try {
@@ -997,7 +966,6 @@ export function bootSoloCookingPage(
       let firstError = null;
       for (const task of [
         () => tuningPanel?.dispose?.(),
-        () => sauceCapsule?.dispose?.(),
         () => slotControls?.dispose?.(),
         () => workbenchPicker?.dispose?.(),
         () => stage?.setInteractionPaused?.(false),
@@ -1039,7 +1007,6 @@ export function bootSoloCookingPage(
   } catch (error) {
     for (const task of [
       () => tuningPanel?.dispose?.(),
-      () => sauceCapsule?.dispose?.(),
       () => slotControls?.dispose?.(),
       () => workbenchPicker?.dispose?.(),
       () => stage?.setInteractionPaused?.(false),

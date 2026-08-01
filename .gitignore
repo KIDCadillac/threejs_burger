@@ -15,3 +15,8 @@ output/booth-redesign-audit/09-editor-theatre-crop2.png
 output/burger-gauntlet-ingredient-hand-2026-08-01/*-raw.png
 output/burger-gauntlet-ingredient-hand-2026-08-01/[0-9][0-9]-track-*.png
 output/burger-gauntlet-ingredient-hand-2026-08-01/track-live-*.png
+
+# Condiment-rack QA: keep the 1280x900 evidence sequence, ignore tiled/raw captures.
+output/condiment-rack-remap-2026-08-01/*raw-iab*.png
+output/condiment-rack-remap-2026-08-01/01-before-empty-docks.png
+output/condiment-rack-remap-2026-08-01/05-after-slot1-squeeze.png

@@ -157,16 +157,23 @@ function createSauceHarness(overrides = {}) {
   const commits = [];
   const cancels = [];
   const toolGestures = [];
+  const requestedSlots = [];
   const condimentTools = {
     previewRoot,
     selectableSurfaces: [bottleSurface],
     noRaycast() {},
     get: () => bottle,
-    getBySlot: () => bottle,
+    getBySlot: (slotId) => {
+      requestedSlots.push(slotId);
+      return slotId === "sauce-slot-1" ? bottle : null;
+    },
     claimBottleForSauce: (sauceId) => (sauceId === "ketchup" ? bottle : null),
     setActive() {},
     setTilt() {},
-    dock() {},
+    dock() {
+      bottleRoot.position.set(0, 0, 0);
+      bottleRoot.updateMatrixWorld(true);
+    },
   };
   const controller = createCookingInteractionController({
     THREE,
@@ -192,7 +199,7 @@ function createSauceHarness(overrides = {}) {
     onSauceTool: (detail) => toolGestures.push(detail),
     ...overrides,
   });
-  return { canvas, controller, commits, cancels, toolGestures };
+  return { canvas, controller, commits, cancels, toolGestures, requestedSlots };
 }
 
 test("Escape cancels an active ingredient gesture through the document listener", (t) => {
@@ -284,6 +291,32 @@ test("capsule sauce commits only when the final release is over the burger", (t)
   assert.equal(harness.cancels.at(-1)?.reason, "release-outside-burger");
 });
 
+test("rack pickup resolves the physical condiment by slot instead of by sauce", (t) => {
+  const harness = createSauceHarness();
+  t.after(() => harness.controller.dispose());
+  harness.requestedSlots.length = 0;
+
+  assert.equal(
+    harness.controller.beginCondimentSlotGesture(
+      "sauce-slot-1",
+      pointerEvent(25, 50, 90),
+    ),
+    true,
+  );
+  assert.deepEqual(harness.requestedSlots, ["sauce-slot-1"]);
+  assert.equal(harness.toolGestures.at(-1)?.phase, "start");
+  harness.controller.cancelActiveGesture("test-finished");
+
+  assert.equal(
+    harness.controller.beginCondimentSlotGesture(
+      "missing-slot",
+      pointerEvent(26, 50, 90),
+    ),
+    false,
+  );
+  assert.deepEqual(harness.requestedSlots, ["sauce-slot-1", "missing-slot"]);
+});
+
 test("a single-point sauce contact becomes a small committed dab on release", (t) => {
   const harness = createSauceHarness();
   t.after(() => harness.controller.dispose());
@@ -299,6 +332,8 @@ test("a single-point sauce contact becomes a small committed dab on release", (t
     harness.toolGestures.map(({ phase }) => phase),
     ["start", "move", "end"],
   );
+  assert.ok(Math.abs(harness.toolGestures.at(-1).position.x - 0.5) < 1e-9);
+  assert.ok(Math.abs(harness.toolGestures.at(-1).position.y - 0.5) < 1e-9);
 });
 
 test("final sauce release layer discards lower-layer contact from the pickup path", (t) => {

@@ -1,6 +1,6 @@
 # 笔记本 → 台式机交接：旋转料理主页 + 第一人称汉堡闭环
 
-更新日期：2026-08-01
+更新日期：2026-08-02
 
 仓库：`KIDCadillac/threejs_burger`
 
@@ -10,7 +10,7 @@
 
 ## 先看结论
 
-这轮已经放弃“餐车卡片主页”和“整条厨师手臂挡住汉堡”的方向：主页改成一个持续旋转的料理主体；料理页改成固定六步、固定镜头的第一人称操作台。木偶感只保留在短暂出现的小手上。调料改成底部胶囊滑轨，左右滑选种类、长按后向上拨取，不再点击台面上的小瓶按钮。
+这轮已经放弃“餐车卡片主页”和“整条厨师手臂挡住汉堡”的方向：主页改成一个持续旋转的料理主体；料理页改成固定六步、固定镜头的第一人称操作台。木偶感只保留在短暂出现的小手上。调料恢复为右侧三只常驻的实体瓶：在某只瓶上左右滑只换这只瓶的内容，长按打开三图标指定面板，向上拖则拿起这只实体瓶挤酱。底部全局调料胶囊已经退出当前页面。
 
 ## 主页改了什么
 
@@ -70,7 +70,7 @@
 - 选择食材时从对应料盒一侧出现。
 - 搬运时只移动到餐盘边缘，短暂辅助“拿住食材”的感觉。
 - 食材放下后立即退场，不会常驻遮挡汉堡。
-- 在底部胶囊按住约 300 ms 并向上拨后右手出现；瓶子移动、倾斜和挤酱期间，手按瓶身的 3D 投影坐标逐帧跟随；松手后约 220 ms 退场。
+- 从右侧实体调料瓶向上拖后右手出现；瓶子移动、倾斜和挤酱期间，手按瓶身的 3D 投影坐标逐帧跟随；松手后退场目标切到同一瓶子的原槽投影，避免瓶子已归位、手却残留在汉堡上方。
 - 普通食材现在也有独立的 `start / move / end` 手势生命周期；手的位置逐帧使用正在拖动食材的 3D 投影坐标，不再只切换“拿取 / 搬运 / 放置”三个固定姿势。
 - `selection` 决定正确左右手后，拖动期间的 `drop-intent` 与 `drop-layer` 不会抢先把手切走；最终释放后约 220 ms 退场。
 - 左右手共用同一透明 PNG，左手由代码镜像，减少两套素材不一致的问题。
@@ -89,21 +89,24 @@
 - `cooking.html`
 - `cooking.css`
 
-## 调料胶囊怎么操作
+## 右侧调料架怎么操作
 
-1. 左右滑动胶囊：只切换番茄酱、芥末酱和小馆特调，当前项始终居中。
-2. 在当前项上按住约 300 ms：胶囊上浮并提示“向上拨取调料”。
-3. 向上拨至少 34 px：真实三维瓶子与右手出现并跟随指针。
-4. 拖到汉堡上松手：落下一小段酱并推进订单。
-5. 在汉堡外松手或按 Esc：取消预览、放回瓶子，胶囊播放回弹。
+右侧三只瓶子一直可见，每一只瓶子都是独立槽位；允许两只甚至三只瓶子装同一种酱。
+
+1. 在某只瓶身上直接左右滑：只循环切换这只瓶的番茄酱、芥末酱或小馆特调，另外两只不动。
+2. 在某只瓶身静止长按约 360 ms：在瓶子左侧展开三个瓶形图标；点击一个图标，就把该槽指定成对应酱料。
+3. 从瓶身向上拖至少 20 px：拿起该槽位对应的真实三维瓶子，随后可拖到汉堡上挤酱。
+4. 在汉堡外松手、按 Esc、切后台、暂停或丢失指针：取消预览并把同一只瓶子放回原槽，不误提交。
+5. 轻点瓶子不会换酱或拿瓶，只显示“左右滑 / 上拖 / 长按”的操作提示。
 
 关键实现：
 
-- `cooking-sauce-capsule.mjs`：独立、可复用的胶囊状态机与键盘左右切换。
-- `cooking-interaction-controller.mjs`：接收胶囊发起的三维瓶子手势，并以最终松手位置决定提交或取消。
-- `condiment-tools-3d.mjs`：平时隐藏台面瓶子；胶囊取用时显示真实瓶体，并兼容旧存档缺少某种酱的情况。
-- `cooking-solo-stage.mjs`：锁定视角/缩放，并暴露胶囊需要的开始、移动、结束、取消接口。
-- `cooking-solo-app.mjs`：把胶囊、三维工具、第一人称手和暂停生命周期接在一起。
+- `cooking-condiment-rack.mjs`：槽位级手势状态机，区分水平滑动、静止长按和向上取瓶，并提供键盘可访问的图标选择器。
+- `cooking-interaction-controller.mjs`：新增 `beginCondimentSlotGesture(slotId, event)`，按槽位而不是按酱料名拿瓶，解决重复酱料拿错瓶的问题。
+- `condiment-tools-3d.mjs`：三只实体瓶常驻，可独立切换内容并保持各自归位姿态。
+- `cooking-solo-stage.mjs`：锁定视角/缩放，投影三只瓶身作为透明命中代理，并暴露槽位级开始接口。
+- `cooking-solo-app.mjs`：保存每只瓶的映射，把调料架、三维工具、第一人称手和暂停生命周期接在一起。
+- `cooking-sauce-capsule.mjs`：旧底部胶囊实现仍留作历史兼容，但当前 `cooking.html` 和 `cooking-solo-app.mjs` 不再加载它。
 
 ## 台式机接手步骤
 
@@ -151,7 +154,7 @@ python -m http.server 4173 --bind 127.0.0.1
 node --test tests/*.test.mjs
 ```
 
-当前结果：72/72 通过。
+当前结果：81/81 通过；缓存入口链统一为 `20260802-gameplay30`。
 
 ## 视觉验收证据
 
@@ -170,6 +173,8 @@ node --test tests/*.test.mjs
 - 移动订单层遮挡修复前：`output/burger-gauntlet-ingredient-hand-2026-08-01/09-mobile-480-start.png`
 - 移动布局修复后：`output/burger-gauntlet-ingredient-hand-2026-08-01/09-mobile-layout-fixed.png`
 - 移动窄屏左手放下层面包：`output/burger-gauntlet-ingredient-hand-2026-08-01/11-mobile-bottom-bun-clean.png`
+以下 `12` 至 `20` 是被当前实体调料架取代的历史胶囊方案，只用于追溯，不是现行界面：
+
 - 番茄酱居中的胶囊轨道：`output/burger-gauntlet-ingredient-hand-2026-08-01/12-condiment-capsule-ketchup.png`
 - 左滑后芥末酱居中：`output/burger-gauntlet-ingredient-hand-2026-08-01/13-condiment-capsule-swipe-mustard.png`
 - 长按进入可上拨状态：`output/burger-gauntlet-ingredient-hand-2026-08-01/14-condiment-capsule-armed.png`
@@ -179,17 +184,27 @@ node --test tests/*.test.mjs
 - 手瓶移动到牛肉饼并实时出酱：`output/burger-gauntlet-ingredient-hand-2026-08-01/18-sauce-carry-to-patty.png`
 - 松手提交并进入 3/6：`output/burger-gauntlet-ingredient-hand-2026-08-01/19-sauce-release-commit.png`
 - 手瓶归位、酱线保留：`output/burger-gauntlet-ingredient-hand-2026-08-01/20-sauce-settled.png`
+- 旧版同视口空调料托盘：`output/condiment-rack-remap-2026-08-01/01-before-empty-docks-1280.png`
+- 三只实体瓶恢复：`output/condiment-rack-remap-2026-08-01/02-after-three-bottles.png`
+- 只滑第二槽后的结果：`output/condiment-rack-remap-2026-08-01/03-after-slot2-swipe.png`
+- 长按后的三图标指定面板：`output/condiment-rack-remap-2026-08-01/04-after-long-press-picker.png`
+- 选择芥末图标后只改第一槽：`output/condiment-rack-remap-2026-08-01/04b-after-icon-assign.png`
+- 第一槽番茄酱接触前：`output/condiment-rack-remap-2026-08-01/06-pickup-contact.png`
+- 右手与真实瓶子一起离架：`output/condiment-rack-remap-2026-08-01/07-carry-to-patty.png`
+- 手瓶保持接触并向牛肉饼挤酱：`output/condiment-rack-remap-2026-08-01/08-release-contact.png`
+- 松手后手朝第一槽退场：`output/condiment-rack-remap-2026-08-01/09-released.png`
+- 三瓶归架、酱线保留并进入 3/6：`output/condiment-rack-remap-2026-08-01/10-settled.png`
 
 ## 仍没做完
 
 1. 寿司只有主页 3D 预览，还没有寿司制作玩法。
-2. 当前手是 2D 透明素材绑定 3D 投影中心，不是骨骼 IK；下一轮应针对面包、小配料和胶囊取出的瓶子分别校准“握住点”。
+2. 当前手是 2D 透明素材绑定 3D 投影中心，不是骨骼 IK；下一轮应针对面包、小配料和右侧实体调料瓶分别校准“握住点”。
 3. 主页 UI 编辑器仍保留旧餐车时代的若干专用分组和时间轴命名；正常主页不受影响，但后续应把编辑器分类改成“旋转料理 / 主题切换 / 玩法区”。
 4. 旧木偶厨师与餐车素材仍在 `art/` 里供历史恢复，但新主页和第一人称料理页不再加载它们。
 
 ## 推荐下一步
 
-下一步在移动窄屏从 1/6 完整重做一遍订单，重点校准酸黄瓜、洋葱碎和胶囊取酱时的接触点，并补错误食材的“拒绝并退回”动作。不要再加人物身体、长手臂或台面调料按钮。
+下一步在移动窄屏从 1/6 完整重做一遍订单，重点校准酸黄瓜、洋葱碎和实体调料瓶的手部接触点，并补错误食材的“拒绝并退回”动作。不要恢复底部全局胶囊，也不要再加人物身体或长手臂。
 
 ## 2026-08-01 Gauntlet 技能与普通食材跟随更新
 
@@ -199,5 +214,5 @@ node --test tests/*.test.mjs
 - 本轮玩家结果：普通食材被正确侧的手从料盒抓起、持续跟随到餐盘、释放后退场；经典订单已在浏览器实测到 6/6。
 - 调试证据：`body[data-debug-ingredient-trace]` 保存最多 24 个 `start / move / end` 投影采样，方便台式机复验动画而不是只看结束截图。
 - 移动窄屏曾继承旧全屏编辑布局，订单步骤层会压住面包点击点；现已把目标卡和订单条恢复为正常文档流，料理台不再被覆盖。
-- 入口缓存版本链已升级为 `20260801-gameplay28`。
+- 入口缓存版本链已升级为 `20260802-gameplay30`。
 - 完整方法与剩余里程碑见 `docs/BURGER-GAUNTLET-PLAN.md`。

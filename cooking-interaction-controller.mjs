@@ -1001,7 +1001,6 @@ export function createCookingInteractionController({
       }
     };
     if (cancelledBottle) {
-      const toolEndDetail = sauceToolDetail(cancelledBottle, "end", reason);
       safely(() => onSauceCancel(Object.freeze({
         gestureId: cancelledBottle.gestureId,
         reason,
@@ -1009,7 +1008,10 @@ export function createCookingInteractionController({
       safely(() => destroyBottlePreview(cancelledBottle));
       safely(() => condimentTools.setActive(cancelledBottle.bottle.id, false));
       safely(() => condimentTools.dock(cancelledBottle.bottle.id));
-      safely(() => onSauceTool(toolEndDetail));
+      // End from the restored dock projection so the fading hand retires
+      // toward the same physical slot as the bottle instead of lingering
+      // above the burger after the bottle has already returned.
+      safely(() => onSauceTool(sauceToolDetail(cancelledBottle, "end", reason)));
       invalidDetail = Object.freeze({
         id: cancelledBottle.bottle.id,
         object: cancelledBottle.bottle.root,
@@ -1442,7 +1444,6 @@ export function createCookingInteractionController({
       : committed
         ? "pointer-up"
         : "empty-sauce-gesture";
-    const toolEndDetail = sauceToolDetail(session, "end", endReason);
     let commitError = null;
     if (!releasedOnBurger) {
       try {
@@ -1475,6 +1476,7 @@ export function createCookingInteractionController({
     destroyBottlePreview(session);
     condimentTools.setActive(session.bottle.id, false);
     condimentTools.dock(session.bottle.id);
+    const toolEndDetail = sauceToolDetail(session, "end", endReason);
     bottleSession = null;
     dragSession = null;
     orbitSession = null;
@@ -1720,39 +1722,46 @@ export function createCookingInteractionController({
   documentTarget?.addEventListener?.("visibilitychange", handleVisibilityChange);
   documentTarget?.addEventListener?.("keydown", handleKeyDown);
 
+  const beginExternalBottleGesture = (bottle, event) => {
+    if (disposed || documentHidden || contextLost || explicitlyPaused || inspectionOnly) return false;
+    if (!condimentTools || !bottle) return false;
+    if (camera.parent) {
+      throw new TypeError("camera must not be parented; cooking orbit math uses world coordinates");
+    }
+    if (state === "dragging-bottle" || activePointers.size > 0) return false;
+    const point = pointerCoordinates(event);
+    activePointers.set(event.pointerId, point);
+    event.preventDefault?.();
+    try {
+      startBottleGesture(bottle, event);
+      return true;
+    } catch (error) {
+      try {
+        if (bottleSession) cancelGesture("bottle-start-error", error);
+        else {
+          activePointers.delete(event.pointerId);
+          if (!activePointers.size) state = "idle";
+        }
+      } catch {
+        // The start error remains primary; cleanup is best effort.
+      }
+      throw error;
+    }
+  };
+
   return {
     pointerDown: handlePointerDown,
     pointerMove: handlePointerMove,
     pointerUp: handlePointerUp,
     pointerCancel: handlePointerCancel,
     beginSauceGesture(sauceId, event) {
-      if (disposed || documentHidden || contextLost || explicitlyPaused || inspectionOnly) return false;
       if (!condimentTools || !normalizedSauceIds.includes(sauceId)) return false;
-      if (camera.parent) {
-        throw new TypeError("camera must not be parented; cooking orbit math uses world coordinates");
-      }
-      if (state === "dragging-bottle" || activePointers.size > 0) return false;
       const bottle = condimentTools.claimBottleForSauce?.(sauceId)
         ?? condimentTools.get(sauceId);
-      if (!bottle) return false;
-      const point = pointerCoordinates(event);
-      activePointers.set(event.pointerId, point);
-      event.preventDefault?.();
-      try {
-        startBottleGesture(bottle, event);
-        return true;
-      } catch (error) {
-        try {
-          if (bottleSession) cancelGesture("bottle-start-error", error);
-          else {
-            activePointers.delete(event.pointerId);
-            if (!activePointers.size) state = "idle";
-          }
-        } catch {
-          // The start error remains primary; cleanup is best effort.
-        }
-        throw error;
-      }
+      return beginExternalBottleGesture(bottle, event);
+    },
+    beginCondimentSlotGesture(slotId, event) {
+      return beginExternalBottleGesture(condimentTools?.getBySlot?.(slotId), event);
     },
     cancelActiveGesture(reason = "programmatic") {
       if (disposed || (!activePointers.size && !dragSession && !bottleSession)) return false;

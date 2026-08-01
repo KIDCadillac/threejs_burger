@@ -25,6 +25,9 @@ test("cooking page uses a clean first-person counter without puppet scenery", as
   assert.match(html, /data-action="restart">再做一份/);
   assert.match(html, /data-action="finish"/);
   assert.match(html, /data-action="reset">重做订单/);
+  assert.match(html, /data-control-grammar="drag-place condiment-rack-swipe hold-assign lift-squeeze undo serve"/);
+  assert.match(html, /右侧调料罐可左右滑换酱、长按指定、上拖取用/);
+  assert.doesNotMatch(html, /id="sauce-capsule"/);
   assert.doesNotMatch(html, /🍔|🧀|🥩|🏙️|✦/u);
 });
 
@@ -53,8 +56,9 @@ test("cooking loader and app wire the fixed burger loop without a puppet perform
   assert.match(app, /settleClassicBurgerAttempt/);
   assert.match(app, /stage\.setCameraLocked\?\.\(true\)/);
   assert.match(app, /directCondimentPickup: false/);
-  assert.match(app, /createSauceCapsuleGesture/);
-  assert.match(app, /stage\.beginSauceGesture\?\.\(sauceId, event\)/);
+  assert.match(app, /createCondimentRackControls/);
+  assert.doesNotMatch(app, /createSauceCapsuleGesture/);
+  assert.match(app, /stage\.beginCondimentSlotGesture\?\.\(slotId, event\)/);
   assert.match(app, /stage\.endSauceGesture\?\.\(event\)/);
   assert.match(app, /onToolGesture/);
   assert.match(app, /onIngredientGesture/);
@@ -70,6 +74,9 @@ test("cooking loader and app wire the fixed burger loop without a puppet perform
   assert.match(stage, /registeredLayerSurfaces = new Map\(\)/);
   assert.match(stage, /registeredLayerSurfaces\.delete\(layerId\)/);
   assert.match(stage, /registeredLayerSurfaces\.set\(layerId, layerSurfaces\)/);
+  assert.match(stage, /tools\.setDockedVisible\?\.\(true\)/);
+  assert.match(stage, /getCondimentRackControlAnchors/);
+  assert.match(stage, /tools\.getBySlot\?\.\(slotId\)\?\.body/);
   const interaction = await readFile(
     new URL("cooking-interaction-controller.mjs", root),
     "utf8",
@@ -83,6 +90,8 @@ test("cooking loader and app wire the fixed burger loop without a puppet perform
   assert.match(interaction, /event\?\.key !== "Escape"/);
   assert.match(interaction, /cancelGesture\("escape"\)/);
   assert.match(interaction, /directCondimentPickupEnabled/);
+  assert.match(interaction, /beginCondimentSlotGesture\(slotId, event\)/);
+  assert.match(interaction, /condimentTools\?\.getBySlot\?\.\(slotId\)/);
   assert.match(interaction, /release-outside-burger/);
   assert.match(interaction, /committed,/);
   assert.match(css, /\.first-person-cooking \.cooking-stage/);
@@ -111,8 +120,9 @@ test("cooking loader and app wire the fixed burger loop without a puppet perform
     css,
     /\.first-person-cooking\[data-workbench-controls="true"\] \.workbench-slot-controls \{ display: block; \}/,
   );
+  assert.match(css, /data-control-mode="condiment-rack"/);
+  assert.match(css, /\.condiment-rack-control/);
+  assert.match(css, /\.condiment-rack-picker__item/);
   assert.match(css, /\.first-person-cooking\[data-debug="true"\] \.header-actions/);
-  assert.match(css, /\.first-person-cooking \.sauce-capsule/);
   assert.match(css, /touch-action: none/);
-  assert.match(css, /data-position="previous"/);
 });

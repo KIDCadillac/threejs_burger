@@ -8,7 +8,7 @@
     <meta name="feedback-upload-key" content="kid-burger-feedback-20260721-v1">
     <title>小馆经典牛肉堡 · 第一人称料理台</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./cooking.css?v=20260801-gameplay28">
+    <link rel="stylesheet" href="./cooking.css?v=20260802-gameplay30">
   </head>
   <body class="first-person-cooking" data-experience="first-person-counter">
     <main class="cooking-app">
@@ -89,7 +89,7 @@
 
       <p class="inventory-stock" id="cooking-stock" aria-live="polite">小馆料盒已备齐</p>
 
-      <section class="cooking-stage" aria-label="第一人称三维料理操作区" data-control-grammar="drag-place sauce-capsule-swipe hold-lift-squeeze undo serve">
+      <section class="cooking-stage" aria-label="第一人称三维料理操作区" data-control-grammar="drag-place condiment-rack-swipe hold-assign lift-squeeze undo serve">
         <div class="first-person-hands" id="first-person-hands" data-hand-state="idle" data-hand-side="center" aria-hidden="true">
           <span class="first-person-hand first-person-hand--left">
             <img src="./art/cooking/first-person-puppet-hand.png" alt="" draggable="false">
@@ -99,12 +99,9 @@
           </span>
         </div>
         <p class="first-person-action-label" id="cooking-action-label" aria-live="polite">先把下层面包拖到餐盘中央</p>
-        <canvas id="cooking-canvas" tabindex="0" aria-label="固定视角三维汉堡料理台，可拖动食材；调料从下方胶囊选取" aria-describedby="cooking-objective">
+        <canvas id="cooking-canvas" tabindex="0" aria-label="固定视角三维汉堡料理台，可拖动食材；右侧调料罐可左右滑换酱、长按指定、上拖取用" aria-describedby="cooking-objective">
           你的浏览器需要支持 WebGL 才能使用三维料理台。
         </canvas>
-        <div class="sauce-capsule" id="sauce-capsule" data-sauce-capsule="true" data-selected-sauce="ketchup" data-gesture-state="idle" aria-label="调料胶囊，左右滑动切换，长按后向上拨取用">
-          <span>左右滑切换调料 · 长按上拨取用</span>
-        </div>
         <div class="burger-shop-ui" id="burger-shop-ui" role="region" aria-label="汉堡店订单挑战" hidden>
           <header class="shop-hud">
             <div class="shop-customer" id="shop-customer" aria-live="polite">
@@ -142,13 +139,13 @@
             </button>
           </nav>
         </div>
-        <div class="workbench-slot-controls" id="workbench-slot-controls" aria-label="料理台材料切换">
+        <div class="workbench-slot-controls" id="workbench-slot-controls" aria-label="右侧调料罐切换与取用">
           <svg class="workbench-slot-controls__lines" data-slot-lines aria-hidden="true"></svg>
           <div class="workbench-slot-controls__buttons" data-slot-buttons></div>
           <div class="workbench-slot-controls__regions" data-slot-regions></div>
           <div class="workbench-slot-controls__region-menu" data-slot-region-menu hidden></div>
           <div class="workbench-slot-controls__capsule" data-slot-capsule hidden></div>
-          <p class="workbench-slot-controls__hint" data-slot-hint hidden>轻触换材料，长按看全部，拖动做料理</p>
+          <p class="workbench-slot-controls__hint" data-slot-hint hidden>瓶身左右滑换酱 · 上拖取用 · 长按指定</p>
         </div>
         <button class="focus-button" type="button" data-action="toggle-focus" aria-pressed="false" disabled>聚焦食物</button>
         <aside class="focus-layer-manager" id="focus-layer-manager" aria-label="汉堡层次管理" hidden>
@@ -390,6 +387,6 @@
 
       <p class="cooking-status" id="cooking-status" role="status" aria-live="polite"></p>
     </main>
-    <script type="module" src="./cooking-loader.mjs?v=20260801-gameplay28"></script>
+    <script type="module" src="./cooking-loader.mjs?v=20260802-gameplay30"></script>
   </body>
 </html>

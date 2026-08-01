@@ -5,8 +5,8 @@ import {
 import { createThreeSceneHost } from "./three-scene-host.mjs";
 import { createCookingWorkbench3D } from "./cooking-workbench-3d.mjs?v=20260801-gameplay7";
 import { createBurgerModel3D } from "./burger-model-3d.mjs";
-import { createCondimentTools3D } from "./condiment-tools-3d.mjs?v=20260801-gameplay28";
-import { createCookingInteractionController } from "./cooking-interaction-controller.mjs?v=20260801-gameplay28";
+import { createCondimentTools3D } from "./condiment-tools-3d.mjs?v=20260802-gameplay30";
+import { createCookingInteractionController } from "./cooking-interaction-controller.mjs?v=20260802-gameplay30";
 import { resolveSoloLayerDrop } from "./cooking-drop-intent.mjs";
 import {
   createCookingMotion,
@@ -250,7 +250,7 @@ export function createSoloCookingStage({
     toolDocks: workbench.toolDocks,
     sauceIds: SOLO_COOKING_SAUCE_IDS,
   });
-  tools.setDockedVisible?.(Boolean(directCondimentPickup));
+  tools.setDockedVisible?.(true);
   cleanupTasks.push(() => disposeObserved(tools, "tools"));
   const celebration = celebrationFactory(THREE);
   cleanupTasks.push(() => celebration?.dispose?.());
@@ -1807,6 +1807,10 @@ export function createSoloCookingStage({
       if (disposed || competitionReadOnly || focused || state.finished) return false;
       return controller.beginSauceGesture?.(sauceId, event) ?? false;
     },
+    beginCondimentSlotGesture(slotId, event) {
+      if (disposed || competitionReadOnly || focused || state.finished) return false;
+      return controller.beginCondimentSlotGesture?.(slotId, event) ?? false;
+    },
     moveSauceGesture(event) {
       if (disposed) return false;
       controller.pointerMove?.(event);
@@ -1829,6 +1833,14 @@ export function createSoloCookingStage({
     replaceCompetitionState,
     clearCompetitionScene,
     getSlotControlAnchors: () => workbench.getSlotControlAnchors(),
+    getCondimentRackControlAnchors: () => WORKBENCH_SLOTS
+      .filter(({ region }) => region === "sauce")
+      .map(({ slotId, region }) => Object.freeze({
+        slotId,
+        region,
+        anchor: tools.getBySlot?.(slotId)?.body ?? tools.getBySlot?.(slotId)?.root,
+      }))
+      .filter(({ anchor }) => anchor?.isObject3D),
     getState: () => state,
     getTutorial: () => tutorial,
     getSelectedLayerId: () => selectedLayerId,
