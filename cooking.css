@@ -3131,11 +3131,197 @@ body[data-game-mode="orders"] .shop-result-card {
   transition-duration: 190ms;
 }
 
+.first-person-cooking .first-person-hands[data-hand-state="ingredient-hold"] .first-person-hand--left,
+.first-person-cooking .first-person-hands[data-hand-state="ingredient-release"] .first-person-hand--left {
+  left: calc(var(--hand-ingredient-x, 50%) - 2.2%);
+  right: auto;
+  top: calc(var(--hand-ingredient-y, 50%) + 3.2%);
+  opacity: 1;
+  transform: translate(-50%, -50%) rotate(-2deg) scale(.78);
+  transition-duration: 45ms;
+}
+
+.first-person-cooking .first-person-hands[data-hand-state="ingredient-hold"] .first-person-hand--right,
+.first-person-cooking .first-person-hands[data-hand-state="ingredient-release"] .first-person-hand--right {
+  left: calc(var(--hand-ingredient-x, 50%) + 2.2%);
+  right: auto;
+  top: calc(var(--hand-ingredient-y, 50%) + 3.2%);
+  opacity: 1;
+  transform: translate(-50%, -50%) rotate(2deg) scale(.78);
+  transition-duration: 45ms;
+}
+
+.first-person-cooking .first-person-hands[data-hand-state="ingredient-release"] .first-person-hand {
+  opacity: 0;
+  transform: translate(-50%, -34%) scale(.7);
+  transition-duration: 190ms;
+}
+
+.first-person-cooking .sauce-capsule {
+  position: absolute;
+  z-index: 11;
+  left: 50%;
+  bottom: 10px;
+  display: grid;
+  width: min(310px, calc(100% - 28px));
+  min-height: 58px;
+  padding: 5px 7px 4px;
+  gap: 2px;
+  border: 2px solid #3d2b24;
+  border-radius: 999px;
+  color: #4a2b20;
+  touch-action: none;
+  overscroll-behavior: contain;
+  transform: translateX(-50%);
+  background: rgba(255, 247, 218, .96);
+  box-shadow: 0 4px 0 rgba(53, 35, 28, .36), 0 12px 24px rgba(25, 12, 8, .22);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.first-person-cooking .sauce-capsule__track {
+  position: relative;
+  display: block;
+  height: 34px;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 999px;
+}
+
+.first-person-cooking .sauce-capsule__option {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  display: flex;
+  width: 48%;
+  min-height: 34px;
+  gap: 5px;
+  padding: 5px 7px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(61, 43, 36, .2);
+  border-radius: 999px;
+  opacity: .58;
+  background: rgba(99, 66, 49, .08);
+  transform: translateX(-50%) scale(.82);
+  transition: opacity 170ms ease, transform 220ms cubic-bezier(.2, .9, .25, 1.08), background 150ms ease, box-shadow 150ms ease;
+}
+
+.first-person-cooking .sauce-capsule__option[data-position="previous"] {
+  opacity: .42;
+  transform: translateX(-148%) scale(.82);
+}
+
+.first-person-cooking .sauce-capsule__option[data-position="next"] {
+  opacity: .42;
+  transform: translateX(48%) scale(.82);
+}
+
+.first-person-cooking .sauce-capsule__option[data-selected="true"] {
+  opacity: 1;
+  transform: translateX(-50%) translateY(-1px) scale(1);
+  color: #fff8e4;
+  background: #4b3128;
+  box-shadow: inset 0 0 0 1px rgba(255, 244, 211, .2), 0 3px 0 rgba(49, 29, 22, .25);
+}
+
+.first-person-cooking .sauce-capsule__dot {
+  display: block;
+  flex: 0 0 auto;
+  width: 13px;
+  height: 19px;
+  border: 2px solid #3d2b24;
+  border-radius: 5px 5px 7px 7px;
+  background: var(--sauce-color);
+  box-shadow: inset 0 3px rgba(255, 255, 255, .28);
+}
+
+.first-person-cooking .sauce-capsule__label {
+  overflow: hidden;
+  font-size: .64rem;
+  font-weight: 900;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.first-person-cooking .sauce-capsule__prompt {
+  display: block;
+  color: #7a5141;
+  font-size: .5rem;
+  font-weight: 850;
+  line-height: 1.05;
+  letter-spacing: .02em;
+  text-align: center;
+}
+
+.first-person-cooking .sauce-capsule[data-gesture-state="pressing"],
+.first-person-cooking .sauce-capsule[data-gesture-state="armed"] {
+  border-color: #b64b31;
+  box-shadow: 0 4px 0 rgba(53, 35, 28, .36), 0 0 0 4px rgba(255, 207, 91, .24), 0 14px 28px rgba(25, 12, 8, .28);
+}
+
+.first-person-cooking .sauce-capsule[data-gesture-state="armed"] .sauce-capsule__option[data-selected="true"] {
+  transform: translateX(-50%) translateY(-6px) scale(1.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 244, 211, .2), 0 7px 0 rgba(49, 29, 22, .18);
+}
+
+.first-person-cooking .sauce-capsule[data-gesture-state="armed"]::before {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 5px);
+  width: 2px;
+  height: 32px;
+  content: "";
+  transform: translateX(-50%);
+  background: repeating-linear-gradient(to top, #ffd35d 0 5px, transparent 5px 9px);
+  filter: drop-shadow(0 1px #3d2b24);
+}
+
+.first-person-cooking .sauce-capsule[data-disabled="true"] { opacity: .42; pointer-events: none; }
+.first-person-cooking .sauce-capsule[data-feedback="select"] { animation: sauce-capsule-nudge 180ms ease-out; }
+.first-person-cooking .sauce-capsule[data-feedback="hint"] { animation: sauce-capsule-hint 220ms ease-out; }
+.first-person-cooking .sauce-capsule[data-feedback="cancel"] { animation: sauce-capsule-rebound 260ms cubic-bezier(.22, .86, .28, 1.2); }
+.first-person-cooking .sauce-capsule[data-gesture-state="carrying"] { opacity: .76; }
+.first-person-cooking .sauce-capsule[data-gesture-state="returning"],
+.first-person-cooking .sauce-capsule[data-gesture-state="settling"] { pointer-events: none; }
+
+body[data-game-mode="orders"] .sauce-capsule {
+  bottom: calc(var(--shop-bottom-safe, 96px) + 10px);
+}
+
+body[data-game-mode="orders"] .first-person-action-label {
+  bottom: calc(var(--shop-bottom-safe, 96px) + 80px);
+}
+
+body[data-game-mode="orders"]:not([data-shop-phase="cooking"]) .sauce-capsule {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@keyframes sauce-capsule-nudge {
+  0%, 100% { transform: translateX(-50%); }
+  45% { transform: translateX(calc(-50% - 5px)); }
+  72% { transform: translateX(calc(-50% + 3px)); }
+}
+
+@keyframes sauce-capsule-hint {
+  0%, 100% { transform: translateX(-50%) scale(1); }
+  55% { transform: translateX(-50%) scale(.97); }
+}
+
+@keyframes sauce-capsule-rebound {
+  0% { transform: translateX(-50%) translateY(-9px) scale(1.03); }
+  58% { transform: translateX(-50%) translateY(3px) scale(.98); }
+  100% { transform: translateX(-50%) translateY(0) scale(1); }
+}
+
 .first-person-cooking .first-person-action-label {
   position: absolute;
   z-index: 8;
   right: 14px;
-  bottom: 12px;
+  bottom: 80px;
   left: 14px;
   min-height: 34px;
   margin: 0;
@@ -3176,7 +3362,7 @@ body[data-game-mode="orders"] .shop-result-card {
 }
 
 .first-person-cooking .workbench-slot-controls { display: none; }
-.first-person-cooking[data-debug="true"] .workbench-slot-controls { display: block; }
+.first-person-cooking[data-workbench-controls="true"] .workbench-slot-controls { display: block; }
 .first-person-cooking .cooking-stage > .focus-button,
 .first-person-cooking .cooking-stage > .focus-layer-hint,
 .first-person-cooking .cooking-stage > .focus-layer-manager,
@@ -3281,6 +3467,34 @@ body[data-game-mode="orders"] .shop-result-card {
 .first-person-cooking .objective-card[data-feedback="correct"] { animation: order-correct 520ms ease-out; }
 .first-person-cooking .objective-card[data-feedback="mistake"] { animation: order-mistake 420ms ease-out; }
 
+@media (max-width: 700px) {
+  .first-person-cooking .game-shell {
+    min-height: 0;
+    margin-top: 11px;
+  }
+
+  .first-person-cooking .objective-card,
+  .first-person-cooking .recipe-reference {
+    position: relative;
+    z-index: auto;
+    inset: auto;
+    pointer-events: auto;
+    backdrop-filter: none;
+  }
+
+  .first-person-cooking .recipe-reference {
+    min-height: 0;
+    margin-top: 8px;
+  }
+
+  .first-person-cooking .cooking-stage {
+    min-height: 0;
+    margin: 12px 0 10px;
+  }
+
+  .first-person-cooking #cooking-canvas { height: 100%; }
+}
+
 @media (max-width: 600px) {
   .first-person-cooking .cooking-app { padding: max(8px, env(safe-area-inset-top)) 9px max(14px, env(safe-area-inset-bottom)); }
   .first-person-cooking .cooking-header { min-height: 58px; padding: 7px 8px; }
@@ -3292,7 +3506,8 @@ body[data-game-mode="orders"] .shop-result-card {
   .first-person-cooking .recipe-reference__steps { display: flex; }
   .first-person-cooking .recipe-reference__steps li { min-width: 78px; padding: 5px 6px; }
   .first-person-cooking .cooking-stage { aspect-ratio: 4 / 3; margin-top: 12px; }
-  .first-person-cooking .first-person-action-label { right: 9px; bottom: 8px; left: 9px; min-height: 30px; padding: 6px 8px; font-size: .66rem; }
+  .first-person-cooking .first-person-action-label { right: 9px; bottom: 78px; left: 9px; min-height: 30px; padding: 6px 8px; font-size: .66rem; }
+  body[data-game-mode="orders"] .first-person-action-label { bottom: calc(var(--shop-bottom-safe, 96px) + 78px); }
   .first-person-cooking .cooking-controls { position: relative; inset: auto; grid-template-columns: .72fr 1.5fr .72fr; }
   .first-person-cooking .finish-sheet { inset: auto 10px 10px; }
 }

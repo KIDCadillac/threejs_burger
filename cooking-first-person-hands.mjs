@@ -58,6 +58,7 @@ export function firstPersonHandPoseForStageChange(detail = {}) {
     case "undo":
     case "continue":
     case "ready":
+    case "interaction-paused":
       return Object.freeze({ state: "idle", side: "center", settleAfter: 0 });
     default:
       return null;
@@ -89,6 +90,8 @@ export function createCookingFirstPersonHands(
   let settleTimer = null;
   let beat = 0;
   let activeToolGestureId = null;
+  let activeIngredientGestureId = null;
+  let activeIngredientSide = "left";
 
   const clearSettle = () => {
     if (settleTimer === null) return;
@@ -120,10 +123,34 @@ export function createCookingFirstPersonHands(
     return position;
   };
 
+  const setIngredientPosition = (detail) => {
+    const position = normalizedToolPosition(detail);
+    if (!position) return null;
+    root.style?.setProperty?.("--hand-ingredient-x", `${position.x * 100}%`);
+    root.style?.setProperty?.("--hand-ingredient-y", `${position.y * 100}%`);
+    return position;
+  };
+
   const handleStageChange = (detail) => {
+    if (["finish", "reset", "undo", "continue", "ready", "interaction-paused"]
+      .includes(detail?.reason)) {
+      // A lifecycle boundary owns the whole stage. Forget any interrupted
+      // gesture so a late pointer event cannot revive a stale hand pose or
+      // reject the next gesture because its id differs from the old one.
+      activeToolGestureId = null;
+      activeIngredientGestureId = null;
+    }
     if (activeToolGestureId !== null
       && ["sauce-stroke", "sauce-strokes", "sauce-gesture"].includes(detail?.reason)) {
       return Object.freeze({ state: "sauce-hold", side: "right", settleAfter: 0 });
+    }
+    if (activeIngredientGestureId !== null
+      && ["selection", "drop-intent", "drop-layer"].includes(detail?.reason)) {
+      return Object.freeze({
+        state: "ingredient-hold",
+        side: activeIngredientSide,
+        settleAfter: 0,
+      });
     }
     const pose = previewMode
       ? Object.freeze({
@@ -132,15 +159,65 @@ export function createCookingFirstPersonHands(
         settleAfter: 0,
       })
       : firstPersonHandPoseForStageChange(detail);
-    if (pose) setPose(pose);
+    if (pose) {
+      if (pose.side === "left" || pose.side === "right") {
+        activeIngredientSide = pose.side;
+      }
+      setPose(pose);
+    }
     return pose;
+  };
+
+  const handleIngredientGesture = (detail = {}) => {
+    const phase = detail.phase;
+    const gestureId = detail.gestureId ?? null;
+    if (phase === "start") {
+      if (gestureId === null) return null;
+      activeIngredientGestureId = gestureId;
+    } else if (phase === "move") {
+      if (activeIngredientGestureId === null || gestureId !== activeIngredientGestureId) {
+        return null;
+      }
+    }
+    if (phase === "start" || phase === "move") {
+      setIngredientPosition(detail);
+      const side = root.dataset.handSide === "left" || root.dataset.handSide === "right"
+        ? root.dataset.handSide
+        : activeIngredientSide;
+      activeIngredientSide = side;
+      const pose = Object.freeze({ state: "ingredient-hold", side, settleAfter: 0 });
+      if (root.dataset.handState !== pose.state || root.dataset.handSide !== pose.side) {
+        setPose(pose);
+      }
+      return pose;
+    }
+    if (phase === "end") {
+      if (activeIngredientGestureId === null || gestureId !== activeIngredientGestureId) {
+        return null;
+      }
+      setIngredientPosition(detail);
+      activeIngredientGestureId = null;
+      const pose = Object.freeze({
+        state: "ingredient-release",
+        side: activeIngredientSide,
+        settleAfter: 220,
+      });
+      setPose(pose);
+      return pose;
+    }
+    return null;
   };
 
   const handleToolGesture = (detail = {}) => {
     const phase = detail.phase;
     const gestureId = detail.gestureId ?? null;
-    if (phase === "start" || phase === "move") {
+    if (phase === "start") {
+      if (gestureId === null) return null;
       activeToolGestureId = gestureId;
+    } else if (phase === "move") {
+      if (activeToolGestureId === null || gestureId !== activeToolGestureId) return null;
+    }
+    if (phase === "start" || phase === "move") {
       setToolPosition(detail);
       const pose = Object.freeze({ state: "sauce-hold", side: "right", settleAfter: 0 });
       if (root.dataset.handState !== pose.state || root.dataset.handSide !== pose.side) {
@@ -149,8 +226,7 @@ export function createCookingFirstPersonHands(
       return pose;
     }
     if (phase === "end") {
-      if (activeToolGestureId !== null && gestureId !== null
-        && gestureId !== activeToolGestureId) return null;
+      if (activeToolGestureId === null || gestureId !== activeToolGestureId) return null;
       setToolPosition(detail);
       activeToolGestureId = null;
       const pose = Object.freeze({ state: "sauce-release", side: "right", settleAfter: 220 });
@@ -172,13 +248,17 @@ export function createCookingFirstPersonHands(
   return Object.freeze({
     handleStageChange,
     handleToolGesture,
+    handleIngredientGesture,
     dispose() {
       clearSettle();
       activeToolGestureId = null;
+      activeIngredientGestureId = null;
       root.dataset.handState = "idle";
       root.dataset.handSide = "center";
       root.style?.removeProperty?.("--hand-tool-x");
       root.style?.removeProperty?.("--hand-tool-y");
+      root.style?.removeProperty?.("--hand-ingredient-x");
+      root.style?.removeProperty?.("--hand-ingredient-y");
     },
   });
 }

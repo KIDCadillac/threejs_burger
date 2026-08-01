@@ -23,9 +23,9 @@ export async function startSoloCookingLoader(
   documentTarget = globalThis.document,
   {
     windowTarget = globalThis,
-    importApp = () => import("./cooking-solo-app.mjs?v=20260801-gameplay16"),
+    importApp = () => import("./cooking-solo-app.mjs?v=20260801-gameplay28"),
     importShopApp = () => import("./burger-shop-app.mjs"),
-    importFirstPersonHands = () => import("./cooking-first-person-hands.mjs?v=20260801-gameplay16"),
+    importFirstPersonHands = () => import("./cooking-first-person-hands.mjs?v=20260801-gameplay28"),
     requestFrame = windowTarget?.requestAnimationFrame?.bind(windowTarget)
       ?? ((callback) => windowTarget.setTimeout(callback, 16)),
     setTimeoutFn = windowTarget?.setTimeout?.bind(windowTarget)
@@ -115,11 +115,18 @@ export async function startSoloCookingLoader(
   try {
     const mode = modeFromLocation(windowTarget?.location);
     try {
-      documentTarget.body.dataset.debug = new URL(
+      const searchParams = new URL(
         windowTarget?.location?.href ?? "http://localhost/",
-      ).searchParams.get("debug") === "1" ? "true" : "false";
+      ).searchParams;
+      documentTarget.body.dataset.debug = searchParams.get("debug") === "1"
+        ? "true"
+        : "false";
+      documentTarget.body.dataset.workbenchControls = searchParams.get("workbenchControls") === "1"
+        ? "true"
+        : "false";
     } catch {
       documentTarget.body.dataset.debug = "false";
+      documentTarget.body.dataset.workbenchControls = "false";
     }
     const app = await importApp();
     if (typeof app?.bootSoloCookingPage !== "function") {
@@ -134,12 +141,31 @@ export async function startSoloCookingLoader(
     let shopController = null;
     let pendingStageChange = null;
     const debugStageTrace = [];
+    const debugIngredientTrace = [];
     const stage = app.bootSoloCookingPage(documentTarget, {
       windowTarget,
       manageLoading: false,
       openRecipePicker: mode !== "orders",
       mountDefaultActions: mode !== "orders",
       onToolGesture: (detail) => handPerformer?.handleToolGesture?.(detail),
+      onInteractionPause: (detail) => handPerformer?.handleStageChange?.(detail),
+      onIngredientGesture: (detail) => {
+        handPerformer?.handleIngredientGesture?.(detail);
+        if (documentTarget.body.dataset.debug === "true") {
+          documentTarget.body.dataset.debugIngredientGesture = JSON.stringify(detail);
+          debugIngredientTrace.push({
+            phase: detail?.phase ?? null,
+            gestureId: detail?.gestureId ?? null,
+            layerId: detail?.layerId ?? null,
+            position: detail?.position ?? null,
+            reason: detail?.reason ?? null,
+          });
+          if (debugIngredientTrace.length > 24) debugIngredientTrace.shift();
+          documentTarget.body.dataset.debugIngredientTrace = JSON.stringify(
+            debugIngredientTrace,
+          );
+        }
+      },
       onStageChange: (detail) => {
         pendingStageChange = detail;
         if (documentTarget.body.dataset.debug === "true" && detail?.state) {
@@ -147,6 +173,7 @@ export async function startSoloCookingLoader(
             reason: detail.reason,
             selectedLayerId: detail.selectedLayerId ?? null,
             order: detail.state.assembledOrder.map((id) => detail.state.instances[id]),
+            strokes: detail.state.strokes.map(({ sauce, layerId }) => ({ sauce, layerId })),
           });
           if (debugStageTrace.length > 16) debugStageTrace.shift();
           documentTarget.body.dataset.debugStageTrace = JSON.stringify(debugStageTrace);
@@ -168,6 +195,19 @@ export async function startSoloCookingLoader(
       if (pendingStageChange) shopController.handleStageChange?.(pendingStageChange);
     }
     if (!stage) throw new Error(elements.status.textContent || "无法启动三维料理台");
+    if (documentTarget.body.dataset.debug === "true") {
+      try {
+        const debugSeed = new URL(windowTarget?.location?.href ?? "http://localhost/")
+          .searchParams.get("debugSeed");
+        if (debugSeed === "patty") {
+          stage.reset?.();
+          stage.dropLayer?.("bottom-bun", { kind: "prep" });
+          stage.dropLayer?.("patty", { kind: "prep" });
+        }
+      } catch {
+        // Debug seeding is optional and must never block the actual game.
+      }
+    }
     update(94, "正在完成第一帧");
     await waitForFirstFrame();
     if (documentTarget.body.dataset.debug === "true") {
@@ -186,9 +226,18 @@ export async function startSoloCookingLoader(
         slotId,
         point: projectAnchor(stage.workbench.getStationBySlot(slotId)?.pickupAnchor),
       }));
+      const assembledOrder = stage.getState?.()?.assembledOrder ?? [];
+      const topLayerId = assembledOrder[assembledOrder.length - 1] ?? null;
+      const topLayerSurface = topLayerId
+        ? stage.burger?.getLayer?.(topLayerId)?.userData?.selectableSurface
+        : null;
       documentTarget.body.dataset.debugPickupPoints = JSON.stringify({
         prep: projectAnchor(stage.workbench.prep?.dropAnchor),
         pickups,
+      });
+      documentTarget.body.dataset.debugSauceTargetPoint = JSON.stringify({
+        layerId: topLayerId,
+        point: projectAnchor(topLayerSurface),
       });
     }
     update(100, "料理台准备完成");

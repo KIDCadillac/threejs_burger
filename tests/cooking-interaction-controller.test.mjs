@@ -1,0 +1,371 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import * as THREE from "../vendor/three.module.min.js";
+import { createCookingInteractionController } from "../cooking-interaction-controller.mjs";
+
+function createEventTarget(bounds = null) {
+  const listeners = new Map();
+  const capturedPointerIds = new Set();
+  const releasedPointerIds = [];
+
+  return {
+    hidden: false,
+    capturedPointerIds,
+    releasedPointerIds,
+    addEventListener(type, listener) {
+      if (!listeners.has(type)) listeners.set(type, new Set());
+      listeners.get(type).add(listener);
+    },
+    removeEventListener(type, listener) {
+      listeners.get(type)?.delete(listener);
+    },
+    dispatch(type, event) {
+      for (const listener of listeners.get(type) ?? []) listener(event);
+    },
+    getBoundingClientRect() {
+      return bounds ?? { left: 0, top: 0, width: 100, height: 100 };
+    },
+    setPointerCapture(pointerId) {
+      capturedPointerIds.add(pointerId);
+    },
+    hasPointerCapture(pointerId) {
+      return capturedPointerIds.has(pointerId);
+    },
+    releasePointerCapture(pointerId) {
+      capturedPointerIds.delete(pointerId);
+      releasedPointerIds.push(pointerId);
+    },
+  };
+}
+
+function pointerEvent(pointerId, clientX = 10, clientY = 10) {
+  return {
+    pointerId,
+    clientX,
+    clientY,
+    preventDefault() {},
+  };
+}
+
+function transformSnapshot(object) {
+  return {
+    position: object.position.toArray(),
+    quaternion: object.quaternion.toArray(),
+    scale: object.scale.toArray(),
+  };
+}
+
+function createIngredientHarness() {
+  const canvas = createEventTarget();
+  const documentTarget = createEventTarget();
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+  camera.position.set(0, 4, 8);
+  camera.lookAt(0, 0, 0);
+  camera.updateProjectionMatrix();
+  camera.updateMatrixWorld(true);
+
+  const ingredient = new THREE.Group();
+  ingredient.position.set(1, 0, 2);
+  ingredient.rotation.set(0.08, -0.12, 0.04);
+  ingredient.scale.set(0.9, 1.1, 0.95);
+  ingredient.updateMatrixWorld(true);
+
+  const surface = new THREE.Object3D();
+  surface.userData.cookingSelectable = {
+    kind: "food-layer",
+    food: "burger",
+    layerId: "patty-1",
+  };
+
+  const ingredientGestures = [];
+  const invalidEvents = [];
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    documentTarget,
+    draggables: [{ id: "patty-1", object: ingredient, surfaces: [surface] }],
+    raycast: () => ({
+      object: surface,
+      point: new THREE.Vector3(1, 0, 2),
+    }),
+    projectToPrep: (event) => new THREE.Vector3(
+      event.clientX / 10,
+      0,
+      event.clientY / 10,
+    ),
+    onIngredientGesture: (detail) => ingredientGestures.push(detail),
+    onInvalid: (detail) => invalidEvents.push(detail),
+  });
+
+  return {
+    canvas,
+    documentTarget,
+    ingredient,
+    ingredientGestures,
+    invalidEvents,
+    controller,
+  };
+}
+
+function createSauceHarness(overrides = {}) {
+  const canvas = createEventTarget();
+  const documentTarget = createEventTarget();
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+  camera.position.set(0, 4, 8);
+  camera.lookAt(0, 0, 0);
+  camera.updateProjectionMatrix();
+  camera.updateMatrixWorld(true);
+
+  const previewRoot = new THREE.Group();
+  const bottleRoot = new THREE.Group();
+  const nozzleAnchor = new THREE.Object3D();
+  bottleRoot.add(nozzleAnchor);
+  previewRoot.add(bottleRoot);
+  const bottleSurface = new THREE.Object3D();
+  bottleSurface.userData.cookingSelectable = {
+    kind: "condiment-bottle",
+    sauce: "ketchup",
+    slotId: "sauce-slot-1",
+    id: "bottle-1",
+  };
+  const bottle = {
+    id: "bottle-1",
+    sauce: "ketchup",
+    root: bottleRoot,
+    nozzleAnchor,
+    selectableSurfaces: [bottleSurface],
+    homePose: {},
+  };
+  const foodSurface = new THREE.Mesh(new THREE.BoxGeometry(2, 0.2, 2));
+  foodSurface.userData.cookingSelectable = {
+    kind: "food-layer",
+    food: "burger",
+    layerId: "bottom-bun-1",
+  };
+  previewRoot.add(foodSurface);
+  const pattySurface = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.2, 1.8));
+  pattySurface.userData.cookingSelectable = {
+    kind: "food-layer",
+    food: "burger",
+    layerId: "patty-1",
+  };
+  previewRoot.add(pattySurface);
+  previewRoot.updateMatrixWorld(true);
+
+  const commits = [];
+  const cancels = [];
+  const toolGestures = [];
+  const condimentTools = {
+    previewRoot,
+    selectableSurfaces: [bottleSurface],
+    noRaycast() {},
+    get: () => bottle,
+    getBySlot: () => bottle,
+    claimBottleForSauce: (sauceId) => (sauceId === "ketchup" ? bottle : null),
+    setActive() {},
+    setTilt() {},
+    dock() {},
+  };
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    documentTarget,
+    condimentTools,
+    directCondimentPickup: false,
+    sauceIds: ["ketchup"],
+    foodSurfaces: [foodSurface, pattySurface],
+    selectableSurfaces: [foodSurface, pattySurface],
+    projectToPrep: (event) => new THREE.Vector3(event.clientX / 100, 0, event.clientY / 100),
+    raycast: ({ event, kind }) => (
+      kind === "nozzle" && event.overBurger
+        ? {
+          object: event.layerId === "patty-1" ? pattySurface : foodSurface,
+          point: new THREE.Vector3(0.2, 0.1, 0.1),
+        }
+        : null
+    ),
+    onSauceCommit: (detail) => commits.push(detail),
+    onSauceCancel: (detail) => cancels.push(detail),
+    onSauceTool: (detail) => toolGestures.push(detail),
+    ...overrides,
+  });
+  return { canvas, controller, commits, cancels, toolGestures };
+}
+
+test("Escape cancels an active ingredient gesture through the document listener", (t) => {
+  const harness = createIngredientHarness();
+  t.after(() => harness.controller.dispose());
+  const initialTransform = transformSnapshot(harness.ingredient);
+  const pointerId = 7;
+
+  harness.controller.pointerDown(pointerEvent(pointerId));
+  harness.controller.rotateSelected(Math.PI / 4);
+
+  assert.equal(harness.controller.getState(), "dragging-layer");
+  assert.notDeepEqual(transformSnapshot(harness.ingredient), initialTransform);
+  assert.deepEqual(
+    harness.ingredientGestures.map(({ phase, reason = null }) => [phase, reason]),
+    [["start", null]],
+  );
+
+  let prevented = false;
+  harness.documentTarget.dispatch("keydown", {
+    key: "Escape",
+    preventDefault() { prevented = true; },
+  });
+
+  assert.equal(prevented, true);
+  assert.equal(harness.controller.getState(), "idle");
+  assert.deepEqual(transformSnapshot(harness.ingredient), initialTransform);
+  assert.equal(harness.canvas.capturedPointerIds.has(pointerId), false);
+  assert.deepEqual(harness.canvas.releasedPointerIds, [pointerId]);
+  assert.deepEqual(
+    harness.ingredientGestures.map(({ phase, reason = null }) => [phase, reason]),
+    [["start", null], ["end", "escape"]],
+  );
+  assert.equal(harness.invalidEvents.at(-1)?.reason, "escape");
+});
+
+test("pause cancels the gesture, blocks new picks, and resume starts a new gesture", (t) => {
+  const harness = createIngredientHarness();
+  t.after(() => harness.controller.dispose());
+  const initialTransform = transformSnapshot(harness.ingredient);
+  const firstPointerId = 11;
+
+  harness.controller.pointerDown(pointerEvent(firstPointerId));
+  harness.controller.rotateSelected(-Math.PI / 5);
+  harness.controller.pause();
+
+  assert.equal(harness.controller.getState(), "idle");
+  assert.deepEqual(transformSnapshot(harness.ingredient), initialTransform);
+  assert.equal(harness.canvas.capturedPointerIds.has(firstPointerId), false);
+  assert.deepEqual(harness.canvas.releasedPointerIds, [firstPointerId]);
+  assert.deepEqual(
+    harness.ingredientGestures.map(({ phase, reason = null }) => [phase, reason]),
+    [["start", null], ["end", "paused"]],
+  );
+  assert.equal(harness.invalidEvents.at(-1)?.reason, "paused");
+
+  const blockedPointerId = 12;
+  harness.controller.pointerDown(pointerEvent(blockedPointerId, 20, 20));
+  assert.equal(harness.controller.getState(), "idle");
+  assert.equal(harness.canvas.capturedPointerIds.has(blockedPointerId), false);
+  assert.equal(harness.ingredientGestures.length, 2);
+
+  harness.controller.resume();
+  harness.controller.pointerDown(pointerEvent(blockedPointerId, 20, 20));
+
+  assert.equal(harness.controller.getState(), "dragging-layer");
+  assert.equal(harness.canvas.capturedPointerIds.has(blockedPointerId), true);
+  assert.equal(harness.ingredientGestures.at(-1)?.phase, "start");
+  assert.equal(harness.ingredientGestures.at(-1)?.gestureId, "ingredient-2");
+});
+
+test("capsule sauce commits only when the final release is over the burger", (t) => {
+  const harness = createSauceHarness();
+  t.after(() => harness.controller.dispose());
+
+  assert.equal(harness.controller.beginSauceGesture("ketchup", pointerEvent(21, 50, 90)), true);
+  harness.controller.pointerMove({ ...pointerEvent(21, 50, 45), overBurger: true });
+  const outcome = harness.controller.pointerUp({ ...pointerEvent(21, 10, 10), overBurger: false });
+
+  assert.deepEqual(outcome, {
+    handled: true,
+    committed: false,
+    reason: "release-outside-burger",
+    gestureId: "sauce-1",
+    sauce: "ketchup",
+    strokeCount: 1,
+  });
+  assert.equal(harness.commits.length, 0);
+  assert.equal(harness.cancels.at(-1)?.reason, "release-outside-burger");
+});
+
+test("a single-point sauce contact becomes a small committed dab on release", (t) => {
+  const harness = createSauceHarness();
+  t.after(() => harness.controller.dispose());
+
+  assert.equal(harness.controller.beginSauceGesture("ketchup", pointerEvent(22, 50, 90)), true);
+  const outcome = harness.controller.pointerUp({ ...pointerEvent(22, 50, 45), overBurger: true });
+
+  assert.equal(outcome.committed, true);
+  assert.equal(outcome.strokeCount, 1);
+  assert.equal(harness.commits.length, 1);
+  assert.equal(harness.commits[0].strokes[0].points.length, 2);
+  assert.deepEqual(
+    harness.toolGestures.map(({ phase }) => phase),
+    ["start", "move", "end"],
+  );
+});
+
+test("final sauce release layer discards lower-layer contact from the pickup path", (t) => {
+  const harness = createSauceHarness();
+  t.after(() => harness.controller.dispose());
+
+  assert.equal(harness.controller.beginSauceGesture("ketchup", pointerEvent(24, 50, 90)), true);
+  harness.controller.pointerMove({
+    ...pointerEvent(24, 50, 55),
+    overBurger: true,
+    layerId: "bottom-bun-1",
+  });
+  const outcome = harness.controller.pointerUp({
+    ...pointerEvent(24, 50, 45),
+    overBurger: true,
+    layerId: "patty-1",
+  });
+
+  assert.equal(outcome.committed, true);
+  assert.equal(outcome.strokeCount, 1);
+  assert.deepEqual(
+    harness.commits[0].strokes.map(({ layerId }) => layerId),
+    ["patty-1"],
+  );
+});
+
+test("a throwing sauce cancel callback cannot leave the controller stuck", (t) => {
+  const harness = createSauceHarness({
+    onSauceCancel() { throw new Error("cancel callback failed"); },
+  });
+  t.after(() => harness.controller.dispose());
+
+  assert.equal(harness.controller.beginSauceGesture("ketchup", pointerEvent(23, 50, 90)), true);
+  assert.throws(
+    () => harness.controller.cancelActiveGesture("escape"),
+    /cancel callback failed/,
+  );
+  assert.equal(harness.controller.getState(), "idle");
+});
+
+test("camera lock ignores one-finger orbit and two-finger pinch zoom", (t) => {
+  const canvas = createEventTarget();
+  const documentTarget = createEventTarget();
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+  camera.position.set(0, 4, 8);
+  camera.lookAt(0, 0, 0);
+  camera.updateMatrixWorld(true);
+  const controller = createCookingInteractionController({
+    THREE,
+    canvas,
+    camera,
+    documentTarget,
+    raycast: () => null,
+  });
+  t.after(() => controller.dispose());
+  controller.setOrbitEnabled(false);
+  const before = transformSnapshot(camera);
+
+  controller.pointerDown(pointerEvent(31, 20, 20));
+  controller.pointerMove(pointerEvent(31, 80, 60));
+  controller.pointerDown(pointerEvent(32, 30, 30));
+  controller.pointerMove(pointerEvent(31, 5, 5));
+  controller.pointerMove(pointerEvent(32, 95, 95));
+  controller.pointerUp(pointerEvent(31, 5, 5));
+  controller.pointerUp(pointerEvent(32, 95, 95));
+
+  assert.deepEqual(transformSnapshot(camera), before);
+  assert.equal(controller.isOrbitEnabled(), false);
+  assert.equal(controller.isPinchZoomEnabled(), false);
+});

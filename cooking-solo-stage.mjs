@@ -5,8 +5,8 @@ import {
 import { createThreeSceneHost } from "./three-scene-host.mjs";
 import { createCookingWorkbench3D } from "./cooking-workbench-3d.mjs?v=20260801-gameplay7";
 import { createBurgerModel3D } from "./burger-model-3d.mjs";
-import { createCondimentTools3D } from "./condiment-tools-3d.mjs";
-import { createCookingInteractionController } from "./cooking-interaction-controller.mjs?v=20260801-gameplay16";
+import { createCondimentTools3D } from "./condiment-tools-3d.mjs?v=20260801-gameplay28";
+import { createCookingInteractionController } from "./cooking-interaction-controller.mjs?v=20260801-gameplay28";
 import { resolveSoloLayerDrop } from "./cooking-drop-intent.mjs";
 import {
   createCookingMotion,
@@ -143,6 +143,9 @@ export function createSoloCookingStage({
   onError = () => {},
   onStationSelector = () => {},
   onToolGesture = () => {},
+  onIngredientGesture = () => {},
+  onInteractionPause = () => {},
+  directCondimentPickup = true,
   reducedMotion = false,
   tuning = DEFAULT_BURGER_TUNING,
   vibrate,
@@ -164,6 +167,8 @@ export function createSoloCookingStage({
   validateFactory(onError, "onError");
   validateFactory(onStationSelector, "onStationSelector");
   validateFactory(onToolGesture, "onToolGesture");
+  validateFactory(onIngredientGesture, "onIngredientGesture");
+  validateFactory(onInteractionPause, "onInteractionPause");
   validateFactory(resourceDisposeObserver, "resourceDisposeObserver");
 
   const cleanupTasks = [];
@@ -245,6 +250,7 @@ export function createSoloCookingStage({
     toolDocks: workbench.toolDocks,
     sauceIds: SOLO_COOKING_SAUCE_IDS,
   });
+  tools.setDockedVisible?.(Boolean(directCondimentPickup));
   cleanupTasks.push(() => disposeObserved(tools, "tools"));
   const celebration = celebrationFactory(THREE);
   cleanupTasks.push(() => celebration?.dispose?.());
@@ -284,6 +290,7 @@ export function createSoloCookingStage({
   let externallyPaused = false;
   let competitionMode = false;
   let competitionReadOnly = false;
+  let cameraLocked = true;
   let suppressInvalidFeedback = false;
   let lastFrameTime = 0;
   const transitions = new Map();
@@ -908,7 +915,8 @@ export function createSoloCookingStage({
     if (disposed || competitionReadOnly) return false;
     try {
       const nextState = addSoloSauceStrokes(state, strokes);
-      burger.commitSaucePreviews(gestureId);
+      burger.cancelSaucePreviews(gestureId);
+      for (const stroke of strokes) burger.addSauceStroke(stroke);
       state = nextState;
     } catch (error) {
       burger.cancelSaucePreviews(gestureId);
@@ -1134,6 +1142,21 @@ export function createSoloCookingStage({
 
   let controller = null;
   const registeredLayerIds = new Set();
+  const registeredLayerSurfaces = new Map();
+  const selectableSurfacesForLayer = (layerId) => {
+    const layer = burger.getLayer(layerId);
+    const surfaces = [layer.userData.selectableSurface];
+    if (state.locations[layerId]?.kind !== "bin") return surfaces;
+
+    const station = stationForInstance(layerId);
+    if (station?.surface?.isObject3D && !surfaces.includes(station.surface)) {
+      // Thin or hollow ingredients (notably the onion pieces) do not cover the
+      // visual centre of their tray. Treat the tray as a pick proxy for its
+      // current source so the visible ingredient target has no dead zone.
+      surfaces.push(station.surface);
+    }
+    return surfaces;
+  };
   const activeModelLayerIds = () => {
     const activeIds = new Set(state.assembledOrder);
     const sources = state.stationSources ?? state.binSources;
@@ -1142,20 +1165,34 @@ export function createSoloCookingStage({
     });
     return activeIds;
   };
+  const sameSurfaceList = (left = [], right = []) => (
+    left.length === right.length && left.every((surface, index) => surface === right[index])
+  );
   const reconcileModelInstances = () => {
     const desiredIds = new Set(Object.keys(state.instances));
     const activeIds = activeModelLayerIds();
     for (const layerId of [...burger.layers.keys()]) {
       if (desiredIds.has(layerId)) {
         burger.getLayer(layerId).visible = activeIds.has(layerId);
-        if (!activeIds.has(layerId) && registeredLayerIds.has(layerId)) {
-          controller?.unregisterDraggable?.(layerId);
-          registeredLayerIds.delete(layerId);
+        if (registeredLayerIds.has(layerId)) {
+          const nextSurfaces = activeIds.has(layerId)
+            ? selectableSurfacesForLayer(layerId)
+            : [];
+          const currentSurfaces = registeredLayerSurfaces.get(layerId) ?? [];
+          if (!activeIds.has(layerId) || !sameSurfaceList(currentSurfaces, nextSurfaces)) {
+            // A replenished station transfers its tray pick proxy from the
+            // placed instance to the new source instance. Release the old
+            // registration first so one surface never has two owners.
+            controller?.unregisterDraggable?.(layerId);
+            registeredLayerIds.delete(layerId);
+            registeredLayerSurfaces.delete(layerId);
+          }
         }
         continue;
       }
       controller?.unregisterDraggable?.(layerId);
       registeredLayerIds.delete(layerId);
+      registeredLayerSurfaces.delete(layerId);
       if (SOLO_BURGER_INGREDIENT_IDS.includes(layerId)) {
         burger.getLayer(layerId).visible = false;
         continue;
@@ -1168,12 +1205,14 @@ export function createSoloCookingStage({
         : burger.createLayerInstance(state.instances[layerId], layerId);
       layer.visible = activeIds.has(layerId);
       if (activeIds.has(layerId) && !registeredLayerIds.has(layerId) && controller) {
+        const layerSurfaces = selectableSurfacesForLayer(layerId);
         controller?.registerDraggable?.({
           id: layerId,
           object: layer,
-          surfaces: [layer.userData.selectableSurface],
+          surfaces: layerSurfaces,
         });
         registeredLayerIds.add(layerId);
+        registeredLayerSurfaces.set(layerId, layerSurfaces);
       }
     }
     controller?.setFoodSurfaces?.(state.assembledOrder.map(
@@ -1193,9 +1232,10 @@ export function createSoloCookingStage({
     draggables: initialLayerIds.map((id) => ({
       id,
       object: burger.getLayer(id),
-      surfaces: [burger.getLayer(id).userData.selectableSurface],
+      surfaces: selectableSurfacesForLayer(id),
     })),
     condimentTools: tools,
+    directCondimentPickup,
     sauceIds: SOLO_COOKING_SAUCE_IDS,
     foodSurfaces: state.assembledOrder.map(
       (id) => burger.getLayer(id).userData.selectableSurface,
@@ -1324,13 +1364,17 @@ export function createSoloCookingStage({
     onSauceCommit: commitSauceGesture,
     onSauceCancel: cancelSauceGesture,
     onSauceTool: onToolGesture,
+    onIngredientGesture,
     onStationSelector: ({ slotId, region }) => {
       onStationSelector(Object.freeze({ slotId, region }));
     },
   });
   controller.setOrbitEnabled?.(false);
-  controller.setPinchZoomEnabled?.(true);
-  initialLayerIds.forEach((id) => registeredLayerIds.add(id));
+  controller.setPinchZoomEnabled?.(false);
+  initialLayerIds.forEach((id) => {
+    registeredLayerIds.add(id);
+    registeredLayerSurfaces.set(id, selectableSurfacesForLayer(id));
+  });
   cleanupTasks.push(() => controller?.dispose?.());
 
   const setFocusMode = (value, { notify = true } = {}) => {
@@ -1345,8 +1389,8 @@ export function createSoloCookingStage({
       focusCameraView = controller.getCameraView?.() ?? null;
       focusWorkbenchVisible = workbench.root.visible;
       selectedLayerId = null;
-      controller.setOrbitEnabled?.(true);
-      controller.setPinchZoomEnabled?.(true);
+      controller.setOrbitEnabled?.(!cameraLocked);
+      controller.setPinchZoomEnabled?.(!cameraLocked);
       controller.setInspectionOnly?.(true);
       workbench.root.updateMatrixWorld?.(true);
       host.scene.attach(burger.root);
@@ -1369,7 +1413,7 @@ export function createSoloCookingStage({
       }
       controller.setInspectionOnly?.(false);
       controller.setOrbitEnabled?.(false);
-      controller.setPinchZoomEnabled?.(true);
+      controller.setPinchZoomEnabled?.(false);
       selectedLayerId = null;
       if (focusCameraView) controller.setCameraView?.(focusCameraView, "burger-focus-return");
       focusCameraView = null;
@@ -1526,9 +1570,13 @@ export function createSoloCookingStage({
     try {
       controller.pause();
     } finally {
-      suppressInvalidFeedback = false;
-      dropIntent = null;
-      clearTransientVisuals();
+      try {
+        onInteractionPause(Object.freeze({ reason: "interaction-paused" }));
+      } finally {
+        suppressInvalidFeedback = false;
+        dropIntent = null;
+        clearTransientVisuals();
+      }
     }
   };
 
@@ -1572,7 +1620,8 @@ export function createSoloCookingStage({
     competitionReadOnly = next;
     clearTransientVisuals();
     controller.setInspectionOnly?.(competitionReadOnly || focused);
-    controller.setOrbitEnabled?.(competitionReadOnly || focused);
+    controller.setOrbitEnabled?.(!cameraLocked && (competitionReadOnly || focused));
+    controller.setPinchZoomEnabled?.(!cameraLocked && (competitionReadOnly || focused));
     if (externallyPaused) pauseInteractionsSilently();
     else controller.resume();
     emit("competition-readonly");
@@ -1602,7 +1651,8 @@ export function createSoloCookingStage({
       reason: competitionMode ? "competition-state-fit" : "state-replace-fit",
     });
     controller.setInspectionOnly?.(competitionReadOnly || focused);
-    controller.setOrbitEnabled?.(competitionReadOnly || focused);
+    controller.setOrbitEnabled?.(!cameraLocked && (competitionReadOnly || focused));
+    controller.setPinchZoomEnabled?.(!cameraLocked && (competitionReadOnly || focused));
     if (state.finished || externallyPaused) pauseInteractionsSilently();
     else controller.resume();
     emit(reason);
@@ -1631,7 +1681,8 @@ export function createSoloCookingStage({
     applyVisualState({ sauces: true });
     adaptCameraToStack({ preserveDistance: false, reason: "competition-clear-fit" });
     controller.setInspectionOnly?.(competitionReadOnly);
-    controller.setOrbitEnabled?.(competitionReadOnly);
+    controller.setOrbitEnabled?.(!cameraLocked && competitionReadOnly);
+    controller.setPinchZoomEnabled?.(!cameraLocked && competitionReadOnly);
     emit("competition-clear");
     return true;
   };
@@ -1744,10 +1795,34 @@ export function createSoloCookingStage({
     previewSlotContent,
     clearSlotContentPreview,
     setInteractionPaused,
+    isInteractionPaused: () => externallyPaused,
     setCameraLocked(value = true) {
-      const locked = Boolean(value);
-      controller.setOrbitEnabled?.(!locked);
-      return locked;
+      cameraLocked = Boolean(value);
+      const allowCameraInteraction = !cameraLocked && (focused || competitionReadOnly);
+      controller.setOrbitEnabled?.(allowCameraInteraction);
+      controller.setPinchZoomEnabled?.(allowCameraInteraction);
+      return cameraLocked;
+    },
+    beginSauceGesture(sauceId, event) {
+      if (disposed || competitionReadOnly || focused || state.finished) return false;
+      return controller.beginSauceGesture?.(sauceId, event) ?? false;
+    },
+    moveSauceGesture(event) {
+      if (disposed) return false;
+      controller.pointerMove?.(event);
+      return controller.getState?.() === "dragging-bottle";
+    },
+    endSauceGesture(event) {
+      if (disposed) return false;
+      if (controller.getState?.() !== "dragging-bottle") {
+        return Object.freeze({ handled: false, committed: false, reason: "not-active" });
+      }
+      return controller.pointerUp?.(event)
+        ?? Object.freeze({ handled: false, committed: false, reason: "not-active" });
+    },
+    cancelSauceGesture(reason = "capsule-cancelled") {
+      if (disposed) return false;
+      return controller.cancelActiveGesture?.(reason) ?? false;
     },
     setCompetitionReadOnly,
     replaceState,

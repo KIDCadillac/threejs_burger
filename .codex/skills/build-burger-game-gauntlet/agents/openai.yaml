@@ -1,0 +1,4 @@
+interface:
+  display_name: "Burger Game Gauntlet"
+  short_description: "Build and ruthlessly verify the burger game"
+  default_prompt: "Use $build-burger-game-gauntlet to improve one complete burger-game milestone and verify it visually."

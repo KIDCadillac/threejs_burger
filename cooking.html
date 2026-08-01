@@ -8,7 +8,7 @@
     <meta name="feedback-upload-key" content="kid-burger-feedback-20260721-v1">
     <title>小馆经典牛肉堡 · 第一人称料理台</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./cooking.css?v=20260801-gameplay16">
+    <link rel="stylesheet" href="./cooking.css?v=20260801-gameplay28">
   </head>
   <body class="first-person-cooking" data-experience="first-person-counter">
     <main class="cooking-app">
@@ -89,7 +89,7 @@
 
       <p class="inventory-stock" id="cooking-stock" aria-live="polite">小馆料盒已备齐</p>
 
-      <section class="cooking-stage" aria-label="第一人称三维料理操作区" data-control-grammar="drag-place sauce-squeeze undo serve">
+      <section class="cooking-stage" aria-label="第一人称三维料理操作区" data-control-grammar="drag-place sauce-capsule-swipe hold-lift-squeeze undo serve">
         <div class="first-person-hands" id="first-person-hands" data-hand-state="idle" data-hand-side="center" aria-hidden="true">
           <span class="first-person-hand first-person-hand--left">
             <img src="./art/cooking/first-person-puppet-hand.png" alt="" draggable="false">
@@ -99,9 +99,12 @@
           </span>
         </div>
         <p class="first-person-action-label" id="cooking-action-label" aria-live="polite">先把下层面包拖到餐盘中央</p>
-        <canvas id="cooking-canvas" tabindex="0" aria-label="三维汉堡料理台，可拖动食材和调料瓶" aria-describedby="cooking-objective">
+        <canvas id="cooking-canvas" tabindex="0" aria-label="固定视角三维汉堡料理台，可拖动食材；调料从下方胶囊选取" aria-describedby="cooking-objective">
           你的浏览器需要支持 WebGL 才能使用三维料理台。
         </canvas>
+        <div class="sauce-capsule" id="sauce-capsule" data-sauce-capsule="true" data-selected-sauce="ketchup" data-gesture-state="idle" aria-label="调料胶囊，左右滑动切换，长按后向上拨取用">
+          <span>左右滑切换调料 · 长按上拨取用</span>
+        </div>
         <div class="burger-shop-ui" id="burger-shop-ui" role="region" aria-label="汉堡店订单挑战" hidden>
           <header class="shop-hud">
             <div class="shop-customer" id="shop-customer" aria-live="polite">
@@ -387,6 +390,6 @@
 
       <p class="cooking-status" id="cooking-status" role="status" aria-live="polite"></p>
     </main>
-    <script type="module" src="./cooking-loader.mjs?v=20260801-gameplay16"></script>
+    <script type="module" src="./cooking-loader.mjs?v=20260801-gameplay28"></script>
   </body>
 </html>

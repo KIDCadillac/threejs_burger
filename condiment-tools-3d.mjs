@@ -193,6 +193,7 @@ export function createCondimentTools3D(THREE, {
   const homePoses = new Map();
   const updateBottleContent = new Map();
   let activePreview = null;
+  let dockedVisible = true;
   const directionScratch = new THREE.Vector3();
   const homeDirectionScratch = new THREE.Vector3();
   const axisScratch = new THREE.Vector3();
@@ -291,6 +292,7 @@ export function createCondimentTools3D(THREE, {
     const bottle = requireBottle(id);
     restorePose(bottle.root, homePoses.get(bottle.id));
     bottle.root.userData.active = false;
+    bottle.root.visible = dockedVisible;
     return true;
   };
   const clearSlotContentPreview = () => {
@@ -351,6 +353,21 @@ export function createCondimentTools3D(THREE, {
     },
     getBySlot(slotId) {
       return descriptorMode ? bottles.get(slotId) ?? null : null;
+    },
+    claimBottleForSauce(sauce) {
+      if (disposed) return null;
+      if (!activeSauceIds.includes(sauce)) {
+        throw new TypeError(`Unsupported sauce id: ${String(sauce)}`);
+      }
+      const existing = [...bottles.values()].find((bottle) => bottle.sauce === sauce);
+      if (existing) return existing;
+      const available = [...bottles.values()].find(
+        (bottle) => !bottle.root.userData.active,
+      );
+      if (!available) return null;
+      dockBottle(available.id);
+      updateBottleContent.get(available.id)(sauce);
+      return available;
     },
     previewSlotContent,
     clearSlotContentPreview,
@@ -440,9 +457,18 @@ export function createCondimentTools3D(THREE, {
       const bottle = requireBottle(id);
       const enabled = Boolean(active);
       bottle.root.userData.active = enabled;
+      bottle.root.visible = enabled || dockedVisible;
       const scale = enabled ? ACTIVE_SCALE : 1;
       bottle.root.scale.setScalar(scale);
       return true;
+    },
+    setDockedVisible(value) {
+      if (disposed) return dockedVisible;
+      dockedVisible = Boolean(value);
+      for (const bottle of bottles.values()) {
+        bottle.root.visible = Boolean(bottle.root.userData.active) || dockedVisible;
+      }
+      return dockedVisible;
     },
     setSlotContent(slotId, sauce) {
       if (disposed) return false;

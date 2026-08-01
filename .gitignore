@@ -10,3 +10,8 @@ output/booth-redesign-audit/2[0-3]-*.jpg
 output/booth-redesign-audit/09-editor-theatre.png
 output/booth-redesign-audit/09-editor-theatre-crop.png
 output/booth-redesign-audit/09-editor-theatre-crop2.png
+
+# Burger Gauntlet browser probes: keep final evidence, ignore repeated raw/timeline frames.
+output/burger-gauntlet-ingredient-hand-2026-08-01/*-raw.png
+output/burger-gauntlet-ingredient-hand-2026-08-01/[0-9][0-9]-track-*.png
+output/burger-gauntlet-ingredient-hand-2026-08-01/track-live-*.png

@@ -1,5 +1,5 @@
 import * as THREE from "./vendor/three.module.min.js";
-import { createSoloCookingStage } from "./cooking-solo-stage.mjs?v=20260801-gameplay16";
+import { createSoloCookingStage } from "./cooking-solo-stage.mjs?v=20260801-gameplay28";
 import {
   disposeActiveSoloCookingPage,
   mountSoloCookingLifecycle,
@@ -12,10 +12,11 @@ import {
 import { createCookingHighlightReplayCoordinator } from "./cooking-highlight-replay.mjs";
 import { createCookingTuningPanel } from "./cooking-tuning-panel.mjs";
 import { loadBurgerTuning, saveBurgerTuning } from "./burger-tuning.mjs";
-import { BURGER_RECIPES } from "./burger-recipes.mjs";
+import { BURGER_RECIPES, SOLO_COOKING_SAUCE_IDS } from "./burger-recipes.mjs";
 import { MAX_SOLO_STACK_LAYERS } from "./cooking-solo-state.mjs";
 import { createWorkbenchSlotPicker } from "./cooking-workbench-picker.mjs";
 import { createWorkbenchSlotControls } from "./workbench-slot-controls.mjs";
+import { createSauceCapsuleGesture } from "./cooking-sauce-capsule.mjs?v=20260801-gameplay28";
 import {
   loadWorkbenchLoadout,
   saveWorkbenchLoadout,
@@ -56,7 +57,7 @@ const TUTORIAL_COPY = Object.freeze({
   pick: ["第一步：拿起食材", "按住任意一层食材，把它从料盒里拖出来。"],
   drop: ["放到中央餐盘", "拖到餐盘中央再松手，食材会自动吸附。"],
   rotate: ["转一转看看", "选中食材后，点下面的大旋转按钮，或双指扭转。"],
-  sauce: ["亲手挤一条酱", "抓住前排任意调料瓶，倾斜并划过食材表面。"],
+  sauce: ["亲手挤一条酱", "在底部胶囊左右滑选调料，按住约半秒后向上拨，再拖到汉堡上松手。"],
   assemble: ["继续自由组合", "把剩余食材按你喜欢的顺序装盘；也能拖回料盒重排。"],
   finish: ["完成料理", "至少两层食材已经装好，点最下方的完成料理。"],
 });
@@ -127,6 +128,7 @@ export function bootSoloCookingPage(
     tuningPanelFactory = createCookingTuningPanel,
     workbenchPickerFactory = createWorkbenchSlotPicker,
     slotControlsFactory = createWorkbenchSlotControls,
+    sauceCapsuleFactory = createSauceCapsuleGesture,
     autosaveFactory = createSoloAutosave,
     audioFactory = createBurgerShopAudio,
     manageLoading = true,
@@ -134,6 +136,8 @@ export function bootSoloCookingPage(
     mountDefaultActions = true,
     onStageChange = () => {},
     onToolGesture = () => {},
+    onIngredientGesture = () => {},
+    onInteractionPause = () => {},
   } = {},
 ) {
   if (typeof onStageChange !== "function") {
@@ -141,6 +145,12 @@ export function bootSoloCookingPage(
   }
   if (typeof onToolGesture !== "function") {
     throw new TypeError("onToolGesture must be a function");
+  }
+  if (typeof onIngredientGesture !== "function") {
+    throw new TypeError("onIngredientGesture must be a function");
+  }
+  if (typeof onInteractionPause !== "function") {
+    throw new TypeError("onInteractionPause must be a function");
   }
   const canvas = documentTarget?.querySelector?.("#cooking-canvas");
   if (!canvas) throw new Error("Missing #cooking-canvas");
@@ -203,6 +213,7 @@ export function bootSoloCookingPage(
     recipeCards: [...(documentTarget.querySelectorAll?.('[data-action="recipe-select"]') ?? [])],
     workbenchPicker: documentTarget.querySelector("#workbench-picker"),
     slotControlsRoot: documentTarget.querySelector("#workbench-slot-controls"),
+    sauceCapsuleRoot: documentTarget.querySelector("#sauce-capsule"),
   };
   const focusManager = createFinishFocusManager({
     dialog: elements.finishSheet,
@@ -217,6 +228,7 @@ export function bootSoloCookingPage(
   let tuningPanel = null;
   let workbenchPicker = null;
   let slotControls = null;
+  let sauceCapsule = null;
   let autosave = null;
   let audio = null;
   let attempt = null;
@@ -454,6 +466,9 @@ export function bootSoloCookingPage(
     }
     elements.focusDeleteButton.disabled = !hasFocusedLayer || !focusCapabilities.canDelete;
     slotControls?.setHidden?.(focused);
+    sauceCapsule?.setDisabled?.(
+      focused || state.finished || Boolean(stage.isInteractionPaused?.()),
+    );
     elements.finishSheet.hidden = !state.finished;
 
     if (activeRecipe && elements.recipeReferenceSteps) {
@@ -606,9 +621,18 @@ export function bootSoloCookingPage(
       storage: pageStorage,
       loadout,
       initialState,
+      directCondimentPickup: false,
       reducedMotion: windowTarget.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches,
       onChange: render,
-      onToolGesture,
+      onToolGesture: (detail) => {
+        sauceCapsule?.syncToolGesture?.(detail);
+        onToolGesture(detail);
+      },
+      onIngredientGesture,
+      onInteractionPause: (detail) => {
+        sauceCapsule?.cancel?.(detail?.reason ?? "interaction-paused");
+        onInteractionPause(detail);
+      },
       onStationSelector: (detail) => openWorkbenchPicker(detail),
       onError: (error) => {
         elements.error.hidden = false;
@@ -616,6 +640,39 @@ export function bootSoloCookingPage(
       },
     });
     stage.setCameraLocked?.(true);
+    if (elements.sauceCapsuleRoot) {
+      sauceCapsule = sauceCapsuleFactory({
+        element: elements.sauceCapsuleRoot,
+        sauceIds: SOLO_COOKING_SAUCE_IDS,
+        initialSauceId: "ketchup",
+        timers: windowTarget,
+        onSelect: ({ sauceId }) => {
+          elements.status.textContent = `已选择${SAUCE_NAMES[sauceId] ?? sauceId}`;
+        },
+        onPickupStart: ({ sauceId, event }) => (
+          stage.beginSauceGesture?.(sauceId, event) ?? false
+        ),
+        onPickupMove: ({ event }) => stage.moveSauceGesture?.(event),
+        onPickupCommit: ({ event }) => stage.endSauceGesture?.(event),
+        onPickupCancel: ({ reason }) => stage.cancelSauceGesture?.(reason),
+        onFeedback: (kind) => {
+          const duration = { select: 8, armed: 12, pickup: 16, drop: 10, hint: 6 }[kind];
+          if (!duration) return;
+          try { windowTarget.navigator?.vibrate?.(duration); } catch { /* optional haptic */ }
+        },
+      });
+      sauceCapsule.setDisabled?.(
+        Boolean(stage.getState?.()?.finished || stage.isInteractionPaused?.()),
+      );
+      const setStageInteractionPaused = stage.setInteractionPaused?.bind(stage);
+      if (setStageInteractionPaused) {
+        stage.setInteractionPaused = (value) => {
+          const paused = setStageInteractionPaused(value);
+          sauceCapsule?.setDisabled?.(paused || Boolean(stage.getState?.()?.finished));
+          return paused;
+        };
+      }
+    }
     const applyWorkbenchContent = (slotId, contentId) => {
       stage.setSlotContent(slotId, contentId);
       loadout = saveWorkbenchLoadout(
@@ -940,6 +997,7 @@ export function bootSoloCookingPage(
       let firstError = null;
       for (const task of [
         () => tuningPanel?.dispose?.(),
+        () => sauceCapsule?.dispose?.(),
         () => slotControls?.dispose?.(),
         () => workbenchPicker?.dispose?.(),
         () => stage?.setInteractionPaused?.(false),
@@ -981,6 +1039,7 @@ export function bootSoloCookingPage(
   } catch (error) {
     for (const task of [
       () => tuningPanel?.dispose?.(),
+      () => sauceCapsule?.dispose?.(),
       () => slotControls?.dispose?.(),
       () => workbenchPicker?.dispose?.(),
       () => stage?.setInteractionPaused?.(false),
