@@ -3110,6 +3110,27 @@ body[data-game-mode="orders"] .shop-result-card {
   animation: first-person-hand-squeeze 420ms ease-in-out both;
 }
 
+.first-person-cooking .first-person-hands[data-hand-state="sauce-hold"] .first-person-hand--right,
+.first-person-cooking .first-person-hands[data-hand-state="sauce-release"] .first-person-hand--right {
+  right: auto;
+  left: calc(var(--hand-tool-x, 50%) + 1.7%);
+  top: calc(var(--hand-tool-y, 32%) + 2.2%);
+  opacity: 1;
+  transform: translate(-50%, -50%) rotate(-3deg) scale(.92);
+  transition-duration: 55ms;
+}
+
+.first-person-cooking .first-person-hands[data-hand-state="sauce-hold"] .first-person-hand--right img,
+.first-person-cooking .first-person-hands[data-hand-state="sauce-release"] .first-person-hand--right img {
+  transform: rotate(-6deg);
+}
+
+.first-person-cooking .first-person-hands[data-hand-state="sauce-release"] .first-person-hand--right {
+  opacity: 0;
+  transform: translate(-35%, -34%) rotate(10deg) scale(.84);
+  transition-duration: 190ms;
+}
+
 .first-person-cooking .first-person-action-label {
   position: absolute;
   z-index: 8;

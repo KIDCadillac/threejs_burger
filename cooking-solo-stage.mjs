@@ -6,7 +6,7 @@ import { createThreeSceneHost } from "./three-scene-host.mjs";
 import { createCookingWorkbench3D } from "./cooking-workbench-3d.mjs?v=20260801-gameplay7";
 import { createBurgerModel3D } from "./burger-model-3d.mjs";
 import { createCondimentTools3D } from "./condiment-tools-3d.mjs";
-import { createCookingInteractionController } from "./cooking-interaction-controller.mjs?v=20260801-gameplay14";
+import { createCookingInteractionController } from "./cooking-interaction-controller.mjs?v=20260801-gameplay16";
 import { resolveSoloLayerDrop } from "./cooking-drop-intent.mjs";
 import {
   createCookingMotion,
@@ -142,6 +142,7 @@ export function createSoloCookingStage({
   onChange = () => {},
   onError = () => {},
   onStationSelector = () => {},
+  onToolGesture = () => {},
   reducedMotion = false,
   tuning = DEFAULT_BURGER_TUNING,
   vibrate,
@@ -162,6 +163,7 @@ export function createSoloCookingStage({
   validateFactory(onChange, "onChange");
   validateFactory(onError, "onError");
   validateFactory(onStationSelector, "onStationSelector");
+  validateFactory(onToolGesture, "onToolGesture");
   validateFactory(resourceDisposeObserver, "resourceDisposeObserver");
 
   const cleanupTasks = [];
@@ -1321,6 +1323,7 @@ export function createSoloCookingStage({
     onSaucePreview: previewSauceGesture,
     onSauceCommit: commitSauceGesture,
     onSauceCancel: cancelSauceGesture,
+    onSauceTool: onToolGesture,
     onStationSelector: ({ slotId, region }) => {
       onStationSelector(Object.freeze({ slotId, region }));
     },

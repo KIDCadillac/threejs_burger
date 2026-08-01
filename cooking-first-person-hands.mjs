@@ -21,6 +21,16 @@ function selectedSlot(detail) {
     ?? null;
 }
 
+function normalizedToolPosition(detail) {
+  const x = Number(detail?.position?.x);
+  const y = Number(detail?.position?.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return Object.freeze({
+    x: Math.max(0, Math.min(1, x)),
+    y: Math.max(0, Math.min(1, y)),
+  });
+}
+
 export function firstPersonHandPoseForStageChange(detail = {}) {
   const selectedLayerId = detail.selectedLayerId ?? "";
   const side = sideForSlot(selectedSlot(detail), selectedLayerId);
@@ -66,18 +76,19 @@ export function createCookingFirstPersonHands(
 ) {
   const root = documentTarget?.querySelector?.("#first-person-hands");
   if (!root) return null;
-  const previewSide = (() => {
+  const previewMode = (() => {
     if (documentTarget?.body?.dataset?.debug !== "true") return null;
     try {
       const value = new URLSearchParams(windowTarget?.location?.search ?? "")
         .get("handPreview");
-      return value === "left" || value === "right" ? value : null;
+      return ["left", "right", "sauce"].includes(value) ? value : null;
     } catch {
       return null;
     }
   })();
   let settleTimer = null;
   let beat = 0;
+  let activeToolGestureId = null;
 
   const clearSettle = () => {
     if (settleTimer === null) return;
@@ -101,23 +112,73 @@ export function createCookingFirstPersonHands(
     }
   };
 
+  const setToolPosition = (detail) => {
+    const position = normalizedToolPosition(detail);
+    if (!position) return null;
+    root.style?.setProperty?.("--hand-tool-x", `${position.x * 100}%`);
+    root.style?.setProperty?.("--hand-tool-y", `${position.y * 100}%`);
+    return position;
+  };
+
   const handleStageChange = (detail) => {
-    const pose = previewSide
-      ? Object.freeze({ state: "reach", side: previewSide, settleAfter: 0 })
+    if (activeToolGestureId !== null
+      && ["sauce-stroke", "sauce-strokes", "sauce-gesture"].includes(detail?.reason)) {
+      return Object.freeze({ state: "sauce-hold", side: "right", settleAfter: 0 });
+    }
+    const pose = previewMode
+      ? Object.freeze({
+        state: previewMode === "sauce" ? "sauce-hold" : "reach",
+        side: previewMode === "left" ? "left" : "right",
+        settleAfter: 0,
+      })
       : firstPersonHandPoseForStageChange(detail);
     if (pose) setPose(pose);
     return pose;
   };
 
-  setPose(previewSide
-    ? { state: "reach", side: previewSide }
+  const handleToolGesture = (detail = {}) => {
+    const phase = detail.phase;
+    const gestureId = detail.gestureId ?? null;
+    if (phase === "start" || phase === "move") {
+      activeToolGestureId = gestureId;
+      setToolPosition(detail);
+      const pose = Object.freeze({ state: "sauce-hold", side: "right", settleAfter: 0 });
+      if (root.dataset.handState !== pose.state || root.dataset.handSide !== pose.side) {
+        setPose(pose);
+      }
+      return pose;
+    }
+    if (phase === "end") {
+      if (activeToolGestureId !== null && gestureId !== null
+        && gestureId !== activeToolGestureId) return null;
+      setToolPosition(detail);
+      activeToolGestureId = null;
+      const pose = Object.freeze({ state: "sauce-release", side: "right", settleAfter: 220 });
+      setPose(pose);
+      return pose;
+    }
+    return null;
+  };
+
+  if (previewMode === "sauce") {
+    setToolPosition({ position: { x: 0.79, y: 0.43 } });
+  }
+  setPose(previewMode
+    ? {
+      state: previewMode === "sauce" ? "sauce-hold" : "reach",
+      side: previewMode === "left" ? "left" : "right",
+    }
     : { state: "idle", side: "center" });
   return Object.freeze({
     handleStageChange,
+    handleToolGesture,
     dispose() {
       clearSettle();
+      activeToolGestureId = null;
       root.dataset.handState = "idle";
       root.dataset.handSide = "center";
+      root.style?.removeProperty?.("--hand-tool-x");
+      root.style?.removeProperty?.("--hand-tool-y");
     },
   });
 }

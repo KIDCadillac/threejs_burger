@@ -39,13 +39,24 @@ test("cooking loader and app wire the fixed burger loop without a puppet perform
   assert.doesNotMatch(loader, /puppetPerformer/);
   assert.match(loader, /importFirstPersonHands/);
   assert.match(loader, /handPerformer\?\.handleStageChange\?\.\(detail\)/);
+  assert.match(loader, /handPerformer\?\.handleToolGesture\?\.\(detail\)/);
   assert.match(loader, /dataset\.debug/);
   assert.match(app, /chooseRecipe\(CLASSIC_BURGER_RECIPE_ID, \{ resume: false \}\)/);
   assert.match(app, /evaluateClassicBurger/);
   assert.match(app, /validateClassicTransition/);
   assert.match(app, /settleClassicBurgerAttempt/);
   assert.match(app, /stage\.setCameraLocked\?\.\(true\)/);
-  assert.match(await readFile(new URL("cooking-solo-stage.mjs", root), "utf8"), /reason: "reset-fit"/);
+  assert.match(app, /onToolGesture/);
+  const stage = await readFile(new URL("cooking-solo-stage.mjs", root), "utf8");
+  assert.match(stage, /reason: "reset-fit"/);
+  assert.match(stage, /onSauceTool: onToolGesture/);
+  const interaction = await readFile(
+    new URL("cooking-interaction-controller.mjs", root),
+    "utf8",
+  );
+  assert.match(interaction, /sauceToolDetail\(transactionSession, "start"\)/);
+  assert.match(interaction, /sauceToolDetail\(session, "move"\)/);
+  assert.match(interaction, /sauceToolDetail\(session, "end", "pointer-up"\)/);
   assert.match(css, /\.first-person-cooking \.cooking-stage/);
   assert.match(css, /\.first-person-cooking \.first-person-action-label/);
   assert.match(
@@ -56,6 +67,7 @@ test("cooking loader and app wire the fixed burger loop without a puppet perform
     css,
     /\.first-person-hand--right img \{ transform: rotate\(-68deg\); \}/,
   );
+  assert.match(css, /data-hand-state="sauce-hold"/);
   assert.match(css, /\.first-person-cooking \.workbench-slot-controls \{ display: none; \}/);
   assert.match(css, /\.first-person-cooking\[data-debug="true"\] \.header-actions/);
 });

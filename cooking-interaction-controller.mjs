@@ -187,6 +187,7 @@ export function createCookingInteractionController({
   onSaucePreview = () => {},
   onSauceCommit = null,
   onSauceCancel = () => {},
+  onSauceTool = () => {},
 } = {}) {
   if (!THREE?.Raycaster || !THREE?.Vector2) {
     throw new TypeError("A compatible Three.js namespace is required");
@@ -219,6 +220,7 @@ export function createCookingInteractionController({
   requireFunction(onSaucePreview, "onSaucePreview");
   if (onSauceCommit !== null) requireFunction(onSauceCommit, "onSauceCommit");
   requireFunction(onSauceCancel, "onSauceCancel");
+  requireFunction(onSauceTool, "onSauceTool");
   if (injectedRaycast !== undefined) requireFunction(injectedRaycast, "raycast");
   requireFunction(pickPriority, "pickPriority");
   if (projectToPrep !== undefined) requireFunction(projectToPrep, "projectToPrep");
@@ -284,6 +286,7 @@ export function createCookingInteractionController({
   const nozzleDirectionScratch = new THREE.Vector3();
   const bottleAimScratch = new THREE.Vector3();
   const bottleOriginScratch = new THREE.Vector3();
+  const bottleProjectionScratch = new THREE.Vector3();
   const foodBoundsScratch = new THREE.Box3();
   let surfaces = [];
   let edibleSurfaces = [];
@@ -445,6 +448,23 @@ export function createCookingInteractionController({
     hit: session.hit ?? null,
     ...(reason ? { reason } : {}),
   });
+
+  const sauceToolDetail = (session, phase, reason = null) => {
+    const anchor = session.bottle.body ?? session.bottle.root;
+    anchor.updateWorldMatrix?.(true, false);
+    anchor.getWorldPosition(bottleProjectionScratch).project(camera);
+    return Object.freeze({
+      phase,
+      gestureId: session.gestureId,
+      bottleId: session.bottle.id,
+      sauce: session.bottle.sauce,
+      position: Object.freeze({
+        x: clamp((bottleProjectionScratch.x + 1) * 0.5, 0, 1),
+        y: clamp((1 - bottleProjectionScratch.y) * 0.5, 0, 1),
+      }),
+      ...(reason ? { reason } : {}),
+    });
+  };
 
   const defaultHitTest = (event, candidateSurfaces = surfaces) => {
     if (!setPointerRay(event)) return null;
@@ -808,6 +828,7 @@ export function createCookingInteractionController({
     }
     updateBottlePreview(session);
     emitBottlePreview(session);
+    onSauceTool(sauceToolDetail(session, "move"));
   };
 
   const implicitDraggable = (surface) => {
@@ -943,6 +964,7 @@ export function createCookingInteractionController({
     mutationEpoch += 1;
     let invalidDetail = null;
     if (cancelledBottle) {
+      const toolEndDetail = sauceToolDetail(cancelledBottle, "end", reason);
       onSauceCancel(Object.freeze({
         gestureId: cancelledBottle.gestureId,
         reason,
@@ -950,6 +972,7 @@ export function createCookingInteractionController({
       destroyBottlePreview(cancelledBottle);
       condimentTools.setActive(cancelledBottle.bottle.id, false);
       condimentTools.dock(cancelledBottle.bottle.id);
+      onSauceTool(toolEndDetail);
       invalidDetail = Object.freeze({
         id: cancelledBottle.bottle.id,
         object: cancelledBottle.bottle.root,
@@ -1061,6 +1084,7 @@ export function createCookingInteractionController({
           );
           setWorldPosition(bottle.root, desiredScratch);
         }
+        onSauceTool(sauceToolDetail(transactionSession, "start"));
         return;
       }
       const hit = hitTest(event);
@@ -1344,6 +1368,7 @@ export function createCookingInteractionController({
     const strokes = session.completedSegments.map(({ layerId, points }) => (
       detachedFrozenStroke(session.bottle.sauce, layerId, amount, points)
     ));
+    const toolEndDetail = sauceToolDetail(session, "end", "pointer-up");
     let commitError = null;
     if (onSauceCommit && strokes.length) {
       try {
@@ -1374,6 +1399,7 @@ export function createCookingInteractionController({
     state = "idle";
     activePointers.delete(event.pointerId);
     releaseCapture(event.pointerId);
+    onSauceTool(toolEndDetail);
     if (!onSauceCommit) {
       for (const stroke of strokes) onSauceStroke(stroke);
     }

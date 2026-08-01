@@ -1,5 +1,5 @@
 import * as THREE from "./vendor/three.module.min.js";
-import { createSoloCookingStage } from "./cooking-solo-stage.mjs?v=20260801-gameplay14";
+import { createSoloCookingStage } from "./cooking-solo-stage.mjs?v=20260801-gameplay16";
 import {
   disposeActiveSoloCookingPage,
   mountSoloCookingLifecycle,
@@ -133,10 +133,14 @@ export function bootSoloCookingPage(
     openRecipePicker = true,
     mountDefaultActions = true,
     onStageChange = () => {},
+    onToolGesture = () => {},
   } = {},
 ) {
   if (typeof onStageChange !== "function") {
     throw new TypeError("onStageChange must be a function");
+  }
+  if (typeof onToolGesture !== "function") {
+    throw new TypeError("onToolGesture must be a function");
   }
   const canvas = documentTarget?.querySelector?.("#cooking-canvas");
   if (!canvas) throw new Error("Missing #cooking-canvas");
@@ -604,6 +608,7 @@ export function bootSoloCookingPage(
       initialState,
       reducedMotion: windowTarget.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches,
       onChange: render,
+      onToolGesture,
       onStationSelector: (detail) => openWorkbenchPicker(detail),
       onError: (error) => {
         elements.error.hidden = false;
