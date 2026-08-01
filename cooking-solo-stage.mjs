@@ -3,10 +3,10 @@ import {
   SOLO_COOKING_SAUCE_IDS,
 } from "./burger-recipes.mjs";
 import { createThreeSceneHost } from "./three-scene-host.mjs";
-import { createCookingWorkbench3D } from "./cooking-workbench-3d.mjs";
+import { createCookingWorkbench3D } from "./cooking-workbench-3d.mjs?v=20260801-gameplay7";
 import { createBurgerModel3D } from "./burger-model-3d.mjs";
 import { createCondimentTools3D } from "./condiment-tools-3d.mjs";
-import { createCookingInteractionController } from "./cooking-interaction-controller.mjs";
+import { createCookingInteractionController } from "./cooking-interaction-controller.mjs?v=20260801-gameplay14";
 import { resolveSoloLayerDrop } from "./cooking-drop-intent.mjs";
 import {
   createCookingMotion,
@@ -583,6 +583,13 @@ export function createSoloCookingStage({
       magnetPadding: 0.36,
     };
     const resolution = resolveSoloLayerDrop(input);
+    if (resolution.kind === "prep" && state.locations[id]?.kind === "bin") {
+      return Object.freeze({
+        id,
+        ...resolution,
+        targetIndex: input.assembledCount,
+      });
+    }
     if (resolution.kind === "prep" || resolution.kind === "bin" || !homeSlotId) {
       return Object.freeze({
         id,
@@ -1191,6 +1198,11 @@ export function createSoloCookingStage({
     foodSurfaces: state.assembledOrder.map(
       (id) => burger.getLayer(id).userData.selectableSurface,
     ),
+    pickPriority: (hit) => {
+      const metadata = hit?.object?.userData?.cookingSelectable;
+      if (metadata?.kind !== "food-layer" || metadata?.food !== "burger") return 0;
+      return state.locations?.[metadata.layerId]?.kind === "bin" ? 1 : 0;
+    },
     prepBounds: workbench.getLayout().bounds,
     prepPlaneY: 0.42,
     cameraTarget: cameraView.target,
@@ -1729,6 +1741,11 @@ export function createSoloCookingStage({
     previewSlotContent,
     clearSlotContentPreview,
     setInteractionPaused,
+    setCameraLocked(value = true) {
+      const locked = Boolean(value);
+      controller.setOrbitEnabled?.(!locked);
+      return locked;
+    },
     setCompetitionReadOnly,
     replaceState,
     replaceCompetitionState,
@@ -1824,6 +1841,7 @@ export function createSoloCookingStage({
       if (!externallyPaused) controller.resume();
       controller.resetCamera();
       applyVisualState({ sauces: true });
+      adaptCameraToStack({ preserveDistance: false, reason: "reset-fit" });
       emit("reset");
       return true;
     },

@@ -4,21 +4,21 @@ import test from "node:test";
 
 const root = new URL("../", import.meta.url);
 
-test("homepage loads the suspended service booth assets", async () => {
+test("homepage loads one rotating food stage without shop cards", async () => {
   const html = await readFile(new URL("index.html", root), "utf8");
 
-  assert.match(html, /home\.css\?v=20260731-entrygate1/);
-  assert.match(html, /home-lobby-app\.mjs\?v=20260731-entrygate1/);
+  assert.match(html, /home\.css\?v=20260801-focus3/);
+  assert.match(html, /home-focus\.css\?v=20260801-focus3/);
+  assert.match(html, /home-lobby-app\.mjs\?v=20260801-focus3/);
   assert.match(html, /home-layout-editor\.css\?v=20260731-entrygate1/);
   assert.match(html, /home-layout-editor\.mjs\?v=20260731-entrygate1/);
-  assert.match(html, /puppet-booth-strings\.png/);
-  assert.match(html, /class="burger-truck-puppet"/);
-  assert.match(html, /burger-truck-marionette-string--left/);
-  assert.match(html, /burger-truck-marionette-string--right/);
-  assert.match(html, /silver-puppet-booth-frame\.png/);
-  assert.match(html, /data-layout-id="burger\.frame"/);
-  assert.doesNotMatch(html, /silver-truck__body/);
-  assert.doesNotMatch(html, /burger-truck-wheel/);
+  assert.match(html, /id="home-food-canvas"/);
+  assert.match(html, /data-theme-id="burger"/);
+  assert.match(html, /data-theme-id="sushi"/);
+  assert.match(html, /左右滑动切换料理主题/);
+  assert.match(html, /上下滑动切换玩法/);
+  assert.doesNotMatch(html, /home-map-slide/);
+  assert.doesNotMatch(html, /burger-truck/);
 });
 
 test("homepage exposes main scenes and sheets as editable roots", async () => {
@@ -26,12 +26,13 @@ test("homepage exposes main scenes and sheets as editable roots", async () => {
   const requiredIds = [
     "global.hud",
     "global.title",
-    "global.carousel",
+    "global.focus-stage",
+    "global.food-orbit",
+    "global.food-canvas",
+    "global.theme-switcher",
+    "global.mode",
+    "global.start",
     "global.bottom-nav",
-    "burger.card",
-    "burger.truck",
-    "sushi.card",
-    "sushi.scene",
     "sheet.daily",
     "sheet.cookbook",
     "sheet.settings",
@@ -82,30 +83,22 @@ test("editor supports deep selection, tabs, motion preview and timeline replay",
   assert.match(source, /localStorage\.setItem/);
 });
 
-test("truck CSS uses editor-controlled timing and focus variables", async () => {
-  const [css, lobby] = await Promise.all([
-    readFile(new URL("home.css", root), "utf8"),
+test("homepage uses the real 3D food orbit and gesture-owned transforms", async () => {
+  const [css, lobby, orbit] = await Promise.all([
+    readFile(new URL("home-focus.css", root), "utf8"),
     readFile(new URL("home-lobby-app.mjs", root), "utf8"),
+    readFile(new URL("home-food-orbit-3d.mjs", root), "utf8"),
   ]);
 
-  assert.match(css, /--truck-camera-duration/);
-  assert.match(css, /--truck-camera-end-x/);
-  assert.match(css, /--truck-shutter-delay/);
-  assert.match(css, /--truck-menu-duration/);
-  assert.match(css, /@keyframes burger-truck-camera-arrive/);
-  assert.match(css, /@keyframes burger-truck-marionette-drop/);
-  assert.match(css, /@keyframes burger-truck-marionette-strings/);
-  assert.match(css, /@keyframes burger-puppet-stage-idle/);
-  assert.match(css, /var\(--truck-body-duration, 1080ms\)/);
-  assert.match(css, /burger-truck-marionette-string-swing/);
-  assert.match(css, /calc\(var\(--truck-camera-end-x, 0%\) \+ 5\.2%\)/);
-  assert.match(css, /\.home-map-slide\.is-business-open \.burger-service-window__shutter/);
-  assert.match(lobby, /classList\.toggle\("is-business-open", available && businessOpen\)/);
-  assert.match(css, /width: 100%/);
-  assert.doesNotMatch(
-    css,
-    /\.burger-truck-camera\.is-arriving \.burger-truck-wheel\s*\{[\s\S]*?animation:/,
-  );
+  assert.match(css, /--gesture-x/);
+  assert.match(css, /--gesture-y/);
+  assert.match(css, /food-focus-viewport canvas/);
+  assert.match(lobby, /createHomeFoodOrbit/);
+  assert.match(lobby, /resolveSwipe/);
+  assert.match(lobby, /resolveModeSwipe/);
+  assert.match(orbit, /createBurgerModel3D/);
+  assert.match(orbit, /createSushiDisplay/);
+  assert.match(orbit, /setFood/);
 });
 
 test("editor isolates the suspended booth without legacy vehicle layers", async () => {
@@ -159,40 +152,34 @@ test("editor loads and resets the v6 pendulum booth baseline", async () => {
   );
 });
 
-test("homepage carousel gestures stand down while the editor is active", async () => {
+test("homepage two-axis gestures stand down while the editor is active", async () => {
   const source = await readFile(
     new URL("home-lobby-app.mjs", root),
     "utf8",
   );
 
-  assert.match(source, /beginMapDrag\(event\)/);
+  assert.match(source, /beginGesture\(event\)/);
   assert.match(source, /layout-editor-active/);
-  assert.match(source, /event\.isTrusted/);
+  assert.match(source, /resolveSwipe/);
+  assert.match(source, /resolveModeSwipe/);
   assert.match(source, /burger:editor-select-map/);
   assert.match(source, /persist: false/);
 });
 
-test("layout controls preserve the component-owned street row transform", async () => {
-  const [lobby, editor, homeCss, editorCss] = await Promise.all([
+test("layout controls preserve the component-owned food gesture transform", async () => {
+  const [lobby, editor, focusCss] = await Promise.all([
     readFile(new URL("home-lobby-app.mjs", root), "utf8"),
     readFile(new URL("home-layout-editor.mjs", root), "utf8"),
-    readFile(new URL("home.css", root), "utf8"),
-    readFile(new URL("home-layout-editor.css", root), "utf8"),
+    readFile(new URL("home-focus.css", root), "utf8"),
   ]);
 
-  assert.match(lobby, /--map-carousel-transform/);
-  assert.match(lobby, /--map-carousel-z/);
-  assert.match(lobby, /home-map-carousel-state\.mjs\?v=20260731-entrygate1/);
-  assert.match(homeCss, /var\(\s*--map-carousel-transform/);
-  assert.match(homeCss, /z-index:\s*var\(--map-carousel-z\)/);
+  assert.match(lobby, /--gesture-x/);
+  assert.match(lobby, /--gesture-y/);
+  assert.match(focusCss, /translate3d\(var\(--gesture-x\), var\(--gesture-y\), 0\)/);
   assert.match(editor, /layout-editor-has-perspective/);
   assert.doesNotMatch(
     editor,
     /element\.style\.transform\s*=\s*hasPerspective/,
-  );
-  assert.match(
-    editorCss,
-    /\.home-map-slide\.layout-editor-has-perspective[\s\S]*--map-carousel-transform/,
   );
 });
 

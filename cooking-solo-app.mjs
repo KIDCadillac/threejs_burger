@@ -1,5 +1,5 @@
 import * as THREE from "./vendor/three.module.min.js";
-import { createSoloCookingStage } from "./cooking-solo-stage.mjs";
+import { createSoloCookingStage } from "./cooking-solo-stage.mjs?v=20260801-gameplay14";
 import {
   disposeActiveSoloCookingPage,
   mountSoloCookingLifecycle,
@@ -22,6 +22,17 @@ import {
   setWorkbenchSlotContent,
 } from "./workbench-loadout.mjs";
 import { createSoloAutosave } from "./cooking-solo-autosave.mjs";
+import { createBurgerShopAudio } from "./burger-shop-audio.mjs";
+import {
+  CLASSIC_BURGER_RECIPE_ID,
+  evaluateClassicBurger,
+  loadClassicBurgerAttempt,
+  recordClassicBurgerMistake,
+  scoreClassicBurgerAttempt,
+  settleClassicBurgerAttempt,
+  startClassicBurgerAttempt,
+  validateClassicTransition,
+} from "./classic-burger-experience.mjs";
 
 const LAYER_NAMES = Object.freeze({
   "bottom-bun": "下层面包",
@@ -52,14 +63,6 @@ const TUTORIAL_COPY = Object.freeze({
 
 const RECIPE_BY_ID = new Map(BURGER_RECIPES.map((recipe) => [recipe.id, recipe]));
 
-function recipeIdFromLocation(location) {
-  try {
-    return new URL(location?.href).searchParams.get("recipe");
-  } catch {
-    return null;
-  }
-}
-
 function recipeStepItems(recipe) {
   if (!recipe) {
     return [`自由搭配，不限制顺序，最少 2 层即可完成，最多 ${MAX_SOLO_STACK_LAYERS} 层`];
@@ -83,6 +86,22 @@ function recipeLayerProgress(recipe, state) {
     target: steps.length,
     complete: state.assembledOrder.length >= steps.length,
   });
+}
+
+function recipeStepState(index, evaluation) {
+  if (!evaluation) return "pending";
+  if (index < evaluation.completedSteps) return "complete";
+  if (index === evaluation.nextStepIndex && !evaluation.complete) return "current";
+  return "pending";
+}
+
+function renderRecipeStepItems(recipe, evaluation) {
+  return recipeStepItems(recipe).map((item, index) => {
+    const state = recipeStepState(index, evaluation);
+    const status = state === "complete" ? "完成" : state === "current" ? "当前" : "待做";
+    const ariaCurrent = state === "current" ? ' aria-current="step"' : "";
+    return `<li data-step-state="${state}"${ariaCurrent}><span>${index + 1}</span><strong>${item}</strong><small>${status}</small></li>`;
+  }).join("");
 }
 
 function sauceSummary(strokes, instances = {}) {
@@ -109,6 +128,7 @@ export function bootSoloCookingPage(
     workbenchPickerFactory = createWorkbenchSlotPicker,
     slotControlsFactory = createWorkbenchSlotControls,
     autosaveFactory = createSoloAutosave,
+    audioFactory = createBurgerShopAudio,
     manageLoading = true,
     openRecipePicker = true,
     mountDefaultActions = true,
@@ -124,6 +144,7 @@ export function bootSoloCookingPage(
   const elements = {
     loading: documentTarget.querySelector("#cooking-loading"),
     error: documentTarget.querySelector("#cooking-error"),
+    objectiveCard: documentTarget.querySelector(".objective-card"),
     objective: documentTarget.querySelector("#cooking-objective"),
     progress: documentTarget.querySelector("#cooking-progress"),
     stock: documentTarget.querySelector("#cooking-stock"),
@@ -133,7 +154,12 @@ export function bootSoloCookingPage(
     tutorialTitle: documentTarget.querySelector("#tutorial-title"),
     tutorialCopy: documentTarget.querySelector("#tutorial-copy"),
     finishSheet: documentTarget.querySelector("#finish-sheet"),
+    finishTitle: documentTarget.querySelector("#finish-title"),
     finishSummary: documentTarget.querySelector("#finish-summary"),
+    finishReaction: documentTarget.querySelector("#finish-reaction"),
+    finishScore: documentTarget.querySelector("#finish-score"),
+    finishCoins: documentTarget.querySelector("#finish-coins"),
+    finishBalance: documentTarget.querySelector("#finish-balance"),
     finishButton: documentTarget.querySelector('[data-action="finish"]'),
     undoButton: documentTarget.querySelector('[data-action="undo"]'),
     inspectButton: documentTarget.querySelector('[data-action="toggle-expanded"]'),
@@ -169,7 +195,7 @@ export function bootSoloCookingPage(
     recipeReferenceName: documentTarget.querySelector("#recipe-reference-name"),
     recipeReferenceSteps: documentTarget.querySelector("#recipe-reference-steps"),
     puppetOrderProgress: documentTarget.querySelector("#puppet-order-progress"),
-    puppetActionLabel: documentTarget.querySelector("#puppet-action-label"),
+    actionLabel: documentTarget.querySelector("#cooking-action-label"),
     recipeCards: [...(documentTarget.querySelectorAll?.('[data-action="recipe-select"]') ?? [])],
     workbenchPicker: documentTarget.querySelector("#workbench-picker"),
     slotControlsRoot: documentTarget.querySelector("#workbench-slot-controls"),
@@ -188,6 +214,18 @@ export function bootSoloCookingPage(
   let workbenchPicker = null;
   let slotControls = null;
   let autosave = null;
+  let audio = null;
+  let attempt = null;
+  let finalResult = null;
+  let settlement = null;
+  let lastEvaluation = null;
+  let correctionTimer = null;
+  let feedbackTimer = null;
+  let resultSoundTimer = null;
+  let rejectingTransition = false;
+  let pendingCorrectionMessage = "";
+  let acceptedState = null;
+  let pageStorage = null;
   let openWorkbenchPicker = () => false;
   let latest = null;
   let focusLayerReplaceOpen = false;
@@ -244,8 +282,10 @@ export function bootSoloCookingPage(
     return true;
   };
   const render = (detail) => {
+    const previousDetail = latest;
     latest = detail;
     autosave?.save?.(detail.state);
+    if (!acceptedState) acceptedState = detail.state;
     if (!stage) return;
     const {
       state,
@@ -259,14 +299,54 @@ export function bootSoloCookingPage(
     const activeRecipe = state.referenceRecipeId
       ? RECIPE_BY_ID.get(state.referenceRecipeId) ?? null
       : null;
-    const activeRecipeProgress = recipeLayerProgress(activeRecipe, state);
+    const isClassicOrder = activeRecipe?.id === CLASSIC_BURGER_RECIPE_ID;
+    const evaluation = isClassicOrder ? evaluateClassicBurger(activeRecipe, state) : null;
+    const activeRecipeProgress = evaluation ?? recipeLayerProgress(activeRecipe, state);
     const canServe = activeRecipeProgress?.complete ?? state.complete;
+    let invalidTransition = null;
+    const validatesClassicAction = isClassicOrder
+      && ["drop-layer", "sauce-stroke", "sauce-gesture"].includes(detail.reason);
+    if (validatesClassicAction && !rejectingTransition) {
+      const validation = validateClassicTransition(
+        activeRecipe,
+        acceptedState ?? previousDetail?.state ?? state,
+        state,
+        detail.reason,
+      );
+      if (!validation.valid) {
+        invalidTransition = validation;
+        attempt = recordClassicBurgerMistake(attempt, { storage: pageStorage });
+        pendingCorrectionMessage = validation.message;
+        audio?.play?.("tick");
+      } else {
+        acceptedState = state;
+        pendingCorrectionMessage = "";
+        const previousEvaluation = lastEvaluation;
+        if (detail.reason === "drop-layer") audio?.play?.("drop");
+        if (detail.reason === "sauce-stroke" || detail.reason === "sauce-gesture") {
+          audio?.play?.("correct");
+        } else if (previousEvaluation && validation.evaluation.completedSteps > previousEvaluation.completedSteps) {
+          audio?.play?.("correct");
+        }
+      }
+    } else if ([
+      "ready",
+      "reference-recipe",
+      "remove-layer",
+      "undo",
+      "reset",
+      "finish",
+      "continue",
+    ].includes(detail.reason)) {
+      acceptedState = state;
+    }
+    lastEvaluation = evaluation;
     highlights?.observe?.({
       layerCount: state.assembledOrder.length,
       finished: state.finished,
     });
     elements.progress.textContent = activeRecipeProgress
-      ? `${activeRecipeProgress.current}/${activeRecipeProgress.target}`
+      ? `${activeRecipeProgress.completedSteps ?? activeRecipeProgress.current}/${activeRecipeProgress.targetSteps ?? activeRecipeProgress.target}`
       : progress;
     if (elements.puppetOrderProgress) {
       elements.puppetOrderProgress.textContent = elements.progress.textContent;
@@ -275,35 +355,43 @@ export function bootSoloCookingPage(
     elements.stock.textContent = inventoryEntries.length
       ? inventoryEntries.map(([id, count]) => `${LAYER_NAMES[id] ?? id} ×${count}`).join(" · ")
       : "每种原料库存 ×999";
-    elements.objective.textContent = state.finished
-      ? "出餐完成，客人正在品尝"
-      : activeRecipeProgress
-        ? activeRecipeProgress.complete
-          ? "汉堡装好了，可以按铃出餐"
-          : `按订单继续装配，还差 ${activeRecipeProgress.target - activeRecipeProgress.current} 层`
+    elements.objective.textContent = pendingCorrectionMessage
+      || (state.finished
+        ? "出餐完成，顾客已经给出评价"
+        : evaluation
+          ? evaluation.instruction
+          : activeRecipeProgress
+            ? activeRecipeProgress.complete
+              ? "汉堡装好了，可以按铃出餐"
+              : `按订单继续装配，还差 ${activeRecipeProgress.target - activeRecipeProgress.current} 层`
         : state.assembledOrder.length >= MAX_SOLO_STACK_LAYERS
           ? `已经叠满 ${MAX_SOLO_STACK_LAYERS} 层，现在可以完成料理`
           : state.complete
             ? `已经可以完成料理，还能继续叠 ${MAX_SOLO_STACK_LAYERS - state.assembledOrder.length} 层`
             : state.assembledOrder.length
               ? `继续自由叠放，当前 ${state.assembledOrder.length} 层，最多 ${MAX_SOLO_STACK_LAYERS} 层`
-              : `自由叠放食材，最多 ${MAX_SOLO_STACK_LAYERS} 层`;
+              : `自由叠放食材，最多 ${MAX_SOLO_STACK_LAYERS} 层`);
     elements.finishButton.disabled = !canServe || state.finished;
     elements.finishButton.textContent = state.finished
       ? "已出餐"
       : canServe
         ? "按铃出餐"
-        : activeRecipeProgress
+        : evaluation
+          ? `订单 ${evaluation.completedSteps}/${evaluation.targetSteps}`
+          : activeRecipeProgress
           ? `还差 ${activeRecipeProgress.target - activeRecipeProgress.current} 层`
           : `还差 ${Math.max(0, 2 - state.assembledOrder.length)} 层`;
-    if (elements.puppetActionLabel) {
-      elements.puppetActionLabel.textContent = state.finished
+    if (elements.actionLabel) {
+      elements.actionLabel.textContent = pendingCorrectionMessage
+        || (state.finished
         ? "出餐完成，辛苦啦！"
         : canServe
           ? "汉堡装好了，按铃出餐"
-          : state.assembledOrder.length
+          : evaluation
+            ? evaluation.instruction
+            : state.assembledOrder.length
             ? `继续交给厨师，还差 ${activeRecipeProgress?.target - activeRecipeProgress?.current || 1} 层`
-            : "厨师准备好了，先拿下层面包";
+            : "厨师准备好了，先拿下层面包");
     }
     elements.undoButton.disabled = !state.history.length || state.finished;
     elements.inspectButton.disabled = state.finished || !state.assembledOrder.length;
@@ -364,6 +452,10 @@ export function bootSoloCookingPage(
     slotControls?.setHidden?.(focused);
     elements.finishSheet.hidden = !state.finished;
 
+    if (activeRecipe && elements.recipeReferenceSteps) {
+      elements.recipeReferenceSteps.innerHTML = renderRecipeStepItems(activeRecipe, evaluation);
+    }
+
     const order = state.assembledOrder.map((id, index) => (
       `<span>${index + 1}. ${LAYER_NAMES[state.instances?.[id] ?? id] ?? id}</span>`
     )).join("");
@@ -371,9 +463,36 @@ export function bootSoloCookingPage(
     elements.summary.innerHTML = state.assembledOrder.length
       ? `<div class="summary-list">${order}</div><p>${sauces.length ? sauces.join(" · ") : "还没加酱，可以自由混合三种调料。"}</p>`
       : "<p>还没有装盘，先从原料盒拿一层食材。</p>";
-    elements.finishSummary.textContent = sauces.length
-      ? `${state.assembledOrder.length} 层食材，${state.strokes.length} 条酱料轨迹。${sauces.join("；")}`
-      : `${state.assembledOrder.length} 层食材已经组合完成，还可以继续调整或加酱。`;
+    if (state.finished && evaluation?.complete) {
+      if (!finalResult) finalResult = scoreClassicBurgerAttempt(attempt);
+      if (!settlement || settlement.attempt?.id !== attempt?.id) {
+        settlement = settleClassicBurgerAttempt(attempt, finalResult, { storage: pageStorage });
+        attempt = settlement.attempt;
+      }
+      elements.finishTitle.textContent = finalResult.rating;
+      elements.finishReaction.textContent = `“${finalResult.quote}”`;
+      elements.finishScore.textContent = String(finalResult.score);
+      elements.finishCoins.textContent = `+${finalResult.coins}`;
+      elements.finishBalance.textContent = `当前余额 ${settlement.totalCoins}`;
+      elements.finishSummary.textContent = finalResult.mistakes
+        ? `订单 6/6 完成，本次纠正了 ${finalResult.mistakes} 次步骤。`
+        : "订单 6/6 一次完成，食材顺序和番茄酱位置都正确。";
+      if (detail.reason === "finish" && resultSoundTimer === null) {
+        resultSoundTimer = windowTarget.setTimeout?.(() => {
+          resultSoundTimer = null;
+          audio?.play?.("result");
+        }, 220) ?? null;
+      }
+    } else {
+      elements.finishTitle.textContent = "你的三维汉堡做好了！";
+      elements.finishReaction.textContent = "顾客正在等待品尝。";
+      elements.finishScore.textContent = "--";
+      elements.finishCoins.textContent = "+0";
+      elements.finishBalance.textContent = "完成固定订单后结算";
+      elements.finishSummary.textContent = sauces.length
+        ? `${state.assembledOrder.length} 层食材，${state.strokes.length} 条酱料轨迹。${sauces.join("；")}`
+        : `${state.assembledOrder.length} 层食材已经组合完成，还可以继续调整或加酱。`;
+    }
 
     const tutorialText = TUTORIAL_COPY[tutorial.step];
     elements.tutorial.hidden = !tutorialText || state.finished;
@@ -393,6 +512,9 @@ export function bootSoloCookingPage(
       }
     }
 
+    const presentationDetail = invalidTransition || (rejectingTransition && pendingCorrectionMessage)
+      ? Object.freeze({ ...detail, reason: "invalid-drop", message: pendingCorrectionMessage })
+      : detail;
     const statusByReason = {
       "drop-layer": "食材已吸附到餐盘",
       "remove-layer": "食材已放回原料盒",
@@ -403,14 +525,44 @@ export function bootSoloCookingPage(
       finish: "料理完成！",
       continue: "可以继续调整了",
     };
-    if (statusByReason[detail.reason]) elements.status.textContent = statusByReason[detail.reason];
-    if (detail.message) elements.status.textContent = detail.message;
+    if (statusByReason[presentationDetail.reason]) {
+      elements.status.textContent = statusByReason[presentationDetail.reason];
+    }
+    if (presentationDetail.message) elements.status.textContent = presentationDetail.message;
+    if (elements.objectiveCard) {
+      const feedback = invalidTransition || (rejectingTransition && pendingCorrectionMessage)
+        ? "mistake"
+        : validatesClassicAction
+          ? "correct"
+          : "";
+      if (feedback) {
+        elements.objectiveCard.dataset.feedback = feedback;
+        if (feedbackTimer !== null) windowTarget.clearTimeout?.(feedbackTimer);
+        feedbackTimer = windowTarget.setTimeout?.(() => {
+          feedbackTimer = null;
+          delete elements.objectiveCard.dataset.feedback;
+        }, 680) ?? null;
+      }
+    }
     focusManager.sync(state.finished);
-    onStageChange(detail);
+    onStageChange(presentationDetail);
+
+    if (invalidTransition && correctionTimer === null) {
+      stage.setInteractionPaused?.(true);
+      correctionTimer = windowTarget.setTimeout?.(() => {
+        correctionTimer = null;
+        rejectingTransition = true;
+        try {
+          stage.undo();
+        } finally {
+          rejectingTransition = false;
+          stage.setInteractionPaused?.(false);
+        }
+      }, 180) ?? null;
+    }
   };
 
   try {
-    let pageStorage = null;
     try {
       pageStorage = windowTarget?.localStorage ?? null;
     } catch {
@@ -418,12 +570,36 @@ export function bootSoloCookingPage(
     }
     const tuning = loadBurgerTuning({ storage: pageStorage, globalTarget: windowTarget });
     autosave = autosaveFactory({ storage: pageStorage });
-    const initialState = autosave.load();
+    audio = audioFactory({ navigatorTarget: windowTarget.navigator });
+    let initialState = autosave.load();
+    let discardedSavedState = false;
+    const classicRecipe = RECIPE_BY_ID.get(CLASSIC_BURGER_RECIPE_ID);
+    if (initialState) {
+      const restoredEvaluation = evaluateClassicBurger(classicRecipe, initialState);
+      const hasComposition = Boolean(
+        initialState.assembledOrder?.length || initialState.strokes?.length,
+      );
+      const belongsToClassicOrder = !hasComposition
+        || initialState.referenceRecipeId === CLASSIC_BURGER_RECIPE_ID;
+      const canRestore = belongsToClassicOrder
+        && restoredEvaluation.compatible
+        && (!initialState.finished || restoredEvaluation.complete);
+      if (!canRestore) {
+        autosave.clear();
+        initialState = null;
+        discardedSavedState = true;
+      }
+    }
+    attempt = loadClassicBurgerAttempt({ storage: pageStorage });
+    if (discardedSavedState || (!initialState?.finished && attempt.completedAt)) {
+      attempt = startClassicBurgerAttempt({ storage: pageStorage });
+    }
     let loadout = initialState?.stationContents ?? loadWorkbenchLoadout(pageStorage);
     stage = stageFactory({
       THREE,
       canvas,
       tuning,
+      storage: pageStorage,
       loadout,
       initialState,
       reducedMotion: windowTarget.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches,
@@ -434,6 +610,7 @@ export function bootSoloCookingPage(
         elements.status.textContent = error?.message ?? "WebGL 运行异常";
       },
     });
+    stage.setCameraLocked?.(true);
     const applyWorkbenchContent = (slotId, contentId) => {
       stage.setSlotContent(slotId, contentId);
       loadout = saveWorkbenchLoadout(
@@ -617,9 +794,10 @@ export function bootSoloCookingPage(
       const recipe = recipeId === null ? null : RECIPE_BY_ID.get(recipeId);
       elements.recipeReference.hidden = false;
       elements.recipeReferenceName.textContent = recipe?.publicName ?? "自由料理";
-      elements.recipeReferenceSteps.innerHTML = recipeStepItems(recipe)
-        .map((item, index) => `<li>${index + 1}. ${item}</li>`)
-        .join("");
+      const evaluation = recipe?.id === CLASSIC_BURGER_RECIPE_ID && latest?.state
+        ? evaluateClassicBurger(recipe, latest.state)
+        : null;
+      elements.recipeReferenceSteps.innerHTML = renderRecipeStepItems(recipe, evaluation);
       for (const card of elements.recipeCards) {
         const cardId = card.dataset.recipeId || null;
         card.setAttribute?.("aria-pressed", String(cardId === (recipe?.id ?? null)));
@@ -642,6 +820,33 @@ export function bootSoloCookingPage(
       renderRecipeReference(recipe?.id ?? null);
       closeRecipeSelector();
       if (resume) stage.setInteractionPaused(false);
+      return true;
+    };
+    const restartClassicOrder = () => {
+      attempt = startClassicBurgerAttempt({ storage: pageStorage });
+      finalResult = null;
+      settlement = null;
+      lastEvaluation = null;
+      pendingCorrectionMessage = "";
+      acceptedState = null;
+      elements.finishSheet.hidden = true;
+      return stage.reset();
+    };
+    const finishClassicOrder = () => {
+      const recipe = RECIPE_BY_ID.get(CLASSIC_BURGER_RECIPE_ID);
+      const evaluation = evaluateClassicBurger(recipe, stage.getState());
+      if (!evaluation.complete) {
+        pendingCorrectionMessage = evaluation.instruction;
+        elements.status.textContent = evaluation.instruction;
+        return false;
+      }
+      audio?.play?.("bell");
+      return stage.finish();
+    };
+    const viewFinishedBurger = () => {
+      elements.finishSheet.hidden = true;
+      focusManager.sync(false);
+      canvas.focus?.();
       return true;
     };
     const actionHandlers = {
@@ -667,10 +872,11 @@ export function bootSoloCookingPage(
       "focus-layer-rotate": () => stage.rotateFocusedLayer(Math.PI / 12),
       "delete-focused-layer": () => stage.deleteFocusedLayer(),
       undo: () => stage.undo(),
-      reset: () => stage.reset(),
-      finish: () => stage.finish(),
+      reset: restartClassicOrder,
+      finish: finishClassicOrder,
       continue: () => stage.continueEditing(),
-      restart: () => stage.reset(),
+      restart: restartClassicOrder,
+      "view-finished": viewFinishedBurger,
       "tutorial-skip": () => stage.skipTutorial(),
       "tutorial-replay": () => stage.replayTutorial(),
       "feedback-open": () => feedback.open(),
@@ -682,7 +888,9 @@ export function bootSoloCookingPage(
       "highlight-next": () => showHighlightClip(highlightIndex + 1),
       "tuning-open": openTuning,
       "tuning-close": closeTuning,
-      "recipe-change": openRecipeSelector,
+      "recipe-change": () => (
+        documentTarget.body?.dataset?.debug === "true" ? openRecipeSelector() : false
+      ),
     };
     const handleClick = (event) => {
       if (event.target === elements.highlightSheet) {
@@ -718,13 +926,10 @@ export function bootSoloCookingPage(
     const handleKeyDown = (event) => {
       if (event.key === "Escape") closeHighlightSheet();
     };
-    const routedRecipeId = recipeIdFromLocation(windowTarget.location);
     if (!openRecipePicker) {
       chooseRecipe(null, { resume: false });
-    } else if (routedRecipeId && RECIPE_BY_ID.has(routedRecipeId)) {
-      chooseRecipe(routedRecipeId, { resume: false });
     } else {
-      chooseRecipe("classic-beef", { resume: false });
+      chooseRecipe(CLASSIC_BURGER_RECIPE_ID, { resume: false });
     }
     const disposeIntegrations = () => {
       let firstError = null;
@@ -741,6 +946,15 @@ export function bootSoloCookingPage(
         () => highlights?.dispose?.(),
         () => feedback?.dispose?.(),
         () => replayRecorder?.dispose?.(),
+        () => audio?.dispose?.(),
+        () => {
+          if (correctionTimer !== null) windowTarget.clearTimeout?.(correctionTimer);
+          if (feedbackTimer !== null) windowTarget.clearTimeout?.(feedbackTimer);
+          if (resultSoundTimer !== null) windowTarget.clearTimeout?.(resultSoundTimer);
+          correctionTimer = null;
+          feedbackTimer = null;
+          resultSoundTimer = null;
+        },
       ]) {
         try {
           task();
@@ -768,6 +982,7 @@ export function bootSoloCookingPage(
       () => highlights?.dispose?.(),
       () => feedback?.dispose?.(),
       () => replayRecorder?.dispose?.(),
+      () => audio?.dispose?.(),
       () => stage?.dispose?.(),
     ]) {
       try {

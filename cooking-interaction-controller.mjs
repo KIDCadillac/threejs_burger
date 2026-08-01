@@ -134,6 +134,21 @@ function detachedPose(object) {
   });
 }
 
+export function choosePrioritizedCookingHit(intersections, pickPriority = () => 0) {
+  if (!Array.isArray(intersections) || !intersections.length) return null;
+  let best = intersections[0];
+  let bestPriority = Number(pickPriority(best)) || 0;
+  for (let index = 1; index < intersections.length; index += 1) {
+    const candidate = intersections[index];
+    const priority = Number(pickPriority(candidate)) || 0;
+    if (priority > bestPriority) {
+      best = candidate;
+      bestPriority = priority;
+    }
+  }
+  return best;
+}
+
 export function createCookingInteractionController({
   THREE,
   canvas,
@@ -145,6 +160,7 @@ export function createCookingInteractionController({
   sauceIds = SAUCE_KEYS,
   foodSurfaces = [],
   raycast: injectedRaycast,
+  pickPriority = () => 0,
   projectToPrep,
   prepPlaneY = 0,
   dragLift = 0.35,
@@ -204,6 +220,7 @@ export function createCookingInteractionController({
   if (onSauceCommit !== null) requireFunction(onSauceCommit, "onSauceCommit");
   requireFunction(onSauceCancel, "onSauceCancel");
   if (injectedRaycast !== undefined) requireFunction(injectedRaycast, "raycast");
+  requireFunction(pickPriority, "pickPriority");
   if (projectToPrep !== undefined) requireFunction(projectToPrep, "projectToPrep");
   if (resolveDrop !== undefined) requireFunction(resolveDrop, "resolveDrop");
   const normalizedDragLift = finiteNumber(dragLift, 0.35, "dragLift");
@@ -431,7 +448,10 @@ export function createCookingInteractionController({
 
   const defaultHitTest = (event, candidateSurfaces = surfaces) => {
     if (!setPointerRay(event)) return null;
-    return raycaster.intersectObjects(candidateSurfaces, false)[0] ?? null;
+    return choosePrioritizedCookingHit(
+      raycaster.intersectObjects(candidateSurfaces, false),
+      pickPriority,
+    );
   };
 
   const hitTest = (event, candidateSurfaces = surfaces, kind = undefined) => (

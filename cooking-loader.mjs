@@ -23,9 +23,9 @@ export async function startSoloCookingLoader(
   documentTarget = globalThis.document,
   {
     windowTarget = globalThis,
-    importApp = () => import("./cooking-solo-app.mjs"),
+    importApp = () => import("./cooking-solo-app.mjs?v=20260801-gameplay14"),
     importShopApp = () => import("./burger-shop-app.mjs"),
-    importPuppetPerformer = () => import("./cooking-puppet-performer.mjs"),
+    importFirstPersonHands = () => import("./cooking-first-person-hands.mjs"),
     requestFrame = windowTarget?.requestAnimationFrame?.bind(windowTarget)
       ?? ((callback) => windowTarget.setTimeout(callback, 16)),
     setTimeoutFn = windowTarget?.setTimeout?.bind(windowTarget)
@@ -41,8 +41,8 @@ export async function startSoloCookingLoader(
   if (typeof importShopApp !== "function") {
     throw new TypeError("importShopApp must be a function");
   }
-  if (typeof importPuppetPerformer !== "function") {
-    throw new TypeError("importPuppetPerformer must be a function");
+  if (typeof importFirstPersonHands !== "function") {
+    throw new TypeError("importFirstPersonHands must be a function");
   }
   if (typeof requestFrame !== "function") throw new TypeError("requestFrame must be a function");
   if (typeof setTimeoutFn !== "function" || typeof clearTimeoutFn !== "function") {
@@ -126,13 +126,14 @@ export async function startSoloCookingLoader(
       throw new TypeError("Cooking page module is missing bootSoloCookingPage");
     }
     update(82, "正在摆放 3D 食材和工具");
-    const performerModule = await importPuppetPerformer();
-    const puppetPerformer = performerModule?.createCookingPuppetPerformer?.(
+    const handModule = await importFirstPersonHands();
+    const handPerformer = handModule?.createCookingFirstPersonHands?.(
       documentTarget,
       { windowTarget },
     ) ?? null;
     let shopController = null;
     let pendingStageChange = null;
+    const debugStageTrace = [];
     const stage = app.bootSoloCookingPage(documentTarget, {
       windowTarget,
       manageLoading: false,
@@ -140,7 +141,16 @@ export async function startSoloCookingLoader(
       mountDefaultActions: mode !== "orders",
       onStageChange: (detail) => {
         pendingStageChange = detail;
-        puppetPerformer?.handleStageChange?.(detail);
+        if (documentTarget.body.dataset.debug === "true" && detail?.state) {
+          debugStageTrace.push({
+            reason: detail.reason,
+            selectedLayerId: detail.selectedLayerId ?? null,
+            order: detail.state.assembledOrder.map((id) => detail.state.instances[id]),
+          });
+          if (debugStageTrace.length > 16) debugStageTrace.shift();
+          documentTarget.body.dataset.debugStageTrace = JSON.stringify(debugStageTrace);
+        }
+        handPerformer?.handleStageChange?.(detail);
         shopController?.handleStageChange?.(detail);
       },
     });
@@ -159,6 +169,27 @@ export async function startSoloCookingLoader(
     if (!stage) throw new Error(elements.status.textContent || "无法启动三维料理台");
     update(94, "正在完成第一帧");
     await waitForFirstFrame();
+    if (documentTarget.body.dataset.debug === "true") {
+      const canvas = documentTarget.querySelector("#cooking-canvas");
+      const rect = canvas?.getBoundingClientRect?.();
+      const camera = stage.host?.camera;
+      const projectAnchor = (anchor) => {
+        if (!rect || !camera || !anchor?.getWorldPosition) return null;
+        const point = anchor.getWorldPosition(anchor.position.clone()).project(camera);
+        return {
+          x: rect.left + (point.x + 1) * 0.5 * rect.width,
+          y: rect.top + (1 - point.y) * 0.5 * rect.height,
+        };
+      };
+      const pickups = stage.getSlotControlAnchors().map(({ slotId }) => ({
+        slotId,
+        point: projectAnchor(stage.workbench.getStationBySlot(slotId)?.pickupAnchor),
+      }));
+      documentTarget.body.dataset.debugPickupPoints = JSON.stringify({
+        prep: projectAnchor(stage.workbench.prep?.dropAnchor),
+        pickups,
+      });
+    }
     update(100, "料理台准备完成");
     elements.loading.hidden = true;
     clearProgressLoop();

@@ -6,23 +6,23 @@
     <meta name="theme-color" content="#ffc75a">
     <meta name="feedback-endpoint" content="https://script.google.com/macros/s/AKfycbyk3Fl5BUFRuan-SJYZk4n6QIlRQEHlloeXE1JMskpNJhsduV_1UfbhxoFRUj1my7cHhw/exec">
     <meta name="feedback-upload-key" content="kid-burger-feedback-20260721-v1">
-    <title>小馆经典牛肉堡 · 木偶料理台</title>
+    <title>小馆经典牛肉堡 · 第一人称料理台</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./cooking.css?v=20260801-puppet1">
+    <link rel="stylesheet" href="./cooking.css?v=20260801-gameplay14">
   </head>
-  <body class="puppet-cooking" data-experience="puppet-stage">
+  <body class="first-person-cooking" data-experience="first-person-counter">
     <main class="cooking-app">
       <header class="cooking-header">
         <div class="cooking-header__identity">
           <a class="home-link" href="./index.html" aria-label="返回汉堡小馆">返回</a>
           <div>
-          <p class="cooking-kicker">今日订单 · 01</p>
+          <p class="cooking-kicker">第一人称料理 · 订单 01</p>
           <h1>小馆经典牛肉堡</h1>
           </div>
         </div>
         <div class="cooking-order-progress" aria-label="订单完成进度">
-          <small>食材层数</small>
-          <strong id="puppet-order-progress">0/5</strong>
+          <small>订单步骤</small>
+          <strong id="puppet-order-progress">0/6</strong>
         </div>
         <div class="header-actions">
           <button class="tuning-button" type="button" data-action="tuning-open" aria-haspopup="dialog" aria-controls="tuning-sheet">参数</button>
@@ -36,7 +36,7 @@
         <section class="recipe-selector__card">
           <p class="recipe-selector__eyebrow">开火前先定一个参考</p>
           <h2 id="recipe-selector-title">今天想做哪款汉堡？</h2>
-          <p class="recipe-selector__copy">配方只做步骤提示，不会自动装配，也不会限制你的摆放顺序。</p>
+          <p class="recipe-selector__copy">调试模式可切换配方；正式订单会检查食材顺序和酱料位置。</p>
           <div class="recipe-grid">
             <button class="recipe-card recipe-card--free" type="button" data-action="recipe-select" data-recipe-id="">
               <span class="recipe-card__number" aria-hidden="true">自由</span>
@@ -70,53 +70,35 @@
       <section class="game-shell" aria-label="料理台主界面">
       <section class="objective-card" aria-labelledby="cooking-objective">
         <div>
-          <span class="objective-label">厨师提示</span>
-          <p id="cooking-objective">按订单顺序，把食材交给厨师</p>
+          <span class="objective-label">当前操作</span>
+          <p id="cooking-objective">按订单顺序，把食材拖到餐盘中央</p>
         </div>
-        <strong id="cooking-progress">0/60</strong>
+        <strong id="cooking-progress">0/6</strong>
       </section>
 
       <section class="recipe-reference" id="recipe-reference" aria-labelledby="recipe-reference-name" hidden>
         <div class="recipe-reference__heading">
           <div>
-            <span>当前参考</span>
+            <span>固定订单</span>
           <strong id="recipe-reference-name">小馆经典牛肉堡</strong>
           </div>
-          <button type="button" data-action="recipe-change">更换参考</button>
+          <button type="button" data-action="recipe-change" hidden>调试配方</button>
         </div>
         <ol class="recipe-reference__steps" id="recipe-reference-steps"></ol>
       </section>
 
       <p class="inventory-stock" id="cooking-stock" aria-live="polite">小馆料盒已备齐</p>
 
-      <section class="cooking-stage" aria-label="三维料理操作区" data-control-grammar="tap-switch hold-choose drag-place pinch-zoom undo">
-        <img
-          class="cooking-stage__strings"
-          src="./art/home/layered-truck/puppet-booth-strings.png?v=20260801-b"
-          alt=""
-          width="764"
-          height="790"
-          aria-hidden="true"
-        >
-        <div class="puppet-chef" id="puppet-chef" data-puppet-state="idle" data-puppet-side="center" aria-hidden="true">
-          <img class="puppet-chef__rig" src="./art/home/layered-truck/marionette-rig.png" alt="">
-          <img class="puppet-chef__body" src="./art/cooking/puppet-chef-body.png" alt="">
-          <img class="puppet-chef__arm puppet-chef__arm--left" src="./art/cooking/puppet-chef-arm-left.png" alt="">
-          <img class="puppet-chef__arm puppet-chef__arm--right" src="./art/cooking/puppet-chef-arm-right.png" alt="">
+      <section class="cooking-stage" aria-label="第一人称三维料理操作区" data-control-grammar="drag-place sauce-squeeze undo serve">
+        <div class="first-person-hands" id="first-person-hands" data-hand-state="idle" data-hand-side="center" aria-hidden="true">
+          <span class="first-person-hand first-person-hand--left">
+            <img src="./art/cooking/first-person-puppet-hand.png" alt="" draggable="false">
+          </span>
+          <span class="first-person-hand first-person-hand--right">
+            <img src="./art/cooking/first-person-puppet-hand.png" alt="" draggable="false">
+          </span>
         </div>
-        <img
-          class="cooking-stage__booth-frame"
-          src="./art/home/layered-truck/silver-puppet-booth-frame.png?v=20260801-b"
-          alt=""
-          width="960"
-          height="720"
-          aria-hidden="true"
-        >
-        <div class="cooking-stage__sign" aria-hidden="true">
-          <img src="./art/home/layered-truck/menu-burger.webp" alt="">
-          <span><strong>汉堡档口</strong><small>现做 · 热乎 · 出餐</small></span>
-        </div>
-        <p class="puppet-action-label" id="puppet-action-label" aria-live="polite">厨师准备好了，先拿下层面包</p>
+        <p class="first-person-action-label" id="cooking-action-label" aria-live="polite">先把下层面包拖到餐盘中央</p>
         <canvas id="cooking-canvas" tabindex="0" aria-label="三维汉堡料理台，可拖动食材和调料瓶" aria-describedby="cooking-objective">
           你的浏览器需要支持 WebGL 才能使用三维料理台。
         </canvas>
@@ -219,12 +201,18 @@
           <button type="button" data-action="tutorial-skip">跳过</button>
         </aside>
         <div class="finish-sheet" id="finish-sheet" role="dialog" aria-modal="true" aria-labelledby="finish-title" tabindex="-1" hidden>
-          <p class="finish-sheet__eyebrow">料理完成</p>
-          <h2 id="finish-title">你的三维汉堡做好了！</h2>
+          <p class="finish-sheet__eyebrow">柜台回执 · 订单 01</p>
+          <h2 id="finish-title">顾客正在品尝</h2>
+          <blockquote class="finish-sheet__reaction" id="finish-reaction">顾客正在等待品尝。</blockquote>
+          <div class="finish-sheet__result" aria-label="本单结算">
+            <span><small>顾客评分</small><strong id="finish-score">--</strong></span>
+            <span><small>金币奖励</small><strong id="finish-coins">+0</strong></span>
+          </div>
           <p id="finish-summary">食材已经组合完成。</p>
+          <p class="finish-sheet__balance" id="finish-balance">完成固定订单后结算</p>
           <div class="finish-sheet__actions">
-            <button type="button" data-action="continue">继续调整</button>
-            <button type="button" data-action="restart">重新做</button>
+            <button type="button" data-action="view-finished">查看成品</button>
+            <button type="button" data-action="restart">再做一份</button>
           </div>
         </div>
       </section>
@@ -373,8 +361,8 @@
 
       <nav class="cooking-controls" aria-label="料理工具">
         <button type="button" data-action="undo" disabled>撤销</button>
-        <button type="button" data-action="camera-reset">镜头复位</button>
-        <button class="finish-button" type="button" data-action="finish" disabled>还差 5 层</button>
+        <button class="camera-reset-button" type="button" data-action="camera-reset">镜头复位</button>
+        <button class="finish-button" type="button" data-action="finish" disabled>订单 0/6</button>
         <details class="advanced-cooking-controls">
           <summary>细调</summary>
           <div>
@@ -399,6 +387,6 @@
 
       <p class="cooking-status" id="cooking-status" role="status" aria-live="polite"></p>
     </main>
-    <script type="module" src="./cooking-loader.mjs?v=20260801-puppet1"></script>
+    <script type="module" src="./cooking-loader.mjs?v=20260801-gameplay14"></script>
   </body>
 </html>

@@ -5,25 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f8c948">
     <title>开饭啦 · 汉堡小馆</title>
-    <link rel="stylesheet" href="./home.css?v=20260731-entrygate1">
+    <link rel="stylesheet" href="./home.css?v=20260801-focus3">
+    <link rel="stylesheet" href="./home-focus.css?v=20260801-focus3">
     <link rel="stylesheet" href="./home-layout-editor.css?v=20260731-entrygate1">
-    <script type="module" src="./home-lobby-app.mjs?v=20260731-entrygate1"></script>
+    <script type="module" src="./home-lobby-app.mjs?v=20260801-focus3"></script>
     <script type="module" src="./home-layout-editor.mjs?v=20260731-entrygate1"></script>
   </head>
-  <body>
-    <main class="lobby-shell">
+  <body data-home-theme="burger" data-home-mode="practice">
+    <main class="lobby-shell food-focus-home">
       <header class="lobby-hud" aria-label="玩家状态" data-layout-id="global.hud">
         <button class="round-button" type="button" data-home-action="settings" aria-label="游戏设置">
-          <span aria-hidden="true">⚙</span>
+          <span aria-hidden="true">设</span>
         </button>
         <div class="resource-pill resource-pill--energy" aria-label="体力">
-          <span class="heart" aria-hidden="true">♥</span>
+          <span class="resource-mark" aria-hidden="true">体</span>
           <strong id="energy-value">5</strong>
           <small>体力</small>
-          <b aria-hidden="true">＋</b>
+          <b aria-hidden="true">+</b>
         </div>
         <div class="resource-pill resource-pill--coins" aria-label="金币">
-          <span class="coin" aria-hidden="true">¥</span>
+          <span class="resource-mark resource-mark--coin" aria-hidden="true">币</span>
           <strong id="coin-value">1740</strong>
         </div>
         <button class="round-button round-button--notice" type="button" data-home-action="daily-checkin" aria-label="打开每日签到">
@@ -31,207 +32,58 @@
         </button>
       </header>
 
-      <section class="lobby-stage" aria-labelledby="lobby-title">
-        <div class="diner-sign" aria-live="polite" data-layout-id="global.title">
-          <h1 id="lobby-title" class="sr-only">汉堡小馆</h1>
-          <div class="map-caption-track" id="map-caption-track" aria-hidden="true"></div>
+      <section class="food-focus-stage" aria-labelledby="lobby-title" data-layout-id="global.focus-stage">
+        <header class="food-focus-heading" data-layout-id="global.title">
+          <p id="home-theme-kicker">今日主题 · 汉堡</p>
+          <h1 id="lobby-title">汉堡小馆</h1>
+          <p id="home-theme-subtitle">今天也要好好做汉堡</p>
+        </header>
+
+        <div
+          class="food-focus-viewport"
+          id="home-food-viewport"
+          data-layout-id="global.food-orbit"
+          tabindex="0"
+          role="region"
+          aria-roledescription="料理主题选择器"
+          aria-label="汉堡小馆。左右滑动切换汉堡和寿司，上下滑动切换玩法"
+        >
+          <canvas
+            id="home-food-canvas"
+            data-layout-id="global.food-canvas"
+            aria-label="汉堡小馆的旋转料理模型"
+          ></canvas>
+          <p class="food-focus-horizontal-hint">左右滑动切换料理主题</p>
         </div>
 
-        <div class="map-carousel" data-card-wheel data-layout-id="global.carousel">
-          <button class="home-map-arrow home-map-arrow--left" type="button" data-map-direction="-1" aria-label="上一张地图" data-layout-id="global.arrow-left">‹</button>
-          <div
-            class="home-map-viewport"
-            id="home-map-viewport"
-            data-layout-id="global.viewport"
-            tabindex="0"
-            role="region"
-            aria-roledescription="地图轮播"
-            aria-label="料理地图，左右滑动切换地图"
-          >
-            <div class="home-map-track" id="home-map-track" data-layout-id="global.track">
-              <article class="home-map-slide is-truck-replaying" data-home-map="burger" data-map-template aria-label="汉堡小馆，已开放" data-layout-id="burger.card">
-                <div class="home-card-mode-indicator" data-card-mode-indicator aria-hidden="true" data-layout-id="burger.mode">
-                  <small>当前玩法</small>
-                  <strong data-card-mode-label>自由练习</strong>
-                  <span data-card-mode-hint>不限时间</span>
-                </div>
-                <div class="diner-scene diner-scene--burger" data-layout-id="burger.scene">
-                  <div class="burger-truck-camera is-entry-pending" data-truck-camera aria-hidden="true" data-layout-id="burger.camera">
-                    <div class="burger-truck-marionette-rig" aria-hidden="true">
-                      <img
-                        class="burger-truck-marionette-string burger-truck-marionette-string--left"
-                        src="./art/home/layered-truck/puppet-booth-strings.png?v=20260730-weight2"
-                        alt=""
-                        width="764"
-                        height="790"
-                        loading="eager"
-                        decoding="async"
-                      >
-                      <img
-                        class="burger-truck-marionette-string burger-truck-marionette-string--right"
-                        src="./art/home/layered-truck/puppet-booth-strings.png?v=20260730-weight2"
-                        alt=""
-                        width="764"
-                        height="790"
-                        loading="eager"
-                        decoding="async"
-                      >
-                    </div>
-                    <div class="burger-truck-puppet">
-                      <div class="burger-truck-rig" data-layout-id="burger.truck">
-                        <div class="burger-service-booth">
-                          <div class="burger-service-booth__service" data-layout-id="burger.service">
-                            <div class="burger-menu-machine" data-layout-id="burger.menu">
-                              <div class="burger-menu-machine__label">今日菜单</div>
-                              <div class="burger-menu-panels">
-                                <div class="burger-menu-panel burger-menu-panel--one">
-                                  <div class="burger-menu-panel__rotor">
-                                    <img class="burger-menu-panel__face" src="./art/home/layered-truck/menu-burger.webp" alt="">
-                                    <img class="burger-menu-panel__face burger-menu-panel__face--back" src="./art/home/layered-truck/menu-fries.webp" alt="">
-                                  </div>
-                                </div>
-                                <div class="burger-menu-panel burger-menu-panel--two">
-                                  <div class="burger-menu-panel__rotor">
-                                    <img class="burger-menu-panel__face" src="./art/home/layered-truck/menu-fries.webp" alt="">
-                                    <img class="burger-menu-panel__face burger-menu-panel__face--back" src="./art/home/layered-truck/menu-drink.webp" alt="">
-                                  </div>
-                                </div>
-                                <div class="burger-menu-panel burger-menu-panel--three">
-                                  <div class="burger-menu-panel__rotor">
-                                    <img class="burger-menu-panel__face" src="./art/home/layered-truck/menu-drink.webp" alt="">
-                                    <img class="burger-menu-panel__face burger-menu-panel__face--back" src="./art/home/layered-truck/menu-burger.webp" alt="">
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
+        <div class="food-theme-switcher" data-layout-id="global.theme-switcher" aria-label="料理主题">
+          <button class="is-active" type="button" data-theme-id="burger" aria-pressed="true">
+            <strong>汉堡</strong><small>正在制作</small>
+          </button>
+          <button type="button" data-theme-id="sushi" aria-pressed="false">
+            <strong>寿司</strong><small>旋转预览</small>
+          </button>
+        </div>
 
-                            <div class="burger-service-window" data-layout-id="burger.window">
-                              <img
-                                class="burger-service-window__interior"
-                                src="./art/home/layered-truck/service-window-centered.webp"
-                                alt=""
-                                width="1300"
-                                height="349"
-                                loading="eager"
-                                decoding="async"
-                              >
-                            </div>
-                            <img
-                              class="burger-service-window__shutter"
-                              data-layout-id="burger.shutter"
-                              src="./art/home/layered-truck/silver-truck-shutter.webp"
-                              alt=""
-                              width="1280"
-                              height="450"
-                              decoding="async"
-                            >
-                          </div>
-
-                          <img
-                            class="burger-service-booth__frame"
-                            data-layout-id="burger.frame"
-                            src="./art/home/layered-truck/silver-puppet-booth-frame.png?v=20260730-weight2"
-                            alt=""
-                            width="960"
-                            height="720"
-                            loading="eager"
-                            decoding="async"
-                          >
-                          <div class="burger-service-booth__sign" data-layout-id="burger.sign">
-                            <img src="./art/home/layered-truck/menu-burger.webp" alt="">
-                            <span>
-                              <strong>汉堡档口</strong>
-                              <small>现做 · 热乎 · 出餐</small>
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <button class="truck-replay" type="button" data-truck-replay hidden>重播进场</button>
-                  <button
-                    class="truck-service-control"
-                    data-layout-id="burger.service-control"
-                    type="button"
-                    data-business-toggle
-                    aria-label="汉堡小馆已打烊，点击开门营业"
-                    aria-pressed="false"
-                    hidden
-                  >
-                    <small data-business-status>已打烊</small>
-                    <strong data-business-action>点击开门营业</strong>
-                    <span data-business-grip>已打烊 · 点我开门</span>
-                  </button>
-                </div>
-              </article>
-
-              <article class="home-map-slide" data-home-map="sushi" data-map-template aria-label="深夜寿司店，筹备中" data-layout-id="sushi.card">
-                <div class="home-card-mode-indicator" data-card-mode-indicator aria-hidden="true" data-layout-id="sushi.mode">
-                  <small>当前玩法</small>
-                  <strong data-card-mode-label>寿司店</strong>
-                  <span data-card-mode-hint>筹备中</span>
-                </div>
-                <div class="diner-scene diner-scene--sushi" aria-hidden="true" data-layout-id="sushi.scene">
-                  <div class="awning awning--sushi" data-layout-id="sushi.awning"><i></i><i></i><i></i><i></i><i></i></div>
-                  <div class="sushi-window" data-layout-id="sushi.window">
-                    <span class="night-moon"></span>
-                    <span class="paper-lantern paper-lantern--left">鮨</span>
-                    <span class="paper-lantern paper-lantern--right">月</span>
-                    <div class="sushi-preview-copy" data-layout-id="sushi.preview-copy">
-                      <small>新店预告</small>
-                      <strong>深夜寿司店</strong>
-                      <span>切鱼 · 卷寿司 · 双人出餐</span>
-                    </div>
-                    <div class="sushi-master" data-layout-id="sushi.master">
-                      <i class="sushi-master__band"></i>
-                      <i class="sushi-master__head"></i>
-                      <i class="sushi-master__body"></i>
-                    </div>
-                    <div class="sushi-stone-service" data-layout-id="sushi.service"></div>
-                    <div class="sushi-platter" data-store-emblem="sushi" data-layout-id="sushi.platter">
-                      <i class="sushi-piece sushi-piece--salmon"><b></b></i>
-                      <i class="sushi-piece sushi-piece--tuna"><b></b></i>
-                      <i class="sushi-piece sushi-piece--cucumber"><b></b></i>
-                    </div>
-                    <button
-                      class="shop-shutter shop-shutter--sushi"
-                      data-layout-id="sushi.shutter"
-                      type="button"
-                      data-business-toggle
-                      aria-label="寿司店暂未营业，新店筹备中"
-                      aria-disabled="true"
-                      disabled
-                    >
-                      <i></i><i></i><i></i><i></i>
-                      <span class="shop-shutter__status">
-                        <small data-business-status>暂未营业</small>
-                        <strong data-business-action>新店筹备</strong>
-                      </span>
-                      <b aria-hidden="true"></b>
-                      <span class="shop-shutter__grip" data-business-grip>新店筹备中</span>
-                    </button>
-                  </div>
-                  <div class="sushi-counter" data-layout-id="sushi.counter"><span></span><span></span><span></span></div>
-                  <div class="sushi-bar-seats" data-layout-id="sushi.seats"><i></i><i></i><i></i></div>
-                  <span class="map-lock-note" aria-disabled="true" data-layout-id="sushi.lock-note">新店预告 · 寿司店筹备中</span>
-                </div>
-              </article>
-            </div>
-            <div class="home-mode-announcer" id="home-mode-indicator" aria-live="polite">
-              <span id="home-mode-label">自由练习</span>
-              <span id="home-mode-hint">不限时间</span>
-            </div>
+        <section class="home-mode-panel" id="home-mode-panel" data-layout-id="global.mode" aria-label="玩法模式">
+          <p class="home-mode-gesture">上下滑动切换玩法</p>
+          <div>
+            <span id="home-mode-counter">玩法 1/3</span>
+            <h2 id="home-mode-label">自由练习</h2>
+            <p id="home-mode-hint">不限时间</p>
           </div>
-          <button class="home-map-arrow home-map-arrow--right" type="button" data-map-direction="1" aria-label="下一张地图" data-layout-id="global.arrow-right">›</button>
-        </div>
+        </section>
 
+        <button class="home-start-button" id="home-start-button" data-layout-id="global.start" type="button" data-available="true">
+          开始制作
+        </button>
       </section>
 
       <nav class="bottom-nav" aria-label="主页导航" data-layout-id="global.bottom-nav">
-        <button class="bottom-nav__item is-active" type="button" aria-current="page"><span aria-hidden="true">⌂</span><strong>小馆</strong></button>
-        <button class="bottom-nav__item" type="button" data-home-action="cookbook"><span aria-hidden="true">▦</span><strong>图鉴</strong></button>
-        <button class="bottom-nav__item" type="button" data-home-action="daily-checkin"><span aria-hidden="true">✓</span><strong>签到</strong></button>
-        <button class="bottom-nav__item" type="button" data-home-action="settings"><span aria-hidden="true">≡</span><strong>更多</strong></button>
+        <button class="bottom-nav__item is-active" type="button" aria-current="page"><strong>小馆</strong></button>
+        <button class="bottom-nav__item" type="button" data-home-action="cookbook"><strong>图鉴</strong></button>
+        <button class="bottom-nav__item" type="button" data-home-action="daily-checkin"><strong>签到</strong></button>
+        <button class="bottom-nav__item" type="button" data-home-action="settings"><strong>更多</strong></button>
       </nav>
 
       <p class="health-note" data-layout-id="global.health-note">健康游戏忠告：适度游戏益脑，沉迷游戏伤身，合理安排时间。</p>
@@ -245,13 +97,13 @@
       <p class="sheet-kicker">每天来小馆看看</p>
       <h2 id="daily-title">领取今天的奖励吧！</h2>
       <div class="reward-grid" id="reward-grid">
-        <div class="reward-card" data-day="1"><small>第1天</small><span>¥</span><strong>金币 ×100</strong></div>
-        <div class="reward-card" data-day="2"><small>第2天</small><span>♥</span><strong>体力 ×1</strong></div>
-        <div class="reward-card" data-day="3"><small>第3天</small><span>册</span><strong>贴纸 ×1</strong></div>
-        <div class="reward-card" data-day="4"><small>第4天</small><span>¥</span><strong>金币 ×200</strong></div>
-        <div class="reward-card" data-day="5"><small>第5天</small><span>♥</span><strong>体力 ×1</strong></div>
-        <div class="reward-card" data-day="6"><small>第6天</small><span>¥</span><strong>金币 ×300</strong></div>
-        <div class="reward-card reward-card--final" data-day="7"><small>第7天</small><span>★</span><strong>限定招牌</strong></div>
+        <div class="reward-card" data-day="1"><small>第 1 天</small><span>币</span><strong>金币 ×100</strong></div>
+        <div class="reward-card" data-day="2"><small>第 2 天</small><span>体</span><strong>体力 ×1</strong></div>
+        <div class="reward-card" data-day="3"><small>第 3 天</small><span>贴</span><strong>贴纸 ×1</strong></div>
+        <div class="reward-card" data-day="4"><small>第 4 天</small><span>币</span><strong>金币 ×200</strong></div>
+        <div class="reward-card" data-day="5"><small>第 5 天</small><span>体</span><strong>体力 ×1</strong></div>
+        <div class="reward-card" data-day="6"><small>第 6 天</small><span>币</span><strong>金币 ×300</strong></div>
+        <div class="reward-card reward-card--final" data-day="7"><small>第 7 天</small><span>招</span><strong>限定招牌</strong></div>
       </div>
       <div class="sheet-actions">
         <button class="secondary-button" type="button" data-home-action="ad-reward">广告接入后 ×3</button>
@@ -264,13 +116,13 @@
       <button class="sheet-close" type="button" data-close-sheet aria-label="关闭">×</button>
       <p class="sheet-kicker">我的拿手菜单</p>
       <h2 id="cookbook-title">汉堡图鉴</h2>
-      <p class="sheet-intro">选一个配方直接练习，营业模式仍会给你随机订单。</p>
+      <p class="sheet-intro">选一个配方直接练习；复刻和双人模式可以从主页上下切换。</p>
       <div class="recipe-grid">
-        <a class="recipe-button" href="./cooking.html?recipe=classic-beef"><span>01</span><strong>小馆经典牛肉堡</strong><small>开始制作 ›</small></a>
-        <a class="recipe-button" href="./cooking.html?recipe=melty-cheese"><span>02</span><strong>融金芝士牛肉堡</strong><small>开始制作 ›</small></a>
-        <a class="recipe-button" href="./cooking.html?recipe=double-melty-cheese"><span>03</span><strong>双层融金芝士堡</strong><small>开始制作 ›</small></a>
-        <a class="recipe-button" href="./cooking.html?recipe=tower-double-beef"><span>04</span><strong>三层高塔双牛堡</strong><small>开始制作 ›</small></a>
-        <a class="recipe-button recipe-button--free" href="./cooking.html?mode=practice"><span>∞</span><strong>自由练习</strong><small>随便搭配 ›</small></a>
+        <a class="recipe-button" href="./cooking.html?recipe=classic-beef"><span>01</span><strong>小馆经典牛肉堡</strong><small>开始制作</small></a>
+        <a class="recipe-button" href="./cooking.html?recipe=melty-cheese"><span>02</span><strong>融金芝士牛肉堡</strong><small>开始制作</small></a>
+        <a class="recipe-button" href="./cooking.html?recipe=double-melty-cheese"><span>03</span><strong>双层融金芝士堡</strong><small>开始制作</small></a>
+        <a class="recipe-button" href="./cooking.html?recipe=tower-double-beef"><span>04</span><strong>三层高塔双牛堡</strong><small>开始制作</small></a>
+        <a class="recipe-button recipe-button--free" href="./cooking.html?mode=practice"><span>∞</span><strong>自由练习</strong><small>随便搭配</small></a>
       </div>
     </section>
 

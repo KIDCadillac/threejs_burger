@@ -88,12 +88,12 @@ const TOOL_HALF_EXTENT = Object.freeze({ x: 0.52, z: 0.52 });
 const PREP_BOUNDS = Object.freeze({ minX: -2.55, maxX: 2.55, minZ: -1.65, maxZ: 1.65 });
 const WORKSPACE_BOUNDS = Object.freeze({ minX: -5.3, maxX: 5.3, minZ: -4.9, maxZ: 4.9 });
 const PORTRAIT_CAMERA_VIEW = Object.freeze({
-  fov: 44,
+  fov: 48,
   near: 0.1,
   far: 100,
   minPortraitAspect: 0.46,
-  position: Object.freeze({ x: 0, y: 22, z: 27 }),
-  target: Object.freeze({ x: 0, y: 0.05, z: -0.25 }),
+  position: Object.freeze({ x: 0, y: 16.5, z: 21.5 }),
+  target: Object.freeze({ x: 0, y: 0.12, z: -0.55 }),
 });
 
 function freezePosition(position) {

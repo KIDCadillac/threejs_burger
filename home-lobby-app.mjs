@@ -8,36 +8,28 @@ import {
 import {
   HOME_MAP_KEY,
   HOME_MAPS,
-  afterNextPaint,
   changeMapIndex,
-  createLatestFrameScheduler,
-  createMapCardWindow,
-  dragProgressFromDelta,
-  mapIndexAtOffset,
   normalizeMapIndex,
   resolveSwipe,
-  shopDoorDuration,
-  shopOpenProgress,
-  shiftBufferedCardOffset,
-  streetShopPose,
-  wheelSettleDuration,
-} from "./home-map-carousel-state.mjs?v=20260731-entrygate1";
+} from "./home-map-carousel-state.mjs";
 import {
-  HOME_BUSINESS_KEY,
   HOME_MODE_KEY,
   HOME_MODES,
   changeModeIndexForMap,
   lockGestureAxis,
   modeIndexForMap,
-  normalizeBusinessOpen,
   normalizeModeIndex,
   resolveModeSwipe,
-} from "./home-mode-switch-state.mjs?v=20260731-entrygate1";
+} from "./home-mode-switch-state.mjs";
+import { createHomeFoodOrbit } from "./home-food-orbit-3d.mjs?v=20260801-focus3";
 
 const storage = window.localStorage;
-const query = new URLSearchParams(window.location.search);
-const visualQaMode = query.has("visualQa");
-const layoutEditorMode = query.get("layout") === "1";
+const layoutEditorMode = new URLSearchParams(window.location.search).get("layout") === "1";
+const playableModeIds = Object.freeze(["practice", "duel", "duo"]);
+const playableModes = Object.freeze(
+  playableModeIds.map((id) => HOME_MODES.find((mode) => mode.id === id)).filter(Boolean),
+);
+
 const energyValue = document.querySelector("#energy-value");
 const coinValue = document.querySelector("#coin-value");
 const dailyDot = document.querySelector("#daily-dot");
@@ -46,718 +38,229 @@ const claimButton = document.querySelector("#claim-daily");
 const rewardCards = [...document.querySelectorAll("[data-day]")];
 const backdrop = document.querySelector("#sheet-backdrop");
 const toast = document.querySelector("#home-toast");
-const mapViewport = document.querySelector("#home-map-viewport");
-const mapTrack = document.querySelector("#home-map-track");
-const mapTemplates = [...document.querySelectorAll("[data-map-template]")];
-const bufferedMapSlides = setupBufferedMapSlides();
-const mapArrows = [...document.querySelectorAll("[data-map-direction]")];
-const mapStatus = document.querySelector("#map-status");
+const foodViewport = document.querySelector("#home-food-viewport");
+const foodCanvas = document.querySelector("#home-food-canvas");
 const mapTitle = document.querySelector("#lobby-title");
-const mapCaptionTrack = document.querySelector("#map-caption-track");
-const bufferedMapCaptions = setupBufferedMapCaptions();
-const lobbyStage = document.querySelector(".lobby-stage");
+const mapKicker = document.querySelector("#home-theme-kicker");
+const mapSubtitle = document.querySelector("#home-theme-subtitle");
 const modeLabel = document.querySelector("#home-mode-label");
 const modeHint = document.querySelector("#home-mode-hint");
+const modeCounter = document.querySelector("#home-mode-counter");
+const startButton = document.querySelector("#home-start-button");
+const themeButtons = [...document.querySelectorAll("[data-theme-id]")];
+
 let openSheet = null;
 let toastTimer = 0;
 let mapIndex = readMapIndex();
 let modeIndex = readModeIndex();
-let businessOpen = readBusinessOpen();
-let pendingMapIndex = null;
-let pendingMapStep = 0;
-let wheelTransitioning = false;
-let wheelTimer = 0;
-let modeTransitioning = false;
-let modeTransitionTimer = 0;
-let initialTruckEntryRendered = false;
-let initialTruckEntryAssetsReady = document.readyState === "complete";
-let initialTruckEntryBlocked = false;
-let initialTruckEntryStarted = false;
-let initialTruckEntryTimer = 0;
 let dragPointerId = null;
 let dragStartX = 0;
 let dragStartY = 0;
-let dragStartTime = 0;
+let dragStartedAt = 0;
 let dragDeltaX = 0;
 let dragDeltaY = 0;
 let gestureAxis = null;
 let gestureMoved = false;
-let suppressMapClick = false;
-const reducedMotionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-const MODE_CLOSE_MS = 560;
-const MODE_OPEN_MS = 680;
-const wheelFrameScheduler = createLatestFrameScheduler({
-  requestFrame: (callback) => requestAnimationFrame(callback),
-  cancelFrame: (frameId) => cancelAnimationFrame(frameId),
-  render: (progress) => renderWheel(progress),
-});
+let suppressViewportClick = false;
+let progress = readProgress();
+let foodOrbit = null;
 
-function setupBufferedMapSlides() {
-  if (!mapTrack || !mapTemplates.length) return [];
-  const slots = [-2, -1, 0, 1, 2].map((offset) => {
-    const slot = mapTemplates[0].cloneNode(true);
-    slot.removeAttribute("data-map-template");
-    slot.setAttribute("data-card-offset", String(offset));
-    return slot;
-  });
-  mapTrack.replaceChildren(...slots);
-  return slots;
+function safeStorageGet(key) {
+  try {
+    return storage.getItem(key);
+  } catch {
+    return null;
+  }
 }
 
-function setupBufferedMapCaptions() {
-  if (!mapCaptionTrack || !HOME_MAPS.length) return [];
-  const slots = [-2, -1, 0, 1, 2].map((offset) => {
-    const caption = document.createElement("div");
-    caption.className = "map-caption";
-    caption.dataset.captionOffset = String(offset);
-    caption.innerHTML = "<strong></strong>";
-    return caption;
-  });
-  mapCaptionTrack.replaceChildren(...slots);
-  return slots;
-}
-
-function hydrateBufferedMapCaption(slot, templateIndex, offset) {
-  const map = HOME_MAPS[templateIndex];
-  if (!slot || !map) return;
-  slot.dataset.captionOffset = String(offset);
-  slot.querySelector("strong").textContent = map.title;
-}
-
-function refreshBufferedMapCaptions(activeIndex = mapIndex) {
-  const captionWindow = createMapCardWindow(activeIndex, HOME_MAPS.length);
-  captionWindow.forEach(({ offset, mapIndex: templateIndex }, slotIndex) => {
-    hydrateBufferedMapCaption(bufferedMapCaptions[slotIndex], templateIndex, offset);
-  });
-}
-
-function advanceBufferedMapCaptions(activeIndex, step) {
-  bufferedMapCaptions.forEach((slot) => {
-    const previousOffset = Number(slot.dataset.captionOffset) || 0;
-    const nextOffset = shiftBufferedCardOffset(previousOffset, step);
-    if (Math.abs(nextOffset - previousOffset) > 1) {
-      hydrateBufferedMapCaption(
-        slot,
-        mapIndexAtOffset(activeIndex, nextOffset, HOME_MAPS.length),
-        nextOffset,
-      );
-    } else {
-      slot.dataset.captionOffset = String(nextOffset);
-    }
-  });
-}
-
-function refreshBufferedMapSlides(activeIndex = mapIndex) {
-  const cardWindow = createMapCardWindow(activeIndex, mapTemplates.length);
-  cardWindow.forEach(({ offset, mapIndex: templateIndex }, slotIndex) => {
-    const slot = bufferedMapSlides[slotIndex];
-    hydrateBufferedMapSlide(slot, templateIndex, offset);
-  });
-}
-
-function updateBufferedMapSlideAccess(slot, offset) {
-  if (!slot) return;
-  slot.setAttribute("data-card-offset", String(offset));
-  slot.setAttribute("aria-hidden", String(offset !== 0));
-  if (offset === 0) slot.removeAttribute("inert");
-  else slot.setAttribute("inert", "");
-}
-
-function hydrateBufferedMapSlide(slot, templateIndex, offset) {
-  const template = mapTemplates[templateIndex];
-  if (!slot || !template) return;
-  slot.className = template.className;
-  slot.dataset.homeMap = template.dataset.homeMap;
-  slot.innerHTML = template.innerHTML;
-  slot.setAttribute("aria-label", template.getAttribute("aria-label") || "");
-  updateBufferedMapSlideAccess(slot, offset);
-  renderModeIndicatorForSlide(slot);
-}
-
-function modeIndicatorForSlide(slide) {
-  return slide?.querySelector("[data-card-mode-indicator]") ?? null;
-}
-
-function activeModeIndicator() {
-  const activeSlide = bufferedMapSlides.find(
-    (slide) => (Number(slide.dataset.cardOffset) || 0) === 0,
-  );
-  return modeIndicatorForSlide(activeSlide);
-}
-
-function activeBufferedMapSlide() {
-  return bufferedMapSlides.find(
-    (slide) => (Number(slide.dataset.cardOffset) || 0) === 0,
-  ) ?? null;
-}
-
-function renderModeIndicatorForSlide(slide) {
-  if (!slide) return;
-  const indicator = modeIndicatorForSlide(slide);
-  const slideModeIndex = modeIndexForMap(slide.dataset.homeMap, modeIndex);
-  const mode = HOME_MODES[slideModeIndex];
-  if (!mode) return;
-  slide.dataset.homeMode = mode.id;
-  slide.dataset.homePlayers = String(mode.players || 1);
-  if (!indicator) return;
-  const label = indicator.querySelector("[data-card-mode-label]");
-  const hint = indicator.querySelector("[data-card-mode-hint]");
-  if (label) label.textContent = mode.label;
-  if (hint) hint.textContent = mode.hint;
-}
-
-function renderBufferedModeIndicators() {
-  bufferedMapSlides.forEach(renderModeIndicatorForSlide);
-}
-
-function advanceBufferedMapSlides(activeIndex, step) {
-  bufferedMapSlides.forEach((slot) => {
-    const previousOffset = Number(slot.dataset.cardOffset) || 0;
-    const nextOffset = shiftBufferedCardOffset(previousOffset, step);
-    const recycled = Math.abs(nextOffset - previousOffset) > 1;
-    if (recycled) {
-      hydrateBufferedMapSlide(
-        slot,
-        mapIndexAtOffset(activeIndex, nextOffset, mapTemplates.length),
-        nextOffset,
-      );
-      return;
-    }
-    updateBufferedMapSlideAccess(slot, nextOffset);
-  });
+function safeStorageSet(key, value) {
+  try {
+    storage.setItem(key, value);
+  } catch {
+    // The selector remains usable when storage is unavailable.
+  }
 }
 
 function readMapIndex() {
-  try {
-    return normalizeMapIndex(storage.getItem(HOME_MAP_KEY));
-  } catch {
-    return 0;
-  }
+  return normalizeMapIndex(safeStorageGet(HOME_MAP_KEY));
 }
 
-function writeMapIndex(index) {
-  try {
-    storage.setItem(HOME_MAP_KEY, String(normalizeMapIndex(index)));
-  } catch {
-    // The lobby remains playable when private browsing blocks storage.
-  }
+function writeMapIndex(value) {
+  safeStorageSet(HOME_MAP_KEY, String(normalizeMapIndex(value)));
 }
 
 function readModeIndex() {
+  const normalized = normalizeModeIndex(safeStorageGet(HOME_MODE_KEY));
+  return modeIndexForMap("burger", normalized);
+}
+
+function writeModeIndex(value) {
+  safeStorageSet(HOME_MODE_KEY, String(normalizeModeIndex(value)));
+}
+
+function readProgress() {
   try {
-    return normalizeModeIndex(storage.getItem(HOME_MODE_KEY));
+    return normalizeHomeProgress(JSON.parse(safeStorageGet(HOME_PROGRESS_KEY) || "null"));
   } catch {
-    return 0;
+    return createHomeProgress();
   }
 }
 
-function writeModeIndex(index) {
-  try {
-    storage.setItem(HOME_MODE_KEY, String(normalizeModeIndex(index)));
-  } catch {
-    // Mode switching stays available when storage is blocked.
-  }
+function writeProgress(nextProgress) {
+  safeStorageSet(HOME_PROGRESS_KEY, JSON.stringify(normalizeHomeProgress(nextProgress)));
 }
 
-function readBusinessOpen() {
-  try {
-    return normalizeBusinessOpen(storage.getItem(HOME_BUSINESS_KEY));
-  } catch {
-    return true;
-  }
+function showToast(message) {
+  window.clearTimeout(toastTimer);
+  toast.textContent = message;
+  toast.classList.add("is-visible");
+  toastTimer = window.setTimeout(() => toast.classList.remove("is-visible"), 2200);
 }
 
-function writeBusinessOpen(isOpen) {
-  try {
-    storage.setItem(HOME_BUSINESS_KEY, isOpen ? "open" : "closed");
-  } catch {
-    // The physical sign still toggles for this session.
-  }
+function activeMode() {
+  return HOME_MODES[modeIndex] ?? playableModes[0];
 }
 
-function renderWheel(progress = 0) {
-  const dragProgress = Math.max(-1, Math.min(1, Number(progress) || 0));
-  bufferedMapSlides.forEach((slide) => {
-    const offset = Number(slide.dataset.cardOffset) || 0;
-    const pose = streetShopPose(offset - dragProgress);
-    const motion = `translate3d(${pose.translatePercent}%, ${pose.translateYPercent}%, 0) scale(${pose.scale})`;
-    // Keep the carousel motion in its own CSS variable. The layout editor uses
-    // independent transform controls and must never erase the shop row motion.
-    slide.style.setProperty("--map-carousel-transform", motion);
-    slide.style.opacity = String(pose.opacity);
-    slide.style.setProperty("--map-shade-opacity", String(pose.shadeOpacity));
-    slide.style.setProperty(
-      "--shop-open-progress",
-      String(shopOpenProgress({ offset, dragProgress })),
-    );
-    // Runtime carousel stacking owns its own variable. The layout editor may
-    // override `z-index`, but resetting an edit must not erase carousel order.
-    slide.style.setProperty("--map-carousel-z", String(pose.zIndex));
-  });
-  renderMapCaptions(dragProgress);
-}
-
-function renderMapCaptions(progress = 0) {
-  const dragProgress = Math.max(-1, Math.min(1, Number(progress) || 0));
-  bufferedMapCaptions.forEach((caption) => {
-    const offset = Number(caption.dataset.captionOffset) || 0;
-    const relativeOffset = offset - dragProgress;
-    const distance = Math.abs(relativeOffset);
-    caption.style.transform =
-      `translate3d(${relativeOffset * 100}%, 0, 0) scale(${Math.max(.88, 1 - distance * .08)})`;
-    caption.style.opacity = String(Math.max(0, 1 - distance));
-    caption.style.zIndex = String(Math.round(10 - distance * 4));
-  });
-}
-
-function setWheelSettleDuration(duration) {
-  const milliseconds = `${Math.max(0, Math.round(Number(duration) || 0))}ms`;
-  bufferedMapSlides.forEach((slide) => {
-    slide.style.setProperty("--wheel-settle-ms", milliseconds);
-  });
-  bufferedMapCaptions.forEach((caption) => {
-    caption.style.setProperty("--wheel-settle-ms", milliseconds);
-  });
-}
-
-function setWheelDoorDurations(fromProgress, targetProgress) {
-  let longestDuration = 0;
-  bufferedMapSlides.forEach((slide) => {
-    const offset = Number(slide.dataset.cardOffset) || 0;
-    const duration = shopDoorDuration({
-      fromProgress: shopOpenProgress({ offset, dragProgress: fromProgress }),
-      targetProgress: shopOpenProgress({ offset, dragProgress: targetProgress }),
-      reducedMotion: reducedMotionQuery?.matches,
-    });
-    slide.style.setProperty("--shop-door-ms", `${duration}ms`);
-    longestDuration = Math.max(longestDuration, duration);
-  });
-  return longestDuration;
-}
-
-function resetBufferedWheel({ step = 0 } = {}) {
-  wheelFrameScheduler.cancel();
-  mapViewport?.classList.add("is-wheel-jump");
-  lobbyStage?.classList.add("is-wheel-jump");
-  if (step) {
-    advanceBufferedMapSlides(mapIndex, step);
-    advanceBufferedMapCaptions(mapIndex, step);
-  } else {
-    refreshBufferedMapSlides(mapIndex);
-    refreshBufferedMapCaptions(mapIndex);
-  }
-  renderWheel();
-  renderBusiness();
-  afterNextPaint(
-    (callback) => requestAnimationFrame(callback),
-    () => {
-      mapViewport?.classList.remove("is-wheel-jump");
-      lobbyStage?.classList.remove("is-wheel-jump");
-    },
-  );
-}
-
-function finishWheelTransition() {
-  wheelFrameScheduler.cancel();
-  window.clearTimeout(wheelTimer);
-  if (pendingMapIndex !== null) {
-    const arrivedStep = pendingMapStep;
-    mapIndex = pendingMapIndex;
-    pendingMapIndex = null;
-    pendingMapStep = 0;
-    renderMap();
-    resetBufferedWheel({ step: arrivedStep });
-    if (HOME_MAPS[mapIndex]?.id === "burger") {
-      afterNextPaint(
-        (callback) => requestAnimationFrame(callback),
-        () => replayActiveTruckArrival(),
-      );
-    }
-  } else {
-    renderWheel();
-  }
-  wheelTransitioning = false;
-  lobbyStage?.classList.remove("is-switching-shop");
-  mapViewport?.removeAttribute("aria-busy");
-}
-
-function settleWheelForInteraction() {
-  if (!wheelTransitioning) return false;
-  finishWheelTransition();
-  return true;
-}
-
-function queueWheelFinish(duration) {
-  window.clearTimeout(wheelTimer);
-  wheelTimer = window.setTimeout(finishWheelTransition, Math.max(0, duration));
-}
-
-function renderMap() {
-  if (!mapViewport || !HOME_MAPS.length) return;
-  const map = HOME_MAPS[mapIndex];
+function renderTheme({ direction = 0, announce = false } = {}) {
+  const map = HOME_MAPS[mapIndex] ?? HOME_MAPS[0];
+  document.body.dataset.homeTheme = map.id;
   mapTitle.textContent = map.title;
-  const nextModeIndex = modeIndexForMap(map.id, modeIndex);
-  if (nextModeIndex !== modeIndex) {
-    modeIndex = nextModeIndex;
-    writeModeIndex(modeIndex);
-  }
-
-  renderMode();
-  renderBusiness();
-}
-
-function resetModePreview() {
-  bufferedMapSlides.forEach((slide) => {
-    const indicator = modeIndicatorForSlide(slide);
-    indicator?.style.setProperty("--mode-drag-y", "0px");
-    indicator?.style.setProperty("--mode-drag-rotate", "0deg");
+  mapKicker.textContent = map.id === "burger" ? "今日主题 · 汉堡" : "下一主题 · 寿司";
+  mapSubtitle.textContent = map.subtitle;
+  foodCanvas?.setAttribute("aria-label", `${map.title}的旋转料理模型`);
+  foodViewport?.setAttribute("aria-label", `${map.title}。左右滑动切换汉堡和寿司，上下滑动切换玩法`);
+  themeButtons.forEach((button) => {
+    const active = button.dataset.themeId === map.id;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", String(active));
   });
+  startButton.textContent = map.available ? "开始制作" : "寿司玩法筹备中";
+  startButton.dataset.available = String(Boolean(map.available));
+  foodOrbit?.setFood(map.id, direction || 1);
+  if (announce) showToast(`${map.title} · 左右滑动可继续切换`);
 }
 
-function renderMode({ animate = false } = {}) {
-  const mode = HOME_MODES[modeIndex];
-  if (!mode) return;
-  if (modeLabel) modeLabel.textContent = mode.label;
-  if (modeHint) modeHint.textContent = mode.hint;
-  renderBufferedModeIndicators();
-  resetModePreview();
-  const activeIndicator = activeModeIndicator();
-  if (!animate || !activeIndicator) return;
-  activeIndicator.classList.remove("is-switching");
-  void activeIndicator.offsetWidth;
-  activeIndicator.classList.add("is-switching");
+function renderMode({ animate = false, announce = false } = {}) {
+  const mode = activeMode();
+  const position = Math.max(0, playableModeIds.indexOf(mode.id));
+  modeLabel.textContent = mode.label;
+  modeHint.textContent = mode.hint;
+  modeCounter.textContent = `玩法 ${position + 1}/${playableModes.length}`;
+  document.body.dataset.homeMode = mode.id;
+  if (animate) {
+    const panel = document.querySelector("#home-mode-panel");
+    panel?.classList.remove("is-switching");
+    void panel?.offsetWidth;
+    panel?.classList.add("is-switching");
+  }
+  if (announce) showToast(`${mode.label} · ${mode.hint}`);
 }
 
-function moveMode(direction, { persist = true, animate = true } = {}) {
+function moveTheme(direction, { persist = true, announce = true } = {}) {
   const step = Math.sign(Number(direction) || 0);
-  const mapId = HOME_MAPS[mapIndex]?.id;
-  if (!step || !mapId || modeTransitioning) return false;
-  const nextModeIndex = changeModeIndexForMap(mapId, modeIndex, step);
-  if (nextModeIndex === modeIndex) return false;
-
-  const applyNextMode = () => {
-    modeIndex = nextModeIndex;
-    if (persist) writeModeIndex(modeIndex);
-    renderMode({ animate });
-  };
-  const activeSlide = activeBufferedMapSlide();
-  if (!animate || !activeSlide || reducedMotionQuery?.matches) {
-    applyNextMode();
-    return true;
-  }
-
-  modeTransitioning = true;
-  mapViewport?.setAttribute("aria-busy", "true");
-  activeSlide.classList.remove("is-mode-opening");
-  activeSlide.classList.add("is-mode-closing");
-  window.clearTimeout(modeTransitionTimer);
-  modeTransitionTimer = window.setTimeout(() => {
-    applyNextMode();
-    activeSlide.classList.remove("is-mode-closing");
-    activeSlide.classList.add("is-mode-opening");
-    void activeSlide.offsetWidth;
-    modeTransitionTimer = window.setTimeout(() => {
-      activeSlide.classList.remove("is-mode-opening");
-      modeTransitioning = false;
-      if (!wheelTransitioning) mapViewport?.removeAttribute("aria-busy");
-    }, MODE_OPEN_MS);
-  }, MODE_CLOSE_MS);
+  if (!step) return false;
+  mapIndex = changeMapIndex(mapIndex, step);
+  if (persist) writeMapIndex(mapIndex);
+  renderTheme({ direction: step, announce });
   return true;
 }
 
-function activateMode() {
-  const action = HOME_MODES[modeIndex]?.action;
-  if (action === "practice") window.location.href = "./cooking.html?mode=practice";
-  if (action === "duel") window.location.href = "./replica-duel.html";
-  if (action === "duo") window.location.href = "./cooking.html?mode=duo";
-  if (action === "sushi") {
-    selectMap(1);
-    showToast("寿司店还在筹备，先看看新店招牌");
-  }
-}
-
-function renderBusiness() {
-  const activeMap = HOME_MAPS[mapIndex];
-  const activeOpen = Boolean(activeMap?.available && businessOpen);
-  lobbyStage?.classList.toggle("is-open", activeOpen);
-
-  document.querySelectorAll("[data-business-toggle]").forEach((control) => {
-    const slide = control.closest("[data-home-map]");
-    const map = HOME_MAPS.find((entry) => entry.id === slide?.dataset.homeMap);
-    const available = Boolean(map?.available);
-    const status = control.querySelector("[data-business-status]");
-    const action = control.querySelector("[data-business-action]");
-    const grip = control.querySelector("[data-business-grip]");
-
-    slide?.classList.toggle("is-business-open", available && businessOpen);
-    control.toggleAttribute("disabled", !available);
-    control.classList.toggle("is-disabled", !available);
-    control.setAttribute("aria-disabled", String(!available));
-    control.setAttribute("aria-pressed", String(available && businessOpen));
-
-    if (!available) {
-      if (status) status.textContent = "新店筹备";
-      if (action) action.textContent = "暂未营业";
-      if (grip) grip.textContent = "新店筹备中";
-      control.setAttribute("aria-label", `${map?.title || "新店"}暂未营业，新店筹备中`);
-      return;
-    }
-
-    const statusText = businessOpen ? "营业中" : "已打烊";
-    const actionText = businessOpen ? "点击关门打烊" : "点击开门营业";
-    if (status) status.textContent = statusText;
-    if (action) action.textContent = actionText;
-    if (grip) grip.textContent = `${statusText} · ${businessOpen ? "点我打烊" : "点我开门"}`;
-    control.setAttribute("aria-label", `${map.title}${statusText}，${actionText}`);
-  });
-}
-
-function replayTruckArrival(control, { announce = true } = {}) {
-  const slide = control?.closest('[data-home-map="burger"]');
-  const camera = slide?.querySelector("[data-truck-camera]");
-  if (!camera) return;
-  slide.classList.add("is-truck-replaying");
-  slide.querySelectorAll(".truck-replay, .truck-service-control").forEach((button) => {
-    button.hidden = true;
-  });
-  camera.classList.remove("is-entry-pending");
-  camera.classList.remove("is-arriving");
-  void camera.offsetWidth;
-  camera.classList.add("is-arriving");
-  initialTruckEntryStarted = true;
-  if (announce) showToast("汉堡档口从舞台上方吊下，停稳后打开出餐卷帘");
-}
-
-function replayActiveTruckArrival() {
-  const control = mapViewport?.querySelector(
-    '.home-map-slide[data-card-offset="0"][data-home-map="burger"] [data-truck-replay]',
-  );
-  if (!control) return false;
-  replayTruckArrival(control, { announce: false });
+function selectTheme(themeId, { persist = true, announce = false } = {}) {
+  const nextIndex = HOME_MAPS.findIndex((map) => map.id === themeId);
+  if (nextIndex < 0 || nextIndex === mapIndex) return false;
+  const direction = changeMapIndex(mapIndex, 1) === nextIndex ? 1 : -1;
+  mapIndex = nextIndex;
+  if (persist) writeMapIndex(mapIndex);
+  renderTheme({ direction, announce });
   return true;
 }
 
-function revealTruckWithoutArrival() {
-  bufferedMapSlides.forEach((slide) => {
-    const camera = slide.querySelector("[data-truck-camera]");
-    camera?.classList.remove("is-entry-pending", "is-arriving");
-    slide.classList.remove("is-truck-replaying");
-    slide.querySelectorAll(".truck-replay, .truck-service-control").forEach((button) => {
-      button.hidden = false;
-    });
-  });
-}
-
-function startInitialTruckArrival() {
-  if (
-    initialTruckEntryStarted
-    || layoutEditorMode
-    || initialTruckEntryBlocked
-    || !initialTruckEntryRendered
-    || !initialTruckEntryAssetsReady
-    || openSheet
-    || document.hidden
-  ) {
-    return false;
-  }
-  businessOpen = true;
-  writeBusinessOpen(true);
-  renderBusiness();
-  if (!replayActiveTruckArrival()) return false;
+function moveMode(direction, { persist = true, announce = true } = {}) {
+  const nextIndex = changeModeIndexForMap("burger", modeIndex, direction);
+  if (nextIndex === modeIndex) return false;
+  modeIndex = nextIndex;
+  if (persist) writeModeIndex(modeIndex);
+  renderMode({ animate: true, announce });
   return true;
 }
 
-function scheduleInitialTruckArrival(delay = 120) {
-  if (initialTruckEntryStarted || layoutEditorMode) return;
-  window.clearTimeout(initialTruckEntryTimer);
-  initialTruckEntryTimer = window.setTimeout(() => {
-    startInitialTruckArrival();
-  }, Math.max(0, delay));
-}
-
-function replayShutterStatus() {
-  const status = mapViewport
-    ?.querySelector('.home-map-slide[data-card-offset="0"] [data-business-toggle]')
-    ?.querySelector(".shop-shutter__status");
-  if (!status) return;
-  status.classList.remove("is-changing");
-  void status.offsetWidth;
-  status.classList.add("is-changing");
-}
-
-function toggleBusiness() {
-  const map = HOME_MAPS[mapIndex];
-  if (!map?.available) {
-    showToast("新店还在筹备，暂时不能开门营业");
+function activateCurrentMode() {
+  const map = HOME_MAPS[mapIndex] ?? HOME_MAPS[0];
+  const mode = activeMode();
+  if (!map.available) {
+    showToast("寿司玩法还在制作，先左右滑回汉堡体验完整流程");
     return;
   }
-  businessOpen = !businessOpen;
-  writeBusinessOpen(businessOpen);
-  renderBusiness();
-  replayShutterStatus();
-  showToast(businessOpen ? "卷帘门显示营业中，欢迎光临！" : "卷帘门显示已打烊，今天辛苦了");
+  if (mode.action === "practice") window.location.href = "./cooking.html?recipe=classic-beef";
+  if (mode.action === "duel") window.location.href = "./replica-duel.html";
+  if (mode.action === "duo") window.location.href = "./cooking.html?mode=duo";
 }
 
-function selectMap(nextIndex, { persist = true } = {}) {
-  const normalized = normalizeMapIndex(nextIndex);
-  if (normalized === mapIndex) return false;
-  const direction = changeMapIndex(mapIndex, 1) === normalized ? 1 : -1;
-  return moveMap(direction, { persist });
+function resetGesturePreview() {
+  foodViewport?.style.setProperty("--gesture-x", "0px");
+  foodViewport?.style.setProperty("--gesture-y", "0px");
+  foodViewport?.removeAttribute("data-gesture-axis");
+  foodViewport?.classList.remove("is-dragging");
 }
 
-function beginShopTransition(step, nextIndex, { persist = true, fromProgress = 0 } = {}) {
-  wheelFrameScheduler.cancel();
-  wheelTransitioning = true;
-  pendingMapIndex = nextIndex;
-  pendingMapStep = step;
-  if (persist) writeMapIndex(nextIndex);
-  const duration = wheelSettleDuration({
-    fromProgress,
-    targetProgress: step,
-    reducedMotion: reducedMotionQuery?.matches,
-  });
-  setWheelSettleDuration(duration);
-  renderWheel(fromProgress);
-  const doorDuration = setWheelDoorDurations(fromProgress, step);
-  mapViewport?.classList.remove("is-dragging");
-  lobbyStage?.classList.remove("is-dragging-map");
-  mapViewport?.setAttribute("aria-busy", "true");
-  lobbyStage?.classList.add("is-switching-shop");
-
-  renderWheel(step);
-  queueWheelFinish(Math.max(duration, doorDuration));
-  return true;
-}
-
-function moveMap(direction, { persist = true, fromProgress = 0 } = {}) {
-  const step = Math.sign(Number(direction) || 0);
-  if (!step || HOME_MAPS.length < 2) return false;
-  if (wheelTransitioning) settleWheelForInteraction();
-  const nextIndex = changeMapIndex(mapIndex, step);
-  return beginShopTransition(step, nextIndex, { persist, fromProgress });
-}
-
-function snapWheelBack(fromProgress = 0) {
-  wheelFrameScheduler.cancel();
-  wheelTransitioning = true;
-  const duration = wheelSettleDuration({
-    fromProgress,
-    targetProgress: 0,
-    reducedMotion: reducedMotionQuery?.matches,
-  });
-  setWheelSettleDuration(duration);
-  const doorDuration = setWheelDoorDurations(fromProgress, 0);
-  mapViewport?.classList.remove("is-dragging");
-  lobbyStage?.classList.remove("is-dragging-map");
-  mapViewport?.setAttribute("aria-busy", "true");
-  renderWheel();
-  queueWheelFinish(Math.max(duration, doorDuration));
-}
-
-function beginMapDrag(event) {
-  if (document.documentElement.classList.contains("layout-editor-active")) {
-    return;
-  }
-  wheelFrameScheduler.cancel();
-  if (wheelTransitioning) settleWheelForInteraction();
-  if (HOME_MAPS.length < 2) return;
+function beginGesture(event) {
+  if (layoutEditorMode || document.documentElement.classList.contains("layout-editor-active")) return;
   if (event.pointerType === "mouse" && event.button !== 0) return;
   dragPointerId = event.pointerId;
   dragStartX = event.clientX;
   dragStartY = event.clientY;
-  dragStartTime = performance.now();
+  dragStartedAt = performance.now();
   dragDeltaX = 0;
   dragDeltaY = 0;
   gestureAxis = null;
   gestureMoved = false;
-  suppressMapClick = false;
-  mapViewport.classList.add("is-dragging");
-  lobbyStage?.classList.add("is-dragging-map");
-  mapViewport.setPointerCapture?.(event.pointerId);
+  suppressViewportClick = false;
+  foodViewport.classList.add("is-dragging");
+  foodViewport.setPointerCapture?.(event.pointerId);
 }
 
-function updateMapDrag(event) {
+function updateGesture(event) {
   if (event.pointerId !== dragPointerId) return;
   dragDeltaX = event.clientX - dragStartX;
   dragDeltaY = event.clientY - dragStartY;
   if (!gestureAxis) gestureAxis = lockGestureAxis({ deltaX: dragDeltaX, deltaY: dragDeltaY });
   if (!gestureAxis) return;
   gestureMoved = true;
+  foodViewport.dataset.gestureAxis = gestureAxis;
   if (gestureAxis === "horizontal") {
-    const progress = dragProgressFromDelta({
-      deltaX: dragDeltaX,
-      width: mapViewport.clientWidth,
-    });
-    wheelFrameScheduler.schedule(progress);
+    const preview = Math.max(-42, Math.min(42, dragDeltaX * 0.18));
+    foodViewport.style.setProperty("--gesture-x", `${preview}px`);
   } else {
-    const height = Math.max(1, mapViewport.clientHeight);
-    const progress = Math.max(-1, Math.min(1, dragDeltaY / (height * 0.42)));
-    const indicator = activeModeIndicator();
-    indicator?.style.setProperty("--mode-drag-y", `${progress * 18}px`);
-    indicator?.style.setProperty("--mode-drag-rotate", `${progress * -10}deg`);
+    const preview = Math.max(-28, Math.min(28, dragDeltaY * 0.16));
+    foodViewport.style.setProperty("--gesture-y", `${preview}px`);
   }
   event.preventDefault();
 }
 
-function endMapDrag(event, cancelled = false) {
+function endGesture(event, cancelled = false) {
   if (event.pointerId !== dragPointerId) return;
-  const elapsed = Math.max(1, performance.now() - dragStartTime);
-  mapViewport.releasePointerCapture?.(event.pointerId);
+  const elapsed = Math.max(1, performance.now() - dragStartedAt);
+  foodViewport.releasePointerCapture?.(event.pointerId);
   dragPointerId = null;
-  suppressMapClick = gestureMoved;
-  if (cancelled) {
-    wheelFrameScheduler.cancel();
-    mapViewport.classList.remove("is-dragging");
-    lobbyStage?.classList.remove("is-dragging-map");
-    renderWheel();
-    resetModePreview();
-    return;
-  }
-  if (gestureAxis === "horizontal") {
-    const fromProgress = dragProgressFromDelta({
-      deltaX: dragDeltaX,
-      width: mapViewport.clientWidth,
-    });
-    wheelFrameScheduler.flush();
+  suppressViewportClick = gestureMoved;
+  if (!cancelled && gestureAxis === "horizontal") {
     const direction = resolveSwipe({
       deltaX: dragDeltaX,
-      width: mapViewport.clientWidth,
+      width: foodViewport.clientWidth,
       velocityX: dragDeltaX / elapsed,
     });
-    if (direction) moveMap(direction, { fromProgress });
-    else snapWheelBack(fromProgress);
-    return;
+    if (direction) moveTheme(direction);
   }
-  wheelFrameScheduler.cancel();
-  mapViewport.classList.remove("is-dragging");
-  lobbyStage?.classList.remove("is-dragging-map");
-  if (gestureAxis === "vertical") {
+  if (!cancelled && gestureAxis === "vertical") {
     const direction = resolveModeSwipe({
       deltaY: dragDeltaY,
-      height: mapViewport.clientHeight,
+      height: foodViewport.clientHeight,
       velocityY: dragDeltaY / elapsed,
     });
     if (direction) moveMode(direction);
-    else resetModePreview();
-    return;
   }
-  renderWheel();
-  resetModePreview();
+  resetGesturePreview();
 }
-
-function readProgress() {
-  try {
-    return normalizeHomeProgress(JSON.parse(storage.getItem(HOME_PROGRESS_KEY) || "null"));
-  } catch {
-    return createHomeProgress();
-  }
-}
-
-function writeProgress(progress) {
-  storage.setItem(HOME_PROGRESS_KEY, JSON.stringify(normalizeHomeProgress(progress)));
-}
-
-let progress = readProgress();
 
 function renderProgress() {
   energyValue.textContent = String(progress.energy);
@@ -775,13 +278,6 @@ function renderProgress() {
   });
 }
 
-function showToast(message) {
-  window.clearTimeout(toastTimer);
-  toast.textContent = message;
-  toast.classList.add("is-visible");
-  toastTimer = window.setTimeout(() => toast.classList.remove("is-visible"), 2200);
-}
-
 function closeCurrentSheet() {
   if (!openSheet) return;
   openSheet.dataset.open = "false";
@@ -791,10 +287,6 @@ function closeCurrentSheet() {
   openSheet = null;
   window.setTimeout(() => {
     if (closing.dataset.open !== "true") closing.hidden = true;
-    if (!initialTruckEntryStarted) {
-      initialTruckEntryBlocked = false;
-      scheduleInitialTruckArrival(110);
-    }
   }, 190);
 }
 
@@ -813,100 +305,56 @@ function showSheet(id) {
 }
 
 document.addEventListener("click", (event) => {
-  const close = event.target.closest("[data-close-sheet]");
-  if (close || event.target === backdrop) {
+  if (event.target.closest("[data-close-sheet]") || event.target === backdrop) {
     closeCurrentSheet();
     return;
   }
-
   const action = event.target.closest("[data-home-action]")?.dataset.homeAction;
   if (!action) return;
   if (action === "daily-checkin") showSheet("daily-checkin");
   if (action === "cookbook") showSheet("cookbook-sheet");
   if (action === "settings") showSheet("settings-sheet");
-  if (action === "sushi") selectMap(1);
   if (action === "ad-reward") showToast("广告奖励暂未接入，不会让你白看广告。");
   if (action === "reset-home") {
-    storage.removeItem(HOME_PROGRESS_KEY);
     progress = createHomeProgress();
+    writeProgress(progress);
+    mapIndex = 0;
+    modeIndex = modeIndexForMap("burger", 0);
+    writeMapIndex(mapIndex);
+    writeModeIndex(modeIndex);
     renderProgress();
+    renderTheme();
+    renderMode();
     closeCurrentSheet();
     showToast("主页记录已经重置");
   }
 });
 
-mapArrows.forEach((arrow) => {
-  arrow.addEventListener("click", () => {
-    if (document.documentElement.classList.contains("layout-editor-active")) {
-      return;
-    }
-    moveMap(Number(arrow.dataset.mapDirection));
-  });
+themeButtons.forEach((button) => {
+  button.addEventListener("click", () => selectTheme(button.dataset.themeId, { announce: true }));
 });
-
-mapViewport?.addEventListener("pointerdown", beginMapDrag);
-mapViewport?.addEventListener("pointermove", updateMapDrag);
-mapViewport?.addEventListener("pointerup", (event) => endMapDrag(event));
-mapViewport?.addEventListener("pointercancel", (event) => endMapDrag(event, true));
-window.addEventListener("burger:editor-select-map", (event) => {
-  const mapId = event.detail?.mapId;
-  const targetIndex = HOME_MAPS.findIndex((map) => map.id === mapId);
-  if (targetIndex >= 0) selectMap(targetIndex, { persist: false });
-});
-mapViewport?.addEventListener("click", (event) => {
-  if (
-    event.isTrusted &&
-    document.documentElement.classList.contains("layout-editor-active")
-  ) {
+startButton?.addEventListener("click", activateCurrentMode);
+foodViewport?.addEventListener("pointerdown", beginGesture);
+foodViewport?.addEventListener("pointermove", updateGesture);
+foodViewport?.addEventListener("pointerup", (event) => endGesture(event));
+foodViewport?.addEventListener("pointercancel", (event) => endGesture(event, true));
+foodViewport?.addEventListener("click", (event) => {
+  if (suppressViewportClick) {
+    suppressViewportClick = false;
     event.preventDefault();
     return;
   }
-  if (suppressMapClick) {
-    suppressMapClick = false;
-    event.preventDefault();
-    return;
-  }
-  const truckReplayControl = event.target.closest("[data-truck-replay]");
-  if (truckReplayControl) {
-    event.preventDefault();
-    replayTruckArrival(truckReplayControl);
-    return;
-  }
-  const businessControl = event.target.closest("[data-business-toggle]");
-  if (businessControl) {
-    event.preventDefault();
-    if (!businessControl.disabled) toggleBusiness();
-    return;
-  }
-  activateMode();
+  if (event.target.closest("button")) return;
+  activateCurrentMode();
 });
-mapViewport?.addEventListener("animationend", (event) => {
-  if (event.target.classList?.contains("shop-shutter__status")) {
-    event.target.classList.remove("is-changing");
-  }
-  if (
-    event.animationName === "burger-truck-camera-arrive"
-    && event.target.matches?.("[data-truck-camera]")
-  ) {
-    event.target.classList.remove("is-arriving");
-    const slide = event.target.closest(".home-map-slide");
-    slide?.classList.remove("is-truck-replaying");
-    slide?.querySelectorAll(".truck-replay, .truck-service-control").forEach((button) => {
-      button.hidden = false;
-    });
-  }
-});
-mapViewport?.addEventListener("keydown", (event) => {
-  if (document.documentElement.classList.contains("layout-editor-active")) {
-    return;
-  }
+foodViewport?.addEventListener("keydown", (event) => {
   if (event.key === "ArrowLeft") {
     event.preventDefault();
-    moveMap(-1);
+    moveTheme(-1);
   }
   if (event.key === "ArrowRight") {
     event.preventDefault();
-    moveMap(1);
+    moveTheme(1);
   }
   if (event.key === "ArrowUp") {
     event.preventDefault();
@@ -916,57 +364,36 @@ mapViewport?.addEventListener("keydown", (event) => {
     event.preventDefault();
     moveMode(-1);
   }
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    activateCurrentMode();
+  }
 });
 
-window.addEventListener("resize", () => {
-  renderMap();
-  renderWheel();
+window.addEventListener("burger:editor-select-map", (event) => {
+  selectTheme(event.detail?.mapId, { persist: false });
 });
-
-claimButton.addEventListener("click", () => {
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeCurrentSheet();
+});
+claimButton?.addEventListener("click", () => {
   const result = claimDailyReward(progress);
   progress = result.progress;
   writeProgress(progress);
   renderProgress();
-  if (result.claimed) {
-    showToast("签到成功，奖励已到账！");
-  }
+  if (result.claimed) showToast("签到成功，奖励已到账！");
 });
 
-window.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") closeCurrentSheet();
-});
+try {
+  foodOrbit = createHomeFoodOrbit(foodCanvas, {
+    windowTarget: window,
+    initialFood: HOME_MAPS[mapIndex]?.id,
+  });
+} catch (error) {
+  document.body.classList.add("home-food-webgl-failed");
+  showToast("旋转料理预览没有加载成功，请刷新页面重试");
+}
 
 renderProgress();
-const shouldOpenDailyCheckin = (
-  !visualQaMode
-  && !layoutEditorMode
-  && progress.lastClaimDay !== dayStamp()
-);
-initialTruckEntryBlocked = shouldOpenDailyCheckin;
-requestAnimationFrame(() => {
-  refreshBufferedMapSlides();
-  refreshBufferedMapCaptions();
-  renderMap();
-  renderWheel();
-  renderMode();
-  renderBusiness();
-  initialTruckEntryRendered = true;
-  if (layoutEditorMode) {
-    revealTruckWithoutArrival();
-  } else if (!initialTruckEntryBlocked) {
-    scheduleInitialTruckArrival();
-  }
-});
-if (!initialTruckEntryAssetsReady) {
-  window.addEventListener("load", () => {
-    initialTruckEntryAssetsReady = true;
-    scheduleInitialTruckArrival();
-  }, { once: true });
-}
-document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) scheduleInitialTruckArrival();
-});
-if (shouldOpenDailyCheckin) {
-  window.setTimeout(() => showSheet("daily-checkin"), 180);
-}
+renderTheme();
+renderMode();
