@@ -3460,16 +3460,53 @@ body[data-game-mode="orders"]:not([data-shop-phase="cooking"]) .sauce-capsule {
 .first-person-cooking .workbench-slot-controls[data-control-mode="condiment-rack"] .workbench-slot-controls__capsule[data-region="sauce"] {
   z-index: 5;
   display: grid;
-  grid-template-columns: repeat(3, 52px);
+  grid-template-columns: 72px;
+  grid-template-rows: repeat(3, 48px);
   max-width: none;
-  padding: 7px;
-  gap: 6px;
+  padding: 9px 7px;
+  gap: 4px;
   overflow: visible;
   border: 2px solid #3d2b24;
-  border-radius: 18px;
-  transform: translate(calc(-100% - 34px), -50%);
-  background: rgba(255, 247, 218, .98);
-  box-shadow: 0 4px 0 rgba(53, 35, 28, .34), 0 14px 28px rgba(25, 12, 8, .26);
+  border-radius: 999px;
+  transform: translate(calc(-100% - 26px), -50%);
+  background: linear-gradient(180deg, rgba(255, 249, 226, .99), rgba(247, 216, 143, .99));
+  box-shadow:
+    0 4px 0 rgba(53, 35, 28, .34),
+    0 14px 28px rgba(25, 12, 8, .26),
+    inset 0 0 0 3px rgba(255, 255, 255, .28);
+  touch-action: none;
+}
+
+.first-person-cooking .workbench-slot-controls[data-control-mode="condiment-rack"] .workbench-slot-controls__capsule[data-region="sauce"]::before {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  display: grid;
+  width: 28px;
+  height: 22px;
+  place-items: center;
+  border: 2px solid #3d2b24;
+  border-radius: 999px;
+  content: "↑";
+  color: #7c3a28;
+  background: #fff4cf;
+  box-shadow: 0 2px 0 rgba(53, 35, 28, .28);
+  font-size: .82rem;
+  font-weight: 1000;
+  transform: translateX(-50%);
+}
+
+.first-person-cooking .workbench-slot-controls[data-control-mode="condiment-rack"] .workbench-slot-controls__capsule[data-region="sauce"]::after {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 1px);
+  width: 0;
+  height: 0;
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-left: 9px solid #3d2b24;
+  content: "";
+  transform: translateY(-50%);
 }
 
 .first-person-cooking .workbench-slot-controls[data-control-mode="condiment-rack"] .workbench-slot-controls__capsule[hidden] {
@@ -3478,21 +3515,30 @@ body[data-game-mode="orders"]:not([data-shop-phase="cooking"]) .sauce-capsule {
 
 .first-person-cooking .condiment-rack-picker__item {
   display: grid;
-  min-width: 52px;
-  min-height: 60px;
-  padding: 6px 4px 5px;
-  gap: 3px;
+  grid-template-columns: 22px 1fr;
+  width: 72px;
+  min-width: 72px;
+  min-height: 48px;
+  padding: 5px 7px;
+  gap: 5px;
   place-items: center;
   border: 1px solid rgba(61, 43, 36, .24);
-  border-radius: 13px;
+  border-radius: 999px;
+  opacity: .5;
   color: #4a2b20;
   background: rgba(255, 255, 255, .34);
+  transform: scale(.88);
+  transform-origin: right center;
+  transition: opacity 120ms ease, transform 150ms cubic-bezier(.2, .9, .3, 1.2), background 120ms ease;
 }
 
+.first-person-cooking .condiment-rack-picker__item[data-active="true"],
 .first-person-cooking .condiment-rack-picker__item[aria-selected="true"] {
   border-color: #b64b31;
+  opacity: 1;
   background: #ffe39a;
   box-shadow: 0 0 0 2px rgba(255, 202, 75, .24), inset 0 -3px rgba(163, 72, 41, .12);
+  transform: translateX(-8px) scale(1.06);
 }
 
 .first-person-cooking .condiment-rack-picker__icon {
@@ -3520,7 +3566,8 @@ body[data-game-mode="orders"]:not([data-shop-phase="cooking"]) .sauce-capsule {
 }
 
 .first-person-cooking .condiment-rack-picker__label {
-  font-size: .54rem;
+  justify-self: start;
+  font-size: .56rem;
   font-weight: 900;
   line-height: 1;
 }
@@ -3537,7 +3584,28 @@ body[data-game-mode="orders"]:not([data-shop-phase="cooking"]) .sauce-capsule {
 
 .first-person-cooking .workbench-slot-controls[data-control-mode="condiment-rack"][data-gesture-state="carrying"] .condiment-rack-control[data-active="true"] {
   opacity: .42;
-  transform: translate(-50%, -62%);
+  transform: translate(-62%, -50%);
+}
+
+.first-person-cooking .workbench-slot-controls[data-control-mode="condiment-rack"][data-gesture-state="choosing"] .workbench-slot-controls__capsule[data-region="sauce"] {
+  animation: condiment-roulette-arrive 180ms cubic-bezier(.2, .88, .34, 1.2) both;
+}
+
+@keyframes condiment-roulette-arrive {
+  from { opacity: 0; transform: translate(calc(-100% - 14px), -50%) scale(.88); }
+  to { opacity: 1; transform: translate(calc(-100% - 26px), -50%) scale(1); }
+}
+
+@media (max-width: 760px) {
+  .first-person-cooking .workbench-slot-controls[data-control-mode="condiment-rack"] .workbench-slot-controls__capsule[data-region="sauce"] {
+    left: var(--capsule-x);
+    top: var(--capsule-y);
+    transform: translate(calc(-100% - 20px), -50%) !important;
+  }
+
+  .first-person-cooking .workbench-slot-controls[data-control-mode="condiment-rack"][data-gesture-state="choosing"] .workbench-slot-controls__capsule[data-region="sauce"] {
+    animation: none;
+  }
 }
 
 body[data-game-mode="orders"]:not([data-shop-phase="cooking"])

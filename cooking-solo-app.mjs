@@ -1,5 +1,5 @@
 import * as THREE from "./vendor/three.module.min.js";
-import { createSoloCookingStage } from "./cooking-solo-stage.mjs?v=20260802-gameplay30";
+import { createSoloCookingStage } from "./cooking-solo-stage.mjs?v=20260802-gameplay31";
 import {
   disposeActiveSoloCookingPage,
   mountSoloCookingLifecycle,
@@ -15,7 +15,7 @@ import { loadBurgerTuning, saveBurgerTuning } from "./burger-tuning.mjs";
 import { BURGER_RECIPES } from "./burger-recipes.mjs";
 import { MAX_SOLO_STACK_LAYERS } from "./cooking-solo-state.mjs";
 import { createWorkbenchSlotPicker } from "./cooking-workbench-picker.mjs";
-import { createCondimentRackControls } from "./cooking-condiment-rack.mjs?v=20260802-gameplay30";
+import { createCondimentRackControls } from "./cooking-condiment-rack.mjs?v=20260802-gameplay31";
 import {
   loadWorkbenchLoadout,
   saveWorkbenchLoadout,
@@ -702,7 +702,15 @@ export function bootSoloCookingPage(
         onPickupCancel: ({ reason }) => stage.cancelSauceGesture?.(reason),
         onHighlight: (slotId, value) => stage.workbench?.setSlotHighlighted?.(slotId, value),
         onFeedback: (kind) => {
-          const duration = { switch: 10, open: 18, choose: 14, pickup: 16, drop: 10, hint: 6 }[kind];
+          const duration = {
+            switch: 10,
+            open: 18,
+            roulette: 4,
+            choose: 14,
+            pickup: 16,
+            drop: 10,
+            hint: 6,
+          }[kind];
           if (!duration) return;
           try { windowTarget.navigator?.vibrate?.(duration); } catch { /* optional haptic */ }
         },

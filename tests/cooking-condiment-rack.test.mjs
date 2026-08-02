@@ -3,6 +3,8 @@ import test from "node:test";
 
 import {
   CONDIMENT_RACK_HOLD_MS,
+  CONDIMENT_RACK_HOLD_TOLERANCE_PX,
+  CONDIMENT_RACK_ROULETTE_STEP_PX,
   createCondimentRackControls,
 } from "../cooking-condiment-rack.mjs";
 import { createDefaultWorkbenchLoadout } from "../workbench-loadout.mjs";
@@ -183,14 +185,14 @@ function createHarness({ initialLoadout = createDefaultWorkbenchLoadout(), ...ov
   };
 }
 
-test("horizontal swipe cycles only the touched physical bottle slot", (t) => {
+test("right swipe cycles only the touched physical bottle slot", (t) => {
   const harness = createHarness();
   t.after(() => harness.controls.dispose());
   const secondBottle = harness.buttonsRoot.children[1];
 
   secondBottle.dispatch("pointerdown", pointer(1, 535, 270));
-  harness.documentTarget.dispatch("pointermove", pointer(1, 500, 271));
-  harness.documentTarget.dispatch("pointerup", pointer(1, 500, 271));
+  harness.documentTarget.dispatch("pointermove", pointer(1, 570, 271));
+  harness.documentTarget.dispatch("pointerup", pointer(1, 570, 271));
 
   assert.deepEqual(
     harness.cycles.map(({ slotId, contentId, reason }) => ({ slotId, contentId, reason })),
@@ -201,7 +203,7 @@ test("horizontal swipe cycles only the touched physical bottle slot", (t) => {
   assert.equal(harness.controls.getLoadout()["sauce-right-2"], "house-sauce");
 });
 
-test("stationary long press opens an icon chooser and assigns that bottle", (t) => {
+test("long press then upward roulette motion assigns the release selection", (t) => {
   const harness = createHarness();
   t.after(() => harness.controls.dispose());
   const firstBottle = harness.buttonsRoot.children[0];
@@ -213,27 +215,38 @@ test("stationary long press opens an icon chooser and assigns that bottle", (t) 
   assert.equal(harness.controls.getOpenSlotId(), "sauce-right-1");
   assert.equal(harness.picker.hidden, false);
   assert.equal(harness.picker.children.length, 3);
+  assert.equal(harness.picker.dataset.activeContentId, "ketchup");
 
-  const houseSauce = harness.picker.children.find(
-    ({ dataset }) => dataset.contentId === "house-sauce",
+  harness.documentTarget.dispatch(
+    "pointermove",
+    pointer(2, 520, 190 - CONDIMENT_RACK_ROULETTE_STEP_PX * 2),
   );
-  harness.picker.dispatch("click", { target: houseSauce, preventDefault() {}, stopPropagation() {} });
+  assert.equal(harness.picker.dataset.activeContentId, "house-sauce");
+  assert.equal(
+    harness.picker.children.find(({ dataset }) => dataset.contentId === "house-sauce")
+      .getAttribute("aria-selected"),
+    "true",
+  );
+  harness.documentTarget.dispatch(
+    "pointerup",
+    pointer(2, 520, 190 - CONDIMENT_RACK_ROULETTE_STEP_PX * 2),
+  );
 
   assert.deepEqual(
     harness.choices.map(({ slotId, contentId, reason }) => ({ slotId, contentId, reason })),
-    [{ slotId: "sauce-right-1", contentId: "house-sauce", reason: "picker" }],
+    [{ slotId: "sauce-right-1", contentId: "house-sauce", reason: "roulette" }],
   );
   assert.equal(harness.controls.getLoadout()["sauce-right-1"], "house-sauce");
   assert.equal(harness.picker.hidden, true);
 });
 
-test("upward drag grabs the exact slot, forwards motion, and commits on release", (t) => {
+test("left drag grabs the exact slot, forwards motion, and commits on release", (t) => {
   const harness = createHarness();
   t.after(() => harness.controls.dispose());
   const thirdBottle = harness.buttonsRoot.children[2];
 
   thirdBottle.dispatch("pointerdown", pointer(3, 550, 350));
-  harness.documentTarget.dispatch("pointermove", pointer(3, 551, 320));
+  harness.documentTarget.dispatch("pointermove", pointer(3, 520, 351));
   harness.documentTarget.dispatch("pointermove", pointer(3, 470, 220));
   harness.documentTarget.dispatch("pointerup", pointer(3, 460, 200));
 
@@ -258,7 +271,67 @@ test("a tap leaves the mapping unchanged and only gives the gesture hint", (t) =
   assert.equal(harness.cycles.length, 0);
   assert.equal(harness.choices.length, 0);
   assert.equal(harness.starts.length, 0);
-  assert.match(statuses.at(-1), /向上拖动拿瓶/);
+  assert.match(statuses.at(-1), /左拖拿瓶挤酱/);
+});
+
+test("long press without turning the roulette does not remap the bottle", (t) => {
+  const harness = createHarness();
+  t.after(() => harness.controls.dispose());
+  const firstBottle = harness.buttonsRoot.children[0];
+
+  firstBottle.dispatch("pointerdown", pointer(6, 520, 190));
+  harness.timers.advance(CONDIMENT_RACK_HOLD_MS);
+  harness.documentTarget.dispatch("pointerup", pointer(6, 520, 190));
+
+  assert.equal(harness.choices.length, 0);
+  assert.equal(harness.controls.getLoadout()["sauce-right-1"], "ketchup");
+  assert.equal(harness.picker.hidden, true);
+  assert.equal(harness.controls.getState(), "idle");
+});
+
+test("movement beyond the stationary tolerance cancels long-press roulette eligibility", (t) => {
+  const harness = createHarness();
+  t.after(() => harness.controls.dispose());
+  const firstBottle = harness.buttonsRoot.children[0];
+
+  firstBottle.dispatch("pointerdown", pointer(7, 520, 190));
+  harness.documentTarget.dispatch(
+    "pointermove",
+    pointer(
+      7,
+      520 + CONDIMENT_RACK_HOLD_TOLERANCE_PX,
+      190 - CONDIMENT_RACK_HOLD_TOLERANCE_PX,
+    ),
+  );
+  harness.timers.advance(CONDIMENT_RACK_HOLD_MS);
+
+  assert.equal(harness.controls.getState(), "pressing");
+  assert.equal(harness.controls.getOpenSlotId(), null);
+  assert.equal(harness.picker.hidden, true);
+  assert.equal(harness.cycles.length, 0);
+  assert.equal(harness.starts.length, 0);
+  harness.documentTarget.dispatch("pointerup", pointer(7, 530, 180));
+});
+
+test("keyboard exposes right-cycle and vertical roulette without remapping ArrowLeft", (t) => {
+  const harness = createHarness();
+  t.after(() => harness.controls.dispose());
+  const firstBottle = harness.buttonsRoot.children[0];
+
+  firstBottle.dispatch("keydown", { key: "ArrowLeft", preventDefault() {} });
+  assert.equal(harness.cycles.length, 0);
+  firstBottle.dispatch("keydown", { key: "ArrowRight", preventDefault() {} });
+  assert.equal(harness.controls.getLoadout()["sauce-right-1"], "mustard");
+  firstBottle.dispatch("keydown", { key: "Enter", preventDefault() {} });
+  harness.picker.dispatch("keydown", { key: "ArrowUp", preventDefault() {} });
+  assert.equal(harness.picker.dataset.activeContentId, "house-sauce");
+  harness.picker.dispatch("keydown", { key: "Enter", preventDefault() {} });
+
+  assert.deepEqual(
+    harness.choices.map(({ slotId, contentId, reason }) => ({ slotId, contentId, reason })),
+    [{ slotId: "sauce-right-1", contentId: "house-sauce", reason: "keyboard-roulette" }],
+  );
+  assert.equal(harness.picker.hidden, true);
 });
 
 test("duplicate sauces remain slot-addressed during pickup", (t) => {
@@ -273,7 +346,7 @@ test("duplicate sauces remain slot-addressed during pickup", (t) => {
   const secondBottle = harness.buttonsRoot.children[1];
 
   secondBottle.dispatch("pointerdown", pointer(5, 535, 270));
-  harness.documentTarget.dispatch("pointermove", pointer(5, 535, 240));
+  harness.documentTarget.dispatch("pointermove", pointer(5, 505, 270));
 
   assert.equal(harness.starts[0].slotId, "sauce-right-2");
   assert.equal(harness.starts[0].sauceId, "ketchup");
@@ -307,7 +380,7 @@ for (const scenario of [
     const firstBottle = harness.buttonsRoot.children[0];
     const pointerId = 10;
     firstBottle.dispatch("pointerdown", pointer(pointerId, 520, 190));
-    harness.documentTarget.dispatch("pointermove", pointer(pointerId, 520, 160));
+    harness.documentTarget.dispatch("pointermove", pointer(pointerId, 490, 190));
 
     scenario.trigger(harness, pointerId);
     harness.documentTarget.dispatch("pointerup", pointer(pointerId, 460, 200));

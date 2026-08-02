@@ -12,6 +12,8 @@ export const CONDIMENT_RACK_HOLD_MS = 360;
 export const CONDIMENT_RACK_SWIPE_THRESHOLD = 18;
 export const CONDIMENT_RACK_PICKUP_THRESHOLD = 20;
 export const CONDIMENT_RACK_AXIS_DOMINANCE = 1.1;
+export const CONDIMENT_RACK_ROULETTE_STEP_PX = 44;
+export const CONDIMENT_RACK_HOLD_TOLERANCE_PX = 10;
 
 const SAUCE_SLOTS = Object.freeze(WORKBENCH_SLOTS.filter(({ region }) => region === "sauce"));
 const SAUCE_VISUALS = Object.freeze({
@@ -88,6 +90,8 @@ export function createCondimentRackControls({
   holdMs = CONDIMENT_RACK_HOLD_MS,
   swipeThresholdPx = CONDIMENT_RACK_SWIPE_THRESHOLD,
   pickupThresholdPx = CONDIMENT_RACK_PICKUP_THRESHOLD,
+  rouletteStepPx = CONDIMENT_RACK_ROULETTE_STEP_PX,
+  holdTolerancePx = CONDIMENT_RACK_HOLD_TOLERANCE_PX,
   axisDominance = CONDIMENT_RACK_AXIS_DOMINANCE,
   onCycle = () => {},
   onChoose = () => {},
@@ -134,6 +138,16 @@ export function createCondimentRackControls({
     CONDIMENT_RACK_PICKUP_THRESHOLD,
     "pickupThresholdPx",
   );
+  const normalizedRouletteStep = positiveFinite(
+    rouletteStepPx,
+    CONDIMENT_RACK_ROULETTE_STEP_PX,
+    "rouletteStepPx",
+  );
+  const normalizedHoldTolerance = positiveFinite(
+    holdTolerancePx,
+    CONDIMENT_RACK_HOLD_TOLERANCE_PX,
+    "holdTolerancePx",
+  );
   const normalizedAxisDominance = positiveFinite(
     axisDominance,
     CONDIMENT_RACK_AXIS_DOMINANCE,
@@ -158,14 +172,14 @@ export function createCondimentRackControls({
   let disposed = false;
 
   setDataset(root, "controlMode", "condiment-rack");
-  setDataset(root, "controlGrammar", "horizontal-swipe hold-assign upward-drag-squeeze");
+  setDataset(root, "controlGrammar", "left-drag-squeeze right-swipe-cycle hold-up-roulette");
   root.hidden = false;
   linesRoot.hidden = true;
   regionsRoot.hidden = true;
   regionMenu.hidden = true;
   picker.hidden = true;
   hint.hidden = false;
-  hint.textContent = "瓶身左右滑换酱 · 上拖取用 · 长按指定";
+  hint.textContent = "左拖拿瓶 · 右滑快切 · 长按上滑轮盘";
 
   function sauceVisual(contentId) {
     const presentation = WORKBENCH_CONTENT_PRESENTATION[contentId];
@@ -190,10 +204,11 @@ export function createCondimentRackControls({
     const visual = sauceVisual(contentId);
     setDataset(button, "slotId", slotId);
     setDataset(button, "contentId", contentId);
-    button.setAttribute("aria-label", `${WORKBENCH_SLOT_PRESENTATION[slotId]?.label ?? slotId}，当前${visual.label}。左右滑切换，上拖取用，长按指定酱料`);
+    button.setAttribute("aria-label", `${WORKBENCH_SLOT_PRESENTATION[slotId]?.label ?? slotId}，当前${visual.label}。向左拖取并挤酱，向右滑快速切换，长按后向上滑动轮盘指定酱料`);
+    button.setAttribute("aria-describedby", "condiment-rack-hint");
     button.setAttribute("aria-haspopup", "listbox");
     button.setAttribute("aria-expanded", String(openSlotId === slotId));
-    button.setAttribute("title", `${visual.label}：左右滑换酱，上拖取用，长按指定`);
+    button.setAttribute("title", `${visual.label}：左拖拿瓶，右滑快切，长按上滑轮盘`);
     button.style?.setProperty?.("--rack-sauce-color", visual.color);
     const swatch = createNode(documentTarget, "i", "condiment-rack-control__swatch");
     swatch.setAttribute?.("aria-hidden", "true");
@@ -226,6 +241,8 @@ export function createCondimentRackControls({
     picker.hidden = true;
     picker.replaceChildren?.();
     setDataset(picker, "slotId", undefined);
+    setDataset(picker, "activeContentId", undefined);
+    setDataset(picker, "rouletteIndex", undefined);
     setDataset(root, "pickerOpen", undefined);
     trigger?.setAttribute?.("aria-expanded", "false");
     safeCall(onHighlight, trigger?.dataset?.slotId, false);
@@ -267,7 +284,49 @@ export function createCondimentRackControls({
     return true;
   }
 
-  function openPicker(slotId, trigger) {
+  function positiveModulo(value, length) {
+    return ((value % length) + length) % length;
+  }
+
+  function setPickerActive(contentId) {
+    const optionIds = WORKBENCH_REGION_OPTIONS.sauce;
+    const activeIndex = optionIds.indexOf(contentId);
+    if (!openSlotId || activeIndex < 0) return false;
+    setDataset(picker, "activeContentId", contentId);
+    setDataset(picker, "rouletteIndex", activeIndex);
+    for (const option of picker.children ?? []) {
+      const isActive = option.dataset?.contentId === contentId;
+      option.setAttribute?.("aria-selected", String(isActive));
+      setDataset(option, "active", isActive);
+      if (isActive) {
+        const optionId = `condiment-roulette-${openSlotId}-${contentId}`;
+        option.setAttribute?.("id", optionId);
+        picker.setAttribute?.("aria-activedescendant", optionId);
+      }
+    }
+    return true;
+  }
+
+  function updateRoulette(gesture, point) {
+    const optionIds = WORKBENCH_REGION_OPTIONS.sauce;
+    const turns = Math.round((gesture.origin.y - point.y) / normalizedRouletteStep);
+    const activeIndex = positiveModulo(gesture.rouletteBaseIndex + turns, optionIds.length);
+    if (turns === gesture.rouletteTurns && gesture.rouletteIndex === activeIndex) return false;
+    gesture.rouletteTurns = turns;
+    gesture.rouletteIndex = activeIndex;
+    gesture.rouletteMoved ||= turns !== 0;
+    const contentId = optionIds[activeIndex];
+    setPickerActive(contentId);
+    safeCall(onFeedback, "roulette", Object.freeze({
+      slotId: gesture.slotId,
+      contentId,
+      turns,
+    }));
+    safeCall(onStatus, `轮盘停在${sauceVisual(contentId).label}，保持按住，松手确认`);
+    return true;
+  }
+
+  function openPicker(slotId, trigger, { focus = false } = {}) {
     if (disposed || disabled || hidden || !slotById.has(slotId)) return false;
     closePicker();
     openSlotId = slotId;
@@ -281,7 +340,8 @@ export function createCondimentRackControls({
       button.setAttribute("type", "button");
       button.setAttribute("role", "option");
       button.setAttribute("aria-selected", String(contentId === currentContent(slotId)));
-      button.setAttribute("aria-label", `把这个位置指定为${visual.label}`);
+      button.setAttribute("aria-label", `轮盘选项：${visual.label}`);
+      button.setAttribute("tabindex", "-1");
       setDataset(button, "contentId", contentId);
       button.style?.setProperty?.("--rack-sauce-color", visual.color);
       const icon = createNode(documentTarget, "i", "condiment-rack-picker__icon");
@@ -293,14 +353,18 @@ export function createCondimentRackControls({
     });
     picker.replaceChildren?.(...options);
     picker.setAttribute("role", "listbox");
-    picker.setAttribute("aria-label", `${WORKBENCH_SLOT_PRESENTATION[slotId]?.label ?? slotId}酱料图标选择`);
+    picker.setAttribute("tabindex", "-1");
+    picker.setAttribute("aria-orientation", "vertical");
+    picker.setAttribute("aria-label", `${WORKBENCH_SLOT_PRESENTATION[slotId]?.label ?? slotId}酱料胶囊轮盘`);
     picker.hidden = false;
+    setPickerActive(currentContent(slotId));
     trigger.setAttribute?.("aria-expanded", "true");
     safeCall(onHighlight, slotId, true);
     safeCall(onFeedback, "open", Object.freeze({ slotId }));
-    safeCall(onStatus, "选择一个图标，指定这只调料罐装什么酱");
+    safeCall(onStatus, "保持按住并向上滑动轮盘，停在哪里，松手就选哪里");
     updatePickerPosition(trigger);
     setState("choosing", slotId);
+    if (focus) picker.focus?.();
     return true;
   }
 
@@ -348,19 +412,27 @@ export function createCondimentRackControls({
       origin,
       mode: "pressing",
       holdTimer: null,
-      cycleDirection: 0,
+      holdEligible: true,
+      directionResolved: false,
+      rouletteBaseIndex: 0,
+      rouletteIndex: 0,
+      rouletteTurns: 0,
+      rouletteMoved: false,
     };
     activeGesture = gesture;
     try { button.setPointerCapture?.(event.pointerId); } catch { /* progressive enhancement */ }
     setDataset(button, "active", true);
     safeCall(onHighlight, slotId, true);
     setState("pressing", slotId);
-    safeCall(onStatus, "左右滑换酱 · 向上拖动取用 · 继续按住指定图标");
+    safeCall(onStatus, "向左拖拿瓶 · 向右滑快切 · 继续按住后向上转轮盘");
     gesture.holdTimer = timers?.setTimeout?.(() => {
-      if (disposed || disabled || activeGesture !== gesture || gesture.mode !== "pressing") return;
+      if (disposed || disabled || activeGesture !== gesture
+        || gesture.mode !== "pressing" || !gesture.holdEligible) return;
       gesture.holdTimer = null;
       gesture.mode = "choosing";
       openPicker(slotId, button);
+      gesture.rouletteBaseIndex = WORKBENCH_REGION_OPTIONS.sauce.indexOf(currentContent(slotId));
+      gesture.rouletteIndex = gesture.rouletteBaseIndex;
     }, normalizedHoldMs) ?? null;
   }
 
@@ -376,25 +448,32 @@ export function createCondimentRackControls({
       }));
       return;
     }
-    if (gesture.mode === "choosing" || gesture.mode === "swiping") return;
     const point = pointFromEvent(event);
+    if (gesture.mode === "choosing") {
+      updateRoulette(gesture, point);
+      return;
+    }
+    if (gesture.mode === "swiping") return;
     const dx = point.x - gesture.origin.x;
     const dy = point.y - gesture.origin.y;
-    const horizontal = Math.abs(dx) >= normalizedSwipeThreshold
-      && Math.abs(dx) > Math.abs(dy) * normalizedAxisDominance;
-    if (horizontal) {
+    if (gesture.holdEligible && Math.hypot(dx, dy) > normalizedHoldTolerance) {
+      gesture.holdEligible = false;
       clearHold(gesture);
-      const direction = dx < 0 ? 1 : -1;
-      if (gesture.cycleDirection === 0 && cycle(gesture.slotId, direction)) {
-        gesture.cycleDirection = direction;
+    }
+    const rightSwipe = dx >= normalizedSwipeThreshold
+      && dx > Math.abs(dy) * normalizedAxisDominance;
+    if (rightSwipe) {
+      clearHold(gesture);
+      if (!gesture.directionResolved && cycle(gesture.slotId, 1)) {
+        gesture.directionResolved = true;
         gesture.mode = "swiping";
         setState("swiping", gesture.slotId);
       }
       return;
     }
-    const upward = -dy >= normalizedPickupThreshold
-      && -dy > Math.abs(dx) * normalizedAxisDominance;
-    if (upward) {
+    const leftPickup = -dx >= normalizedPickupThreshold
+      && -dx > Math.abs(dy) * normalizedAxisDominance;
+    if (leftPickup) {
       clearHold(gesture);
       const sauceId = currentContent(gesture.slotId);
       const started = safeCall(onPickupStart, Object.freeze({
@@ -410,7 +489,7 @@ export function createCondimentRackControls({
       gesture.mode = "carrying";
       setState("carrying", gesture.slotId);
       safeCall(onFeedback, "pickup", Object.freeze({ slotId: gesture.slotId, sauceId }));
-      safeCall(onStatus, `正在使用${sauceVisual(sauceId).label}，拖到汉堡上松手`);
+      safeCall(onStatus, `已拿起${sauceVisual(sauceId).label}，继续往左拖到汉堡上，松手挤酱`);
     }
   }
 
@@ -418,13 +497,27 @@ export function createCondimentRackControls({
     const gesture = activeGesture;
     if (!gesture || event?.pointerId !== gesture.pointerId) return;
     suppress(event);
+    if (gesture.mode === "choosing") {
+      const contentId = picker.dataset?.activeContentId;
+      const shouldApply = gesture.rouletteMoved
+        && WORKBENCH_REGION_OPTIONS.sauce.includes(contentId);
+      if (shouldApply && applyContent(onChoose, gesture.slotId, contentId, "roulette")) {
+        safeCall(onFeedback, "choose", Object.freeze({ slotId: gesture.slotId, contentId }));
+        safeCall(onStatus, `轮盘已把这只调料罐切换为${sauceVisual(contentId).label}`);
+      } else if (!gesture.rouletteMoved) {
+        safeCall(onFeedback, "hint", Object.freeze({ slotId: gesture.slotId }));
+        safeCall(onStatus, "长按后保持不松手，向上滑动轮盘，再松手确认");
+      }
+      finishGesture({ keepPicker: true });
+      closePicker();
+      return;
+    }
     if (gesture.mode !== "carrying") {
-      const keepPicker = gesture.mode === "choosing" && openSlotId === gesture.slotId;
       if (gesture.mode === "pressing") {
         safeCall(onFeedback, "hint", Object.freeze({ slotId: gesture.slotId }));
-        safeCall(onStatus, "向上拖动拿瓶；左右滑换酱；长按指定图标");
+        safeCall(onStatus, "左拖拿瓶挤酱；右滑快速换酱；长按后上滑轮盘指定");
       }
-      finishGesture({ keepPicker });
+      finishGesture();
       return;
     }
     const sauceId = currentContent(gesture.slotId);
@@ -461,12 +554,15 @@ export function createCondimentRackControls({
 
   function handleKeyDown(event, button, slotId) {
     if (disabled || hidden) return;
-    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+    if (event.key === "ArrowLeft") {
       event.preventDefault?.();
-      cycle(slotId, event.key === "ArrowLeft" ? -1 : 1, "keyboard");
+      safeCall(onStatus, "向左拖动实体瓶到汉堡上，松手即可挤酱");
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault?.();
+      cycle(slotId, 1, "keyboard");
     } else if (event.key === "Enter" || event.key === " " || event.key === "ArrowDown") {
       event.preventDefault?.();
-      openPicker(slotId, button);
+      openPicker(slotId, button, { focus: true });
     } else if (event.key === "Escape") {
       event.preventDefault?.();
       cancel("escape");
@@ -506,7 +602,24 @@ export function createCondimentRackControls({
   }
 
   function handlePickerKeyDown(event) {
-    if (event.key === "Escape") {
+    const optionIds = WORKBENCH_REGION_OPTIONS.sauce;
+    const activeIndex = optionIds.indexOf(picker.dataset?.activeContentId);
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      event.preventDefault?.();
+      const direction = event.key === "ArrowUp" ? 1 : -1;
+      const contentId = optionIds[positiveModulo(activeIndex + direction, optionIds.length)];
+      setPickerActive(contentId);
+      safeCall(onStatus, `轮盘停在${sauceVisual(contentId).label}，按回车确认`);
+    } else if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault?.();
+      const contentId = picker.dataset?.activeContentId;
+      if (openSlotId && optionIds.includes(contentId)
+        && applyContent(onChoose, openSlotId, contentId, "keyboard-roulette")) {
+        safeCall(onFeedback, "choose", Object.freeze({ slotId: openSlotId, contentId }));
+        safeCall(onStatus, `轮盘已把这只调料罐切换为${sauceVisual(contentId).label}`);
+        closePicker({ restoreFocus: true });
+      }
+    } else if (event.key === "Escape") {
       event.preventDefault?.();
       closePicker({ restoreFocus: true });
     }

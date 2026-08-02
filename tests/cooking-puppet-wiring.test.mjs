@@ -25,8 +25,8 @@ test("cooking page uses a clean first-person counter without puppet scenery", as
   assert.match(html, /data-action="restart">再做一份/);
   assert.match(html, /data-action="finish"/);
   assert.match(html, /data-action="reset">重做订单/);
-  assert.match(html, /data-control-grammar="drag-place condiment-rack-swipe hold-assign lift-squeeze undo serve"/);
-  assert.match(html, /右侧调料罐可左右滑换酱、长按指定、上拖取用/);
+  assert.match(html, /data-control-grammar="drag-place condiment-left-take right-swipe-cycle hold-up-roulette undo serve"/);
+  assert.match(html, /右侧调料罐可向左拖取挤酱、向右滑快速换酱、长按后向上转胶囊轮盘指定/);
   assert.doesNotMatch(html, /id="sauce-capsule"/);
   assert.doesNotMatch(html, /🍔|🧀|🥩|🏙️|✦/u);
 });

@@ -5,8 +5,8 @@ import {
 import { createThreeSceneHost } from "./three-scene-host.mjs";
 import { createCookingWorkbench3D } from "./cooking-workbench-3d.mjs?v=20260801-gameplay7";
 import { createBurgerModel3D } from "./burger-model-3d.mjs";
-import { createCondimentTools3D } from "./condiment-tools-3d.mjs?v=20260802-gameplay30";
-import { createCookingInteractionController } from "./cooking-interaction-controller.mjs?v=20260802-gameplay30";
+import { createCondimentTools3D } from "./condiment-tools-3d.mjs?v=20260802-gameplay31";
+import { createCookingInteractionController } from "./cooking-interaction-controller.mjs?v=20260802-gameplay31";
 import { resolveSoloLayerDrop } from "./cooking-drop-intent.mjs";
 import {
   createCookingMotion,
