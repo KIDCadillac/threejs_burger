@@ -1,0 +1,47 @@
+{
+  "verifiedAt": "2026-08-02T15:59:01+08:00",
+  "gameplayCommit": "68d2daf",
+  "url": "https://kidcadillac.github.io/threejs_burger/cooking.html?recipe=classic-beef&debug=1&debugSeed=patty&deploy=68d2daf&cache=gameplay31",
+  "cache": {
+    "css": "./cooking.css?v=20260802-gameplay31",
+    "loader": "./cooking-loader.mjs?v=20260802-gameplay31"
+  },
+  "controlGrammar": "left-drag-squeeze right-swipe-cycle hold-up-roulette",
+  "criticalPath": [
+    "第二槽向右滑：mustard -> house-sauce，只改变第二槽",
+    "第一槽静止长按并保持按住向上滑两格：轮盘停在 house-sauce，松手确认",
+    "第一槽向右滑：house-sauce -> ketchup",
+    "第一槽向左拖至牛肉饼并松手：订单 2/6 -> 3/6"
+  ],
+  "holdTolerance": {
+    "maximumStationaryDriftPx": 10,
+    "verifiedRegression": "横向 10 px + 纵向 10 px 的斜向漂移会取消轮盘资格，不打开选择器，也不改变槽位映射"
+  },
+  "rouletteDetentPx": 44,
+  "mobilePicker": {
+    "viewport": "720x1600 CSS px",
+    "insideCookingCanvas": true,
+    "activeSauce": "house-sauce"
+  },
+  "finalState": {
+    "progress": "3/6",
+    "objective": "下一步：把酸黄瓜放到餐盘中央",
+    "status": "已挤上番茄酱",
+    "rackState": "idle",
+    "slots": {
+      "sauce-right-1": "ketchup",
+      "sauce-right-2": "house-sauce",
+      "sauce-right-3": "house-sauce"
+    },
+    "oldGlobalCapsulePresent": false
+  },
+  "consoleErrors": [],
+  "screenshots": [
+    "01-before-focus.png",
+    "02-right-swipe-focus.png",
+    "03-hold-up-roulette-house-focus.png",
+    "05-left-drag-committed-focus.png",
+    "06-mobile-roulette.png",
+    "08-pages-full-gameplay31.png"
+  ]
+}
