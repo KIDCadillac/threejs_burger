@@ -1,5 +1,51 @@
 # 笔记本 → 台式机交接：旋转料理主页 + 第一人称汉堡闭环
 
+## 2026-08-13 最新接手状态：程序化 3D 手与真实落料
+
+这一轮只完成汉堡料理内容，没有继续改主页。料理页已经彻底停用手部 PNG 和反馈截图预览：玩家看到的手、食材、酱料瓶和料理台均为运行时 Three.js 几何体，不依赖截图、照片或纹理图片。
+
+玩家现在可以从空订单 `0/6` 依次完成：下层面包、牛肉饼、牛肉饼上的番茄酱、酸黄瓜、洋葱碎、上层面包。普通食材按“从正确侧伸手、闭指握住、随物体搬运、松手下落、接触压缩、手退场”执行；右侧调料瓶仍保留“左拖拿瓶挤酱、右滑快切、长按上滑轮盘”的既定操作。
+
+### 这次改了哪些文件
+
+- `cooking-first-person-hands.mjs`：重做为左右两套程序化 3D 木偶手关节；没有纹理与图片。
+- `cooking-interaction-controller.mjs`：增加真实 `reach / grip / carry / end` 生命周期，握住前不移动食材，并把真实释放姿态交给落料动画。
+- `cooking-insertion-animation.mjs`：改为重力下落、首次接触、一次回弹，并按食材材质提供不同压缩参数。
+- `cooking-solo-stage.mjs`：接入 3D 手、堆叠支撑链受力和拖拽期间的镜头稳定处理。
+- `cooking-loader.mjs`、`cooking-solo-app.mjs`：更新接线、调试轨迹和缓存链。
+- `cooking-feedback.mjs`、`cooking.html`、`cooking.css`：移除手部 `<img>`、反馈截图预览及相关样式。
+- `tests/cooking-first-person-hands.test.mjs`、`tests/cooking-interaction-controller.test.mjs`、`tests/cooking-insertion-animation.test.mjs`、`tests/cooking-puppet-wiring.test.mjs`：锁定关节、左右手、握住前静止、真实释放、重力与材料差异。
+- `.codex/skills/build-burger-game-gauntlet/scripts/run_repo_checks.ps1`：同步当前料理入口依赖链。
+
+### 已完成验证
+
+- 真实浏览器通过页面自己的“重做订单”回到 `0/6`，同一局使用真实指针完整做到 `6/6`。
+- 最终堆叠：`bottom-bun, patty, pickle, onion, top-bun`；番茄酱记录在 `patty`。
+- 运行时图片数为 `0`；浏览器控制台日志为 `[]`。
+- Node 全套测试：`83/83`。
+- skill repo check：测试、空白检查和缓存链全部 PASS。
+- 390 × 844 视口覆盖测试无横向溢出。
+- 当前缓存链：`20260813-gameplay32u`。
+
+### 证据与复验
+
+- QA 报告：`output/burger-realism-3d-2026-08-13/QA-REPORT.md`
+- 左手真实拖动连续帧：`output/burger-realism-3d-2026-08-13/32-live-left-reach-sequence.png`
+- 软面包下落/接触/回弹：`output/burger-realism-3d-2026-08-13/33-soft-bun-release-contact-rebound-settle.png`
+- 右手抓洋葱：`output/burger-realism-3d-2026-08-13/34-right-hand-onion-grip.png`
+- 硬洋葱下落/接触/回弹：`output/burger-realism-3d-2026-08-13/35-hard-onion-release-contact-rebound-settle.png`
+- 同局完整成品 WebGL 帧：`output/burger-realism-3d-2026-08-13/36-complete-6-of-6-webgl.png`
+
+注意：本文下方 2026-08-02 及更早段落中的 PNG 手、镜像手和截图证据均为历史实现；当前版本已彻底移除这些运行时图片，以上方 2026-08-13 段落为准。
+
+台式机复验命令（若 PowerShell 禁止脚本，必须保留 `ExecutionPolicy Bypass`）：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\.codex\skills\build-burger-game-gauntlet\scripts\run_repo_checks.ps1 -RepoPath . -NodePath node
+```
+
+本地入口：`http://127.0.0.1:4173/cooking.html?recipe=classic-beef&debug=1`。接手时先 `git pull origin main`，再查看本文顶部的最新提交信息；不要使用 `git reset --hard` 覆盖台式机未提交内容。
+
 更新日期：2026-08-02
 
 仓库：`KIDCadillac/threejs_burger`
@@ -229,3 +275,63 @@ node --test tests/*.test.mjs
 - 移动窄屏曾继承旧全屏编辑布局，订单步骤层会压住面包点击点；现已把目标卡和订单条恢复为正常文档流，料理台不再被覆盖。
 - 入口缓存版本链已升级为 `20260802-gameplay31`。
 - 完整方法与剩余里程碑见 `docs/BURGER-GAUNTLET-PLAN.md`。
+# 2026-08-13：汉堡料理“纯 3D 手 + 重量感”交接
+
+## 玩家现在能看到什么
+
+- 料理页运行时不再加载手部 PNG、截图预览或任何 `<img>`；手、食材、餐盘和调料瓶都由 Three.js 几何体实时绘制。
+- 左侧食材由真正的程序化左手抓，右侧食材/调料由右手抓；不是把一张右手图左右镜像。
+- 手套由手掌、拇指、四根双节手指、红袖口、木质腕关节与短前臂组成，抓取期间和食材共用 Three.js 世界坐标与遮挡关系。
+- 玩家松手后保留真实释放点，食材先下落，再发生一次接触压缩和一次小回弹；不会先瞬移到餐盘再做 UI 放大。
+- 新食材撞到堆叠时，下方已有食材也会短暂承重压缩，并按累计高度保持接触链闭合，避免悬空或穿插。
+- 反馈弹窗不再生成或显示游戏截图；只保留玩家主动录制的实时 3D 操作片段。
+
+## 本轮关键文件
+
+- `cooking-first-person-hands.mjs`：新程序化 3D 木偶手与抓握生命周期。
+- `cooking-interaction-controller.mjs`：输出真实世界坐标，并在松手时保留 `releasePose`，不提前吸附。
+- `cooking-insertion-animation.mjs`：下落、首次接触、压缩、回弹的确定性时间曲线。
+- `cooking-solo-stage.mjs`：手和真实对象绑定、下层受力、接触链重排。
+- `cooking-feedback.mjs`、`cooking.html`、`cooking.css`：移除截图/图片式运行时界面。
+- `tests/cooking-first-person-hands.test.mjs`、`tests/cooking-interaction-controller.test.mjs`、`tests/cooking-insertion-animation.test.mjs`、`tests/cooking-puppet-wiring.test.mjs`：回归门。
+- `.codex/skills/build-burger-game-gauntlet/scripts/run_repo_checks.ps1`：同步检查完整料理入口缓存链。
+
+## 已完成验证
+
+- Gauntlet 仓库检查：`80/80` 测试通过、`git diff --check` 通过、七段料理缓存链统一为 `20260813-gameplay32n`。
+- 浏览器运行时：`document.querySelectorAll("img").length === 0`，程序化手标记为 `procedural-3d`，WebGL 错误层隐藏，控制台无新增 error。
+- 窄屏真实指针：480 CSS px 宽视口，从左侧面包槽拖到餐盘，轨迹为 `start -> move -> end(pointer-up)`，订单正确进入 `1/6`。
+- 本轮证据目录：`output/burger-realism-3d-2026-08-13/`。
+
+## 台式机接手
+
+```powershell
+git status
+git fetch origin
+git checkout main
+git pull origin main
+git log -1 --oneline
+```
+
+不要用 `git reset --hard` 覆盖台式机未提交内容。若台式机工作区不干净，先提交或另存自己的修改。
+
+本地运行：
+
+```powershell
+python -m http.server 4173 --bind 127.0.0.1
+```
+
+- 料理页：`http://127.0.0.1:4173/cooking.html?recipe=classic-beef`
+- 调试轨迹：`http://127.0.0.1:4173/cooking.html?recipe=classic-beef&debug=1`
+
+完整检查：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .codex\skills\build-burger-game-gauntlet\scripts\run_repo_checks.ps1 -RepoPath . -NodePath node
+```
+
+## 仍未纳入本切片
+
+- 寿司仍只有主页 3D 预览，没有独立制作玩法。
+- 旧餐车/木偶 PNG 仍留在 `art/` 作为历史恢复资产，但当前汉堡料理页不加载它们。
+- 主页属于另一条切片；本轮只完成第一人称汉堡制作真实性，不重新设计主页。

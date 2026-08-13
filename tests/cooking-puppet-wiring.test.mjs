@@ -10,8 +10,9 @@ test("cooking page uses a clean first-person counter without puppet scenery", as
   assert.match(html, /class="first-person-cooking"/);
   assert.match(html, /data-experience="first-person-counter"/);
   assert.match(html, /id="cooking-action-label"/);
-  assert.match(html, /id="first-person-hands"/);
-  assert.match(html, /first-person-puppet-hand\.png/);
+  assert.doesNotMatch(html, /<img\b/i);
+  assert.doesNotMatch(html, /first-person-puppet-hand\.png/);
+  assert.doesNotMatch(html, /feedback-preview/);
   assert.doesNotMatch(html, /silver-puppet-booth-frame\.png/);
   assert.doesNotMatch(html, /puppet-booth-strings\.png/);
   assert.doesNotMatch(html, /marionette-rig\.png/);
@@ -41,13 +42,12 @@ test("cooking loader and app wire the fixed burger loop without a puppet perform
 
   assert.doesNotMatch(loader, /importPuppetPerformer/);
   assert.doesNotMatch(loader, /puppetPerformer/);
-  assert.match(loader, /importFirstPersonHands/);
-  assert.match(loader, /handPerformer\?\.handleStageChange\?\.\(detail\)/);
-  assert.match(loader, /handPerformer\?\.handleToolGesture\?\.\(detail\)/);
-  assert.match(loader, /handPerformer\?\.handleIngredientGesture\?\.\(detail\)/);
-  assert.match(loader, /onInteractionPause: \(detail\) => handPerformer\?\.handleStageChange\?\.\(detail\)/);
+  assert.doesNotMatch(loader, /importFirstPersonHands/);
+  assert.doesNotMatch(loader, /handPerformer/);
   assert.match(loader, /dataset\.debugIngredientTrace/);
   assert.match(loader, /dataset\.debug/);
+  assert.match(loader, /burger-cooking-debug-request-frame/);
+  assert.match(loader, /burger-cooking-debug-request-state/);
   assert.match(loader, /dataset\.workbenchControls/);
   assert.match(loader, /searchParams\.get\("workbenchControls"\) === "1"/);
   assert.match(app, /chooseRecipe\(CLASSIC_BURGER_RECIPE_ID, \{ resume: false \}\)/);
@@ -65,8 +65,11 @@ test("cooking loader and app wire the fixed burger loop without a puppet perform
   assert.match(app, /onInteractionPause/);
   const stage = await readFile(new URL("cooking-solo-stage.mjs", root), "utf8");
   assert.match(stage, /reason: "reset-fit"/);
-  assert.match(stage, /onSauceTool: onToolGesture/);
-  assert.match(stage, /onIngredientGesture/);
+  assert.match(stage, /onSauceTool: \(detail\) =>/);
+  assert.match(stage, /createCookingFirstPersonHands/);
+  assert.match(stage, /hands\.handleToolGesture/);
+  assert.match(stage, /hands\.handleIngredientGesture/);
+  assert.match(stage, /hands\.tick/);
   assert.match(stage, /onInteractionPause\(Object\.freeze\(\{ reason: "interaction-paused" \}\)\)/);
   assert.match(stage, /selectableSurfacesForLayer/);
   assert.match(stage, /state\.locations\[layerId\]\?\.kind !== "bin"/);
@@ -84,8 +87,9 @@ test("cooking loader and app wire the fixed burger loop without a puppet perform
   assert.match(interaction, /sauceToolDetail\(session, "start"\)/);
   assert.match(interaction, /sauceToolDetail\(session, "move"\)/);
   assert.match(interaction, /sauceToolDetail\(session, "end", endReason\)/);
-  assert.match(interaction, /ingredientGestureDetail\(transactionSession, "start"\)/);
-  assert.match(interaction, /ingredientGestureDetail\(dragSession, "move"\)/);
+  assert.match(interaction, /ingredientGestureDetail\(transactionSession, "reach"\)/);
+  assert.match(interaction, /ingredientGestureDetail\(session, "grip"\)/);
+  assert.match(interaction, /ingredientGestureDetail\(session, "carry"\)/);
   assert.match(interaction, /ingredientGestureDetail\(dragSession, "end", "pointer-up"\)/);
   assert.match(interaction, /event\?\.key !== "Escape"/);
   assert.match(interaction, /cancelGesture\("escape"\)/);
@@ -96,17 +100,11 @@ test("cooking loader and app wire the fixed burger loop without a puppet perform
   assert.match(interaction, /committed,/);
   assert.match(css, /\.first-person-cooking \.cooking-stage/);
   assert.match(css, /\.first-person-cooking \.first-person-action-label/);
-  assert.match(
-    css,
-    /\.first-person-hand--left img \{ transform: rotate\(68deg\) scaleX\(-1\); \}/,
-  );
-  assert.match(
-    css,
-    /\.first-person-hand--right img \{ transform: rotate\(-68deg\); \}/,
-  );
-  assert.match(css, /data-hand-state="sauce-hold"/);
-  assert.match(css, /data-hand-state="ingredient-hold"/);
-  assert.match(hands, /case "interaction-paused"/);
+  assert.doesNotMatch(css, /\.first-person-hands/);
+  assert.match(hands, /procedural-cooking-hands-3d/);
+  assert.match(hands, /CapsuleGeometry/);
+  assert.match(hands, /textureFree: true/);
+  assert.match(hands, /"interaction-paused"/);
   assert.match(
     css,
     /@media \(max-width: 700px\)[\s\S]*?\.first-person-cooking \.recipe-reference \{[\s\S]*?position: relative;/,

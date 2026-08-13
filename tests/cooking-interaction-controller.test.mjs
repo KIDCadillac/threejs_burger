@@ -56,7 +56,7 @@ function transformSnapshot(object) {
   };
 }
 
-function createIngredientHarness() {
+function createIngredientHarness(overrides = {}) {
   const canvas = createEventTarget();
   const documentTarget = createEventTarget();
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
@@ -80,6 +80,23 @@ function createIngredientHarness() {
 
   const ingredientGestures = [];
   const invalidEvents = [];
+  const drops = [];
+  let nextTimerId = 1;
+  const timers = new Map();
+  const setTimeoutFn = (callback, delay) => {
+    const id = nextTimerId++;
+    timers.set(id, { callback, delay });
+    return id;
+  };
+  const clearTimeoutFn = (id) => timers.delete(id);
+  const flushTimers = () => {
+    while (timers.size) {
+      const [id, timer] = [...timers.entries()]
+        .sort((first, second) => first[1].delay - second[1].delay)[0];
+      timers.delete(id);
+      timer.callback();
+    }
+  };
   const controller = createCookingInteractionController({
     THREE,
     canvas,
@@ -97,6 +114,10 @@ function createIngredientHarness() {
     ),
     onIngredientGesture: (detail) => ingredientGestures.push(detail),
     onInvalid: (detail) => invalidEvents.push(detail),
+    onDrop: (detail) => drops.push(detail),
+    setTimeoutFn,
+    clearTimeoutFn,
+    ...overrides,
   });
 
   return {
@@ -105,9 +126,83 @@ function createIngredientHarness() {
     ingredient,
     ingredientGestures,
     invalidEvents,
+    drops,
+    flushTimers,
     controller,
   };
 }
+
+test("ingredient release keeps the real airborne pose until the stage starts settling", (t) => {
+  const harness = createIngredientHarness({
+    prepBounds: { minX: -100, maxX: 100, minZ: -100, maxZ: 100 },
+    resolveDrop: () => ({ valid: true, anchor: new THREE.Object3D() }),
+  });
+  t.after(() => harness.controller.dispose());
+
+  harness.controller.pointerDown(pointerEvent(5, 10, 10));
+  const planted = harness.ingredient.position.clone();
+  harness.controller.pointerMove(pointerEvent(5, 15, 15));
+  assert.deepEqual(harness.ingredient.position.toArray(), planted.toArray());
+  assert.deepEqual(harness.ingredientGestures.map(({ phase }) => phase), ["reach"]);
+  harness.flushTimers();
+  harness.controller.pointerMove(pointerEvent(5, 25, 25));
+  const beforeRelease = harness.ingredient.position.clone();
+  harness.controller.pointerUp(pointerEvent(5, 30, 30));
+
+  assert.equal(harness.drops.length, 1);
+  assert.ok(harness.drops[0].releasePose.position.x > beforeRelease.x);
+  assert.ok(harness.drops[0].releasePose.position.z > beforeRelease.z);
+  assert.deepEqual(harness.ingredient.position.toArray(), [
+    harness.drops[0].releasePose.position.x,
+    harness.drops[0].releasePose.position.y,
+    harness.drops[0].releasePose.position.z,
+  ]);
+  assert.notDeepEqual(harness.drops[0].targetPose.position, harness.drops[0].releasePose.position);
+  assert.ok(harness.ingredientGestures.at(-1).worldPosition);
+});
+
+test("a deliberate fast drag keeps the visible grip phase before moving", (t) => {
+  const phases = [];
+  const harness = createIngredientHarness({
+    prepBounds: { minX: -100, maxX: 100, minZ: -100, maxZ: 100 },
+    resolveDrop: () => ({ valid: true, anchor: new THREE.Object3D() }),
+    onIngredientGesture: (detail) => phases.push(detail.phase),
+  });
+  t.after(() => harness.controller.dispose());
+  const planted = harness.ingredient.position.clone();
+
+  harness.controller.pointerDown(pointerEvent(6, 10, 10));
+  assert.deepEqual(harness.ingredient.position.toArray(), planted.toArray());
+  harness.controller.pointerMove(pointerEvent(6, 25, 25));
+
+  assert.deepEqual(phases, ["reach", "grip"]);
+  assert.deepEqual(harness.ingredient.position.toArray(), planted.toArray());
+
+  harness.flushTimers();
+
+  assert.deepEqual(phases, ["reach", "grip", "carry"]);
+  assert.notDeepEqual(harness.ingredient.position.toArray(), planted.toArray());
+});
+
+test("a fast release waits for grip and then completes the cached drop", (t) => {
+  const phases = [];
+  const harness = createIngredientHarness({
+    prepBounds: { minX: -100, maxX: 100, minZ: -100, maxZ: 100 },
+    resolveDrop: () => ({ valid: true, anchor: new THREE.Object3D() }),
+    onIngredientGesture: (detail) => phases.push(detail.phase),
+  });
+  t.after(() => harness.controller.dispose());
+
+  harness.controller.pointerDown(pointerEvent(16, 10, 10));
+  harness.controller.pointerMove(pointerEvent(16, 25, 25));
+  harness.controller.pointerUp(pointerEvent(16, 30, 30));
+
+  assert.deepEqual(phases, ["reach", "grip"]);
+  assert.equal(harness.drops.length, 0);
+  harness.flushTimers();
+  assert.deepEqual(phases, ["reach", "grip", "carry", "end"]);
+  assert.equal(harness.drops.length, 1);
+});
 
 function createSauceHarness(overrides = {}) {
   const canvas = createEventTarget();
@@ -209,13 +304,14 @@ test("Escape cancels an active ingredient gesture through the document listener"
   const pointerId = 7;
 
   harness.controller.pointerDown(pointerEvent(pointerId));
+  harness.flushTimers();
   harness.controller.rotateSelected(Math.PI / 4);
 
   assert.equal(harness.controller.getState(), "dragging-layer");
   assert.notDeepEqual(transformSnapshot(harness.ingredient), initialTransform);
   assert.deepEqual(
     harness.ingredientGestures.map(({ phase, reason = null }) => [phase, reason]),
-    [["start", null]],
+    [["reach", null], ["grip", null], ["carry", null]],
   );
 
   let prevented = false;
@@ -231,7 +327,7 @@ test("Escape cancels an active ingredient gesture through the document listener"
   assert.deepEqual(harness.canvas.releasedPointerIds, [pointerId]);
   assert.deepEqual(
     harness.ingredientGestures.map(({ phase, reason = null }) => [phase, reason]),
-    [["start", null], ["end", "escape"]],
+    [["reach", null], ["grip", null], ["carry", null], ["end", "escape"]],
   );
   assert.equal(harness.invalidEvents.at(-1)?.reason, "escape");
 });
@@ -243,6 +339,7 @@ test("pause cancels the gesture, blocks new picks, and resume starts a new gestu
   const firstPointerId = 11;
 
   harness.controller.pointerDown(pointerEvent(firstPointerId));
+  harness.flushTimers();
   harness.controller.rotateSelected(-Math.PI / 5);
   harness.controller.pause();
 
@@ -252,7 +349,7 @@ test("pause cancels the gesture, blocks new picks, and resume starts a new gestu
   assert.deepEqual(harness.canvas.releasedPointerIds, [firstPointerId]);
   assert.deepEqual(
     harness.ingredientGestures.map(({ phase, reason = null }) => [phase, reason]),
-    [["start", null], ["end", "paused"]],
+    [["reach", null], ["grip", null], ["carry", null], ["end", "paused"]],
   );
   assert.equal(harness.invalidEvents.at(-1)?.reason, "paused");
 
@@ -260,14 +357,14 @@ test("pause cancels the gesture, blocks new picks, and resume starts a new gestu
   harness.controller.pointerDown(pointerEvent(blockedPointerId, 20, 20));
   assert.equal(harness.controller.getState(), "idle");
   assert.equal(harness.canvas.capturedPointerIds.has(blockedPointerId), false);
-  assert.equal(harness.ingredientGestures.length, 2);
+  assert.equal(harness.ingredientGestures.length, 4);
 
   harness.controller.resume();
   harness.controller.pointerDown(pointerEvent(blockedPointerId, 20, 20));
 
   assert.equal(harness.controller.getState(), "dragging-layer");
   assert.equal(harness.canvas.capturedPointerIds.has(blockedPointerId), true);
-  assert.equal(harness.ingredientGestures.at(-1)?.phase, "start");
+  assert.equal(harness.ingredientGestures.at(-1)?.phase, "reach");
   assert.equal(harness.ingredientGestures.at(-1)?.gestureId, "ingredient-2");
 });
 

@@ -6,12 +6,14 @@ import { createThreeSceneHost } from "./three-scene-host.mjs";
 import { createCookingWorkbench3D } from "./cooking-workbench-3d.mjs?v=20260801-gameplay7";
 import { createBurgerModel3D } from "./burger-model-3d.mjs";
 import { createCondimentTools3D } from "./condiment-tools-3d.mjs?v=20260802-gameplay31";
-import { createCookingInteractionController } from "./cooking-interaction-controller.mjs?v=20260802-gameplay31";
+import { createCookingInteractionController } from "./cooking-interaction-controller.mjs?v=20260813-gameplay32u";
+import { createCookingFirstPersonHands } from "./cooking-first-person-hands.mjs?v=20260813-gameplay32u";
 import { resolveSoloLayerDrop } from "./cooking-drop-intent.mjs";
 import {
   createCookingMotion,
+  getCookingMaterialPhysics,
   sampleCookingMotion,
-} from "./cooking-insertion-animation.mjs";
+} from "./cooking-insertion-animation.mjs?v=20260813-gameplay32u";
 import {
   createSoloCookingState,
   setSoloStationContent,
@@ -139,6 +141,7 @@ export function createSoloCookingStage({
   toolsFactory = createCondimentTools3D,
   celebrationFactory = createCelebration,
   controllerFactory = createCookingInteractionController,
+  handFactory = createCookingFirstPersonHands,
   onChange = () => {},
   onError = () => {},
   onStationSelector = () => {},
@@ -163,6 +166,7 @@ export function createSoloCookingStage({
   validateFactory(toolsFactory, "toolsFactory");
   validateFactory(celebrationFactory, "celebrationFactory");
   validateFactory(controllerFactory, "controllerFactory");
+  validateFactory(handFactory, "handFactory");
   validateFactory(onChange, "onChange");
   validateFactory(onError, "onError");
   validateFactory(onStationSelector, "onStationSelector");
@@ -252,6 +256,8 @@ export function createSoloCookingStage({
   });
   tools.setDockedVisible?.(true);
   cleanupTasks.push(() => disposeObserved(tools, "tools"));
+  const hands = handFactory(THREE, { parent: host.scene, reducedMotion });
+  cleanupTasks.push(() => disposeObserved(hands, "hands"));
   const celebration = celebrationFactory(THREE);
   cleanupTasks.push(() => celebration?.dispose?.());
   workbench.root.add(celebration.root);
@@ -293,15 +299,17 @@ export function createSoloCookingStage({
   let cameraLocked = true;
   let suppressInvalidFeedback = false;
   let lastFrameTime = 0;
+  let debugClockFrozen = false;
   const transitions = new Map();
   let activeMotion = null;
+  let lastMotionDebugReason = null;
   let pickMotion = null;
   let highlightedLayerId = null;
   let activeSlotPreview = null;
   const cancelLayerTransition = (layerId) => transitions.delete(layerId);
 
   const emit = (reason, extra = {}) => {
-    onChange(Object.freeze({
+    const detail = Object.freeze({
       reason,
       state,
       tutorial,
@@ -314,7 +322,9 @@ export function createSoloCookingStage({
       progress: `${state.assembledOrder.length}/${MAX_SOLO_STACK_LAYERS}`,
       composition: serializeSoloComposition(state),
       ...extra,
-    }));
+    });
+    hands.handleStageChange?.(detail);
+    onChange(detail);
   };
 
   const advanceTutorial = (action) => {
@@ -651,8 +661,32 @@ export function createSoloCookingStage({
     return { valid: false, reason: "请放到中央餐盘或原料盒" };
   };
 
-  const startLayerMotion = ({ layerId, kind, previousOrder, from, targetIndex = null }) => {
+  const startLayerMotion = ({
+    layerId,
+    kind,
+    previousOrder,
+    from,
+    targetIndex = null,
+    releasePose = null,
+  }) => {
     const layer = burger.getLayer(layerId);
+    if (releasePose?.position && releasePose?.scale) {
+      from.set(layerId, {
+        position: new THREE.Vector3(
+          releasePose.position.x,
+          releasePose.position.y,
+          releasePose.position.z,
+        ),
+        scale: new THREE.Vector3(
+          releasePose.scale.x,
+          releasePose.scale.y,
+          releasePose.scale.z,
+        ),
+        yaw: Number.isFinite(releasePose.rotation?.y)
+          ? releasePose.rotation.y
+          : layer.rotation.y,
+      });
+    }
     const remainingOrder = previousOrder.filter((id) => id !== layerId);
     const normalizedTargetIndex = kind === "insert"
       ? Math.max(0, Math.min(targetIndex, remainingOrder.length))
@@ -662,13 +696,18 @@ export function createSoloCookingStage({
         kind,
         startedAt: lastFrameTime,
         thickness: layerStackThickness(layer) * targetScale(layerId).y,
+        ingredientId: ingredientForInstance(layerId),
         reducedMotion,
       }),
       selectedId: layerId,
+      debugReason: null,
       previousOrder: remainingOrder,
       targetIndex: normalizedTargetIndex,
       upperIds: kind === "insert"
         ? remainingOrder.slice(normalizedTargetIndex)
+        : [],
+      supportIds: kind === "insert"
+        ? remainingOrder.slice(0, normalizedTargetIndex)
         : [],
       from,
       targets: targetTransforms(),
@@ -868,6 +907,7 @@ export function createSoloCookingStage({
         previousOrder,
         from,
         targetIndex,
+        releasePose: destination.releasePose ?? null,
       });
       advanceTutorial("dropped-on-prep");
       if (state.complete) advanceTutorial("assembled-all");
@@ -954,6 +994,7 @@ export function createSoloCookingStage({
         kind: "pick",
         startedAt: lastFrameTime,
         thickness: layerStackThickness(layer) * targetScale(layerId).y,
+        ingredientId: ingredientForInstance(layerId),
         reducedMotion,
       }),
     };
@@ -1324,9 +1365,11 @@ export function createSoloCookingStage({
         }
       }
     },
-    onDrop: ({ id, anchor, targetIndex }) => {
+    onDrop: ({ id, anchor, targetIndex, releasePose }) => {
       dropIntent = null;
-      if (anchor === workbench.prep.dropAnchor) dropLayer(id, { kind: "prep", targetIndex });
+      if (anchor === workbench.prep.dropAnchor) {
+        dropLayer(id, { kind: "prep", targetIndex, releasePose });
+      }
       else {
         const targetSlot = workbench.ingredientSlots.find(
           ({ dropAnchor }) => dropAnchor === anchor,
@@ -1363,8 +1406,28 @@ export function createSoloCookingStage({
     onSaucePreview: previewSauceGesture,
     onSauceCommit: commitSauceGesture,
     onSauceCancel: cancelSauceGesture,
-    onSauceTool: onToolGesture,
-    onIngredientGesture,
+    onSauceTool: (detail) => {
+      const bottle = detail?.bottleId
+        ? (tools.get?.(detail.bottleId)
+          ?? [...(tools.bottles?.values?.() ?? [])]
+            .find((candidate) => candidate.id === detail.bottleId))
+        : null;
+      hands.handleToolGesture?.(detail, { object: bottle?.body ?? bottle?.root ?? null });
+      onToolGesture(detail);
+    },
+    onIngredientGesture: (detail) => {
+      const object = detail?.layerId ? burger.getLayer(detail.layerId) : null;
+      const enriched = Object.freeze({
+        ...detail,
+        ingredientId: detail?.layerId ? ingredientForInstance(detail.layerId) : null,
+        slotId: detail?.layerId ? homeSlotIdForInstance(detail.layerId) : null,
+      });
+      hands.handleIngredientGesture?.(enriched, {
+        object,
+        ingredientId: enriched.ingredientId,
+      });
+      onIngredientGesture(enriched);
+    },
     onStationSelector: ({ slotId, region }) => {
       onStationSelector(Object.freeze({ slotId, region }));
     },
@@ -1458,12 +1521,16 @@ export function createSoloCookingStage({
     const numericKeys = [
       "progress",
       "arrival",
+      "verticalArrival",
       "selectedOffsetY",
       "upperOffsetY",
+      "supportCompression",
+      "supportLoad",
       "selectedScaleXz",
       "selectedScaleY",
     ];
     if (numericKeys.some((key) => !Number.isFinite(frame[key]))) {
+      lastMotionDebugReason = "non-finite-frame";
       activeMotion = null;
       restoreAuthoritativeTransforms();
       return;
@@ -1472,14 +1539,58 @@ export function createSoloCookingStage({
     const selected = burger.getLayer(record.selectedId);
     const selectedFrom = record.from.get(record.selectedId);
     const selectedTarget = record.targets.get(record.selectedId);
+    if (!selected || !selectedFrom || !selectedTarget) {
+      lastMotionDebugReason = "missing-selected-transform";
+      activeMotion = null;
+      restoreAuthoritativeTransforms();
+      return;
+    }
     const upperIds = new Set(record.upperIds);
+    const supportIds = new Set(record.supportIds);
+    const supportTransforms = new Map();
+    let totalSupportCompression = 0;
+    if (frame.supportLoad !== 0) {
+      for (let index = 0; index < record.supportIds.length; index += 1) {
+        const layerId = record.supportIds[index];
+        const layer = burger.getLayer(layerId);
+        const target = record.targets.get(layerId);
+        const supportMaterial = getCookingMaterialPhysics(ingredientForInstance(layerId));
+        const depthFalloff = 1 / (1 + (record.supportIds.length - index - 1) * 0.42);
+        const compression = Math.max(
+          -0.012,
+          Math.min(0.095, frame.supportLoad * supportMaterial.compliance * 0.42 * depthFalloff),
+        );
+        const verticalScale = 1 - compression;
+        const lostHeight = layerStackThickness(layer)
+          * target.scale.y
+          * (1 - verticalScale);
+        supportTransforms.set(layerId, {
+          verticalScale,
+          offsetY: layerStackMinY(layer)
+            * target.scale.y
+            * (1 - verticalScale)
+            - totalSupportCompression,
+        });
+        totalSupportCompression += lostHeight;
+      }
+    }
     for (const layerId of Object.keys(state.instances)) {
       if (layerId === record.selectedId) continue;
       const layer = burger.getLayer(layerId);
       const target = record.targets.get(layerId);
-      if (upperIds.has(layerId)) {
+      if (supportIds.has(layerId) && frame.supportLoad !== 0) {
+        layer.position.copy(target.position);
+        layer.rotation.set(0, target.yaw, 0);
+        layer.scale.copy(target.scale);
+        const support = supportTransforms.get(layerId);
+        // Compress around each layer's bottom contact plane, then lower the
+        // layers above by the accumulated lost height. This keeps every
+        // contact in the support chain closed instead of opening small gaps.
+        layer.position.y += support.offsetY;
+        layer.scale.y *= support.verticalScale;
+      } else if (upperIds.has(layerId)) {
         applyPose(layer, record.from.get(layerId), target, frame.arrival);
-        layer.position.y += frame.upperOffsetY;
+        layer.position.y += frame.upperOffsetY - totalSupportCompression;
       } else {
         layer.position.copy(target.position);
         layer.rotation.set(0, target.yaw, 0);
@@ -1487,35 +1598,33 @@ export function createSoloCookingStage({
       }
     }
 
-    if (record.motion.kind === "insert") {
-      selected.position.copy(selectedTarget.position);
-      selected.rotation.set(0, selectedTarget.yaw, 0);
-      selected.scale.copy(selectedTarget.scale);
-    } else {
-      applyPose(selected, selectedFrom, selectedTarget, frame.arrival);
+    applyPose(selected, selectedFrom, selectedTarget, frame.arrival);
+    if (record.motion.kind === "insert" && frame.verticalArrival < 1) {
+      selected.position.y = selectedFrom.position.y
+        + (selectedTarget.position.y - selectedFrom.position.y) * frame.verticalArrival;
     }
-    // The insert pop grows out of the food-contact plane, rather than scaling
-    // around the centre and briefly lifting a bun into the air.
-    if (record.motion.kind === "insert") {
+    selected.position.y += frame.selectedOffsetY - totalSupportCompression;
+    // Once contact begins, compensate for vertical squash so the food's lower
+    // contact plane stays planted instead of floating above the layer below.
+    if (record.motion.kind === "insert" && frame.arrival >= 1) {
       selected.position.y += selected.userData.boundsMinY
         * selectedTarget.scale.y
         * (1 - frame.selectedScaleY);
     }
-    // Insertions use a scale-only pop. Keeping the contact plane planted avoids
-    // a one-frame air gap, especially on the much taller bun meshes.
-    if (record.motion.kind !== "insert") selected.position.y += frame.selectedOffsetY;
     selected.scale.x *= frame.selectedScaleXz;
     selected.scale.z *= frame.selectedScaleXz;
     selected.scale.y *= frame.selectedScaleY;
     fireImpactHaptic(record, frame);
     if (frame.done) {
+      lastMotionDebugReason = "settled";
       activeMotion = null;
       restoreAuthoritativeTransforms();
     }
   };
 
-  const tick = (time = 0) => {
+  const tick = (time = 0, { force = false } = {}) => {
     if (disposed) return;
+    if (debugClockFrozen && !force) return;
     lastFrameTime = Number.isFinite(time) ? time : lastFrameTime;
     if (pickMotion) {
       const frame = sampleCookingMotion(pickMotion.motion, lastFrameTime);
@@ -1531,6 +1640,7 @@ export function createSoloCookingStage({
       }
     }
     applyActiveMotion(lastFrameTime);
+    hands.tick?.(lastFrameTime);
     for (const [layerId, transition] of transitions) {
       const progress = Math.min(1, Math.max(0, (lastFrameTime - transition.start) / SNAP_DURATION));
       const eased = 1 - (1 - progress) ** 3;
@@ -1784,6 +1894,7 @@ export function createSoloCookingStage({
     workbench,
     burger,
     tools,
+    hands,
     controller,
     celebration,
     get layerPresentationScale() { return activeTuning.global.presentationScale; },
@@ -1852,6 +1963,36 @@ export function createSoloCookingStage({
     isBurgerFocused: () => focused,
     isExpanded: () => expanded,
     getComposition: () => serializeSoloComposition(state),
+    setDebugClockFrozen(value = true) {
+      debugClockFrozen = Boolean(value);
+      return debugClockFrozen;
+    },
+    readFramePixels(options) {
+      if (disposed) return null;
+      return host.readFramePixels?.(options) ?? null;
+    },
+    getDebugState() {
+      const motionFrame = activeMotion
+        ? sampleCookingMotion(activeMotion.motion, lastFrameTime)
+        : null;
+      return Object.freeze({
+        time: lastFrameTime,
+        controllerState: controller.getState?.() ?? null,
+        selectedLayerId,
+        activeMotion: activeMotion ? Object.freeze({
+          kind: activeMotion.motion?.kind ?? null,
+          ingredientId: ingredientForInstance(activeMotion.selectedId),
+          instanceId: activeMotion.selectedId,
+          frame: motionFrame ? Object.freeze({ ...motionFrame }) : null,
+          supportIds: Object.freeze([...(activeMotion.supportIds ?? [])]),
+          upperIds: Object.freeze([...(activeMotion.upperIds ?? [])]),
+          hasSelectedFrom: activeMotion.from?.has?.(activeMotion.selectedId) ?? false,
+          hasSelectedTarget: activeMotion.targets?.has?.(activeMotion.selectedId) ?? false,
+        }) : null,
+        lastMotionDebugReason,
+        hands: hands.getDebugState?.() ?? null,
+      });
+    },
     selectReferenceRecipe(referenceRecipeId) {
       if (disposed || competitionReadOnly) return false;
       const nextState = selectSoloReferenceRecipe(state, referenceRecipeId);
@@ -1863,9 +2004,18 @@ export function createSoloCookingStage({
     resize() {
       if (disposed) return false;
       host.resize?.();
+      // A responsive resize can arrive while a real pointer is held (mobile
+      // browser chrome, orientation settling, or evidence capture). Reframing
+      // the camera would cancel the causal reach/grip/carry chain, so keep the
+      // current camera until the ingredient has been released.
+      if (["dragging-layer", "dragging-bottle", "pinching"].includes(
+        controller?.getState?.(),
+      )) return true;
       return adaptCameraToStack({ preserveDistance: false, reason: "viewport-resize-fit" });
     },
-    tick,
+    tick(time = lastFrameTime) {
+      return tick(time, { force: true });
+    },
     selectLayer,
     dropLayer,
     applySauceStroke,

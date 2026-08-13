@@ -8,7 +8,7 @@
     <meta name="feedback-upload-key" content="kid-burger-feedback-20260721-v1">
     <title>小馆经典牛肉堡 · 第一人称料理台</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./cooking.css?v=20260802-gameplay31">
+    <link rel="stylesheet" href="./cooking.css?v=20260813-gameplay32u">
   </head>
   <body class="first-person-cooking" data-experience="first-person-counter">
     <main class="cooking-app">
@@ -90,14 +90,6 @@
       <p class="inventory-stock" id="cooking-stock" aria-live="polite">小馆料盒已备齐</p>
 
       <section class="cooking-stage" aria-label="第一人称三维料理操作区" data-control-grammar="drag-place condiment-left-take right-swipe-cycle hold-up-roulette undo serve">
-        <div class="first-person-hands" id="first-person-hands" data-hand-state="idle" data-hand-side="center" aria-hidden="true">
-          <span class="first-person-hand first-person-hand--left">
-            <img src="./art/cooking/first-person-puppet-hand.png" alt="" draggable="false">
-          </span>
-          <span class="first-person-hand first-person-hand--right">
-            <img src="./art/cooking/first-person-puppet-hand.png" alt="" draggable="false">
-          </span>
-        </div>
         <p class="first-person-action-label" id="cooking-action-label" aria-live="polite">先把下层面包拖到餐盘中央</p>
         <canvas id="cooking-canvas" tabindex="0" aria-label="固定视角三维汉堡料理台，可拖动食材；右侧调料罐可向左拖取挤酱、向右滑快速换酱、长按后向上转胶囊轮盘指定" aria-describedby="cooking-objective">
           你的浏览器需要支持 WebGL 才能使用三维料理台。
@@ -226,10 +218,9 @@
             </div>
             <button type="button" data-action="feedback-close" aria-label="关闭问题反馈">×</button>
           </div>
-          <img class="feedback-preview" id="feedback-preview" alt="刚才游戏画面的自动截图" hidden>
           <label for="feedback-message">问题说明</label>
           <textarea id="feedback-message" maxlength="1000" rows="4" placeholder="例如：第 12 层芝士放下后浮在空中"></textarea>
-          <p class="feedback-note">系统会自动附上截图、最近 8 秒高清短视频、层数、库存和设备信息；不支持视频时才会降级为 GIF。</p>
+          <p class="feedback-note">系统会附上最近 8 秒实时 3D 操作视频、层数、库存和设备信息；不支持视频时才会降级为 GIF。</p>
           <p class="feedback-status" id="feedback-status" role="status" aria-live="polite"></p>
           <button class="feedback-submit" type="button" data-action="feedback-submit">自动上传反馈</button>
         </section>
@@ -387,6 +378,6 @@
 
       <p class="cooking-status" id="cooking-status" role="status" aria-live="polite"></p>
     </main>
-    <script type="module" src="./cooking-loader.mjs?v=20260802-gameplay31"></script>
+    <script type="module" src="./cooking-loader.mjs?v=20260813-gameplay32u"></script>
   </body>
 </html>

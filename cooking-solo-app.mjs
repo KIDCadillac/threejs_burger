@@ -1,5 +1,5 @@
 import * as THREE from "./vendor/three.module.min.js";
-import { createSoloCookingStage } from "./cooking-solo-stage.mjs?v=20260802-gameplay31";
+import { createSoloCookingStage } from "./cooking-solo-stage.mjs?v=20260813-gameplay32u";
 import {
   disposeActiveSoloCookingPage,
   mountSoloCookingLifecycle,
@@ -8,7 +8,7 @@ import { createFinishFocusManager } from "./cooking-solo-focus.mjs";
 import {
   createCanvasReplayRecorder,
   createCookingFeedbackReporter,
-} from "./cooking-feedback.mjs";
+} from "./cooking-feedback.mjs?v=20260813-gameplay32u";
 import { createCookingHighlightReplayCoordinator } from "./cooking-highlight-replay.mjs";
 import { createCookingTuningPanel } from "./cooking-tuning-panel.mjs";
 import { loadBurgerTuning, saveBurgerTuning } from "./burger-tuning.mjs";
@@ -188,7 +188,6 @@ export function bootSoloCookingPage(
     focusDeleteButton: documentTarget.querySelector('[data-action="delete-focused-layer"]'),
     focusLayerHint: documentTarget.querySelector("#focus-layer-hint"),
     feedbackSheet: documentTarget.querySelector("#feedback-sheet"),
-    feedbackPreview: documentTarget.querySelector("#feedback-preview"),
     feedbackMessage: documentTarget.querySelector("#feedback-message"),
     feedbackStatus: documentTarget.querySelector("#feedback-status"),
     feedbackSubmitButton: documentTarget.querySelector('[data-action="feedback-submit"]'),
@@ -804,7 +803,7 @@ export function bootSoloCookingPage(
     feedback = feedbackFactory({
       canvas,
       dialog: elements.feedbackSheet,
-      preview: elements.feedbackPreview,
+      preview: null,
       message: elements.feedbackMessage,
       status: elements.feedbackStatus,
       submitButton: elements.feedbackSubmitButton,

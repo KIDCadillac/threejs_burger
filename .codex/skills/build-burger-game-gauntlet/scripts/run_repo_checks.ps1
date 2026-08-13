@@ -53,9 +53,11 @@ try {
     $tokens = [ordered]@{
         "cooking.html -> cooking-loader.mjs" = Get-CacheToken "cooking.html" "cooking-loader.mjs"
         "cooking-loader.mjs -> cooking-solo-app.mjs" = Get-CacheToken "cooking-loader.mjs" "cooking-solo-app.mjs"
-        "cooking-loader.mjs -> cooking-first-person-hands.mjs" = Get-CacheToken "cooking-loader.mjs" "cooking-first-person-hands.mjs"
+        "cooking-solo-stage.mjs -> cooking-first-person-hands.mjs" = Get-CacheToken "cooking-solo-stage.mjs" "cooking-first-person-hands.mjs"
         "cooking-solo-app.mjs -> cooking-solo-stage.mjs" = Get-CacheToken "cooking-solo-app.mjs" "cooking-solo-stage.mjs"
         "cooking-solo-stage.mjs -> cooking-interaction-controller.mjs" = Get-CacheToken "cooking-solo-stage.mjs" "cooking-interaction-controller.mjs"
+        "cooking-solo-stage.mjs -> cooking-insertion-animation.mjs" = Get-CacheToken "cooking-solo-stage.mjs" "cooking-insertion-animation.mjs"
+        "cooking-solo-app.mjs -> cooking-feedback.mjs" = Get-CacheToken "cooking-solo-app.mjs" "cooking-feedback.mjs"
     }
 
     $uniqueTokens = @($tokens.Values | Select-Object -Unique)

@@ -4,6 +4,8 @@ const PREVIEW_MAX_POINTS = 25;
 const PREVIEW_RADIAL_SEGMENTS = 5;
 const PREVIEW_TUBE_RADIUS = 0.045;
 const STATION_SELECTOR_TAP_SLOP = 10;
+const INGREDIENT_REACH_DURATION_MS = 95;
+const INGREDIENT_GRIP_DURATION_MS = 65;
 
 function requireEventTarget(value, label) {
   if (!value?.addEventListener || !value?.removeEventListener) {
@@ -190,6 +192,8 @@ export function createCookingInteractionController({
   onSauceCancel = () => {},
   onSauceTool = () => {},
   onIngredientGesture = () => {},
+  setTimeoutFn = globalThis.setTimeout?.bind(globalThis),
+  clearTimeoutFn = globalThis.clearTimeout?.bind(globalThis),
 } = {}) {
   if (!THREE?.Raycaster || !THREE?.Vector2) {
     throw new TypeError("A compatible Three.js namespace is required");
@@ -224,6 +228,8 @@ export function createCookingInteractionController({
   requireFunction(onSauceCancel, "onSauceCancel");
   requireFunction(onSauceTool, "onSauceTool");
   requireFunction(onIngredientGesture, "onIngredientGesture");
+  requireFunction(setTimeoutFn, "setTimeoutFn");
+  requireFunction(clearTimeoutFn, "clearTimeoutFn");
   if (injectedRaycast !== undefined) requireFunction(injectedRaycast, "raycast");
   requireFunction(pickPriority, "pickPriority");
   if (projectToPrep !== undefined) requireFunction(projectToPrep, "projectToPrep");
@@ -292,6 +298,8 @@ export function createCookingInteractionController({
   const bottleOriginScratch = new THREE.Vector3();
   const bottleProjectionScratch = new THREE.Vector3();
   const ingredientProjectionScratch = new THREE.Vector3();
+  const bottleWorldScratch = new THREE.Vector3();
+  const ingredientWorldScratch = new THREE.Vector3();
   const foodBoundsScratch = new THREE.Box3();
   let surfaces = [];
   let edibleSurfaces = [];
@@ -458,7 +466,8 @@ export function createCookingInteractionController({
   const sauceToolDetail = (session, phase, reason = null) => {
     const anchor = session.bottle.body ?? session.bottle.root;
     anchor.updateWorldMatrix?.(true, false);
-    anchor.getWorldPosition(bottleProjectionScratch).project(camera);
+    anchor.getWorldPosition(bottleWorldScratch);
+    bottleProjectionScratch.copy(bottleWorldScratch).project(camera);
     return Object.freeze({
       phase,
       gestureId: session.gestureId,
@@ -468,6 +477,11 @@ export function createCookingInteractionController({
         x: clamp((bottleProjectionScratch.x + 1) * 0.5, 0, 1),
         y: clamp((1 - bottleProjectionScratch.y) * 0.5, 0, 1),
       }),
+      worldPosition: Object.freeze({
+        x: bottleWorldScratch.x,
+        y: bottleWorldScratch.y,
+        z: bottleWorldScratch.z,
+      }),
       ...(reason ? { reason } : {}),
     });
   };
@@ -475,7 +489,8 @@ export function createCookingInteractionController({
   const ingredientGestureDetail = (session, phase, reason = null) => {
     const object = session.draggable.object;
     object.updateWorldMatrix?.(true, false);
-    object.getWorldPosition(ingredientProjectionScratch).project(camera);
+    object.getWorldPosition(ingredientWorldScratch);
+    ingredientProjectionScratch.copy(ingredientWorldScratch).project(camera);
     return Object.freeze({
       phase,
       gestureId: session.gestureId,
@@ -484,8 +499,82 @@ export function createCookingInteractionController({
         x: clamp((ingredientProjectionScratch.x + 1) * 0.5, 0, 1),
         y: clamp((1 - ingredientProjectionScratch.y) * 0.5, 0, 1),
       }),
+      worldPosition: Object.freeze({
+        x: ingredientWorldScratch.x,
+        y: ingredientWorldScratch.y,
+        z: ingredientWorldScratch.z,
+      }),
       ...(reason ? { reason } : {}),
     });
+  };
+
+  const clearIngredientTimers = (session) => {
+    if (!session) return;
+    if (session.reachTimer !== null) clearTimeoutFn(session.reachTimer);
+    if (session.gripTimer !== null) clearTimeoutFn(session.gripTimer);
+    session.reachTimer = null;
+    session.gripTimer = null;
+  };
+
+  const moveIngredientToLatestPointer = (session, { notify = true } = {}) => {
+    if (!session?.carryReady || !session.startProjection || !session.lastProjection) return false;
+    desiredScratch.copy(session.startWorld);
+    desiredScratch.x += session.lastProjection.x - session.startProjection.x;
+    desiredScratch.z += session.lastProjection.z - session.startProjection.z;
+    desiredScratch.y += normalizedDragLift;
+    setWorldPosition(session.draggable.object, desiredScratch);
+    if (notify) {
+      onMove(Object.freeze({
+        id: session.draggable.id,
+        object: session.draggable.object,
+        point: Object.freeze({
+          x: session.lastProjection.x,
+          y: session.lastProjection.y,
+          z: session.lastProjection.z,
+        }),
+        pose: detachedPose(session.draggable.object),
+      }));
+      onIngredientGesture(ingredientGestureDetail(session, "carry"));
+    }
+    return true;
+  };
+
+  const beginIngredientCarry = (session) => {
+    if (disposed || dragSession !== session || state !== "dragging-layer"
+      || !activePointers.has(session.pointerId) || session.epoch !== mutationEpoch) return;
+    session.gripTimer = null;
+    onPick(Object.freeze({
+      id: session.draggable.id,
+      object: session.draggable.object,
+      surface: session.hit.object,
+      point: session.hit.point.clone(),
+      metadata: session.hit.object.userData?.cookingSelectable ?? null,
+    }));
+    if (disposed || dragSession !== session || state !== "dragging-layer"
+      || !activePointers.has(session.pointerId) || session.epoch !== mutationEpoch) {
+      if (dragSession === session) cancelGesture("interaction-mutated");
+      return;
+    }
+    session.carryReady = true;
+    moveIngredientToLatestPointer(session, { notify: false });
+    onIngredientGesture(ingredientGestureDetail(session, "carry"));
+    if (session.releasePending && session.pendingReleaseEvent) {
+      const pendingRelease = session.pendingReleaseEvent;
+      session.releasePending = false;
+      session.pendingReleaseEvent = null;
+      handlePointerUp(pendingRelease);
+    }
+  };
+
+  const beginIngredientGrip = (session) => {
+    if (disposed || dragSession !== session || state !== "dragging-layer"
+      || !activePointers.has(session.pointerId) || session.epoch !== mutationEpoch) return;
+    session.reachTimer = null;
+    onIngredientGesture(ingredientGestureDetail(session, "grip"));
+    session.gripTimer = setTimeoutFn(
+      () => beginIngredientCarry(session),
+      INGREDIENT_GRIP_DURATION_MS,
+    );
   };
 
   const defaultHitTest = (event, candidateSurfaces = surfaces) => {
@@ -981,6 +1070,7 @@ export function createCookingInteractionController({
     const cancelledInspectionCoordinates = cancelledInspection
       ? activePointers.get(cancelledInspection.pointerId) ?? cancelledInspection.start
       : null;
+    clearIngredientTimers(cancelledDrag);
     activePointers.clear();
     dragSession = null;
     bottleSession = null;
@@ -1165,9 +1255,16 @@ export function createCookingInteractionController({
         transactionSession = {
           pointerId: event.pointerId,
           gestureId: `ingredient-${nextIngredientGestureId++}`,
-          gestureActive: false,
+          gestureActive: true,
+          carryReady: false,
+          releasePending: false,
+          pendingReleaseEvent: null,
+          reachTimer: null,
+          gripTimer: null,
           draggable,
+          hit,
           snapshot: snapshotTransform(draggable.object),
+          startPointer: point,
           startProjection,
           startWorld,
           settleWorldY: startWorld.y,
@@ -1184,24 +1281,14 @@ export function createCookingInteractionController({
           if (dragSession === transactionSession) cancelGesture("interaction-mutated");
           return;
         }
-        desiredScratch.copy(startWorld);
-        desiredScratch.y += normalizedDragLift;
-        setWorldPosition(draggable.object, desiredScratch);
-        onPick(Object.freeze({
-          id: draggable.id,
-          object: draggable.object,
-          surface: hit.object,
-          point: hit.point.clone(),
-          metadata: hit.object.userData?.cookingSelectable ?? null,
-        }));
-        if (disposed || dragSession !== transactionSession || state !== "dragging-layer"
-          || !activePointers.has(event.pointerId)
-          || transactionSession.epoch !== mutationEpoch) {
-          if (dragSession === transactionSession) cancelGesture("interaction-mutated");
-          return;
-        }
-        transactionSession.gestureActive = true;
-        onIngredientGesture(ingredientGestureDetail(transactionSession, "start"));
+        // A press summons the procedural hand, but the food remains planted.
+        // The hand reaches first, closes around the ingredient, and only then
+        // does the object become draggable. This preserves physical causality.
+        onIngredientGesture(ingredientGestureDetail(transactionSession, "reach"));
+        transactionSession.reachTimer = setTimeoutFn(
+          () => beginIngredientGrip(transactionSession),
+          INGREDIENT_REACH_DURATION_MS,
+        );
       } else {
         state = orbitEnabled ? "orbiting" : "camera-locked";
         orbitSession = orbitEnabled ? { pointerId: event.pointerId, last: point } : null;
@@ -1289,7 +1376,7 @@ export function createCookingInteractionController({
           pose: detachedPose(dragSession.draggable.object),
         }));
         if (dragSession?.gestureActive) {
-          onIngredientGesture(ingredientGestureDetail(dragSession, "move"));
+          onIngredientGesture(ingredientGestureDetail(dragSession, "carry"));
         }
       }
       return;
@@ -1310,20 +1397,20 @@ export function createCookingInteractionController({
     const point = projectedPoint(event, projectedScratch);
     if (!point || !dragSession.startProjection) return;
     dragSession.lastProjection?.copy(point);
-    desiredScratch.copy(dragSession.startWorld);
-    desiredScratch.x += point.x - dragSession.startProjection.x;
-    desiredScratch.z += point.z - dragSession.startProjection.z;
-    desiredScratch.y += normalizedDragLift;
-    setWorldPosition(dragSession.draggable.object, desiredScratch);
-    onMove(Object.freeze({
-      id: dragSession.draggable.id,
-      object: dragSession.draggable.object,
-      point: Object.freeze({ x: point.x, y: point.y, z: point.z }),
-      pose: detachedPose(dragSession.draggable.object),
-    }));
-    if (dragSession?.gestureActive) {
-      onIngredientGesture(ingredientGestureDetail(dragSession, "move"));
+    if (!dragSession.carryReady
+      && pointerDistance(dragSession.startPointer, coordinates) > STATION_SELECTOR_TAP_SLOP) {
+      // Crossing the deliberate-drag threshold may finish the reach early,
+      // but it must not collapse the visible close-finger phase. Pointer
+      // motion continues to be cached while the ingredient stays planted;
+      // beginIngredientCarry applies the latest point after the 65ms grip.
+      if (dragSession.reachTimer !== null) {
+        clearTimeoutFn(dragSession.reachTimer);
+        dragSession.reachTimer = null;
+        beginIngredientGrip(dragSession);
+      }
+      return;
     }
+    moveIngredientToLatestPointer(dragSession);
   };
 
   const invalidateDrag = (reason, error = null) => {
@@ -1590,6 +1677,36 @@ export function createCookingInteractionController({
       return;
     }
     if (state !== "dragging-layer" || dragSession?.pointerId !== event.pointerId) return;
+    if (!dragSession.carryReady) {
+      if (dragSession.gripTimer !== null) {
+        // A quick flick may release while the 65ms hand-close animation is
+        // still playing. Cache the final coordinates and finish the drop once
+        // grip completes, instead of cancelling or skipping visible closure.
+        dragSession.releasePending = true;
+        dragSession.pendingReleaseEvent = Object.freeze({
+          pointerId: event.pointerId,
+          clientX: event.clientX,
+          clientY: event.clientY,
+          preventDefault() {},
+        });
+        return;
+      }
+      const pendingSession = dragSession;
+      clearIngredientTimers(pendingSession);
+      const ingredientEndDetail = ingredientGestureDetail(
+        pendingSession,
+        "end",
+        "released-before-grip",
+      );
+      dragSession = null;
+      orbitSession = null;
+      pinchSession = null;
+      state = "idle";
+      activePointers.delete(event.pointerId);
+      releaseCapture(event.pointerId);
+      onIngredientGesture(ingredientEndDetail);
+      return;
+    }
     const { draggable, snapshot, startWorld } = dragSession;
     let pointerUpProjection;
     try {
@@ -1651,7 +1768,7 @@ export function createCookingInteractionController({
       invalidateDrag("drop-resolution-error", error);
       return;
     }
-    draggable.object.position.copy(targetPosition);
+    const releasePose = detachedPose(draggable.object);
     draggable.object.scale.copy(snapshot.scale);
     const dropDetail = Object.freeze({
       id: draggable.id,
@@ -1662,11 +1779,22 @@ export function createCookingInteractionController({
       valid: true,
       targetIndex: resolution.targetIndex,
       anchor: resolution.anchor,
-      pose: detachedPose(draggable.object),
+      releasePose,
+      targetPose: Object.freeze({
+        position: Object.freeze({
+          x: targetPosition.x,
+          y: targetPosition.y,
+          z: targetPosition.z,
+        }),
+        rotation: releasePose.rotation,
+        scale: releasePose.scale,
+      }),
+      pose: releasePose,
     });
     const ingredientEndDetail = dragSession.gestureActive
       ? ingredientGestureDetail(dragSession, "end", "pointer-up")
       : null;
+    clearIngredientTimers(dragSession);
     dragSession = null;
     orbitSession = null;
     pinchSession = null;

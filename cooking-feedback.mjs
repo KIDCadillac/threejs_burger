@@ -570,7 +570,7 @@ const FEEDBACK_ERROR_COPY = Object.freeze({
 export function createCookingFeedbackReporter({
   canvas,
   dialog,
-  preview,
+  preview = null,
   message,
   status,
   submitButton,
@@ -589,7 +589,7 @@ export function createCookingFeedbackReporter({
   uploader = createConfiguredFeedbackUploader({ documentTarget, windowTarget }),
   now = () => new Date(),
 } = {}) {
-  if (!canvas || !dialog || !preview || !message || !status || !submitButton) {
+  if (!canvas || !dialog || !message || !status || !submitButton) {
     throw new Error("问题反馈界面不完整");
   }
   let screenshotDataUrl = "";
@@ -625,7 +625,7 @@ export function createCookingFeedbackReporter({
       sessionId += 1;
       activeSubmission = null;
       resetSubmitButton();
-      screenshotDataUrl = recorder.snapshotDataUrl();
+      screenshotDataUrl = "";
       recorder.stop?.();
       cachedReplay = null;
       const captureDiagnostics = recorder.diagnostics?.();
@@ -633,12 +633,8 @@ export function createCookingFeedbackReporter({
         dialog.dataset.captureMode = captureDiagnostics.mode;
         dialog.dataset.captureHasColor = String(captureDiagnostics.hasColor);
       }
-      preview.src = screenshotDataUrl;
-      preview.hidden = !screenshotDataUrl;
       dialog.hidden = false;
-      status.textContent = screenshotDataUrl
-        ? "已截取当前画面，并保留最近 6 秒高清操作视频素材。"
-        : "已保留最近 6 秒高清操作视频素材。";
+      status.textContent = "已保留最近 6 秒实时 3D 操作视频素材。";
       message.focus?.();
       return true;
     },
