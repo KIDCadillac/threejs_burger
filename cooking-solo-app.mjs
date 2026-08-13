@@ -1,5 +1,5 @@
 import * as THREE from "./vendor/three.module.min.js";
-import { createSoloCookingStage } from "./cooking-solo-stage.mjs?v=20260813-gameplay32u";
+import { createSoloCookingStage } from "./cooking-solo-stage.mjs?v=20260813-hands34";
 import {
   disposeActiveSoloCookingPage,
   mountSoloCookingLifecycle,
@@ -8,7 +8,7 @@ import { createFinishFocusManager } from "./cooking-solo-focus.mjs";
 import {
   createCanvasReplayRecorder,
   createCookingFeedbackReporter,
-} from "./cooking-feedback.mjs?v=20260813-gameplay32u";
+} from "./cooking-feedback.mjs?v=20260813-hands34";
 import { createCookingHighlightReplayCoordinator } from "./cooking-highlight-replay.mjs";
 import { createCookingTuningPanel } from "./cooking-tuning-panel.mjs";
 import { loadBurgerTuning, saveBurgerTuning } from "./burger-tuning.mjs";

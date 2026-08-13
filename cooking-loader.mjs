@@ -23,7 +23,7 @@ export async function startSoloCookingLoader(
   documentTarget = globalThis.document,
   {
     windowTarget = globalThis,
-    importApp = () => import("./cooking-solo-app.mjs?v=20260813-gameplay32u"),
+    importApp = () => import("./cooking-solo-app.mjs?v=20260813-hands34"),
     importShopApp = () => import("./burger-shop-app.mjs"),
     requestFrame = windowTarget?.requestAnimationFrame?.bind(windowTarget)
       ?? ((callback) => windowTarget.setTimeout(callback, 16)),
@@ -435,6 +435,65 @@ export async function startSoloCookingLoader(
           respondWithDebugFrame();
         },
       );
+      const sampleDebugIngredientGrip = ({ slotId, side, ingredientId }) => {
+        stage.hands?.handleStageChange?.({ reason: "reset" });
+        const station = stage.workbench?.getStationBySlot?.(slotId);
+        const anchor = station?.pickupAnchor;
+        const fallbackX = side === "left" ? -2 : 2;
+        const point = anchor?.getWorldPosition
+          ? anchor.getWorldPosition(anchor.position.clone())
+          : { x: fallbackX, y: 1.1, z: -1 };
+        const now = Number(stage.getDebugState?.()?.time) || 0;
+        stage.hands?.createDebugIngredientPose?.({
+          side, phase: "reach", ingredientId, position: point,
+        });
+        stage.tick?.(now + 95);
+        stage.hands?.createDebugIngredientPose?.({
+          side, phase: "grip", ingredientId, position: point,
+        });
+        stage.tick?.(now + 160);
+        stage.hands?.createDebugIngredientPose?.({
+          side, phase: "carry", ingredientId, position: point,
+        });
+        respondWithDebugState();
+        respondWithDebugFrame();
+      };
+      const debugGripControls = [
+        ["debug-cooking-left-bun-grip", "左手托握面包", {
+          slotId: "bread-left-1", side: "left", ingredientId: "bottom-bun",
+        }],
+        ["debug-cooking-left-patty-grip", "左手夹持肉饼", {
+          slotId: "filling-back-1", side: "left", ingredientId: "patty",
+        }],
+        ["debug-cooking-left-pickle-grip", "左手捏取酸黄瓜", {
+          slotId: "filling-back-2", side: "left", ingredientId: "pickle",
+        }],
+        ["debug-cooking-right-onion-grip-33", "右手兜捏洋葱", {
+          slotId: "filling-back-3", side: "right", ingredientId: "onion",
+        }],
+      ].map(([testId, label, request]) => createDebugControl(
+        testId,
+        label,
+        () => sampleDebugIngredientGrip(request),
+      ));
+      const debugSauceGripControl = createDebugControl(
+        "debug-cooking-right-sauce-grip",
+        "右手环握并挤压酱瓶",
+        () => {
+          stage.hands?.handleStageChange?.({ reason: "reset" });
+          const station = stage.workbench?.getStationBySlot?.("sauce-right-1");
+          const anchor = station?.pickupAnchor;
+          const point = anchor?.getWorldPosition
+            ? anchor.getWorldPosition(anchor.position.clone())
+            : { x: 3.85, y: 1.1, z: 0 };
+          stage.hands?.createDebugToolPose?.({ phase: "start", position: point });
+          stage.hands?.createDebugToolPose?.({
+            phase: "move", position: point, squeezing: true,
+          });
+          respondWithDebugState();
+          respondWithDebugFrame();
+        },
+      );
       const debugRightHandControl = createDebugControl(
         "debug-cooking-right-hand-grip",
         "采样右手抓取硬配料",
@@ -575,6 +634,8 @@ export async function startSoloCookingLoader(
           debugPhaseControls.forEach((control) => control.remove());
           debugStageControl.remove();
           debugHandControl.remove();
+          debugGripControls.forEach((control) => control.remove());
+          debugSauceGripControl.remove();
           debugRightHandControl.remove();
           debugHardMotionControl.remove();
           debugHardPhaseControls.forEach((control) => control.remove());

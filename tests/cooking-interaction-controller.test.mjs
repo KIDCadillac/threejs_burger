@@ -429,6 +429,10 @@ test("a single-point sauce contact becomes a small committed dab on release", (t
     harness.toolGestures.map(({ phase }) => phase),
     ["start", "move", "end"],
   );
+  assert.equal(harness.toolGestures[0].squeezing, false);
+  assert.equal(harness.toolGestures[1].squeezing, true);
+  assert.ok(harness.toolGestures[1].pressure > 0);
+  assert.equal(harness.toolGestures[2].squeezing, false);
   assert.ok(Math.abs(harness.toolGestures.at(-1).position.x - 0.5) < 1e-9);
   assert.ok(Math.abs(harness.toolGestures.at(-1).position.y - 0.5) < 1e-9);
 });

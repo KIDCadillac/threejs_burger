@@ -12,6 +12,8 @@
 
 从空订单 `0/6` 到 `6/6`，每个食材由程序化 3D 手套从正确侧完成 `reach → grip → carry → release`；松手后食材从真实释放点按重力下落，首次接触后只发生一次材料相关压缩/回弹，堆叠无瞬移、悬空或穿插；游戏运行时不加载截图或图片。
 
+左右手验收追加要求：左侧面包、肉饼和酸黄瓜使用左手；右侧洋葱与调料瓶使用右手。两手拇指均朝餐台中心；手部由食品手套、白厨师袖和红色防污袖口构成，不出现木杆前臂。面包、肉饼、酸黄瓜、洋葱和酱瓶分别使用 `cradle / clamp / precision-pinch / scoop-pinch / bottle-wrap` 五种姿势，并且 `isAboveObject === true`。
+
 ## 玩家路径结果
 
 通过页面自己的“重做订单”清空旧存档后，在同一真实浏览器会话中用指针完成：
@@ -34,9 +36,9 @@
 
 ## 确定性门
 
-- Node 全量测试：`83/83` PASS。
+- Node 全量测试：`85/85` PASS。
 - skill repo check：测试、`git diff --check` 和缓存链全部 PASS。
-- 入口缓存链：`20260813-gameplay32u` 全链一致。
+- 入口缓存链：`20260813-hands34` 全链一致。
 - 料理运行文件图片引用扫描：无命中。
 - 390 × 844 视口覆盖：无横向溢出，完成状态保持 `6/6`。
 
@@ -47,6 +49,8 @@
 - `34-right-hand-onion-grip.png`：独立右手骨架抓取后排洋葱，验证不是镜像图片或左手复用。
 - `35-hard-onion-release-contact-rebound-settle.png`：硬配料洋葱的七段 3D 对照；最大压缩约 2%，显著低于面包约 10%。
 - `36-complete-6-of-6-webgl.png`：同一局从 `0/6` 完成后的原始 WebGL 成品帧。
+- `37-left-right-distinct-chef-grips.png`：相同相机和餐台下，左手托面包、左手夹肉饼、左手捏黄瓜、右手兜捏洋葱、右手环握挤酱的五格对照。
+- `38-hands34-complete-6-of-6.png`：缓存链 `20260813-hands34` 下真实指针从 `0/6` 完成到 `6/6` 后的 WebGL 帧。
 - 早期 `01`、`07`、`10`—`29` 文件仅记录开发迭代或浏览器截图问题，不作为最终结论。
 
 ## 复验路径
@@ -59,4 +63,8 @@
 
 ## 发布状态
 
-本文先记录本地验收。提交、推送和 GitHub Pages 线上复验完成后，在本段补充提交号和线上 URL；未完成前不把线上项记为通过。
+玩法提交：`5ed35fa`（`feat: rebuild burger cooking with procedural 3d hands`），已推送到 `main`。
+
+GitHub Pages 复验入口：`https://kidcadillac.github.io/threejs_burger/cooking.html?recipe=classic-beef&debug=1&deploy=5ed35fa`
+
+线上页面返回 200，并确认实际加载缓存链 `20260813-gameplay32u`；运行态标识为 `procedural-3d`、左右手实例数为 2、`document.images.length === 0`。完整 `0/6 → 6/6` 玩家路径与动作连续帧在相同玩法提交的本地真实浏览器中通过，线上发布不是旧缓存或旧 PNG 手版本。

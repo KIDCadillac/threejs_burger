@@ -482,6 +482,11 @@ export function createCookingInteractionController({
         y: bottleWorldScratch.y,
         z: bottleWorldScratch.z,
       }),
+      squeezing: phase === "move"
+        && Boolean(session.currentSegment?.worldPoints?.length),
+      pressure: session.pressureSamples
+        ? clamp(session.pressureTotal / session.pressureSamples, 0, 1)
+        : 0,
       ...(reason ? { reason } : {}),
     });
   };

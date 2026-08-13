@@ -6,14 +6,14 @@ import { createThreeSceneHost } from "./three-scene-host.mjs";
 import { createCookingWorkbench3D } from "./cooking-workbench-3d.mjs?v=20260801-gameplay7";
 import { createBurgerModel3D } from "./burger-model-3d.mjs";
 import { createCondimentTools3D } from "./condiment-tools-3d.mjs?v=20260802-gameplay31";
-import { createCookingInteractionController } from "./cooking-interaction-controller.mjs?v=20260813-gameplay32u";
-import { createCookingFirstPersonHands } from "./cooking-first-person-hands.mjs?v=20260813-gameplay32u";
+import { createCookingInteractionController } from "./cooking-interaction-controller.mjs?v=20260813-hands34";
+import { createCookingFirstPersonHands } from "./cooking-first-person-hands.mjs?v=20260813-hands34";
 import { resolveSoloLayerDrop } from "./cooking-drop-intent.mjs";
 import {
   createCookingMotion,
   getCookingMaterialPhysics,
   sampleCookingMotion,
-} from "./cooking-insertion-animation.mjs?v=20260813-gameplay32u";
+} from "./cooking-insertion-animation.mjs?v=20260813-hands34";
 import {
   createSoloCookingState,
   setSoloStationContent,
