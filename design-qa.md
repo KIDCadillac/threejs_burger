@@ -17,7 +17,7 @@
 
 确定性验收：Node `85/85`、skill repo check、`git diff --check`、入口缓存链和运行时图片引用扫描全部通过；缓存标记为 `20260813-hands34`。真实浏览器从 `0/6` 做到 `6/6`，运行时 `img=0`，控制台日志为 `[]`。
 
-发布验收：玩法提交 `5ed35fa` 已推送 `main`；GitHub Pages 入口 `https://kidcadillac.github.io/threejs_burger/cooking.html?recipe=classic-beef&debug=1&deploy=5ed35fa` 返回 200，并实际加载 `20260813-gameplay32u`、`procedural-3d`、双手实例数 2、运行时图片数 0。
+发布验收：玩法提交 `f0e5823` 已推送 `main`；GitHub Pages 入口 `https://kidcadillac.github.io/threejs_burger/cooking.html?recipe=classic-beef&debug=1&deploy=f0e5823` 返回 200，入口和手部模块均实际加载 `20260813-hands34`。线上源码含白厨师袖和五种抓握且不含木杆前臂；本地真实浏览器运行态为 `procedural-3d`、双手实例数 2、运行时图片数 0、控制台错误 0。
 
 证据目录：`output/burger-realism-3d-2026-08-13/`。本轮新增 `37-left-right-distinct-chef-grips.png`（五种抓握同视角对照）和 `38-hands34-complete-6-of-6.png`（实机六步完成帧）。更早的重复截图只保留为历史，不参与完成判定。
 

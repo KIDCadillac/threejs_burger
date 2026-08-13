@@ -28,8 +28,8 @@
 - skill repo check：测试、空白检查和缓存链全部 PASS。
 - 390 × 844 视口覆盖测试无横向溢出。
 - 当前缓存链：`20260813-hands34`。
-- 玩法提交：`5ed35fa`，已推送 `main` 并由 GitHub Pages 加载。
-- 线上复验：`https://kidcadillac.github.io/threejs_burger/cooking.html?recipe=classic-beef&debug=1&deploy=5ed35fa`；实际运行时 `procedural-3d`、双手实例数 2、图片数 0。
+- 玩法提交：`f0e5823`（`feat: differentiate procedural chef hand grips`），已推送 `main` 并由 GitHub Pages 加载。
+- 线上复验：`https://kidcadillac.github.io/threejs_burger/cooking.html?recipe=classic-beef&debug=1&deploy=f0e5823`；入口与手部模块均返回 200，实际缓存链为 `20260813-hands34`。线上源码含 `chef-sleeve` 和五种抓握，不含 `wooden-forearm`；本地真实浏览器运行时 `procedural-3d`、双手实例数 2、图片数 0、控制台错误 0。
 
 ### 证据与复验
 

@@ -63,8 +63,8 @@
 
 ## 发布状态
 
-玩法提交：`5ed35fa`（`feat: rebuild burger cooking with procedural 3d hands`），已推送到 `main`。
+玩法提交：`f0e5823`（`feat: differentiate procedural chef hand grips`），已推送到 `main`。
 
-GitHub Pages 复验入口：`https://kidcadillac.github.io/threejs_burger/cooking.html?recipe=classic-beef&debug=1&deploy=5ed35fa`
+GitHub Pages 复验入口：`https://kidcadillac.github.io/threejs_burger/cooking.html?recipe=classic-beef&debug=1&deploy=f0e5823`
 
-线上页面返回 200，并确认实际加载缓存链 `20260813-gameplay32u`；运行态标识为 `procedural-3d`、左右手实例数为 2、`document.images.length === 0`。完整 `0/6 → 6/6` 玩家路径与动作连续帧在相同玩法提交的本地真实浏览器中通过，线上发布不是旧缓存或旧 PNG 手版本。
+线上页面、入口模块和手部模块均返回 200，并确认实际加载缓存链 `20260813-hands34`；手部源码含 `chef-sleeve`、`cradle`、`precision-pinch`、`bottle-wrap` 和挤压力度，不含 `wooden-forearm`。本地运行态标识为 `procedural-3d`、左右手实例数为 2、`document.images.length === 0`、控制台错误为 0；完整 `0/6 → 6/6` 玩家路径在真实浏览器中通过。
