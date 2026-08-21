@@ -1,0 +1,38 @@
+{
+  "date": "2026-08-22",
+  "slice": "Antigravity Stage Spotlight homepage",
+  "desktop": {
+    "viewport": "1920x1080",
+    "scrollHeight": 1080,
+    "header": { "x": 0, "y": 0, "width": 1920, "height": 72 },
+    "headingTop": 88,
+    "foodViewport": { "x": 24, "y": 234, "width": 1872, "height": 514 },
+    "platform": { "x": 710, "y": 637.7, "width": 500, "height": 100 },
+    "activeMode": { "x": 700, "y": 814, "width": 520, "height": 80 },
+    "cta": { "x": 800, "y": 960, "width": 320, "height": 64 }
+  },
+  "mobile": {
+    "verifiedViewport": "480x844 (in-app browser minimum width)",
+    "scrollWidth": 480,
+    "scrollHeight": 844,
+    "headerHeight": 56,
+    "platform": { "x": 100, "y": 510.1, "width": 280, "height": 68 },
+    "activeMode": { "x": 90, "y": 652, "width": 300, "height": 60 },
+    "cta": { "x": 110, "y": 749, "width": 260, "height": 52 }
+  },
+  "interaction": {
+    "ArrowRight": "burger -> sushi only",
+    "ArrowLeft": "sushi -> burger only",
+    "ArrowUp": "practice -> duel only",
+    "sushiCta": "shows preparation toast and does not navigate",
+    "sushiTheme": {
+      "background": "#3dbfa0",
+      "ink": "#1a3d30",
+      "header": "rgb(26, 61, 48)",
+      "subtitle": "有肥美鱼生，配米饭吃一套！"
+    }
+  },
+  "consoleErrors": [],
+  "nodeTests": "85/85 passed",
+  "cacheVersion": "20260822-stage2"
+}

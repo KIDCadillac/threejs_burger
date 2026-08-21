@@ -7,9 +7,9 @@ const root = new URL("../", import.meta.url);
 test("homepage loads one rotating food stage without shop cards", async () => {
   const html = await readFile(new URL("index.html", root), "utf8");
 
-  assert.match(html, /home\.css\?v=20260801-focus3/);
-  assert.match(html, /home-focus\.css\?v=20260801-focus3/);
-  assert.match(html, /home-lobby-app\.mjs\?v=20260801-focus3/);
+  assert.match(html, /home\.css\?v=20260822-stage2/);
+  assert.match(html, /home-focus\.css\?v=20260822-stage2/);
+  assert.match(html, /home-lobby-app\.mjs\?v=20260822-stage2/);
   assert.match(html, /home-layout-editor\.css\?v=20260731-entrygate1/);
   assert.match(html, /home-layout-editor\.mjs\?v=20260731-entrygate1/);
   assert.match(html, /id="home-food-canvas"/);
@@ -17,6 +17,9 @@ test("homepage loads one rotating food stage without shop cards", async () => {
   assert.match(html, /data-theme-id="sushi"/);
   assert.match(html, /左右滑动切换料理主题/);
   assert.match(html, /上下滑动切换玩法/);
+  assert.match(html, /food-stage-platform/);
+  assert.match(html, /home-mode-card--previous/);
+  assert.match(html, /home-mode-card--next/);
   assert.doesNotMatch(html, /home-map-slide/);
   assert.doesNotMatch(html, /burger-truck/);
 });

@@ -4,7 +4,7 @@ export const HOME_MAPS = Object.freeze([
   Object.freeze({
     id: "burger",
     title: "汉堡小馆",
-    subtitle: "今天也要好好做汉堡",
+    subtitle: "今天也要好好做汉堡！",
     actionLabel: "开门营业",
     actionHint: "8 位顾客 · 连续出餐",
     href: "./cooking.html?mode=orders",
@@ -13,7 +13,7 @@ export const HOME_MAPS = Object.freeze([
   Object.freeze({
     id: "sushi",
     title: "深夜寿司店",
-    subtitle: "月亮升起后，再来吃一贯",
+    subtitle: "有肥美鱼生，配米饭吃一套！",
     actionLabel: "寿司店筹备中",
     actionHint: "下一张料理地图",
     href: "",

@@ -96,6 +96,19 @@ function createSushiDisplay() {
   return display;
 }
 
+function softenAsGhost(display) {
+  display.traverse((object) => {
+    if (!object.material) return;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    materials.forEach((material) => {
+      material.transparent = true;
+      material.opacity = Math.min(0.22, Number(material.opacity) || 1);
+      material.depthWrite = false;
+    });
+  });
+  return display;
+}
+
 export function createHomeFoodOrbit(canvas, {
   windowTarget = globalThis,
   initialFood = "burger",
@@ -129,19 +142,42 @@ export function createHomeFoodOrbit(canvas, {
   };
   FOOD_IDS.forEach((id) => scene.add(displays[id]));
 
+  const ghostDisplays = {
+    burger: [softenAsGhost(createBurgerDisplay()), softenAsGhost(createBurgerDisplay())],
+    sushi: [softenAsGhost(createSushiDisplay()), softenAsGhost(createSushiDisplay())],
+  };
+  FOOD_IDS.forEach((id) => ghostDisplays[id].forEach((display) => scene.add(display)));
+
   let activeFood = FOOD_IDS.includes(initialFood) ? initialFood : "burger";
   let transition = null;
   let frameId = 0;
   let disposed = false;
   let lastTime = windowTarget.performance?.now?.() ?? 0;
+  let transitionDistance = 4.6;
+  let stableScale = 1;
+
+  const placeGhosts = () => {
+    const halfHeight = Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * camera.position.z;
+    const edgeX = Math.max(2.8, halfHeight * camera.aspect * 0.92);
+    transitionDistance = Math.max(3.4, edgeX * 0.76);
+    FOOD_IDS.forEach((id) => {
+      const visible = id !== activeFood && !transition;
+      ghostDisplays[id].forEach((display, index) => {
+        display.visible = visible;
+        display.position.set(index === 0 ? -edgeX : edgeX, -0.08, 0);
+        display.scale.setScalar(id === "burger" ? 0.42 : 0.48);
+      });
+    });
+  };
 
   const placeStable = () => {
     FOOD_IDS.forEach((id) => {
       const active = id === activeFood;
       displays[id].visible = active;
       displays[id].position.x = active ? 0 : 4.6;
-      displays[id].scale.setScalar(active ? 1 : 0.82);
+      displays[id].scale.setScalar(stableScale * (active ? 1 : 0.82));
     });
+    placeGhosts();
   };
 
   const resize = () => {
@@ -153,6 +189,9 @@ export function createHomeFoodOrbit(canvas, {
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
+    stableScale = Math.max(0.84, Math.min(1.25, 0.7 + camera.aspect * 0.14));
+    if (!transition) placeStable();
+    placeGhosts();
   };
 
   const easeOut = (value) => 1 - ((1 - value) ** 3);
@@ -162,6 +201,9 @@ export function createHomeFoodOrbit(canvas, {
     lastTime = time;
     FOOD_IDS.forEach((id) => {
       displays[id].rotation.y += delta * (id === activeFood ? 0.00072 : 0.0004);
+      ghostDisplays[id].forEach((display, index) => {
+        display.rotation.y += delta * (index === 0 ? 0.00024 : -0.00024);
+      });
     });
 
     if (transition) {
@@ -169,12 +211,12 @@ export function createHomeFoodOrbit(canvas, {
       const progress = easeOut(raw);
       const outgoing = displays[transition.from];
       const incoming = displays[transition.to];
-      outgoing.position.x = -transition.direction * 4.6 * progress;
+      outgoing.position.x = -transition.direction * transitionDistance * progress;
       outgoing.rotation.z = transition.direction * -0.08 * progress;
-      outgoing.scale.setScalar(1 - progress * 0.18);
-      incoming.position.x = transition.direction * 4.6 * (1 - progress);
+      outgoing.scale.setScalar(stableScale * (1 - progress * 0.18));
+      incoming.position.x = transition.direction * transitionDistance * (1 - progress);
       incoming.rotation.z = transition.direction * 0.08 * (1 - progress);
-      incoming.scale.setScalar(0.82 + progress * 0.18);
+      incoming.scale.setScalar(stableScale * (0.82 + progress * 0.18));
       if (raw >= 1) {
         outgoing.visible = false;
         outgoing.rotation.z = 0;
@@ -193,9 +235,10 @@ export function createHomeFoodOrbit(canvas, {
     const from = activeFood;
     activeFood = foodId;
     const incoming = displays[foodId];
+    FOOD_IDS.forEach((id) => ghostDisplays[id].forEach((display) => { display.visible = false; }));
     incoming.visible = true;
-    incoming.position.x = Math.sign(direction || 1) * 4.6;
-    incoming.scale.setScalar(0.82);
+    incoming.position.x = Math.sign(direction || 1) * transitionDistance;
+    incoming.scale.setScalar(stableScale * 0.82);
     transition = {
       from,
       to: foodId,
@@ -223,7 +266,10 @@ export function createHomeFoodOrbit(canvas, {
       windowTarget.cancelAnimationFrame?.(frameId);
       resizeObserver?.disconnect();
       windowTarget.removeEventListener?.("resize", resize);
-      FOOD_IDS.forEach((id) => displays[id].userData.disposeFood?.());
+      FOOD_IDS.forEach((id) => {
+        displays[id].userData.disposeFood?.();
+        ghostDisplays[id].forEach((display) => display.userData.disposeFood?.());
+      });
       renderer.dispose();
     },
   });

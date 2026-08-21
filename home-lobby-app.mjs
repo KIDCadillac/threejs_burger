@@ -11,7 +11,7 @@ import {
   changeMapIndex,
   normalizeMapIndex,
   resolveSwipe,
-} from "./home-map-carousel-state.mjs";
+} from "./home-map-carousel-state.mjs?v=20260822-stage2";
 import {
   HOME_MODE_KEY,
   HOME_MODES,
@@ -21,7 +21,7 @@ import {
   normalizeModeIndex,
   resolveModeSwipe,
 } from "./home-mode-switch-state.mjs";
-import { createHomeFoodOrbit } from "./home-food-orbit-3d.mjs?v=20260801-focus3";
+import { createHomeFoodOrbit } from "./home-food-orbit-3d.mjs?v=20260822-stage2";
 
 const storage = window.localStorage;
 const layoutEditorMode = new URLSearchParams(window.location.search).get("layout") === "1";
@@ -43,11 +43,17 @@ const foodCanvas = document.querySelector("#home-food-canvas");
 const mapTitle = document.querySelector("#lobby-title");
 const mapKicker = document.querySelector("#home-theme-kicker");
 const mapSubtitle = document.querySelector("#home-theme-subtitle");
+const hudTitle = document.querySelector("#lobby-hud-title");
 const modeLabel = document.querySelector("#home-mode-label");
 const modeHint = document.querySelector("#home-mode-hint");
 const modeCounter = document.querySelector("#home-mode-counter");
+const modeActive = document.querySelector("#home-mode-active");
+const modePrevious = document.querySelector("#home-mode-previous");
+const modeNext = document.querySelector("#home-mode-next");
 const startButton = document.querySelector("#home-start-button");
 const themeButtons = [...document.querySelectorAll("[data-theme-id]")];
+const themePeekButtons = [...document.querySelectorAll("[data-theme-step]")];
+const modeStepButtons = [...document.querySelectorAll("[data-mode-step]")];
 
 let openSheet = null;
 let toastTimer = 0;
@@ -124,6 +130,8 @@ function activeMode() {
 function renderTheme({ direction = 0, announce = false } = {}) {
   const map = HOME_MAPS[mapIndex] ?? HOME_MAPS[0];
   document.body.dataset.homeTheme = map.id;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", map.id === "burger" ? "#f5a623" : "#3dbfa0");
+  hudTitle.textContent = map.title;
   mapTitle.textContent = map.title;
   mapKicker.textContent = map.id === "burger" ? "今日主题 · 汉堡" : "下一主题 · 寿司";
   mapSubtitle.textContent = map.subtitle;
@@ -134,7 +142,12 @@ function renderTheme({ direction = 0, announce = false } = {}) {
     button.classList.toggle("is-active", active);
     button.setAttribute("aria-pressed", String(active));
   });
-  startButton.textContent = map.available ? "开始制作" : "寿司玩法筹备中";
+  themePeekButtons.forEach((button) => {
+    const nextMap = HOME_MAPS[(mapIndex + HOME_MAPS.length + Number(button.dataset.themeStep || 1)) % HOME_MAPS.length];
+    button.querySelector("strong").textContent = nextMap.title.replace("小馆", "").replace("深夜", "").replace("店", "");
+    button.setAttribute("aria-label", `切换到${nextMap.title}`);
+  });
+  startButton.textContent = map.available ? "开始游戏" : "寿司玩法筹备中";
   startButton.dataset.available = String(Boolean(map.available));
   foodOrbit?.setFood(map.id, direction || 1);
   if (announce) showToast(`${map.title} · 左右滑动可继续切换`);
@@ -143,9 +156,13 @@ function renderTheme({ direction = 0, announce = false } = {}) {
 function renderMode({ animate = false, announce = false } = {}) {
   const mode = activeMode();
   const position = Math.max(0, playableModeIds.indexOf(mode.id));
+  const previousMode = playableModes[(position - 1 + playableModes.length) % playableModes.length];
+  const nextMode = playableModes[(position + 1) % playableModes.length];
   modeLabel.textContent = mode.label;
   modeHint.textContent = mode.hint;
-  modeCounter.textContent = `玩法 ${position + 1}/${playableModes.length}`;
+  modeCounter.textContent = String(position + 1).padStart(2, "0");
+  modePrevious.textContent = previousMode.label;
+  modeNext.textContent = nextMode.label;
   document.body.dataset.homeMode = mode.id;
   if (animate) {
     const panel = document.querySelector("#home-mode-panel");
@@ -333,7 +350,14 @@ document.addEventListener("click", (event) => {
 themeButtons.forEach((button) => {
   button.addEventListener("click", () => selectTheme(button.dataset.themeId, { announce: true }));
 });
+themePeekButtons.forEach((button) => {
+  button.addEventListener("click", () => moveTheme(Number(button.dataset.themeStep || 1)));
+});
+modeStepButtons.forEach((button) => {
+  button.addEventListener("click", () => moveMode(Number(button.dataset.modeStep || 0)));
+});
 startButton?.addEventListener("click", activateCurrentMode);
+modeActive?.addEventListener("click", activateCurrentMode);
 foodViewport?.addEventListener("pointerdown", beginGesture);
 foodViewport?.addEventListener("pointermove", updateGesture);
 foodViewport?.addEventListener("pointerup", (event) => endGesture(event));

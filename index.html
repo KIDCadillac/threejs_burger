@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f8c948">
     <title>开饭啦 · 汉堡小馆</title>
-    <link rel="stylesheet" href="./home.css?v=20260801-focus3">
-    <link rel="stylesheet" href="./home-focus.css?v=20260801-focus3">
+    <link rel="stylesheet" href="./home.css?v=20260822-stage2">
+    <link rel="stylesheet" href="./home-focus.css?v=20260822-stage2">
     <link rel="stylesheet" href="./home-layout-editor.css?v=20260731-entrygate1">
-    <script type="module" src="./home-lobby-app.mjs?v=20260801-focus3"></script>
+    <script type="module" src="./home-lobby-app.mjs?v=20260822-stage2"></script>
     <script type="module" src="./home-layout-editor.mjs?v=20260731-entrygate1"></script>
   </head>
   <body data-home-theme="burger" data-home-mode="practice">
@@ -17,6 +17,7 @@
         <button class="round-button" type="button" data-home-action="settings" aria-label="游戏设置">
           <span aria-hidden="true">设</span>
         </button>
+        <strong class="lobby-hud__title" id="lobby-hud-title">汉堡小馆</strong>
         <div class="resource-pill resource-pill--energy" aria-label="体力">
           <span class="resource-mark" aria-hidden="true">体</span>
           <strong id="energy-value">5</strong>
@@ -36,7 +37,7 @@
         <header class="food-focus-heading" data-layout-id="global.title">
           <p id="home-theme-kicker">今日主题 · 汉堡</p>
           <h1 id="lobby-title">汉堡小馆</h1>
-          <p id="home-theme-subtitle">今天也要好好做汉堡</p>
+          <p id="home-theme-subtitle">今天也要好好做汉堡！</p>
         </header>
 
         <div
@@ -53,30 +54,42 @@
             data-layout-id="global.food-canvas"
             aria-label="汉堡小馆的旋转料理模型"
           ></canvas>
-          <p class="food-focus-horizontal-hint">左右滑动切换料理主题</p>
-        </div>
-
-        <div class="food-theme-switcher" data-layout-id="global.theme-switcher" aria-label="料理主题">
-          <button class="is-active" type="button" data-theme-id="burger" aria-pressed="true">
-            <strong>汉堡</strong><small>正在制作</small>
+          <div class="food-stage-platform" aria-hidden="true"></div>
+          <button class="food-theme-peek food-theme-peek--left" type="button" data-theme-step="-1" aria-label="切换到寿司">
+            <span aria-hidden="true">左</span><strong>寿司</strong>
           </button>
-          <button type="button" data-theme-id="sushi" aria-pressed="false">
-            <strong>寿司</strong><small>旋转预览</small>
+          <button class="food-theme-peek food-theme-peek--right" type="button" data-theme-step="1" aria-label="切换到寿司">
+            <strong>寿司</strong><span aria-hidden="true">右</span>
           </button>
         </div>
 
         <section class="home-mode-panel" id="home-mode-panel" data-layout-id="global.mode" aria-label="玩法模式">
           <p class="home-mode-gesture">上下滑动切换玩法</p>
-          <div>
-            <span id="home-mode-counter">玩法 1/3</span>
-            <h2 id="home-mode-label">自由练习</h2>
-            <p id="home-mode-hint">不限时间</p>
-          </div>
+          <button class="home-mode-card home-mode-card--ghost home-mode-card--previous" type="button" data-mode-step="-1">
+            <small>上一个</small><strong id="home-mode-previous">双人制作</strong>
+          </button>
+          <button class="home-mode-card home-mode-card--active" id="home-mode-active" type="button">
+            <span class="home-mode-number" id="home-mode-counter">01</span>
+            <div>
+              <h2 id="home-mode-label">自由练习</h2>
+              <p id="home-mode-hint">不限时间</p>
+            </div>
+            <b aria-hidden="true">进入</b>
+          </button>
+          <button class="home-mode-card home-mode-card--ghost home-mode-card--next" type="button" data-mode-step="1">
+            <strong id="home-mode-next">复刻对决</strong><small>下一个</small>
+          </button>
         </section>
 
         <button class="home-start-button" id="home-start-button" data-layout-id="global.start" type="button" data-available="true">
-          开始制作
+          开始游戏
         </button>
+
+        <div class="food-theme-switcher" data-layout-id="global.theme-switcher" aria-label="料理主题">
+          <button class="is-active" type="button" data-theme-id="burger" aria-label="切换到汉堡" aria-pressed="true"><span></span><strong>汉堡</strong></button>
+          <button type="button" data-theme-id="sushi" aria-label="切换到寿司" aria-pressed="false"><span></span><strong>寿司</strong></button>
+          <small>左右滑动切换料理主题</small>
+        </div>
       </section>
 
       <nav class="bottom-nav" aria-label="主页导航" data-layout-id="global.bottom-nav">
