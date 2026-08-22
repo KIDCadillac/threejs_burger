@@ -1,4 +1,5 @@
 export const SWIPE_STACK_MAX_LAYERS = 40;
+export const SWIPE_STACK_CONVEYOR_CAPACITY = 5;
 
 export const SWIPE_STACK_INGREDIENTS = Object.freeze([
   "bottom-bun",
@@ -46,16 +47,41 @@ export function conveyorIngredientAt(index, offset = 0) {
   return SWIPE_STACK_INGREDIENTS[normalizeSwipeRailIndex(index + offset)];
 }
 
-export function createConveyorWindow(cursor, count = 5) {
-  const safeCount = clamp(Math.trunc(finite(Number(count), 5)), 1, 8);
-  return Object.freeze(Array.from({ length: safeCount }, (_, offset) => Object.freeze({
-    offset,
-    ingredientId: conveyorIngredientAt(cursor, offset),
-  })));
+export function createConveyorSupplyState() {
+  return Object.freeze({
+    items: Object.freeze([]),
+    nextSequenceIndex: 0,
+    nextItemNumber: 1,
+  });
 }
 
-export function advanceConveyorCursor(cursor) {
-  return normalizeSwipeRailIndex(cursor + 1);
+export function spawnConveyorSupply(state, capacity = SWIPE_STACK_CONVEYOR_CAPACITY) {
+  if (!state || !Array.isArray(state.items)) throw new TypeError("state must be a conveyor supply state");
+  const safeCapacity = clamp(Math.trunc(finite(Number(capacity), SWIPE_STACK_CONVEYOR_CAPACITY)), 1, 8);
+  if (state.items.length >= safeCapacity) return state;
+  const ingredientId = conveyorIngredientAt(state.nextSequenceIndex);
+  const item = Object.freeze({
+    id: `conveyor-${state.nextItemNumber}`,
+    ingredientId,
+  });
+  return Object.freeze({
+    items: Object.freeze([...state.items, item]),
+    nextSequenceIndex: normalizeSwipeRailIndex(state.nextSequenceIndex + 1),
+    nextItemNumber: state.nextItemNumber + 1,
+  });
+}
+
+export function consumeConveyorSupply(state) {
+  if (!state || !Array.isArray(state.items)) throw new TypeError("state must be a conveyor supply state");
+  if (!state.items.length) return Object.freeze({ state, item: null });
+  return Object.freeze({
+    state: Object.freeze({
+      items: Object.freeze(state.items.slice(1)),
+      nextSequenceIndex: state.nextSequenceIndex,
+      nextItemNumber: state.nextItemNumber,
+    }),
+    item: state.items[0],
+  });
 }
 
 export function resolveSwipeStackGesture({

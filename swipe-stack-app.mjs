@@ -1,19 +1,26 @@
 import {
+  SWIPE_STACK_CONVEYOR_CAPACITY,
   SWIPE_STACK_MAX_LAYERS,
   SWIPE_STACK_PRESENTATION,
   addSwipeStackLayer,
-  advanceConveyorCursor,
-  conveyorIngredientAt,
-  createConveyorWindow,
+  consumeConveyorSupply,
+  createConveyorSupplyState,
   createSwipeStackState,
   finishSwipeStack,
   resolveSwipeStackGesture,
+  spawnConveyorSupply,
   undoSwipeStackLayer,
-} from "./swipe-stack-state.mjs?v=20260823-conveyor39";
-import { createSwipeStackStage } from "./swipe-stack-stage.mjs?v=20260823-conveyor39";
+} from "./swipe-stack-state.mjs?v=20260823-livebelt40";
+import { createSwipeStackStage } from "./swipe-stack-stage.mjs?v=20260823-livebelt40";
+
+const CONVEYOR_FIRST_DELAY_MS = 1800;
+const CONVEYOR_SPAWN_INTERVAL_MS = 1100;
+const CONVEYOR_REFLOW_MS = 560;
+const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const railWindow = document.querySelector("#ingredient-rail-window");
 const rail = document.querySelector("#ingredient-rail");
+const beltEmptyState = document.querySelector("#belt-empty-state");
 const canvas = document.querySelector("#swipe-stack-canvas");
 const layerCount = document.querySelector("#layer-count");
 const scoreValue = document.querySelector("#score-value");
@@ -31,14 +38,16 @@ const finishScore = document.querySelector("#finish-score");
 const restartButton = document.querySelector("#restart-button");
 
 let state = createSwipeStackState();
-let conveyorCursor = 0;
+let supplyState = createConveyorSupplyState();
 let stage = null;
 let pendingLaunch = null;
 let gesture = null;
 let impactTimer = 0;
-let conveyorTimer = 0;
-let conveyorAnimating = false;
+let spawnTimer = 0;
 let suppressClick = false;
+
+const cardById = new Map();
+const arrivalTimerById = new Map();
 
 function presentation(ingredientId) {
   return SWIPE_STACK_PRESENTATION[ingredientId] ?? { label: ingredientId, shortLabel: ingredientId };
@@ -48,42 +57,133 @@ function ingredientToken(ingredientId) {
   return `<span class="ingredient-token ingredient-token--${ingredientId}" aria-hidden="true"></span>`;
 }
 
-function renderRail() {
-  rail.innerHTML = createConveyorWindow(conveyorCursor, 5).map(({ offset, ingredientId }) => {
-    const label = presentation(ingredientId);
-    const ariaLabel = offset === 0
-      ? `${label.label}，当前可投放，向上滑动`
-      : `${label.label}，传送带等待第 ${offset + 1} 位`;
-    return `
-      <button
-        type="button"
-        class="ingredient-card"
-        role="option"
-        aria-selected="${offset === 0}"
-        aria-label="${ariaLabel}"
-        data-selected="${offset === 0}"
-        data-conveyor-offset="${offset}"
-        data-ingredient-id="${ingredientId}"
-        id="conveyor-item-${offset}"
-      >
-        <span class="ingredient-card__position" aria-hidden="true">${offset === 0 ? "投" : offset + 1}</span>
-        ${ingredientToken(ingredientId)}
-        <strong>${label.shortLabel}</strong>
-      </button>
-    `;
-  }).join("");
-  const activeId = conveyorIngredientAt(conveyorCursor);
-  selectedIngredient.textContent = presentation(activeId).label;
-  railWindow.setAttribute("aria-activedescendant", "conveyor-item-0");
+function slotLeft(index) {
+  return `calc(${index * 20}% + 6px)`;
+}
+
+function arrivalDuration(index) {
+  return prefersReducedMotion ? 1 : Math.max(650, 2650 - index * 500);
+}
+
+function clearArrivalTimer(itemId) {
+  window.clearTimeout(arrivalTimerById.get(itemId));
+  arrivalTimerById.delete(itemId);
+}
+
+function createSupplyCard(item, index) {
+  const label = presentation(item.ingredientId);
+  const card = document.createElement("button");
+  card.type = "button";
+  card.className = "ingredient-card";
+  card.id = item.id;
+  card.setAttribute("role", "option");
+  card.dataset.supplyId = item.id;
+  card.dataset.ingredientId = item.ingredientId;
+  card.dataset.moving = "true";
+  card.style.left = "calc(100% + 12px)";
+  card.innerHTML = `
+    <span class="ingredient-card__position" aria-hidden="true"></span>
+    ${ingredientToken(item.ingredientId)}
+    <strong>${label.shortLabel}</strong>
+  `;
+  rail.append(card);
+  cardById.set(item.id, card);
+
+  const duration = arrivalDuration(index);
+  card.style.setProperty("--travel-ms", `${duration}ms`);
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (!card.isConnected) return;
+      card.style.left = slotLeft(index);
+      const timer = window.setTimeout(() => {
+        card.removeAttribute("data-moving");
+        arrivalTimerById.delete(item.id);
+      }, duration + 80);
+      arrivalTimerById.set(item.id, timer);
+    });
+  });
+  return card;
+}
+
+function syncSupplyCards({ newItemId = null } = {}) {
+  const activeIds = new Set(supplyState.items.map(({ id }) => id));
+  for (const [itemId, card] of cardById) {
+    if (activeIds.has(itemId)) continue;
+    clearArrivalTimer(itemId);
+    card.remove();
+    cardById.delete(itemId);
+  }
+
+  supplyState.items.forEach((item, index) => {
+    const card = cardById.get(item.id) ?? createSupplyCard(item, index);
+    const label = presentation(item.ingredientId);
+    const isCurrent = index === 0;
+    card.dataset.conveyorOffset = String(index);
+    card.dataset.selected = String(isCurrent);
+    card.setAttribute("aria-selected", String(isCurrent));
+    card.setAttribute(
+      "aria-label",
+      isCurrent
+        ? `${label.label}，当前可投放，向上滑动`
+        : `${label.label}，正在传送带第 ${index + 1} 位等待`,
+    );
+    card.querySelector(".ingredient-card__position").textContent = isCurrent ? "投" : String(index + 1);
+    if (item.id !== newItemId) {
+      card.style.setProperty("--travel-ms", `${CONVEYOR_REFLOW_MS}ms`);
+      card.style.left = slotLeft(index);
+    }
+  });
+
+  const current = supplyState.items[0] ?? null;
+  selectedIngredient.textContent = current ? presentation(current.ingredientId).label : "等待食材";
+  beltEmptyState.hidden = Boolean(current);
+  if (current) {
+    railWindow.setAttribute("aria-activedescendant", current.id);
+  } else {
+    railWindow.removeAttribute("aria-activedescendant");
+  }
+  document.body.dataset.conveyorCount = String(supplyState.items.length);
+  document.body.dataset.conveyorCurrent = current?.ingredientId ?? "empty";
+}
+
+function spawnNextSupply() {
+  if (state.finished || supplyState.items.length >= SWIPE_STACK_CONVEYOR_CAPACITY) return false;
+  const nextState = spawnConveyorSupply(supplyState);
+  if (nextState === supplyState) return false;
+  const item = nextState.items.at(-1);
+  supplyState = nextState;
+  syncSupplyCards({ newItemId: item.id });
+  if (supplyState.items.length === 1) {
+    setHint(`${presentation(item.ingredientId).label}正在从右侧送来，可以直接向上划取走`);
+  }
+  return true;
+}
+
+function scheduleSupply(delay = CONVEYOR_SPAWN_INTERVAL_MS) {
+  window.clearTimeout(spawnTimer);
+  spawnTimer = window.setTimeout(() => {
+    spawnNextSupply();
+    scheduleSupply();
+  }, delay);
+}
+
+function resetSupply() {
+  window.clearTimeout(spawnTimer);
+  for (const itemId of arrivalTimerById.keys()) clearArrivalTimer(itemId);
+  for (const card of cardById.values()) card.remove();
+  cardById.clear();
+  supplyState = createConveyorSupplyState();
+  syncSupplyCards();
+  scheduleSupply(CONVEYOR_FIRST_DELAY_MS);
 }
 
 function renderState() {
   layerCount.textContent = String(state.layers.length);
   scoreValue.textContent = String(state.score);
   comboValue.textContent = state.combo ? `×${state.combo}` : "0";
-  undoButton.disabled = !state.layers.length || Boolean(pendingLaunch) || conveyorAnimating || state.finished;
-  resetButton.disabled = Boolean(pendingLaunch) || conveyorAnimating;
-  serveButton.disabled = state.layers.length < 2 || Boolean(pendingLaunch) || conveyorAnimating || state.finished;
+  undoButton.disabled = !state.layers.length || Boolean(pendingLaunch) || state.finished;
+  resetButton.disabled = Boolean(pendingLaunch);
+  serveButton.disabled = state.layers.length < 2 || Boolean(pendingLaunch) || state.finished;
   serveButton.textContent = state.finished ? "已上菜" : "上菜";
 }
 
@@ -101,35 +201,31 @@ function showImpact() {
   }, 520);
 }
 
-function launchIngredient(ingredientId, detail) {
-  if (!stage || pendingLaunch || conveyorAnimating || state.finished || state.layers.length >= SWIPE_STACK_MAX_LAYERS) {
+function launchCurrentIngredient(detail, expectedItemId = null) {
+  const current = supplyState.items[0] ?? null;
+  if (!current) {
+    setHint("传送带正在送来第一份食材");
+    return false;
+  }
+  if (expectedItemId && expectedItemId !== current.id) {
+    setHint("食材已经向前补位，请重新向上划");
+    return false;
+  }
+  if (!stage || pendingLaunch || state.finished || state.layers.length >= SWIPE_STACK_MAX_LAYERS) {
     setHint(state.layers.length >= SWIPE_STACK_MAX_LAYERS ? "已经叠满 40 层，可以上菜了" : "等上一层落稳再投");
     return false;
   }
-  pendingLaunch = { ingredientId, power: detail.power, lateral: detail.lateral };
-  const launched = stage.launch(ingredientId, detail);
-  if (!launched) {
-    pendingLaunch = null;
-    return false;
-  }
-  setHint(`${presentation(ingredientId).label}飞起来了，接住！`);
-  railWindow.classList.add("is-launching");
+
+  const pending = { itemId: current.id, ingredientId: current.ingredientId, power: detail.power, lateral: detail.lateral };
+  const launched = stage.launch(current.ingredientId, detail);
+  if (!launched) return false;
+  pendingLaunch = pending;
+  const consumed = consumeConveyorSupply(supplyState);
+  supplyState = consumed.state;
+  syncSupplyCards();
+  setHint(`${presentation(current.ingredientId).label}飞起来了，后面的食材继续向左补位`);
   renderState();
   return true;
-}
-
-function advanceConveyor() {
-  conveyorAnimating = true;
-  railWindow.classList.remove("is-launching");
-  railWindow.classList.add("is-advancing");
-  window.clearTimeout(conveyorTimer);
-  conveyorTimer = window.setTimeout(() => {
-    conveyorCursor = advanceConveyorCursor(conveyorCursor);
-    renderRail();
-    railWindow.classList.remove("is-advancing");
-    conveyorAnimating = false;
-    renderState();
-  }, 190);
 }
 
 function resetGestureVisuals() {
@@ -140,8 +236,8 @@ function resetGestureVisuals() {
 
 function beginRailGesture(event) {
   if (event.pointerType === "mouse" && event.button !== 0) return;
-  if (pendingLaunch || conveyorAnimating || state.finished) return;
-  const card = event.target.closest?.('[data-conveyor-offset="0"]');
+  if (pendingLaunch || state.finished) return;
+  const card = event.target.closest?.('[data-selected="true"]');
   if (!card) return;
   gesture = {
     pointerId: event.pointerId,
@@ -149,7 +245,7 @@ function beginRailGesture(event) {
     startY: event.clientY,
     startedAt: performance.now(),
     card,
-    ingredientId: card.dataset.ingredientId,
+    itemId: card.dataset.supplyId,
     moved: false,
   };
   card.setAttribute("data-gesture-source", "true");
@@ -184,23 +280,19 @@ function endRailGesture(event, cancelled = false) {
   resetGestureVisuals();
 
   if (resolution.action === "launch") {
-    launchIngredient(activeGesture.ingredientId, resolution);
+    launchCurrentIngredient(resolution, activeGesture.itemId);
     return;
   }
-  setHint("从投料口把当前食材向上划；传送带会自动补位");
+  setHint("把传送带最左边的食材向上划；不拿时它会停在投料口");
 }
 
 function resetGame() {
   if (!stage?.reset()) return false;
   state = createSwipeStackState();
-  conveyorCursor = 0;
   pendingLaunch = null;
-  conveyorAnimating = false;
-  window.clearTimeout(conveyorTimer);
-  railWindow.classList.remove("is-launching", "is-advancing");
   finishPanel.hidden = true;
-  setHint("把投料口里的食材向上划，传送带会自动补位");
-  renderRail();
+  setHint("传送带还是空的，第一份食材会从右侧慢慢送来");
+  resetSupply();
   renderState();
   return true;
 }
@@ -208,7 +300,7 @@ function resetGame() {
 try {
   stage = createSwipeStackStage({
     canvas,
-    reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    reducedMotion: prefersReducedMotion,
     onImpact() {
       showImpact();
       try { window.navigator.vibrate?.(18); } catch { /* haptic is optional */ }
@@ -219,9 +311,8 @@ try {
       pendingLaunch = null;
       setHint(state.layers.length >= SWIPE_STACK_MAX_LAYERS
         ? "40 层满塔！现在可以上菜"
-        : `${state.layers.length} 层接稳了，下一份正在送来`);
+        : `${state.layers.length} 层接稳了，传送带会继续积料`);
       renderState();
-      advanceConveyor();
     },
     onError(error) {
       stageError.hidden = false;
@@ -244,24 +335,27 @@ railWindow.addEventListener("click", (event) => {
     return;
   }
   const card = event.target.closest?.("[data-conveyor-offset]");
-  if (!card) return;
-  if (card.dataset.conveyorOffset === "0") {
-    setHint("按住当前食材向上划，就能投进汉堡");
+  if (!card) {
+    setHint("食材会从传送带右侧慢慢进入");
+    return;
+  }
+  if (card.dataset.selected === "true") {
+    setHint("按住最左边的食材向上划，就能投进汉堡");
   } else {
-    setHint(`${presentation(card.dataset.ingredientId).label}正在排队，前面的投出后会自动送来`);
+    setHint(`${presentation(card.dataset.ingredientId).label}正在后面排队，前面的不拿就会一直停着`);
   }
 });
 railWindow.addEventListener("keydown", (event) => {
   if (event.key === "ArrowUp" || event.key === "Enter" || event.key === " ") {
     event.preventDefault();
-    launchIngredient(conveyorIngredientAt(conveyorCursor), { power: .5, lateral: 0 });
+    launchCurrentIngredient({ power: .5, lateral: 0 });
   }
 });
 
 undoButton.addEventListener("click", () => {
   if (!stage?.undo()) return;
   state = undoSwipeStackLayer(state);
-  setHint("已撤销最上面一层；传送带供料顺序保持不变");
+  setHint("已撤销最上面一层；传送带里的食材继续保留");
   renderState();
 });
 resetButton.addEventListener("click", resetGame);
@@ -272,6 +366,7 @@ serveButton.addEventListener("click", () => {
     return;
   }
   state = nextState;
+  window.clearTimeout(spawnTimer);
   finishLayers.textContent = String(state.layers.length);
   finishScore.textContent = String(state.score);
   finishPanel.hidden = false;
@@ -282,9 +377,10 @@ restartButton.addEventListener("click", resetGame);
 
 window.addEventListener("pagehide", () => {
   window.clearTimeout(impactTimer);
-  window.clearTimeout(conveyorTimer);
+  window.clearTimeout(spawnTimer);
+  for (const itemId of arrivalTimerById.keys()) clearArrivalTimer(itemId);
   stage?.dispose?.();
 }, { once: true });
 
-renderRail();
+resetSupply();
 renderState();

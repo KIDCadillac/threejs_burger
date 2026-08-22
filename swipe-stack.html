@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#24100d">
     <title>滑动叠堡 · 汉堡小馆</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./swipe-stack.css?v=20260823-conveyor39">
+    <link rel="stylesheet" href="./swipe-stack.css?v=20260823-livebelt40">
   </head>
   <body>
     <main class="swipe-stack-app">
@@ -38,7 +38,7 @@
           <span>连击 <strong id="combo-value">0</strong></span>
         </div>
         <p class="stage-hint" id="stage-hint" aria-live="polite">
-          把投料口里的食材向上划，传送带会自动补位
+          传送带还是空的，第一份食材会从右侧慢慢送来
         </p>
         <div class="stage-error" id="stage-error" role="alert" hidden>
           三维舞台启动失败，请刷新后重试。
@@ -48,10 +48,10 @@
       <section class="ingredient-launcher" aria-labelledby="ingredient-launcher-title">
         <div class="launcher-heading">
           <div>
-            <small>自动供料传送带</small>
+            <small>持续运送 · 自动积料</small>
             <h2 id="ingredient-launcher-title">向上划，投进汉堡</h2>
           </div>
-          <strong id="selected-ingredient">底层面包</strong>
+          <strong id="selected-ingredient">等待食材</strong>
         </div>
         <div
           class="ingredient-rail-window"
@@ -61,6 +61,7 @@
           aria-label="食材传送带。把投料口里的当前食材向上滑动投放"
         >
           <div class="ingredient-rail" id="ingredient-rail"></div>
+          <p class="belt-empty-state" id="belt-empty-state">空带待机 · 食材从右侧进入</p>
           <div class="rail-launch-arrow" aria-hidden="true">
             <i></i><i></i><i></i>
           </div>
@@ -82,6 +83,6 @@
         </section>
       </div>
     </main>
-    <script type="module" src="./swipe-stack-app.mjs?v=20260823-conveyor39"></script>
+    <script type="module" src="./swipe-stack-app.mjs?v=20260823-livebelt40"></script>
   </body>
 </html>

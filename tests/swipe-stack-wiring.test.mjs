@@ -14,14 +14,19 @@ test("swipe-stack mode is a separate image-free 3D route", async () => {
 
   assert.match(html, /id="swipe-stack-canvas"/);
   assert.match(html, /id="ingredient-rail-window"/);
-  assert.match(html, /swipe-stack-app\.mjs\?v=20260823-conveyor39/);
+  assert.match(html, /swipe-stack-app\.mjs\?v=20260823-livebelt40/);
+  assert.match(html, /id="belt-empty-state"/);
   assert.doesNotMatch(html, /<img\b/i);
   assert.match(css, /touch-action: none/);
   assert.match(css, /ingredient-token--patty/);
   assert.match(app, /resolveSwipeStackGesture/);
-  assert.match(app, /advanceConveyorCursor/);
+  assert.match(app, /createConveyorSupplyState/);
+  assert.match(app, /spawnConveyorSupply/);
+  assert.match(app, /consumeConveyorSupply/);
   assert.doesNotMatch(app, /moveSwipeRailIndex/);
-  assert.match(app, /launchIngredient/);
+  assert.match(app, /launchCurrentIngredient/);
+  assert.match(css, /@keyframes belt-rollers/);
+  assert.match(css, /left var\(--travel-ms\) linear/);
   assert.match(stage, /createBurgerModel3D/);
   assert.match(stage, /createLayerInstance/);
   assert.match(stage, /onImpact/);
@@ -37,5 +42,5 @@ test("homepage exposes swipe-stack without replacing free cooking", async () => 
   assert.match(modes, /id: "swipe-stack"/);
   assert.match(modes, /\["practice", "swipe-stack", "duel", "duo"\]/);
   assert.match(lobby, /mode\.action === "practice"[\s\S]*cooking\.html/);
-  assert.match(lobby, /mode\.action === "swipe-stack"[\s\S]*swipe-stack\.html/);
+  assert.match(lobby, /mode\.action === "swipe-stack"[\s\S]*swipe-stack\.html\?v=20260823-livebelt40/);
 });

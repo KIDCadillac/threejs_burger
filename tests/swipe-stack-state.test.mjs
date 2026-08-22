@@ -4,22 +4,38 @@ import test from "node:test";
 import {
   SWIPE_STACK_INGREDIENTS,
   addSwipeStackLayer,
-  advanceConveyorCursor,
-  conveyorIngredientAt,
-  createConveyorWindow,
+  consumeConveyorSupply,
+  createConveyorSupplyState,
   createSwipeStackState,
   finishSwipeStack,
   resolveSwipeStackGesture,
+  spawnConveyorSupply,
   undoSwipeStackLayer,
 } from "../swipe-stack-state.mjs";
 
-test("automatic conveyor exposes the current ingredient and advances one slot", () => {
-  assert.equal(conveyorIngredientAt(0), "bottom-bun");
-  assert.deepEqual(createConveyorWindow(0, 3).map(({ ingredientId }) => ingredientId), [
+test("live conveyor starts empty and accumulates supplied ingredients", () => {
+  let supply = createConveyorSupplyState();
+  assert.deepEqual(supply.items, []);
+  supply = spawnConveyorSupply(supply);
+  supply = spawnConveyorSupply(supply);
+  supply = spawnConveyorSupply(supply);
+  assert.deepEqual(supply.items.map(({ ingredientId }) => ingredientId), [
     "bottom-bun", "patty", "cheese",
   ]);
-  assert.equal(advanceConveyorCursor(0), 1);
-  assert.equal(advanceConveyorCursor(SWIPE_STACK_INGREDIENTS.length - 1), 0);
+});
+
+test("full conveyor keeps its pile until the front ingredient is consumed", () => {
+  let supply = createConveyorSupplyState();
+  for (let index = 0; index < 5; index += 1) supply = spawnConveyorSupply(supply);
+  assert.equal(spawnConveyorSupply(supply), supply);
+  const consumed = consumeConveyorSupply(supply);
+  assert.equal(consumed.item.ingredientId, "bottom-bun");
+  assert.deepEqual(consumed.state.items.map(({ ingredientId }) => ingredientId), [
+    "patty", "cheese", "tomato", "lettuce",
+  ]);
+  const refilled = spawnConveyorSupply(consumed.state);
+  assert.equal(refilled.items.at(-1).ingredientId, "pickle");
+  assert.equal(refilled.items.length, 5);
 });
 
 test("only an upward dominant gesture launches; horizontal movement never changes supply", () => {
