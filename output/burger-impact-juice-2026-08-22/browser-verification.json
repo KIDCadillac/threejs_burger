@@ -1,0 +1,46 @@
+{
+  "slice": "ingredient landing impact juice",
+  "date": "2026-08-22",
+  "url": "http://127.0.0.1:4173/cooking.html?recipe=classic-beef&debug=1",
+  "viewport": {
+    "width": 1280,
+    "height": 900
+  },
+  "sameState": {
+    "ingredientId": "bottom-bun",
+    "contactOffsetMs": 335,
+    "before": {
+      "selectedScaleY": 0.8979349957,
+      "selectedScaleXz": 1.0530738023,
+      "supportLoad": 0.611146
+    },
+    "after": {
+      "selectedScaleY": 0.8499374082,
+      "selectedScaleXz": 1.0780325477,
+      "supportLoad": 0.7430344806,
+      "stackOffsetY": -0.0081282713,
+      "impactPulse": 0.788150283,
+      "impactStrength": 0.6563,
+      "cameraKick": 0.5172630307,
+      "particleCount": 10
+    }
+  },
+  "runtime": {
+    "newImageAssets": 0,
+    "particleType": "texture-free Three.js meshes",
+    "consoleErrors": [],
+    "consoleWarnings": [],
+    "cacheToken": "20260822-juice35"
+  },
+  "evidence": [
+    "01-before-start.png",
+    "02-before-contact.png",
+    "03-before-rebound.png",
+    "04-before-settle.png",
+    "05-after-start.png",
+    "06-after-contact.png",
+    "06e-after-impact-burst-radial.png",
+    "07-after-rebound.png",
+    "08-after-settle.png"
+  ]
+}

@@ -57,6 +57,7 @@ try {
         "cooking-solo-app.mjs -> cooking-solo-stage.mjs" = Get-CacheToken "cooking-solo-app.mjs" "cooking-solo-stage.mjs"
         "cooking-solo-stage.mjs -> cooking-interaction-controller.mjs" = Get-CacheToken "cooking-solo-stage.mjs" "cooking-interaction-controller.mjs"
         "cooking-solo-stage.mjs -> cooking-insertion-animation.mjs" = Get-CacheToken "cooking-solo-stage.mjs" "cooking-insertion-animation.mjs"
+        "cooking-solo-stage.mjs -> cooking-impact-feedback.mjs" = Get-CacheToken "cooking-solo-stage.mjs" "cooking-impact-feedback.mjs"
         "cooking-solo-app.mjs -> cooking-feedback.mjs" = Get-CacheToken "cooking-solo-app.mjs" "cooking-feedback.mjs"
     }
 

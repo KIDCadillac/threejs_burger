@@ -67,6 +67,9 @@ test("cooking loader and app wire the fixed burger loop without a puppet perform
   assert.match(stage, /reason: "reset-fit"/);
   assert.match(stage, /onSauceTool: \(detail\) =>/);
   assert.match(stage, /createCookingFirstPersonHands/);
+  assert.match(stage, /createCookingImpactFeedback/);
+  assert.match(stage, /impactFeedback\.burst/);
+  assert.match(stage, /applyImpactCamera/);
   assert.match(stage, /hands\.handleToolGesture/);
   assert.match(stage, /hands\.handleIngredientGesture/);
   assert.match(stage, /hands\.tick/);

@@ -1,5 +1,40 @@
 # 笔记本 → 台式机交接：旋转料理主页 + 第一人称汉堡闭环
 
+## 2026-08-22 最新玩法状态：食材落地“砸实”与 Q 弹反馈
+
+本轮只修汉堡制作中的一次核心手感闭环，没有继续改主页，也没有把景深、勾边或复杂刚体物理一次性塞进来。现在食材从手里释放后仍按原来的重力轨迹落下；首次接触汉堡时，会按食材重量和软硬程度产生一次明确的纵向压扁、横向鼓起、整层下沉和单次回弹。肉饼等重食材的冲击强于洋葱等轻配料，软面包的形变大于硬配料。
+
+接触瞬间还新增了很短的固定镜头冲击、按重量分级的手机震动，以及完全由 Three.js 几何体生成的食物颗粒。颗粒使用面包屑、芝麻、酱色等食材专属配色，430ms 内放射、上抛、淡出；没有新增 PNG、截图、纹理图片或第三方补间库。动画仍严格限制为“首次接触 + 一次回弹”，不会变成连续弹簧。
+
+### 本轮关键文件
+
+- `cooking-insertion-animation.mjs`：重量/软硬驱动的压扁、横向鼓起、整层下沉、单次回弹和镜头冲击曲线。
+- `cooking-impact-feedback.mjs`：新增无纹理 3D 食物颗粒池；食材专属颜色、数量、放射轨迹和 430ms 自动回收。
+- `cooking-solo-stage.mjs`：把 Q 弹作用到当前层、支撑层和上层，接入短镜头冲击、分级震动与颗粒；结束/重置时恢复镜头并清理瞬态效果。
+- `cooking-loader.mjs`、`cooking-solo-app.mjs`、`cooking.html`：料理入口缓存链更新为 `20260822-juice35`。
+- `tests/cooking-impact-feedback.test.mjs`、`tests/cooking-insertion-animation.test.mjs`、`tests/cooking-puppet-wiring.test.mjs`：锁定颗粒轨迹、材料差异、重量冲击和接线。
+- `.codex/skills/build-burger-game-gauntlet/scripts/run_repo_checks.ps1`：把新反馈模块加入缓存链检查。
+
+### 验证与证据
+
+- 全仓 Node：88/88。
+- Gauntlet repo check：PASS（测试、空白、料理缓存链）。
+- 同一 1280×900 浏览器、同一 `bottom-bun` 接触帧：纵向比例从旧版 `0.898` 加深到 `0.850`，横向比例从 `1.053` 增强到 `1.078`；新增整层下沉 `-0.0081`、冲击脉冲 `0.788`、镜头冲击 `0.517`。
+- 浏览器接触状态：10 个 3D 粒子激活；控制台未发现 error/warn；料理页没有新增运行时图片。
+- 前后连续帧与最终盲审：`output/burger-impact-juice-2026-08-22/`。
+
+### 台式机接手与下一步
+
+1. 先 `git status`，确认台式机没有未提交修改，再 `git pull origin main`。
+2. 启动本地服务后打开 `http://127.0.0.1:4173/cooking.html?recipe=classic-beef`，先手动拖下层面包和肉饼，重点感受两者落地重量差。
+3. 完整检查命令：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\.codex\skills\build-burger-game-gauntlet\scripts\run_repo_checks.ps1 -RepoPath . -NodePath node
+```
+
+下一条建议切片是“高塔不稳定”：只在高度和重心越界后出现摇晃、危险字卡与倒塌散落。当前版本还没有实现这部分，也没有引入 OutlinePass、景深或顶点局部变形；不要把它们误写成已完成。
+
 ## 2026-08-22 最新接手状态：Antigravity「舞台聚光」主页已落地
 
 本轮严格按 Antigravity 定稿与 `design_handoff.md` 重做主页，没有继续自创卡片或餐车方案。主页现在是全屏主题舞台：深色顶栏、中央大标题、持续旋转的真实 3D 汉堡/寿司、奶油色地台、上一/当前/下一三层玩法轨道、胶囊主按钮与主题指示点。

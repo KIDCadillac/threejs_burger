@@ -30,7 +30,7 @@ test("insert motion has one squash-and-spread contact followed by a settled rebo
   const motion = createCookingMotion({
     kind: "insert", startedAt: 0, thickness: 1, ingredientId: "bottom-bun",
   });
-  const contact = sampleCookingMotion(motion, 560 * 0.66);
+  const contact = sampleCookingMotion(motion, 560 * 0.6);
   const rebound = sampleCookingMotion(motion, 560 * 0.86);
   const end = sampleCookingMotion(motion, 560);
 
@@ -40,6 +40,10 @@ test("insert motion has one squash-and-spread contact followed by a settled rebo
   assert.ok(contact.selectedScaleY < 1);
   assert.ok(contact.supportCompression > 0);
   assert.ok(contact.supportLoad > 0);
+  assert.ok(contact.stackOffsetY < 0);
+  assert.ok(contact.impactPulse > 0);
+  assert.ok(contact.impactStrength > 0);
+  assert.ok(contact.cameraKick > 0);
   assert.equal(contact.impact, true);
   assert.equal(rebound.phase, "rebound");
   assert.ok(rebound.selectedScaleY > 1);
@@ -54,8 +58,12 @@ test("insert motion has one squash-and-spread contact followed by a settled rebo
     upperOffsetY: 0,
     supportCompression: 0,
     supportLoad: 0,
+    stackOffsetY: 0,
     selectedScaleXz: 1,
     selectedScaleY: 1,
+    impactPulse: 0,
+    impactStrength: 0,
+    cameraKick: 0,
     impact: false,
     done: true,
   });
@@ -75,4 +83,19 @@ test("soft bun deforms visibly more than hard sliced garnish", () => {
     > getCookingMaterialPhysics("pickle").compliance);
   assert.ok(1 - bunContact.selectedScaleY > 1 - pickleContact.selectedScaleY);
   assert.ok(bunContact.selectedScaleXz - 1 > pickleContact.selectedScaleXz - 1);
+});
+
+test("heavier ingredients create a stronger landing impulse than light garnish", () => {
+  const patty = createCookingMotion({
+    kind: "insert", startedAt: 0, thickness: 1, ingredientId: "patty",
+  });
+  const onion = createCookingMotion({
+    kind: "insert", startedAt: 0, thickness: 1, ingredientId: "onion",
+  });
+  const pattyImpact = sampleCookingMotion(patty, 560 * 0.6);
+  const onionImpact = sampleCookingMotion(onion, 560 * 0.6);
+
+  assert.ok(pattyImpact.impactStrength > onionImpact.impactStrength);
+  assert.ok(pattyImpact.cameraKick > onionImpact.cameraKick);
+  assert.ok(Math.abs(pattyImpact.stackOffsetY) > Math.abs(onionImpact.stackOffsetY));
 });

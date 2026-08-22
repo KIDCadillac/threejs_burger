@@ -42,8 +42,12 @@ const settled = Object.freeze({
   upperOffsetY: 0,
   supportCompression: 0,
   supportLoad: 0,
+  stackOffsetY: 0,
   selectedScaleXz: 1,
   selectedScaleY: 1,
+  impactPulse: 0,
+  impactStrength: 0,
+  cameraKick: 0,
   impact: false,
   done: true,
 });
@@ -90,8 +94,12 @@ export function sampleCookingMotion(motion, now) {
     upperOffsetY: 0,
     supportCompression: 0,
     supportLoad: 0,
+    stackOffsetY: 0,
     selectedScaleXz: 1,
     selectedScaleY: 1,
+    impactPulse: 0,
+    impactStrength: 0,
+    cameraKick: 0,
     impact: false,
     done: false,
   };
@@ -114,26 +122,38 @@ export function sampleCookingMotion(motion, now) {
       result.verticalArrival = fallTime ** 2;
     } else if (progress < 0.74) {
       const contactTime = (progress - 0.52) / 0.22;
-      const contact = Math.sin(Math.PI * contactTime);
+      const contact = Math.sin(Math.PI * contactTime) ** 0.72;
+      const impactPulse = contactTime <= 0.5
+        ? Math.sin(Math.PI * (contactTime / 0.5))
+        : 0;
+      const impactStrength = clamp(
+        material.mass * 0.56 + material.compliance * 1.9,
+        0.34,
+        1.18,
+      );
       const squash = clamp(
-        material.compliance * (0.62 + material.mass * 0.24) * contact,
+        material.compliance * (0.9 + material.mass * 0.32) * contact,
         0,
-        0.16,
+        0.22,
       );
       result.phase = "contact";
       result.arrival = 1;
       result.verticalArrival = 1;
       result.selectedScaleXz = 1 + squash * material.lateralSpread;
       result.selectedScaleY = 1 - squash;
-      result.supportLoad = contact * material.mass;
+      result.impactPulse = impactPulse;
+      result.impactStrength = impactStrength;
+      result.cameraKick = impactPulse * impactStrength;
+      result.stackOffsetY = -motion.thickness * 0.045 * impactPulse * impactStrength;
+      result.supportLoad = contact * material.mass * 1.18;
       // Kept as a scalar debug summary; the stage converts supportLoad using
       // each lower layer's own compliance instead of applying one global squash.
       result.supportCompression = contact * material.mass * 0.02;
-      result.impact = contactTime >= 0.06;
+      result.impact = contactTime >= 0.045;
     } else {
       const reboundTime = (progress - 0.74) / 0.26;
       const rebound = Math.sin(Math.PI * reboundTime) * (1 - reboundTime);
-      const reboundAmount = material.compliance * (1 - material.damping) * rebound;
+      const reboundAmount = material.compliance * (1 - material.damping) * rebound * 1.65;
       result.phase = "rebound";
       result.arrival = 1;
       result.verticalArrival = 1;

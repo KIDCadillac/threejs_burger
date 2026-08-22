@@ -6,14 +6,15 @@ import { createThreeSceneHost } from "./three-scene-host.mjs";
 import { createCookingWorkbench3D } from "./cooking-workbench-3d.mjs?v=20260801-gameplay7";
 import { createBurgerModel3D } from "./burger-model-3d.mjs";
 import { createCondimentTools3D } from "./condiment-tools-3d.mjs?v=20260802-gameplay31";
-import { createCookingInteractionController } from "./cooking-interaction-controller.mjs?v=20260813-hands34";
-import { createCookingFirstPersonHands } from "./cooking-first-person-hands.mjs?v=20260813-hands34";
+import { createCookingInteractionController } from "./cooking-interaction-controller.mjs?v=20260822-juice35";
+import { createCookingFirstPersonHands } from "./cooking-first-person-hands.mjs?v=20260822-juice35";
 import { resolveSoloLayerDrop } from "./cooking-drop-intent.mjs";
 import {
   createCookingMotion,
   getCookingMaterialPhysics,
   sampleCookingMotion,
-} from "./cooking-insertion-animation.mjs?v=20260813-hands34";
+} from "./cooking-insertion-animation.mjs?v=20260822-juice35";
+import { createCookingImpactFeedback } from "./cooking-impact-feedback.mjs?v=20260822-juice35";
 import {
   createSoloCookingState,
   setSoloStationContent,
@@ -250,6 +251,11 @@ export function createSoloCookingStage({
   cleanupTasks.push(() => disposeObserved(burger, "burger"));
   host.scene.add(workbench.root);
   workbench.root.add(burger.root);
+  const impactFeedback = createCookingImpactFeedback(THREE, {
+    parent: burger.root,
+    reducedMotion,
+  });
+  cleanupTasks.push(() => impactFeedback.dispose?.());
   const tools = toolsFactory(THREE, {
     toolDocks: workbench.toolDocks,
     sauceIds: SOLO_COOKING_SAUCE_IDS,
@@ -307,6 +313,40 @@ export function createSoloCookingStage({
   let highlightedLayerId = null;
   let activeSlotPreview = null;
   const cancelLayerTransition = (layerId) => transitions.delete(layerId);
+  const cameraUp = new THREE.Vector3();
+  const cameraRight = new THREE.Vector3();
+
+  const restoreImpactCamera = (record = activeMotion) => {
+    if (!record?.cameraBase) return false;
+    host.camera.position.copy(record.cameraBase.position);
+    host.camera.quaternion.copy(record.cameraBase.quaternion);
+    host.camera.updateMatrixWorld?.(true);
+    record.cameraBase = null;
+    record.cameraImpactFinished = true;
+    return true;
+  };
+
+  const applyImpactCamera = (record, frame) => {
+    if (reducedMotion || record.motion.kind !== "insert" || record.cameraImpactFinished) return;
+    if (frame.cameraKick <= 0) {
+      if (record.cameraBase) restoreImpactCamera(record);
+      return;
+    }
+    if (!record.cameraBase) {
+      record.cameraBase = {
+        position: host.camera.position.clone(),
+        quaternion: host.camera.quaternion.clone(),
+      };
+    }
+    const magnitude = frame.cameraKick * 0.042;
+    cameraUp.set(0, 1, 0).applyQuaternion(record.cameraBase.quaternion);
+    cameraRight.set(1, 0, 0).applyQuaternion(record.cameraBase.quaternion);
+    host.camera.position.copy(record.cameraBase.position)
+      .addScaledVector(cameraUp, -magnitude)
+      .addScaledVector(cameraRight, Math.sin(frame.progress * 86) * magnitude * 0.22);
+    host.camera.quaternion.copy(record.cameraBase.quaternion);
+    host.camera.updateMatrixWorld?.(true);
+  };
 
   const emit = (reason, extra = {}) => {
     const detail = Object.freeze({
@@ -439,8 +479,10 @@ export function createSoloCookingStage({
   };
 
   const clearTransientVisuals = ({ resync = true } = {}) => {
+    restoreImpactCamera(activeMotion);
     activeMotion = null;
     pickMotion = null;
+    impactFeedback.hide?.();
     transitions.clear();
     focusDraft = null;
     clearSlotContentPreview();
@@ -712,6 +754,8 @@ export function createSoloCookingStage({
       from,
       targets: targetTransforms(),
       impacted: false,
+      cameraBase: null,
+      cameraImpactFinished: false,
     };
     applyActiveMotion(lastFrameTime);
   };
@@ -1497,9 +1541,18 @@ export function createSoloCookingStage({
     layer.scale.lerpVectors(from.scale, target.scale, amount);
   };
 
-  const fireImpactHaptic = (record, frame) => {
+  const fireImpactFeedback = (record, frame, selected) => {
     if (!frame.impact || record.impacted) return;
     record.impacted = true;
+    const impactStrength = frame.impactStrength || 0.5;
+    const impactPosition = selected.position.clone();
+    impactPosition.y += record.motion.thickness * 0.48;
+    impactFeedback.burst?.({
+      position: impactPosition,
+      ingredientId: record.motion.ingredientId,
+      strength: impactStrength,
+      startedAt: lastFrameTime,
+    });
     try {
       let haptic = vibrate;
       if (haptic === undefined) {
@@ -1508,7 +1561,7 @@ export function createSoloCookingStage({
           ? navigatorTarget.vibrate.bind(navigatorTarget)
           : null;
       }
-      haptic?.(12);
+      haptic?.(Math.round(10 + impactStrength * 18));
     } catch {
       // Haptics are optional and never own the animation result.
     }
@@ -1526,8 +1579,12 @@ export function createSoloCookingStage({
       "upperOffsetY",
       "supportCompression",
       "supportLoad",
+      "stackOffsetY",
       "selectedScaleXz",
       "selectedScaleY",
+      "impactPulse",
+      "impactStrength",
+      "cameraKick",
     ];
     if (numericKeys.some((key) => !Number.isFinite(frame[key]))) {
       lastMotionDebugReason = "non-finite-frame";
@@ -1587,10 +1644,11 @@ export function createSoloCookingStage({
         // layers above by the accumulated lost height. This keeps every
         // contact in the support chain closed instead of opening small gaps.
         layer.position.y += support.offsetY;
+        layer.position.y += frame.stackOffsetY;
         layer.scale.y *= support.verticalScale;
       } else if (upperIds.has(layerId)) {
         applyPose(layer, record.from.get(layerId), target, frame.arrival);
-        layer.position.y += frame.upperOffsetY - totalSupportCompression;
+        layer.position.y += frame.upperOffsetY - totalSupportCompression + frame.stackOffsetY;
       } else {
         layer.position.copy(target.position);
         layer.rotation.set(0, target.yaw, 0);
@@ -1603,7 +1661,7 @@ export function createSoloCookingStage({
       selected.position.y = selectedFrom.position.y
         + (selectedTarget.position.y - selectedFrom.position.y) * frame.verticalArrival;
     }
-    selected.position.y += frame.selectedOffsetY - totalSupportCompression;
+    selected.position.y += frame.selectedOffsetY - totalSupportCompression + frame.stackOffsetY;
     // Once contact begins, compensate for vertical squash so the food's lower
     // contact plane stays planted instead of floating above the layer below.
     if (record.motion.kind === "insert" && frame.arrival >= 1) {
@@ -1614,8 +1672,10 @@ export function createSoloCookingStage({
     selected.scale.x *= frame.selectedScaleXz;
     selected.scale.z *= frame.selectedScaleXz;
     selected.scale.y *= frame.selectedScaleY;
-    fireImpactHaptic(record, frame);
+    applyImpactCamera(record, frame);
+    fireImpactFeedback(record, frame, selected);
     if (frame.done) {
+      restoreImpactCamera(record);
       lastMotionDebugReason = "settled";
       activeMotion = null;
       restoreAuthoritativeTransforms();
@@ -1640,6 +1700,7 @@ export function createSoloCookingStage({
       }
     }
     applyActiveMotion(lastFrameTime);
+    impactFeedback.tick?.(lastFrameTime);
     hands.tick?.(lastFrameTime);
     for (const [layerId, transition] of transitions) {
       const progress = Math.min(1, Math.max(0, (lastFrameTime - transition.start) / SNAP_DURATION));
@@ -1990,6 +2051,7 @@ export function createSoloCookingStage({
           hasSelectedTarget: activeMotion.targets?.has?.(activeMotion.selectedId) ?? false,
         }) : null,
         lastMotionDebugReason,
+        impactFeedback: impactFeedback.getDebugState?.() ?? null,
         hands: hands.getDebugState?.() ?? null,
       });
     },
