@@ -59,6 +59,9 @@ try {
         "cooking-solo-stage.mjs -> cooking-insertion-animation.mjs" = Get-CacheToken "cooking-solo-stage.mjs" "cooking-insertion-animation.mjs"
         "cooking-solo-stage.mjs -> cooking-impact-feedback.mjs" = Get-CacheToken "cooking-solo-stage.mjs" "cooking-impact-feedback.mjs"
         "cooking-solo-stage.mjs -> cooking-stack-stability.mjs" = Get-CacheToken "cooking-solo-stage.mjs" "cooking-stack-stability.mjs"
+        "cooking-solo-stage.mjs -> cooking-drop-placement.mjs" = Get-CacheToken "cooking-solo-stage.mjs" "cooking-drop-placement.mjs"
+        "cooking-solo-stage.mjs -> burger-model-3d.mjs" = Get-CacheToken "cooking-solo-stage.mjs" "burger-model-3d.mjs"
+        "cooking-solo-stage.mjs -> cooking-workbench-3d.mjs" = Get-CacheToken "cooking-solo-stage.mjs" "cooking-workbench-3d.mjs"
         "cooking-solo-app.mjs -> cooking-feedback.mjs" = Get-CacheToken "cooking-solo-app.mjs" "cooking-feedback.mjs"
     }
 

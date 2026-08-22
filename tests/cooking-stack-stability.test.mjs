@@ -61,10 +61,13 @@ test("a retained landing offset is part of the same undoable placement", () => {
   const initial = createSoloCookingState();
   const placed = placeSoloLayer(initial, "bottom-bun", 0, {
     placementOffset: { x: 0.28, z: -0.12 },
+    placementYaw: Math.PI / 3,
   });
   assert.deepEqual(placed.offsets["bottom-bun"], { x: 0.28, z: -0.12 });
+  assert.ok(Math.abs(placed.rotations["bottom-bun"] - Math.PI / 3) < 1e-9);
   assert.equal(placed.history.length, 1);
   const undone = undoSoloCooking(placed);
   assert.deepEqual(undone.assembledOrder, []);
   assert.deepEqual(undone.offsets["bottom-bun"], { x: 0, z: 0 });
+  assert.equal(undone.rotations["bottom-bun"], 0);
 });

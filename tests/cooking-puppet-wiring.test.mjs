@@ -20,21 +20,23 @@ test("cooking page uses a clean first-person counter without puppet scenery", as
   assert.doesNotMatch(html, /marionette-rig\.png/);
   assert.doesNotMatch(html, /puppet-chef-(?:body|arm-left|arm-right)\.png/);
   assert.match(html, /id="puppet-order-progress"/);
-  assert.match(html, /id="puppet-order-progress">0\/6/);
+  assert.match(html, /id="puppet-order-progress">0\/60/);
+  assert.match(html, /自由汉堡工坊/);
+  assert.match(html, /顺序和种类都由你决定/);
   assert.match(html, /id="finish-reaction"/);
   assert.match(html, /id="finish-score"/);
   assert.match(html, /id="finish-coins"/);
   assert.match(html, /data-action="view-finished">查看成品/);
   assert.match(html, /data-action="restart">再做一份/);
   assert.match(html, /data-action="finish"/);
-  assert.match(html, /data-action="reset">重做订单/);
+  assert.match(html, /data-action="reset">重新开始/);
   assert.match(html, /data-control-grammar="drag-place condiment-left-take right-swipe-cycle hold-up-roulette undo serve"/);
   assert.match(html, /右侧调料罐可向左拖取挤酱、向右滑快速换酱、长按后向上转胶囊轮盘指定/);
   assert.doesNotMatch(html, /id="sauce-capsule"/);
   assert.doesNotMatch(html, /🍔|🧀|🥩|🏙️|✦/u);
 });
 
-test("cooking loader and app wire the fixed burger loop without a puppet performer", async () => {
+test("cooking loader and app wire freeform WYSIWYG burger building without a puppet performer", async () => {
   const [loader, app, css, hands] = await Promise.all([
     readFile(new URL("cooking-loader.mjs", root), "utf8"),
     readFile(new URL("cooking-solo-app.mjs", root), "utf8"),
@@ -53,10 +55,10 @@ test("cooking loader and app wire the fixed burger loop without a puppet perform
   assert.match(loader, /request\.retainOffset/);
   assert.match(loader, /dataset\.workbenchControls/);
   assert.match(loader, /searchParams\.get\("workbenchControls"\) === "1"/);
-  assert.match(app, /chooseRecipe\(CLASSIC_BURGER_RECIPE_ID, \{ resume: false \}\)/);
-  assert.match(app, /evaluateClassicBurger/);
-  assert.match(app, /validateClassicTransition/);
-  assert.match(app, /settleClassicBurgerAttempt/);
+  assert.match(app, /chooseRecipe\(null, \{ resume: false \}\)/);
+  assert.doesNotMatch(app, /validateClassicTransition/);
+  assert.doesNotMatch(app, /settleClassicBurgerAttempt/);
+  assert.match(app, /顺序和种类都由你决定/);
   assert.match(app, /stage\.setCameraLocked\?\.\(true\)/);
   assert.match(app, /directCondimentPickup: false/);
   assert.match(app, /createCondimentRackControls/);
@@ -74,7 +76,13 @@ test("cooking loader and app wire the fixed burger loop without a puppet perform
   assert.match(stage, /analyzeCookingStackStability/);
   assert.match(stage, /sampleCookingStackWobble/);
   assert.match(stage, /sampleCookingCollapseLayer/);
-  assert.match(stage, /placementOffset: retainedDropOffset/);
+  assert.match(stage, /resolveCookingDropPlacement/);
+  assert.match(stage, /placementOffset: placement\.offset/);
+  assert.match(stage, /placementYaw: placement\.yaw/);
+  assert.match(stage, /applyDropPreview\(nextIntent, pose\)/);
+  assert.match(stage, /stackStabilityLayers\(finalOrder, placementOverrides\)/);
+  assert.match(stage, /x: cueLocal\.x/);
+  assert.match(stage, /z: cueLocal\.z/);
   assert.match(stage, /impactFeedback\.burst/);
   assert.match(stage, /applyImpactCamera/);
   assert.match(stage, /hands\.handleToolGesture/);

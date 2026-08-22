@@ -1659,6 +1659,8 @@ export function createBurgerModel3D(THREE, options = {}) {
       position,
       scale,
       yaw = 0,
+      rotationX = 0,
+      rotationZ = 0,
       targetIndex,
     } = {}) {
       assertActive(disposed);
@@ -1672,6 +1674,8 @@ export function createBurgerModel3D(THREE, options = {}) {
         throw new TypeError("drop preview scale must contain positive finite x, y, and z");
       }
       const normalizedYaw = assertFinite(yaw, "drop preview yaw");
+      const normalizedRotationX = assertFinite(rotationX, "drop preview rotationX");
+      const normalizedRotationZ = assertFinite(rotationZ, "drop preview rotationZ");
       if (!Number.isInteger(targetIndex) || targetIndex < 0) {
         throw new TypeError("drop preview targetIndex must be a non-negative integer");
       }
@@ -1679,7 +1683,7 @@ export function createBurgerModel3D(THREE, options = {}) {
       for (const mesh of dropPreview.children) mesh.geometry = geometry;
       root.add(dropPreview);
       dropPreview.position.set(position.x, position.y, position.z);
-      dropPreview.rotation.set(0, normalizedYaw, 0);
+      dropPreview.rotation.set(normalizedRotationX, normalizedYaw, normalizedRotationZ);
       dropPreview.scale.set(scale.x, scale.y, scale.z);
       dropPreview.userData.layerId = layerId;
       dropPreview.userData.targetIndex = targetIndex;

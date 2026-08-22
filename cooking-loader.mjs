@@ -23,7 +23,7 @@ export async function startSoloCookingLoader(
   documentTarget = globalThis.document,
   {
     windowTarget = globalThis,
-    importApp = () => import("./cooking-solo-app.mjs?v=20260822-stability36"),
+    importApp = () => import("./cooking-solo-app.mjs?v=20260823-free37"),
     importShopApp = () => import("./burger-shop-app.mjs"),
     requestFrame = windowTarget?.requestAnimationFrame?.bind(windowTarget)
       ?? ((callback) => windowTarget.setTimeout(callback, 16)),

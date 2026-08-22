@@ -3,23 +3,24 @@ import {
   SOLO_COOKING_SAUCE_IDS,
 } from "./burger-recipes.mjs";
 import { createThreeSceneHost } from "./three-scene-host.mjs";
-import { createCookingWorkbench3D } from "./cooking-workbench-3d.mjs?v=20260801-gameplay7";
-import { createBurgerModel3D } from "./burger-model-3d.mjs";
+import { createCookingWorkbench3D } from "./cooking-workbench-3d.mjs?v=20260823-free37";
+import { createBurgerModel3D } from "./burger-model-3d.mjs?v=20260823-free37";
 import { createCondimentTools3D } from "./condiment-tools-3d.mjs?v=20260802-gameplay31";
-import { createCookingInteractionController } from "./cooking-interaction-controller.mjs?v=20260822-stability36";
-import { createCookingFirstPersonHands } from "./cooking-first-person-hands.mjs?v=20260822-stability36";
+import { createCookingInteractionController } from "./cooking-interaction-controller.mjs?v=20260823-free37";
+import { createCookingFirstPersonHands } from "./cooking-first-person-hands.mjs?v=20260823-free37";
 import { resolveSoloLayerDrop } from "./cooking-drop-intent.mjs";
+import { resolveCookingDropPlacement } from "./cooking-drop-placement.mjs?v=20260823-free37";
 import {
   createCookingMotion,
   getCookingMaterialPhysics,
   sampleCookingMotion,
-} from "./cooking-insertion-animation.mjs?v=20260822-stability36";
-import { createCookingImpactFeedback } from "./cooking-impact-feedback.mjs?v=20260822-stability36";
+} from "./cooking-insertion-animation.mjs?v=20260823-free37";
+import { createCookingImpactFeedback } from "./cooking-impact-feedback.mjs?v=20260823-free37";
 import {
   analyzeCookingStackStability,
   sampleCookingCollapseLayer,
   sampleCookingStackWobble,
-} from "./cooking-stack-stability.mjs?v=20260822-stability36";
+} from "./cooking-stack-stability.mjs?v=20260823-free37";
 import {
   createSoloCookingState,
   setSoloStationContent,
@@ -513,6 +514,11 @@ export function createSoloCookingStage({
       }
     }
   };
+  const resolveDropPlacement = (releasePose) => resolveCookingDropPlacement(releasePose, {
+    deadzone: DROP_OFFSET_DEADZONE,
+    retention: DROP_OFFSET_RETENTION,
+    maxOffset: MAX_DROP_OFFSET,
+  });
 
   const syncTransforms = ({ animate = false } = {}) => {
     const targets = targetTransforms();
@@ -571,7 +577,7 @@ export function createSoloCookingStage({
     return true;
   };
 
-  const applyDropPreview = (intent) => {
+  const applyDropPreview = (intent, releasePose = null) => {
     if (!intent?.id || intent.kind !== "prep") {
       burger.clearLayerDropPreview();
       workbench.clearDropCue();
@@ -590,6 +596,23 @@ export function createSoloCookingStage({
     const finalOrder = [...previewOrder];
     finalOrder.splice(targetIndex, 0, intent.id);
     const selectedTarget = targetTransforms(finalOrder).get(intent.id);
+    const placement = resolveDropPlacement(releasePose ?? {
+      position: draggedPose.position,
+      rotation: { y: draggedPose.yaw },
+    });
+    selectedTarget.position.x = placement.offset.x;
+    selectedTarget.position.z = placement.offset.z;
+    selectedTarget.yaw = placement.yaw;
+    const placementOverrides = new Map([[intent.id, placement.offset]]);
+    const previewStability = analyzeCookingStackStability(
+      stackStabilityLayers(finalOrder, placementOverrides),
+    );
+    const previewTilt = previewStability.level === "safe"
+      ? { x: 0, z: 0 }
+      : {
+        x: previewStability.directionZ * previewStability.amplitude,
+        z: -previewStability.directionX * previewStability.amplitude,
+      };
     const thickness = layerStackThickness(selected) * selectedTarget.scale.y;
 
     for (const [layerId, target] of targets) {
@@ -611,11 +634,17 @@ export function createSoloCookingStage({
         + (expanded ? EXPLODED_GAP : 0)
         + 0.015
       : workbench.prep.supportY + 0.015;
-    const cueWorld = burger.root.localToWorld(new THREE.Vector3(0, cueTargetY, 0));
+    const cueWorld = burger.root.localToWorld(new THREE.Vector3(
+      selectedTarget.position.x,
+      cueTargetY,
+      selectedTarget.position.z,
+    ));
     const cueLocal = workbench.prep.dropAnchor.worldToLocal(cueWorld);
     workbench.setDropCue({
       targetIndex,
+      x: cueLocal.x,
       y: cueLocal.y,
+      z: cueLocal.z,
       radius: selected.userData.surfaceRadius
         * Math.max(selectedTarget.scale.x, selectedTarget.scale.z),
     });
@@ -623,6 +652,8 @@ export function createSoloCookingStage({
       position: selectedTarget.position,
       scale: selectedTarget.scale,
       yaw: selectedTarget.yaw,
+      rotationX: previewTilt.x,
+      rotationZ: previewTilt.z,
       targetIndex,
     });
     return true;
@@ -966,9 +997,11 @@ export function createSoloCookingStage({
       const targetIndex = destination.targetIndex ?? previousOrder.length;
       if (!state.assembledOrder.includes(layerId)
         && state.assembledOrder.length >= MAX_SOLO_STACK_LAYERS) return false;
+      const placement = resolveDropPlacement(destination.releasePose);
       state = placeSoloLayer(state, layerId, targetIndex, {
         replenish: true,
-        placementOffset: retainedDropOffset(destination.releasePose),
+        placementOffset: placement.offset,
+        placementYaw: placement.yaw,
       });
       refreshStackStability();
       reconcileModelInstances();
@@ -1274,8 +1307,13 @@ export function createSoloCookingStage({
     return surfaces;
   };
 
-  const stackStabilityLayers = () => state.assembledOrder.map((layerId) => {
-    const offset = state.offsets?.[layerId] ?? { x: 0, z: 0 };
+  const stackStabilityLayers = (
+    assembledOrder = state.assembledOrder,
+    placementOverrides = new Map(),
+  ) => assembledOrder.map((layerId) => {
+    const offset = placementOverrides.get(layerId)
+      ?? state.offsets?.[layerId]
+      ?? { x: 0, z: 0 };
     const physics = getCookingMaterialPhysics(ingredientForInstance(layerId));
     const scale = targetScale(layerId);
     return {
@@ -1295,18 +1333,6 @@ export function createSoloCookingStage({
     return stability;
   };
 
-  const retainedDropOffset = (releasePose) => {
-    const rawX = Number(releasePose?.position?.x);
-    const rawZ = Number(releasePose?.position?.z);
-    if (!Number.isFinite(rawX) || !Number.isFinite(rawZ)) return { x: 0, z: 0 };
-    const distance = Math.hypot(rawX, rawZ);
-    if (distance <= DROP_OFFSET_DEADZONE) return { x: 0, z: 0 };
-    const retained = Math.min(MAX_DROP_OFFSET, (distance - DROP_OFFSET_DEADZONE) * DROP_OFFSET_RETENTION);
-    return {
-      x: rawX / distance * retained,
-      z: rawZ / distance * retained,
-    };
-  };
   const activeModelLayerIds = () => {
     const activeIds = new Set(state.assembledOrder);
     const sources = state.stationSources ?? state.binSources;
@@ -1455,12 +1481,11 @@ export function createSoloCookingStage({
           && dropIntent?.id === nextIntent.id
           && dropIntent?.targetIndex === nextIntent.targetIndex
           && dropIntent?.slotId === nextIntent.slotId;
+        if (nextIntent.kind === "prep") applyDropPreview(nextIntent, pose);
         if (!unchanged) {
           dropIntent = nextIntent;
           workbench.clearHighlights();
-          if (nextIntent.kind === "prep") {
-            applyDropPreview(nextIntent);
-          } else {
+          if (nextIntent.kind !== "prep") {
             restoreDraggedLayout(id);
             burger.clearLayerDropPreview();
             workbench.clearDropCue();

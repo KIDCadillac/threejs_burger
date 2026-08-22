@@ -6,9 +6,9 @@
     <meta name="theme-color" content="#ffc75a">
     <meta name="feedback-endpoint" content="https://script.google.com/macros/s/AKfycbyk3Fl5BUFRuan-SJYZk4n6QIlRQEHlloeXE1JMskpNJhsduV_1UfbhxoFRUj1my7cHhw/exec">
     <meta name="feedback-upload-key" content="kid-burger-feedback-20260721-v1">
-    <title>小馆经典牛肉堡 · 第一人称料理台</title>
+    <title>自由汉堡工坊 · 第一人称料理台</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./cooking.css?v=20260822-stability36">
+    <link rel="stylesheet" href="./cooking.css?v=20260823-free37">
   </head>
   <body class="first-person-cooking" data-experience="first-person-counter">
     <main class="cooking-app">
@@ -16,13 +16,13 @@
         <div class="cooking-header__identity">
           <a class="home-link" href="./index.html" aria-label="返回汉堡小馆">返回</a>
           <div>
-          <p class="cooking-kicker">第一人称料理 · 订单 01</p>
-          <h1>小馆经典牛肉堡</h1>
+          <p class="cooking-kicker">第一人称料理 · 自由搭配</p>
+          <h1>自由汉堡工坊</h1>
           </div>
         </div>
-        <div class="cooking-order-progress" aria-label="订单完成进度">
-          <small>订单步骤</small>
-          <strong id="puppet-order-progress">0/6</strong>
+        <div class="cooking-order-progress" aria-label="汉堡堆叠层数">
+          <small>堆叠层数</small>
+          <strong id="puppet-order-progress">0/60</strong>
         </div>
         <div class="header-actions">
           <button class="tuning-button" type="button" data-action="tuning-open" aria-haspopup="dialog" aria-controls="tuning-sheet">参数</button>
@@ -36,7 +36,7 @@
         <section class="recipe-selector__card">
           <p class="recipe-selector__eyebrow">开火前先定一个参考</p>
           <h2 id="recipe-selector-title">今天想做哪款汉堡？</h2>
-          <p class="recipe-selector__copy">调试模式可切换配方；正式订单会检查食材顺序和酱料位置。</p>
+          <p class="recipe-selector__copy">配方只提供搭配灵感，不限制食材顺序、种类或酱料位置。</p>
           <div class="recipe-grid">
             <button class="recipe-card recipe-card--free" type="button" data-action="recipe-select" data-recipe-id="">
               <span class="recipe-card__number" aria-hidden="true">自由</span>
@@ -71,16 +71,16 @@
       <section class="objective-card" aria-labelledby="cooking-objective">
         <div>
           <span class="objective-label">当前操作</span>
-          <p id="cooking-objective">按订单顺序，把食材拖到餐盘中央</p>
+          <p id="cooking-objective">自由叠放食材，顺序和种类都由你决定</p>
         </div>
-        <strong id="cooking-progress">0/6</strong>
+        <strong id="cooking-progress">0/60</strong>
       </section>
 
       <section class="recipe-reference" id="recipe-reference" aria-labelledby="recipe-reference-name" hidden>
         <div class="recipe-reference__heading">
           <div>
-            <span>固定订单</span>
-          <strong id="recipe-reference-name">小馆经典牛肉堡</strong>
+            <span>搭配灵感</span>
+          <strong id="recipe-reference-name">自由料理</strong>
           </div>
           <button type="button" data-action="recipe-change" hidden>调试配方</button>
         </div>
@@ -90,7 +90,7 @@
       <p class="inventory-stock" id="cooking-stock" aria-live="polite">小馆料盒已备齐</p>
 
       <section class="cooking-stage" aria-label="第一人称三维料理操作区" data-control-grammar="drag-place condiment-left-take right-swipe-cycle hold-up-roulette undo serve">
-        <p class="first-person-action-label" id="cooking-action-label" aria-live="polite">先把下层面包拖到餐盘中央</p>
+        <p class="first-person-action-label" id="cooking-action-label" aria-live="polite">先拿任意一种食材，放到你想要的位置</p>
         <canvas id="cooking-canvas" tabindex="0" aria-label="固定视角三维汉堡料理台，可拖动食材；右侧调料罐可向左拖取挤酱、向右滑快速换酱、长按后向上转胶囊轮盘指定" aria-describedby="cooking-objective">
           你的浏览器需要支持 WebGL 才能使用三维料理台。
         </canvas>
@@ -197,7 +197,7 @@
           <button type="button" data-action="tutorial-skip">跳过</button>
         </aside>
         <div class="finish-sheet" id="finish-sheet" role="dialog" aria-modal="true" aria-labelledby="finish-title" tabindex="-1" hidden>
-          <p class="finish-sheet__eyebrow">柜台回执 · 订单 01</p>
+          <p class="finish-sheet__eyebrow">自由料理回执</p>
           <h2 id="finish-title">顾客正在品尝</h2>
           <blockquote class="finish-sheet__reaction" id="finish-reaction">顾客正在等待品尝。</blockquote>
           <div class="finish-sheet__result" aria-label="本单结算">
@@ -205,7 +205,7 @@
             <span><small>金币奖励</small><strong id="finish-coins">+0</strong></span>
           </div>
           <p id="finish-summary">食材已经组合完成。</p>
-          <p class="finish-sheet__balance" id="finish-balance">完成固定订单后结算</p>
+          <p class="finish-sheet__balance" id="finish-balance">至少叠两层即可出餐</p>
           <div class="finish-sheet__actions">
             <button type="button" data-action="view-finished">查看成品</button>
             <button type="button" data-action="restart">再做一份</button>
@@ -357,14 +357,14 @@
       <nav class="cooking-controls" aria-label="料理工具">
         <button type="button" data-action="undo" disabled>撤销</button>
         <button class="camera-reset-button" type="button" data-action="camera-reset">镜头复位</button>
-        <button class="finish-button" type="button" data-action="finish" disabled>订单 0/6</button>
+        <button class="finish-button" type="button" data-action="finish" disabled>还差 2 层</button>
         <details class="advanced-cooking-controls">
           <summary>细调</summary>
           <div>
             <button type="button" data-action="rotate-left" aria-label="向左旋转选中食材">向左转</button>
             <button type="button" data-action="rotate-right" aria-label="向右旋转选中食材">向右转</button>
             <button type="button" data-action="toggle-expanded">展开查看</button>
-            <button type="button" data-action="reset">重做订单</button>
+            <button type="button" data-action="reset">重新开始</button>
           </div>
         </details>
       </nav>
@@ -382,6 +382,6 @@
 
       <p class="cooking-status" id="cooking-status" role="status" aria-live="polite"></p>
     </main>
-    <script type="module" src="./cooking-loader.mjs?v=20260822-stability36"></script>
+    <script type="module" src="./cooking-loader.mjs?v=20260823-free37"></script>
   </body>
 </html>

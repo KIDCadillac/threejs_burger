@@ -775,17 +775,20 @@ export function createCookingWorkbench3D(THREE, options = {}) {
       if (disposed) return;
       for (const station of allStations) station.highlight.visible = false;
     },
-    setDropCue({ targetIndex, y, radius } = {}) {
+    setDropCue({ targetIndex, x = 0, y, z = 0, radius } = {}) {
       if (disposed) return false;
       if (!Number.isInteger(targetIndex) || targetIndex < 0) {
         throw new TypeError("drop cue targetIndex must be a non-negative integer");
       }
       if (!Number.isFinite(y)) throw new TypeError("drop cue y must be finite");
+      if (!Number.isFinite(x) || !Number.isFinite(z)) {
+        throw new TypeError("drop cue x and z must be finite");
+      }
       if (!Number.isFinite(radius) || radius <= 0) {
         throw new TypeError("drop cue radius must be a positive finite number");
       }
       dropCue.userData.targetIndex = targetIndex;
-      dropCue.position.set(0, y, 0);
+      dropCue.position.set(x, y, z);
       dropCue.scale.set(radius, radius, 1);
       dropCue.visible = true;
       return true;

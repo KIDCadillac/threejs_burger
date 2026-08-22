@@ -524,7 +524,7 @@ export function placeSoloLayer(
   state,
   layerId,
   targetIndex = state.assembledOrder.length,
-  { replenish = false, placementOffset } = {},
+  { replenish = false, placementOffset, placementYaw } = {},
 ) {
   requireEditable(state);
   const ingredientId = requireInstance(state, layerId);
@@ -547,6 +547,10 @@ export function placeSoloLayer(
       x: finite(placementOffset?.x, "placementOffset.x"),
       z: finite(placementOffset?.z, "placementOffset.z"),
     };
+  }
+  if (placementYaw !== undefined) {
+    const rawYaw = finite(placementYaw, "placementYaw");
+    rotations[layerId] = Math.atan2(Math.sin(rawYaw), Math.cos(rawYaw));
   }
   let binSources = { ...state.binSources };
   const inventory = { ...state.inventory };
