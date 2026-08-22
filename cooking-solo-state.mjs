@@ -524,7 +524,7 @@ export function placeSoloLayer(
   state,
   layerId,
   targetIndex = state.assembledOrder.length,
-  { replenish = false } = {},
+  { replenish = false, placementOffset } = {},
 ) {
   requireEditable(state);
   const ingredientId = requireInstance(state, layerId);
@@ -542,6 +542,12 @@ export function placeSoloLayer(
   const locations = Object.fromEntries(Object.keys(instances).map((id) => [id, state.locations[id]]));
   const rotations = { ...state.rotations };
   const offsets = { ...state.offsets };
+  if (placementOffset !== undefined) {
+    offsets[layerId] = {
+      x: finite(placementOffset?.x, "placementOffset.x"),
+      z: finite(placementOffset?.z, "placementOffset.z"),
+    };
+  }
   let binSources = { ...state.binSources };
   const inventory = { ...state.inventory };
   const session = stationSession(state);

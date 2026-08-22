@@ -10,6 +10,8 @@ test("cooking page uses a clean first-person counter without puppet scenery", as
   assert.match(html, /class="first-person-cooking"/);
   assert.match(html, /data-experience="first-person-counter"/);
   assert.match(html, /id="cooking-action-label"/);
+  assert.match(html, /id="cooking-stability-warning"/);
+  assert.match(html, />危！</);
   assert.doesNotMatch(html, /<img\b/i);
   assert.doesNotMatch(html, /first-person-puppet-hand\.png/);
   assert.doesNotMatch(html, /feedback-preview/);
@@ -48,6 +50,7 @@ test("cooking loader and app wire the fixed burger loop without a puppet perform
   assert.match(loader, /dataset\.debug/);
   assert.match(loader, /burger-cooking-debug-request-frame/);
   assert.match(loader, /burger-cooking-debug-request-state/);
+  assert.match(loader, /request\.retainOffset/);
   assert.match(loader, /dataset\.workbenchControls/);
   assert.match(loader, /searchParams\.get\("workbenchControls"\) === "1"/);
   assert.match(app, /chooseRecipe\(CLASSIC_BURGER_RECIPE_ID, \{ resume: false \}\)/);
@@ -68,6 +71,10 @@ test("cooking loader and app wire the fixed burger loop without a puppet perform
   assert.match(stage, /onSauceTool: \(detail\) =>/);
   assert.match(stage, /createCookingFirstPersonHands/);
   assert.match(stage, /createCookingImpactFeedback/);
+  assert.match(stage, /analyzeCookingStackStability/);
+  assert.match(stage, /sampleCookingStackWobble/);
+  assert.match(stage, /sampleCookingCollapseLayer/);
+  assert.match(stage, /placementOffset: retainedDropOffset/);
   assert.match(stage, /impactFeedback\.burst/);
   assert.match(stage, /applyImpactCamera/);
   assert.match(stage, /hands\.handleToolGesture/);
@@ -103,6 +110,7 @@ test("cooking loader and app wire the fixed burger loop without a puppet perform
   assert.match(interaction, /committed,/);
   assert.match(css, /\.first-person-cooking \.cooking-stage/);
   assert.match(css, /\.first-person-cooking \.first-person-action-label/);
+  assert.match(css, /\.first-person-cooking \.cooking-stability-warning/);
   assert.doesNotMatch(css, /\.first-person-hands/);
   assert.match(hands, /procedural-cooking-hands-3d/);
   assert.match(hands, /CapsuleGeometry/);

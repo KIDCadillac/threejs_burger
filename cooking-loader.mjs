@@ -23,7 +23,7 @@ export async function startSoloCookingLoader(
   documentTarget = globalThis.document,
   {
     windowTarget = globalThis,
-    importApp = () => import("./cooking-solo-app.mjs?v=20260822-juice35"),
+    importApp = () => import("./cooking-solo-app.mjs?v=20260822-stability36"),
     importShopApp = () => import("./burger-shop-app.mjs"),
     requestFrame = windowTarget?.requestAnimationFrame?.bind(windowTarget)
       ?? ((callback) => windowTarget.setTimeout(callback, 16)),
@@ -406,7 +406,12 @@ export async function startSoloCookingLoader(
             layer.position.set(position.x, position.y, position.z);
             layer.visible = true;
           }
-          const dropped = stage.dropLayer?.(ingredientId, { kind: "prep" });
+          const releasePose = request.retainOffset && layer ? {
+            position: { x: position.x, y: position.y, z: position.z },
+            scale: { x: layer.scale.x, y: layer.scale.y, z: layer.scale.z },
+            rotation: { y: layer.rotation.y },
+          } : null;
+          const dropped = stage.dropLayer?.(ingredientId, { kind: "prep", releasePose });
           documentTarget.body.dataset.debugMotionStartedAt = String(
             stage.getDebugState?.()?.time ?? 0,
           );

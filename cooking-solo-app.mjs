@@ -1,5 +1,5 @@
 import * as THREE from "./vendor/three.module.min.js";
-import { createSoloCookingStage } from "./cooking-solo-stage.mjs?v=20260822-juice35";
+import { createSoloCookingStage } from "./cooking-solo-stage.mjs?v=20260822-stability36";
 import {
   disposeActiveSoloCookingPage,
   mountSoloCookingLifecycle,
@@ -8,7 +8,7 @@ import { createFinishFocusManager } from "./cooking-solo-focus.mjs";
 import {
   createCanvasReplayRecorder,
   createCookingFeedbackReporter,
-} from "./cooking-feedback.mjs?v=20260822-juice35";
+} from "./cooking-feedback.mjs?v=20260822-stability36";
 import { createCookingHighlightReplayCoordinator } from "./cooking-highlight-replay.mjs";
 import { createCookingTuningPanel } from "./cooking-tuning-panel.mjs";
 import { loadBurgerTuning, saveBurgerTuning } from "./burger-tuning.mjs";
@@ -207,6 +207,7 @@ export function bootSoloCookingPage(
     recipeReferenceSteps: documentTarget.querySelector("#recipe-reference-steps"),
     puppetOrderProgress: documentTarget.querySelector("#puppet-order-progress"),
     actionLabel: documentTarget.querySelector("#cooking-action-label"),
+    stabilityWarning: documentTarget.querySelector("#cooking-stability-warning"),
     recipeCards: [...(documentTarget.querySelectorAll?.('[data-action="recipe-select"]') ?? [])],
     workbenchPicker: documentTarget.querySelector("#workbench-picker"),
     slotControlsRoot: documentTarget.querySelector("#workbench-slot-controls"),
@@ -306,10 +307,18 @@ export function bootSoloCookingPage(
       selectedLayerId = null,
       progress,
       dropIntent = null,
+      stability = { level: "safe", risk: 0 },
     } = detail;
     const activeRecipe = state.referenceRecipeId
       ? RECIPE_BY_ID.get(state.referenceRecipeId) ?? null
       : null;
+    if (elements.stabilityWarning) {
+      const dangerous = stability.level === "warning" || stability.level === "critical";
+      elements.stabilityWarning.hidden = !dangerous;
+      elements.stabilityWarning.dataset.level = stability.level;
+      const label = elements.stabilityWarning.querySelector?.("span");
+      if (label) label.textContent = stability.level === "critical" ? "马上要塌了" : "重心偏了";
+    }
     const isClassicOrder = activeRecipe?.id === CLASSIC_BURGER_RECIPE_ID;
     const evaluation = isClassicOrder ? evaluateClassicBurger(activeRecipe, state) : null;
     const activeRecipeProgress = evaluation ?? recipeLayerProgress(activeRecipe, state);
@@ -534,6 +543,8 @@ export function bootSoloCookingPage(
       "remove-layer": "食材已放回原料盒",
       "rotate-layer": "已旋转选中食材",
       "sauce-stroke": "酱料已挤到食材上",
+      "stack-collapse": "汉堡失去平衡，食材散开了",
+      "stack-collapse-reset": "料理台已重新备好，再试一次",
       undo: "已撤销上一步",
       reset: "料理台已重置",
       finish: "料理完成！",
