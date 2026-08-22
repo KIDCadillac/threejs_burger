@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#24100d">
+    <title>滑动叠堡 · 汉堡小馆</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="./swipe-stack.css?v=20260823-conveyor39">
+  </head>
+  <body>
+    <main class="swipe-stack-app">
+      <header class="swipe-stack-header">
+        <a href="./index.html" class="back-button" aria-label="返回汉堡小馆">
+          <span aria-hidden="true">←</span>
+          <span>返回</span>
+        </a>
+        <div class="swipe-stack-title">
+          <small>新玩法 · 手指投料</small>
+          <h1>滑动叠堡</h1>
+        </div>
+        <div class="layer-counter" aria-label="当前汉堡层数">
+          <small>层数</small>
+          <strong id="layer-count">0</strong>
+        </div>
+      </header>
+
+      <section class="swipe-stack-stage" aria-label="向上滑动食材叠汉堡">
+        <canvas id="swipe-stack-canvas" aria-label="固定视角三维汉堡堆叠舞台">
+          你的浏览器需要支持 WebGL 才能使用三维叠堡玩法。
+        </canvas>
+        <div class="impact-label" id="impact-label" aria-live="polite" hidden>
+          <span aria-hidden="true"></span>
+          <strong>砸中了！</strong>
+        </div>
+        <div class="stack-readout">
+          <span>分数 <strong id="score-value">0</strong></span>
+          <span>连击 <strong id="combo-value">0</strong></span>
+        </div>
+        <p class="stage-hint" id="stage-hint" aria-live="polite">
+          把投料口里的食材向上划，传送带会自动补位
+        </p>
+        <div class="stage-error" id="stage-error" role="alert" hidden>
+          三维舞台启动失败，请刷新后重试。
+        </div>
+      </section>
+
+      <section class="ingredient-launcher" aria-labelledby="ingredient-launcher-title">
+        <div class="launcher-heading">
+          <div>
+            <small>自动供料传送带</small>
+            <h2 id="ingredient-launcher-title">向上划，投进汉堡</h2>
+          </div>
+          <strong id="selected-ingredient">底层面包</strong>
+        </div>
+        <div
+          class="ingredient-rail-window"
+          id="ingredient-rail-window"
+          tabindex="0"
+          role="listbox"
+          aria-label="食材传送带。把投料口里的当前食材向上滑动投放"
+        >
+          <div class="ingredient-rail" id="ingredient-rail"></div>
+          <div class="rail-launch-arrow" aria-hidden="true">
+            <i></i><i></i><i></i>
+          </div>
+        </div>
+      </section>
+
+      <nav class="swipe-stack-actions" aria-label="滑动叠堡操作">
+        <button type="button" id="undo-button" disabled>撤销</button>
+        <button type="button" id="reset-button">重来</button>
+        <button class="serve-button" type="button" id="serve-button" disabled>上菜</button>
+      </nav>
+
+      <div class="finish-panel" id="finish-panel" role="dialog" aria-modal="true" aria-labelledby="finish-title" hidden>
+        <section>
+          <small>滑动叠堡完成</small>
+          <h2 id="finish-title">这座汉堡塔接住了</h2>
+          <p>共叠 <strong id="finish-layers">0</strong> 层，得分 <strong id="finish-score">0</strong>。</p>
+          <button type="button" id="restart-button">再叠一座</button>
+        </section>
+      </div>
+    </main>
+    <script type="module" src="./swipe-stack-app.mjs?v=20260823-conveyor39"></script>
+  </body>
+</html>

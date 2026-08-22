@@ -20,12 +20,12 @@ import {
   modeIndexForMap,
   normalizeModeIndex,
   resolveModeSwipe,
-} from "./home-mode-switch-state.mjs";
+} from "./home-mode-switch-state.mjs?v=20260823-conveyor39";
 import { createHomeFoodOrbit } from "./home-food-orbit-3d.mjs?v=20260822-stage2";
 
 const storage = window.localStorage;
 const layoutEditorMode = new URLSearchParams(window.location.search).get("layout") === "1";
-const playableModeIds = Object.freeze(["practice", "duel", "duo"]);
+const playableModeIds = Object.freeze(["practice", "swipe-stack", "duel", "duo"]);
 const playableModes = Object.freeze(
   playableModeIds.map((id) => HOME_MODES.find((mode) => mode.id === id)).filter(Boolean),
 );
@@ -209,6 +209,7 @@ function activateCurrentMode() {
     return;
   }
   if (mode.action === "practice") window.location.href = "./cooking.html?recipe=classic-beef";
+  if (mode.action === "swipe-stack") window.location.href = "./swipe-stack.html";
   if (mode.action === "duel") window.location.href = "./replica-duel.html";
   if (mode.action === "duo") window.location.href = "./cooking.html?mode=duo";
 }

@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { normalizeBusinessOpen } from "../home-mode-switch-state.mjs";
+import {
+  HOME_MODES,
+  changeModeIndexForMap,
+  normalizeBusinessOpen,
+} from "../home-mode-switch-state.mjs";
 
 test("business starts open unless the player explicitly closed it", () => {
   assert.equal(normalizeBusinessOpen(null), true);
@@ -11,6 +15,13 @@ test("business starts open unless the player explicitly closed it", () => {
   assert.equal(normalizeBusinessOpen(false), false);
   assert.equal(normalizeBusinessOpen("closed"), false);
   assert.equal(normalizeBusinessOpen("unknown"), false);
+});
+
+test("burger homepage cycles through the new swipe-stack mode", () => {
+  const practice = HOME_MODES.findIndex(({ id }) => id === "practice");
+  const swipeStack = HOME_MODES.findIndex(({ id }) => id === "swipe-stack");
+  assert.ok(swipeStack >= 0);
+  assert.equal(changeModeIndexForMap("burger", practice, 1), swipeStack);
 });
 
 test("homepage keeps theme and mode gestures separate without an autoplay booth", async () => {

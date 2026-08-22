@@ -9,7 +9,7 @@ test("homepage loads one rotating food stage without shop cards", async () => {
 
   assert.match(html, /home\.css\?v=20260822-stage2/);
   assert.match(html, /home-focus\.css\?v=20260822-stage2/);
-  assert.match(html, /home-lobby-app\.mjs\?v=20260822-stage2/);
+  assert.match(html, /home-lobby-app\.mjs\?v=20260823-conveyor39/);
   assert.match(html, /home-layout-editor\.css\?v=20260731-entrygate1/);
   assert.match(html, /home-layout-editor\.mjs\?v=20260731-entrygate1/);
   assert.match(html, /id="home-food-canvas"/);

@@ -10,6 +10,13 @@ export const HOME_MODES = Object.freeze([
     players: 1,
   }),
   Object.freeze({
+    id: "swipe-stack",
+    label: "滑动叠堡",
+    hint: "上滑投料",
+    action: "swipe-stack",
+    players: 1,
+  }),
+  Object.freeze({
     id: "duel",
     label: "复刻对决",
     hint: "双人轮换",
@@ -33,7 +40,7 @@ export const HOME_MODES = Object.freeze([
 ]);
 
 export const HOME_MAP_MODE_IDS = Object.freeze({
-  burger: Object.freeze(["practice", "duel", "duo"]),
+  burger: Object.freeze(["practice", "swipe-stack", "duel", "duo"]),
   sushi: Object.freeze(["sushi"]),
 });
 
