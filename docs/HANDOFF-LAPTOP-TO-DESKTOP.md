@@ -22,6 +22,8 @@
 - 同一 1280×900 浏览器、同一 `bottom-bun` 接触帧：纵向比例从旧版 `0.898` 加深到 `0.850`，横向比例从 `1.053` 增强到 `1.078`；新增整层下沉 `-0.0081`、冲击脉冲 `0.788`、镜头冲击 `0.517`。
 - 浏览器接触状态：10 个 3D 粒子激活；控制台未发现 error/warn；料理页没有新增运行时图片。
 - 前后连续帧与最终盲审：`output/burger-impact-juice-2026-08-22/`。
+- 玩法提交：`bbf2822`（`feat: add weighted burger landing impact`），已推送 `main`。
+- GitHub Pages 复验：料理页与 `cooking-impact-feedback.mjs` 均返回 200，线上入口已包含 `20260822-juice35`。
 
 ### 台式机接手与下一步
 
