@@ -209,7 +209,7 @@ function activateCurrentMode() {
     return;
   }
   if (mode.action === "practice") window.location.href = "./cooking.html?recipe=classic-beef";
-  if (mode.action === "swipe-stack") window.location.href = "./swipe-stack.html?v=20260823-livebelt40";
+  if (mode.action === "swipe-stack") window.location.href = "./swipe-stack.html?v=20260826-orderbelt47";
   if (mode.action === "duel") window.location.href = "./replica-duel.html";
   if (mode.action === "duo") window.location.href = "./cooking.html?mode=duo";
 }

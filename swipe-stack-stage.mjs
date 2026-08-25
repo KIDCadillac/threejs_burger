@@ -115,6 +115,7 @@ export function createSwipeStackStage({
   let topSurfaceY = 0;
   let activeLaunch = null;
   let stackPulse = null;
+  let serviceAnimation = null;
   let disposed = false;
 
   const spawnImpactBurst = (ingredientId, worldY, strength) => {
@@ -157,6 +158,28 @@ export function createSwipeStackStage({
   const recomputeTopSurface = () => {
     topSurfaceY = landed.reduce((height, record) => height + record.height, 0);
     return topSurfaceY;
+  };
+
+  const clearLanded = () => {
+    while (landed.length) burger.removeLayerInstance(landed.pop().instanceId);
+    topSurfaceY = 0;
+  };
+
+  const loadVisibleStack = (ingredientIds = []) => {
+    clearLanded();
+    ingredientIds.forEach((ingredientId, index) => {
+      const instanceId = `swipe-stack-layer-${index + 1}`;
+      const layer = burger.createLayerInstance(ingredientId, instanceId);
+      const minY = layer.userData.stackMinY;
+      const maxY = layer.userData.stackMaxY;
+      const height = Math.max(0.16, maxY - minY - 0.035);
+      layer.position.set(0, topSurfaceY - minY, 0);
+      layer.rotation.set(0, 0, 0);
+      layer.scale.set(1, 1, 1);
+      layer.visible = true;
+      landed.push({ instanceId, ingredientId, layer, height });
+      topSurfaceY += height;
+    });
   };
 
   const updateCamera = () => {
@@ -258,11 +281,31 @@ export function createSwipeStackStage({
     }
   };
 
+  const updateServiceAnimation = (time) => {
+    if (!serviceAnimation) return;
+    const progress = clamp((time - serviceAnimation.startedAt) / serviceAnimation.duration, 0, 1);
+    const lift = Math.sin(Math.min(1, progress * 1.25) * Math.PI * 0.5);
+    burger.root.position.x = easeInCubic(progress) * 4.8;
+    burger.root.position.y = 0.15 + lift * 0.55;
+    burger.root.rotation.y = -progress * 0.34;
+    burger.root.rotation.z = -progress * 0.08;
+    burger.root.scale.setScalar(1.08 * (1 - progress * 0.12));
+    if (progress < 1) return;
+    const callback = serviceAnimation.onComplete;
+    serviceAnimation = null;
+    clearLanded();
+    burger.root.position.set(0, 0.15, 0);
+    burger.root.rotation.set(0, 0, 0);
+    burger.root.scale.setScalar(1.08);
+    callback?.();
+  };
+
   const unsubscribeFrame = host.onFrame((time) => {
     try {
       settleActiveLaunch(time);
       updateStackPulse(time);
       updateParticles(time);
+      updateServiceAnimation(time);
       updateCamera();
     } catch (error) {
       onError(error);
@@ -272,7 +315,7 @@ export function createSwipeStackStage({
   const api = {
     host,
     launch(ingredientId, { power = 0, lateral = 0 } = {}) {
-      if (disposed || activeLaunch) return false;
+      if (disposed || activeLaunch || serviceAnimation) return false;
       const instanceId = `swipe-stack-layer-${landed.length + 1}`;
       const layer = burger.createLayerInstance(ingredientId, instanceId);
       const minY = layer.userData.stackMinY;
@@ -306,28 +349,42 @@ export function createSwipeStackStage({
       return true;
     },
     undo() {
-      if (disposed || activeLaunch || !landed.length) return false;
+      if (disposed || activeLaunch || serviceAnimation || !landed.length) return false;
       const record = landed.pop();
       burger.removeLayerInstance(record.instanceId);
       recomputeTopSurface();
       return true;
     },
     reset() {
-      if (disposed || activeLaunch) return false;
-      while (landed.length) burger.removeLayerInstance(landed.pop().instanceId);
-      topSurfaceY = 0;
+      if (disposed || activeLaunch || serviceAnimation) return false;
+      clearLanded();
       stackPulse = null;
       clearParticles();
       return true;
     },
+    showStack(ingredientIds = []) {
+      if (disposed || activeLaunch || serviceAnimation || !Array.isArray(ingredientIds)) return false;
+      loadVisibleStack(ingredientIds);
+      return true;
+    },
+    serve(onComplete = () => {}) {
+      if (disposed || activeLaunch || serviceAnimation || !landed.length) return false;
+      serviceAnimation = {
+        startedAt: performance.now(),
+        duration: reducedMotion ? 1 : 620,
+        onComplete,
+      };
+      return true;
+    },
     isBusy() {
-      return Boolean(activeLaunch);
+      return Boolean(activeLaunch || serviceAnimation);
     },
     getDebugState() {
       return Object.freeze({
         layerCount: landed.length,
         activeIngredient: activeLaunch?.ingredientId ?? null,
         impacted: Boolean(activeLaunch?.impacted),
+        serving: Boolean(serviceAnimation),
         topSurfaceY,
       });
     },
