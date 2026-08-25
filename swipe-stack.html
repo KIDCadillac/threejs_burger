@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#24100d">
     <title>滑动叠堡 · 汉堡小馆</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./swipe-stack.css?v=20260826-orderbelt47">
+    <link rel="stylesheet" href="./swipe-stack.css?v=20260826-orderswipe49">
   </head>
   <body>
     <main class="swipe-stack-app">
@@ -27,8 +27,8 @@
 
       <section class="swipe-stack-workspace" aria-label="三订单传送带汉堡台">
         <section class="swipe-stack-stage" aria-label="把食材拖到三个订单口之一">
-          <div class="order-dock-row" id="order-dock-row" aria-label="三个订单过滤口"></div>
-          <canvas id="swipe-stack-canvas" aria-label="固定视角三维汉堡堆叠舞台">
+          <div class="order-dock-row" id="order-dock-row" aria-label="盘子下方的三个订单切换与投料口"></div>
+          <canvas id="swipe-stack-canvas" tabindex="0" aria-label="固定视角三维汉堡堆叠舞台，左右滑动盘子切换订单">
             你的浏览器需要支持 WebGL 才能使用三维叠堡玩法。
           </canvas>
           <div class="impact-label" id="impact-label" aria-live="polite" hidden>
@@ -41,7 +41,7 @@
             <span>连击 <strong id="combo-value">0</strong></span>
           </div>
           <p class="stage-hint" id="stage-hint" aria-live="polite">
-            食材从底部传送带进入，向上拖到对应订单口
+            左右滑盘子切订单 · 食材向上拖到订单口
           </p>
           <div class="stage-error" id="stage-error" role="alert" hidden>
             三维舞台启动失败，请刷新后重试。
@@ -77,6 +77,6 @@
         <div class="auto-serve-status"><small>自动出餐</small><strong id="active-order-name">订单 1</strong></div>
       </nav>
     </main>
-    <script type="module" src="./swipe-stack-app.mjs?v=20260826-orderbelt47"></script>
+    <script type="module" src="./swipe-stack-app.mjs?v=20260826-orderswipe49"></script>
   </body>
 </html>

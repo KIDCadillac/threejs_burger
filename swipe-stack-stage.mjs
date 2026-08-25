@@ -115,6 +115,7 @@ export function createSwipeStackStage({
   let topSurfaceY = 0;
   let activeLaunch = null;
   let stackPulse = null;
+  let stackSwitchAnimation = null;
   let serviceAnimation = null;
   let disposed = false;
 
@@ -300,12 +301,28 @@ export function createSwipeStackStage({
     callback?.();
   };
 
+  const updateStackSwitchAnimation = (time) => {
+    if (!stackSwitchAnimation || serviceAnimation) return;
+    const progress = clamp((time - stackSwitchAnimation.startedAt) / stackSwitchAnimation.duration, 0, 1);
+    const eased = easeOutCubic(progress);
+    burger.root.position.x = lerp(stackSwitchAnimation.direction * 0.62, 0, eased);
+    burger.root.position.y = 0.15;
+    burger.root.rotation.z = lerp(stackSwitchAnimation.direction * -0.055, 0, eased);
+    burger.root.scale.setScalar(1.08 * lerp(0.96, 1, eased));
+    if (progress < 1) return;
+    burger.root.position.set(0, 0.15, 0);
+    burger.root.rotation.set(0, 0, 0);
+    burger.root.scale.setScalar(1.08);
+    stackSwitchAnimation = null;
+  };
+
   const unsubscribeFrame = host.onFrame((time) => {
     try {
       settleActiveLaunch(time);
       updateStackPulse(time);
       updateParticles(time);
       updateServiceAnimation(time);
+      updateStackSwitchAnimation(time);
       updateCamera();
     } catch (error) {
       onError(error);
@@ -316,6 +333,10 @@ export function createSwipeStackStage({
     host,
     launch(ingredientId, { power = 0, lateral = 0 } = {}) {
       if (disposed || activeLaunch || serviceAnimation) return false;
+      stackSwitchAnimation = null;
+      burger.root.position.set(0, 0.15, 0);
+      burger.root.rotation.set(0, 0, 0);
+      burger.root.scale.setScalar(1.08);
       const instanceId = `swipe-stack-layer-${landed.length + 1}`;
       const layer = burger.createLayerInstance(ingredientId, instanceId);
       const minY = layer.userData.stackMinY;
@@ -359,16 +380,34 @@ export function createSwipeStackStage({
       if (disposed || activeLaunch || serviceAnimation) return false;
       clearLanded();
       stackPulse = null;
+      stackSwitchAnimation = null;
       clearParticles();
+      burger.root.position.set(0, 0.15, 0);
+      burger.root.rotation.set(0, 0, 0);
+      burger.root.scale.setScalar(1.08);
       return true;
     },
-    showStack(ingredientIds = []) {
+    showStack(ingredientIds = [], { direction = 0 } = {}) {
       if (disposed || activeLaunch || serviceAnimation || !Array.isArray(ingredientIds)) return false;
       loadVisibleStack(ingredientIds);
+      const switchDirection = Math.sign(Number(direction) || 0);
+      if (!reducedMotion && switchDirection) {
+        stackSwitchAnimation = {
+          direction: switchDirection,
+          startedAt: performance.now(),
+          duration: 260,
+        };
+      } else {
+        stackSwitchAnimation = null;
+        burger.root.position.set(0, 0.15, 0);
+        burger.root.rotation.set(0, 0, 0);
+        burger.root.scale.setScalar(1.08);
+      }
       return true;
     },
     serve(onComplete = () => {}) {
       if (disposed || activeLaunch || serviceAnimation || !landed.length) return false;
+      stackSwitchAnimation = null;
       serviceAnimation = {
         startedAt: performance.now(),
         duration: reducedMotion ? 1 : 620,
@@ -385,6 +424,7 @@ export function createSwipeStackStage({
         activeIngredient: activeLaunch?.ingredientId ?? null,
         impacted: Boolean(activeLaunch?.impacted),
         serving: Boolean(serviceAnimation),
+        switching: Boolean(stackSwitchAnimation),
         topSurfaceY,
       });
     },

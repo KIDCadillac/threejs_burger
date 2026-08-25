@@ -283,25 +283,47 @@ button { color: inherit; }
   height: 100%;
   overflow: hidden;
   background: linear-gradient(180deg, #190c0a, #0d0806);
+  touch-action: none;
 }
 
-#swipe-stack-canvas { width: 100%; height: 100%; display: block; }
+#swipe-stack-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  outline: none;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+}
+
+#swipe-stack-canvas:active { cursor: grabbing; }
+#swipe-stack-canvas:focus-visible { box-shadow: inset 0 0 0 2px #77d6ff; }
 
 .order-dock-row {
   position: absolute;
-  top: 9px;
-  right: 9px;
-  left: 9px;
+  right: 10px;
+  bottom: 9px;
+  left: 10px;
   z-index: 8;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
+  gap: 5px;
+  padding: 5px;
+  border: 2px solid rgba(255, 196, 77, .28);
+  border-radius: 18px;
+  background: rgba(33, 17, 15, .9);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .3), inset 0 0 0 2px rgba(255, 255, 255, .035);
+  transform: translateX(var(--order-swipe-x, 0));
+  transition: transform 170ms ease;
+  touch-action: none;
 }
+
+.order-dock-row[data-swiping] { transition: none; }
 
 .order-dock {
   min-width: 0;
-  min-height: 68px;
-  padding: 6px 4px;
+  min-height: 58px;
+  padding: 5px 4px;
   border: 2px solid color-mix(in srgb, var(--dock-accent) 68%, #4b281c);
   border-radius: 14px;
   display: grid;
@@ -321,14 +343,14 @@ button { color: inherit; }
 .order-dock__progress { display: flex; justify-content: center; gap: 2px; }
 .order-dock__progress i { width: 5px; height: 5px; border-radius: 50%; background: rgba(77,42,27,.18); }
 .order-dock__progress i.is-filled { background: var(--dock-accent); }
-.order-dock[data-selected="true"] { transform: translateY(3px); box-shadow: 0 2px 0 rgba(20,9,7,.46), 0 0 0 2px var(--dock-accent); }
-.order-dock[data-drop-target="true"] { filter: brightness(1.16); transform: translateY(2px) scale(1.035); box-shadow: 0 2px 0 rgba(20,9,7,.46), 0 0 0 3px #fff5b8, 0 0 24px var(--dock-accent); }
+.order-dock[data-selected="true"] { transform: translateY(-3px); box-shadow: 0 6px 0 rgba(20,9,7,.46), 0 0 0 2px var(--dock-accent); }
+.order-dock[data-drop-target="true"] { filter: brightness(1.16); transform: translateY(-4px) scale(1.035); box-shadow: 0 7px 0 rgba(20,9,7,.46), 0 0 0 3px #fff5b8, 0 0 24px var(--dock-accent); }
 .order-dock[data-rejected="true"] { animation: dock-reject 300ms ease; }
 .order-dock[data-complete="true"] { animation: dock-complete 520ms ease both; }
 
 .stack-readout {
   position: absolute;
-  top: 88px;
+  top: 10px;
   left: 10px;
   z-index: 5;
   display: flex;
@@ -351,13 +373,14 @@ button { color: inherit; }
 
 .stage-hint {
   position: absolute;
-  right: 12px;
-  bottom: 13px;
-  left: 12px;
+  top: 10px;
+  right: 10px;
+  bottom: auto;
+  left: auto;
   z-index: 5;
   width: fit-content;
-  max-width: calc(100% - 24px);
-  margin: 0 auto;
+  max-width: calc(100% - 132px);
+  margin: 0;
   padding: 7px 12px;
   border-radius: 999px;
   color: var(--ink);
@@ -509,14 +532,14 @@ button { color: inherit; }
   .ingredient-card { border-radius: 14px; }
   .ingredient-card strong { font-size: .5rem; }
   .ingredient-token { transform: scale(.84); margin-block: -2px; }
-  .order-dock-row { top: 7px; right: 7px; left: 7px; gap: 4px; }
-  .order-dock { min-height: 63px; padding-inline: 2px; border-radius: 12px; }
+  .order-dock-row { right: 7px; bottom: 7px; left: 7px; gap: 4px; padding: 4px; border-radius: 15px; }
+  .order-dock { min-height: 54px; padding-inline: 2px; border-radius: 12px; }
   .order-dock small { font-size: .42rem; }
   .order-dock strong { font-size: .57rem; }
   .order-dock__next { font-size: .42rem; }
-  .stack-readout { top: 78px; left: 7px; }
+  .stack-readout { top: 7px; left: 7px; }
   .stack-readout span { padding-inline: 6px; font-size: .51rem; }
-  .stage-hint { bottom: 10px; padding: 6px 8px; font-size: .52rem; }
+  .stage-hint { top: 7px; right: 7px; max-width: calc(100% - 116px); padding: 6px 8px; font-size: .5rem; }
   .swipe-stack-actions > button, .auto-serve-status { min-height: 45px; }
 }
 
@@ -525,8 +548,8 @@ button { color: inherit; }
   .ingredient-launcher { height: 104px; }
   .ingredient-rail-window { height: 72px; }
   .ingredient-card { --card-height: 62px; }
-  .order-dock { min-height: 57px; }
-  .stack-readout { top: 71px; }
+  .order-dock { min-height: 50px; }
+  .stack-readout { top: 7px; }
 }
 
 .ingredient-card.ingredient-drag-ghost {

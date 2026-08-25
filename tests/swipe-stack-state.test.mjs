@@ -8,11 +8,13 @@ import {
   createConveyorSupplyState,
   createSwipeStackOrderBoard,
   createSwipeStackState,
+  cycleSwipeStackOrder,
   finishSwipeStack,
   orderNextIngredient,
   orderRecipe,
   placeIngredientInOrder,
   refreshCompletedOrder,
+  resolveOrderSwipeGesture,
   resolveSwipeStackGesture,
   spawnConveyorSupply,
   supplyForecastForOrders,
@@ -98,6 +100,24 @@ test("score history undo removes the selected order layer instead of another lan
     ["order-1", "bottom-bun"],
     ["order-1", "patty"],
   ]);
+});
+
+test("plate swipe cycles three orders in both directions without accepting vertical motion", () => {
+  const board = createSwipeStackOrderBoard(3);
+  assert.equal(cycleSwipeStackOrder(board, "order-1", 1), "order-2");
+  assert.equal(cycleSwipeStackOrder(board, "order-1", -1), "order-3");
+  assert.deepEqual(
+    resolveOrderSwipeGesture({ deltaX: -72, deltaY: 8, width: 390 }),
+    { action: "switch-order", step: 1 },
+  );
+  assert.deepEqual(
+    resolveOrderSwipeGesture({ deltaX: 72, deltaY: -8, width: 390 }),
+    { action: "switch-order", step: -1 },
+  );
+  assert.deepEqual(
+    resolveOrderSwipeGesture({ deltaX: 16, deltaY: -92, width: 390 }),
+    { action: "none", step: 0 },
+  );
 });
 
 test("only an upward dominant gesture launches; horizontal movement never changes supply", () => {

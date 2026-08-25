@@ -152,6 +152,30 @@ export function createSwipeStackOrderBoard(laneCount = 3) {
   });
 }
 
+export function cycleSwipeStackOrder(board, activeOrderId, step = 1) {
+  if (!board || !Array.isArray(board.orders)) throw new TypeError("board must be an order board");
+  if (!board.orders.length) return null;
+  const activeIndex = board.orders.findIndex(({ id }) => id === activeOrderId);
+  const startIndex = activeIndex < 0 ? 0 : activeIndex;
+  const direction = Math.sign(finite(Number(step), 1)) || 1;
+  const nextIndex = (startIndex + direction + board.orders.length) % board.orders.length;
+  return board.orders[nextIndex].id;
+}
+
+export function resolveOrderSwipeGesture({ deltaX, deltaY, width } = {}) {
+  const x = finite(deltaX);
+  const y = finite(deltaY);
+  const viewportWidth = Math.max(1, finite(width, 1));
+  const threshold = Math.max(42, Math.min(68, viewportWidth * 0.13));
+  if (Math.abs(x) < threshold || Math.abs(x) < Math.abs(y) * 1.25) {
+    return Object.freeze({ action: "none", step: 0 });
+  }
+  return Object.freeze({
+    action: "switch-order",
+    step: x < 0 ? 1 : -1,
+  });
+}
+
 export function supplyNeedsForOrders(board) {
   if (!board || !Array.isArray(board.orders)) throw new TypeError("board must be an order board");
   return Object.freeze(board.orders.map(orderNextIngredient).filter(Boolean));

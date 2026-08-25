@@ -6,17 +6,19 @@ import {
   createConveyorSupplyState,
   createSwipeStackOrderBoard,
   createSwipeStackState,
+  cycleSwipeStackOrder,
   orderNextIngredient,
   orderRecipe,
   placeIngredientInOrder,
   refreshCompletedOrder,
+  resolveOrderSwipeGesture,
   spawnConveyorSupply,
   supplyForecastForOrders,
   supplyNeedsForOrders,
   undoIngredientInOrder,
   undoSwipeStackOrderLayer,
-} from "./swipe-stack-state.mjs?v=20260826-orderbelt47";
-import { createSwipeStackStage } from "./swipe-stack-stage.mjs?v=20260826-orderbelt47";
+} from "./swipe-stack-state.mjs?v=20260826-orderswipe49";
+import { createSwipeStackStage } from "./swipe-stack-stage.mjs?v=20260826-orderswipe49";
 
 const CONVEYOR_FIRST_DELAY_MS = 5200;
 const CONVEYOR_SPAWN_INTERVAL_MS = 1700;
@@ -28,6 +30,7 @@ const railWindow = document.querySelector("#ingredient-rail-window");
 const rail = document.querySelector("#ingredient-rail");
 const beltEmptyState = document.querySelector("#belt-empty-state");
 const canvas = document.querySelector("#swipe-stack-canvas");
+const stageSurface = document.querySelector(".swipe-stack-stage");
 const servedCount = document.querySelector("#served-count");
 const supplyCount = document.querySelector("#supply-count");
 const orderDockRow = document.querySelector("#order-dock-row");
@@ -50,10 +53,12 @@ let stage = null;
 let pendingLaunch = null;
 let servingOrderId = null;
 let gesture = null;
+let orderSwipeGesture = null;
 let impactTimer = 0;
 let serveTimer = 0;
 let spawnTimer = 0;
 let suppressClick = false;
+let suppressOrderClick = false;
 
 const cardById = new Map();
 const arrivalTimerById = new Map();
@@ -274,18 +279,88 @@ function showServeStamp() {
   serveTimer = window.setTimeout(() => { serveLabel.hidden = true; }, 900);
 }
 
-function selectOrder(orderId, { announce = true } = {}) {
+function selectOrder(orderId, { announce = true, direction = 0 } = {}) {
   if (pendingLaunch || servingOrderId) return false;
   const order = orderBoard.orders.find(({ id }) => id === orderId);
   if (!order) return false;
+  const previousIndex = orderBoard.orders.findIndex(({ id }) => id === activeOrderId);
+  const nextIndex = orderBoard.orders.findIndex(({ id }) => id === orderId);
+  let switchDirection = Math.sign(direction);
+  if (!switchDirection && previousIndex !== nextIndex) {
+    const rawDifference = nextIndex - previousIndex;
+    switchDirection = Math.abs(rawDifference) > orderBoard.orders.length / 2
+      ? -Math.sign(rawDifference)
+      : Math.sign(rawDifference);
+  }
   activeOrderId = orderId;
-  stage?.showStack?.(order.placed);
+  stage?.showStack?.(order.placed, { direction: switchDirection });
   renderState();
   if (announce) {
     const next = orderNextIngredient(order);
     setHint(`已切到${orderRecipe(order).label}${next ? `，需要${presentation(next).label}` : "，准备出餐"}`);
   }
   return true;
+}
+
+function switchOrderByStep(step) {
+  const nextOrderId = cycleSwipeStackOrder(orderBoard, activeOrderId, step);
+  if (!nextOrderId) return false;
+  return selectOrder(nextOrderId, { direction: step });
+}
+
+function resetOrderSwipeVisuals() {
+  orderDockRow.removeAttribute("data-swiping");
+  orderDockRow.style.removeProperty("--order-swipe-x");
+  document.body.dataset.orderSwipe = "idle";
+}
+
+function beginOrderSwipe(event) {
+  if ((event.pointerType === "mouse" && event.button !== 0) || pendingLaunch || servingOrderId) return;
+  const captureTarget = event.target.closest?.(".order-dock") ?? canvas;
+  orderSwipeGesture = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    moved: false,
+    captureTarget,
+  };
+  if (event.target === canvas) canvas.focus?.({ preventScroll: true });
+  try { captureTarget.setPointerCapture?.(event.pointerId); } catch { /* synthetic pointers may not support capture */ }
+}
+
+function moveOrderSwipe(event) {
+  if (!orderSwipeGesture || event.pointerId !== orderSwipeGesture.pointerId) return;
+  const deltaX = event.clientX - orderSwipeGesture.startX;
+  const deltaY = event.clientY - orderSwipeGesture.startY;
+  const horizontal = Math.abs(deltaX) > 8 && Math.abs(deltaX) > Math.abs(deltaY) * 1.05;
+  if (!horizontal) return;
+  orderSwipeGesture.moved = true;
+  const previewX = Math.max(-24, Math.min(24, deltaX * 0.18));
+  orderDockRow.dataset.swiping = deltaX < 0 ? "next" : "previous";
+  orderDockRow.style.setProperty("--order-swipe-x", `${previewX}px`);
+  document.body.dataset.orderSwipe = deltaX < 0 ? "next" : "previous";
+  event.preventDefault();
+}
+
+function endOrderSwipe(event, cancelled = false) {
+  if (!orderSwipeGesture || event.pointerId !== orderSwipeGesture.pointerId) return;
+  const activeGesture = orderSwipeGesture;
+  orderSwipeGesture = null;
+  try { activeGesture.captureTarget.releasePointerCapture?.(event.pointerId); } catch { /* pointer may already be released */ }
+  const result = cancelled
+    ? { action: "none", step: 0 }
+    : resolveOrderSwipeGesture({
+      deltaX: event.clientX - activeGesture.startX,
+      deltaY: event.clientY - activeGesture.startY,
+      width: canvas.clientWidth,
+    });
+  resetOrderSwipeVisuals();
+  if (result.action === "switch-order") {
+    suppressOrderClick = true;
+    window.setTimeout(() => { suppressOrderClick = false; }, 0);
+    switchOrderByStep(result.step);
+  }
+  else if (activeGesture.moved) setHint("左右滑动盘子切换订单");
 }
 
 function rejectDrop(card, orderId, expected) {
@@ -336,7 +411,8 @@ function tryLaunchIngredient(itemId, orderId, { power = .55, lateral = 0 } = {})
 
 function nearestOrderDock(clientX, clientY) {
   const stageRect = canvas.getBoundingClientRect();
-  if (clientX < stageRect.left - 10 || clientY > stageRect.bottom - 60) return null;
+  if (clientX < stageRect.left - 10 || clientX > stageRect.right + 10) return null;
+  if (clientY < stageRect.top - 10 || clientY > stageRect.bottom + 10) return null;
   const docks = [...orderDockRow.querySelectorAll(".order-dock")];
   if (!docks.length) return null;
   return docks.reduce((best, dock) => {
@@ -522,8 +598,23 @@ railWindow.addEventListener("keydown", (event) => {
 });
 
 orderDockRow.addEventListener("click", (event) => {
+  if (suppressOrderClick) {
+    suppressOrderClick = false;
+    event.preventDefault();
+    return;
+  }
   const dock = event.target.closest?.(".order-dock");
   if (dock) selectOrder(dock.dataset.orderId);
+});
+
+stageSurface.addEventListener("pointerdown", beginOrderSwipe);
+stageSurface.addEventListener("pointermove", moveOrderSwipe);
+stageSurface.addEventListener("pointerup", (event) => endOrderSwipe(event));
+stageSurface.addEventListener("pointercancel", (event) => endOrderSwipe(event, true));
+canvas.addEventListener("keydown", (event) => {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+  event.preventDefault();
+  switchOrderByStep(event.key === "ArrowRight" ? 1 : -1);
 });
 
 undoButton.addEventListener("click", () => {
