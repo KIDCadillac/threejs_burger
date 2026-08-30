@@ -24,6 +24,13 @@ test("burger homepage cycles through the new swipe-stack mode", () => {
   assert.equal(changeModeIndexForMap("burger", practice, 1), swipeStack);
 });
 
+test("sushi homepage exposes one dedicated first-person mode", () => {
+  const sushi = HOME_MODES.findIndex(({ id }) => id === "sushi");
+  assert.ok(sushi >= 0);
+  assert.equal(changeModeIndexForMap("sushi", 0, 1), sushi);
+  assert.equal(changeModeIndexForMap("sushi", sushi, -1), sushi);
+});
+
 test("homepage keeps theme and mode gestures separate without an autoplay booth", async () => {
   const { readFile } = await import("node:fs/promises");
   const root = new URL("../", import.meta.url);

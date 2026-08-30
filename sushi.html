@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#142822">
+    <title>深夜寿司店 · 大将教学</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="./sushi.css?v=20260831-sushi3">
+    <script type="module" src="./sushi-loader.mjs?v=20260831-sushi3"></script>
+  </head>
+  <body data-sushi-phase="prepping" data-sushi-task="scale-fish" data-sushi-station="prep">
+    <main class="sushi-shell">
+      <header class="sushi-topbar">
+        <a class="sushi-back" href="./index.html" aria-label="返回料理主页">←</a>
+        <div class="sushi-brand">
+          <small>大将的一番课 · 订单 <span id="sushi-order-number">01</span></small>
+          <h1>整鱼到一贯寿司</h1>
+        </div>
+        <div class="sushi-served" aria-label="已经出餐">
+          <small>出餐</small><strong id="sushi-served-count">0</strong>
+        </div>
+      </header>
+
+      <section class="sushi-order-strip" aria-label="制作进度">
+        <ol class="sushi-chapters">
+          <li data-sushi-chapter="fish" class="is-active"><span>一</span><strong>拆整鱼</strong></li>
+          <li data-sushi-chapter="rice"><span>二</span><strong>整醋饭</strong></li>
+          <li data-sushi-chapter="assembly"><span>三</span><strong>握寿司</strong></li>
+          <li data-sushi-chapter="serve"><span>四</span><strong>按铃出餐</strong></li>
+        </ol>
+        <div class="sushi-task-line">
+          <span id="sushi-task-counter">第 1 / 12 步</span>
+          <strong id="sushi-task-title">逆鳞刮鳞</strong>
+          <span id="sushi-task-progress">0 / 3</span>
+        </div>
+      </section>
+
+      <section class="sushi-stage-shell" aria-label="第一人称寿司料理台">
+        <canvas
+          id="sushi-canvas"
+          tabindex="0"
+          aria-label="程序化三维寿司料理台。右手操作刀和镊子，左手按住鱼；在空白桌沿横滑可切换备料台和握寿司台"
+        >你的浏览器需要支持 WebGL 才能制作寿司。</canvas>
+
+        <div class="sushi-station-tag" aria-live="polite">
+          <small>当前工位</small><strong id="sushi-station-name">整鱼备料台</strong>
+        </div>
+
+        <div class="sushi-technique" id="sushi-technique" aria-hidden="true">
+          <span id="sushi-tool-name">出刃刀</span>
+          <strong id="sushi-gesture-name">从鱼尾向鱼头刮</strong>
+        </div>
+
+        <aside class="sushi-mentor" id="sushi-mentor" data-tone="demo" hidden>
+          <div class="sushi-mentor-name"><span>大将</span><strong id="sushi-mentor-tone">先看一遍</strong></div>
+          <p id="sushi-mentor-copy">刀背从尾巴往鱼头，逆着鳞一气刮过去。</p>
+        </aside>
+
+        <p class="sushi-stage-hint" id="sushi-stage-hint" role="status" aria-live="polite">
+          大将先示范一次，随后拿起出刃刀照着轨迹刮鳞
+        </p>
+
+        <div class="sushi-feedback" id="sushi-feedback" aria-hidden="true">漂亮！</div>
+        <div class="sushi-error" id="sushi-error" role="alert" hidden></div>
+      </section>
+
+      <footer class="sushi-controls">
+        <button id="sushi-reset" type="button"><span aria-hidden="true">↺</span><strong>重做本单</strong></button>
+        <div class="sushi-station-switch" role="group" aria-label="切换料理工位">
+          <button id="sushi-station-prep" type="button" class="is-active" aria-pressed="true"><small>左侧</small><strong>备料台</strong></button>
+          <span aria-hidden="true">横滑换台</span>
+          <button id="sushi-station-assembly" type="button" aria-pressed="false"><small>右侧</small><strong>握寿司台</strong></button>
+        </div>
+      </footer>
+    </main>
+
+    <div class="sushi-loading" id="sushi-loading" role="status">
+      <span></span><strong>大将正在磨刀</strong>
+    </div>
+  </body>
+</html>

@@ -1,5 +1,6 @@
 import * as THREE from "./vendor/three.module.min.js";
 import { createBurgerModel3D } from "./burger-model-3d.mjs";
+import { createSushiNigiriModel3D } from "./sushi-model-3d.mjs?v=20260831-sushi1";
 
 const FOOD_IDS = Object.freeze(["burger", "sushi"]);
 
@@ -35,58 +36,23 @@ function createBurgerDisplay() {
 function createSushiDisplay() {
   const display = new THREE.Group();
   display.name = "home-food:sushi";
-
-  const riceMaterial = new THREE.MeshStandardMaterial({
-    color: 0xfff1cd,
-    roughness: 0.9,
-    metalness: 0,
-  });
-  const salmonMaterial = new THREE.MeshStandardMaterial({
-    color: 0xf06a46,
-    roughness: 0.72,
-    metalness: 0,
-  });
-  const salmonStripeMaterial = new THREE.MeshStandardMaterial({
-    color: 0xffc48f,
-    roughness: 0.75,
-    metalness: 0,
-    side: THREE.DoubleSide,
-  });
+  const sushi = createSushiNigiriModel3D(THREE);
   const plateMaterial = new THREE.MeshStandardMaterial({
     color: 0x2d7776,
     roughness: 0.76,
     metalness: 0.02,
   });
 
-  const rice = new THREE.Mesh(new THREE.CapsuleGeometry(0.63, 1.2, 7, 16), riceMaterial);
-  rice.rotation.z = Math.PI / 2;
-  rice.scale.set(0.52, 1, 0.75);
-  rice.position.y = -0.02;
-  rice.castShadow = true;
-
-  const salmon = new THREE.Mesh(new THREE.CapsuleGeometry(0.49, 1.33, 7, 16), salmonMaterial);
-  salmon.rotation.z = Math.PI / 2;
-  salmon.scale.set(0.2, 1.08, 0.78);
-  salmon.position.y = 0.42;
-  salmon.castShadow = true;
-
-  const stripeGeometry = new THREE.PlaneGeometry(0.1, 0.72);
-  [-0.64, -0.22, 0.22, 0.64].forEach((x) => {
-    const stripe = new THREE.Mesh(stripeGeometry, salmonStripeMaterial);
-    stripe.position.set(x, 0.525, -0.01);
-    stripe.rotation.x = -Math.PI / 2;
-    stripe.rotation.y = -0.08;
-    display.add(stripe);
-  });
-
   const plate = new THREE.Mesh(new THREE.CylinderGeometry(1.9, 2.02, 0.16, 64), plateMaterial);
   plate.position.y = -0.72;
   plate.receiveShadow = true;
 
-  display.add(createShadow(), plate, rice, salmon);
+  sushi.root.position.y = -0.42;
+  display.add(createShadow(), plate, sushi.root);
   display.scale.setScalar(1.05);
   display.position.y = -0.06;
   display.userData.disposeFood = () => {
+    sushi.dispose();
     display.traverse((object) => {
       object.geometry?.dispose?.();
       if (Array.isArray(object.material)) object.material.forEach((material) => material.dispose?.());

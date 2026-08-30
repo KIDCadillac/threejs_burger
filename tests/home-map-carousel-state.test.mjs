@@ -2,10 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  HOME_MAPS,
   createMapCardWindow,
   shiftBufferedCardOffset,
   streetShopPose,
 } from "../home-map-carousel-state.mjs";
+
+test("sushi shop is an available independent game route", () => {
+  const sushi = HOME_MAPS.find(({ id }) => id === "sushi");
+  assert.equal(sushi.available, true);
+  assert.equal(sushi.href, "./sushi.html");
+  assert.match(sushi.actionLabel, /寿司/);
+});
 
 test("homepage keeps five shops in one continuous horizontal row", () => {
   assert.deepEqual(

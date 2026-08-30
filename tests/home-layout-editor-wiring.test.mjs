@@ -9,7 +9,7 @@ test("homepage loads one rotating food stage without shop cards", async () => {
 
   assert.match(html, /home\.css\?v=20260822-stage2/);
   assert.match(html, /home-focus\.css\?v=20260822-stage2/);
-  assert.match(html, /home-lobby-app\.mjs\?v=20260826-orderswipe49/);
+  assert.match(html, /home-lobby-app\.mjs\?v=20260831-sushi1/);
   assert.match(html, /home-layout-editor\.css\?v=20260731-entrygate1/);
   assert.match(html, /home-layout-editor\.mjs\?v=20260731-entrygate1/);
   assert.match(html, /id="home-food-canvas"/);
@@ -100,6 +100,7 @@ test("homepage uses the real 3D food orbit and gesture-owned transforms", async 
   assert.match(lobby, /resolveSwipe/);
   assert.match(lobby, /resolveModeSwipe/);
   assert.match(orbit, /createBurgerModel3D/);
+  assert.match(orbit, /createSushiNigiriModel3D/);
   assert.match(orbit, /createSushiDisplay/);
   assert.match(orbit, /setFood/);
 });

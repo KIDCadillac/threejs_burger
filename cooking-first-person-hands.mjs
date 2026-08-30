@@ -76,6 +76,42 @@ const INGREDIENT_PROFILES = Object.freeze({
     reachX: 2.3, reachY: 0.68, reachZ: 1.24, reachArc: 0.36,
     carryBob: 0.03, carryRoll: 0.02,
   }),
+  "rice-bed": Object.freeze({
+    poseId: "cradle", scale: 0.98, sideOffset: 0.04, cameraOffset: 0.1,
+    clearance: 0.23, rotationX: -1.1, rotationY: 0.1, rotationZ: 0.08,
+    reachX: 1.9, reachY: 0.48, reachZ: 0.88, reachArc: 0.22,
+    carryBob: 0.018, carryRoll: 0.014,
+  }),
+  "salmon-slice": Object.freeze({
+    poseId: "precision-pinch", scale: 0.88, sideOffset: 0.02, cameraOffset: 0.07,
+    clearance: 0.2, rotationX: -1.28, rotationY: 0.2, rotationZ: 0.2,
+    reachX: 1.72, reachY: 0.46, reachZ: 0.72, reachArc: 0.12,
+    carryBob: 0.014, carryRoll: 0.024,
+  }),
+  "whole-fish-hold": Object.freeze({
+    poseId: "cradle", scale: 0.92, sideOffset: 0.02, cameraOffset: 0.08,
+    clearance: 0.18, rotationX: -1.12, rotationY: 0.12, rotationZ: 0.16,
+    reachX: 1.82, reachY: 0.38, reachZ: 0.72, reachArc: 0.16,
+    carryBob: 0.006, carryRoll: 0.006,
+  }),
+  "sushi-knife": Object.freeze({
+    poseId: "bottle-wrap", scale: 0.8, sideOffset: 0.02, cameraOffset: 0.06,
+    clearance: 0.18, rotationX: -0.58, rotationY: 0.22, rotationZ: 0.5,
+    reachX: 1.65, reachY: 0.36, reachZ: 0.65, reachArc: 0.12,
+    carryBob: 0.006, carryRoll: 0.008,
+  }),
+  "fish-tweezers": Object.freeze({
+    poseId: "precision-pinch", scale: 0.74, sideOffset: 0, cameraOffset: 0.04,
+    clearance: 0.16, rotationX: -0.82, rotationY: 0.18, rotationZ: 0.32,
+    reachX: 1.55, reachY: 0.34, reachZ: 0.58, reachArc: 0.1,
+    carryBob: 0.005, carryRoll: 0.01,
+  }),
+  "sushi-grip": Object.freeze({
+    poseId: "cradle", scale: 0.86, sideOffset: 0.04, cameraOffset: 0.08,
+    clearance: 0.2, rotationX: -1.08, rotationY: 0.1, rotationZ: 0.22,
+    reachX: 1.66, reachY: 0.4, reachZ: 0.68, reachArc: 0.16,
+    carryBob: 0.008, carryRoll: 0.008,
+  }),
   default: Object.freeze({
     poseId: "clamp", scale: 1, sideOffset: 0.04, cameraOffset: 0.12,
     clearance: 0.28, rotationX: -1.16, rotationY: 0.1, rotationZ: 0,
@@ -339,13 +375,18 @@ function setGrip(hand, amount, squeeze = 0, profile = hand.activeProfile) {
   hand.thumbRoot.rotation.z = hand.thumbSign * (-0.72 + grip * pose.thumbOpposition);
 }
 
-function applyGripTransform(hand, anchor, ingredientId, { sauce = false } = {}) {
+function applyGripTransform(hand, anchor, ingredientId, {
+  sauce = false,
+  scaleMultiplier = 1,
+  sideBias = 0,
+  angleBias = 0,
+} = {}) {
   const profile = sauce ? SAUCE_PROFILE : profileFor(ingredientId);
   hand.activeProfile = profile;
   hand.poseId = profile.poseId;
   hand.objectTopY = anchor.topY;
   hand.target.set(
-    anchor.x + hand.sign * profile.sideOffset,
+    anchor.x + hand.sign * (profile.sideOffset + sideBias),
     anchor.topY + profile.clearance,
     anchor.z + profile.cameraOffset,
   );
@@ -353,10 +394,10 @@ function applyGripTransform(hand, anchor, ingredientId, { sauce = false } = {}) 
   hand.targetRotation.set(
     profile.rotationX,
     hand.sign * profile.rotationY,
-    hand.sign * profile.rotationZ,
+    hand.sign * (profile.rotationZ + angleBias),
   );
   hand.root.rotation.copy(hand.targetRotation);
-  hand.root.scale.setScalar(profile.scale);
+  hand.root.scale.setScalar(profile.scale * scaleMultiplier);
 }
 
 function sideFromDetail(detail, anchor = null) {
@@ -373,6 +414,9 @@ function sideFromDetail(detail, anchor = null) {
 export function createCookingFirstPersonHands(THREE, {
   parent,
   reducedMotion = false,
+  handScale = 1,
+  handSideBias = 0,
+  handAngleBias = 0,
 } = {}) {
   if (!THREE?.Group || !THREE?.Mesh || !THREE?.CapsuleGeometry) {
     throw new TypeError("A compatible Three.js namespace is required");
@@ -398,6 +442,9 @@ export function createCookingFirstPersonHands(THREE, {
   parent.userData.cookingHandRig = null;
 
   let disposed = false;
+  const scaleMultiplier = Math.max(0.6, Math.min(1.25, Number(handScale) || 1));
+  const sideBias = Math.max(0, Math.min(0.55, Number(handSideBias) || 0));
+  const angleBias = Math.max(0, Math.min(0.6, Number(handAngleBias) || 0));
   let activeIngredientSide = null;
   let activeToolSide = null;
   let lastTime = 0;
@@ -453,7 +500,11 @@ export function createCookingFirstPersonHands(THREE, {
       return null;
     }
     const liveAnchor = anchor ?? worldAnchorFor(detail, hand.targetObject);
-    if (liveAnchor) applyGripTransform(hand, liveAnchor, hand.ingredientId);
+    if (liveAnchor) applyGripTransform(hand, liveAnchor, hand.ingredientId, {
+      scaleMultiplier,
+      sideBias,
+      angleBias,
+    });
     if (detail.phase === "reach") {
       hand.reachStartedAt = lastTime;
       hand.reachStartRotation.set(
@@ -514,7 +565,12 @@ export function createCookingFirstPersonHands(THREE, {
       return null;
     }
     const anchor = worldAnchorFor(detail, context.object ?? hand.targetObject);
-    if (anchor) applyGripTransform(hand, anchor, null, { sauce: true });
+    if (anchor) applyGripTransform(hand, anchor, null, {
+      sauce: true,
+      scaleMultiplier,
+      sideBias,
+      angleBias,
+    });
     if (detail.phase === "start" || detail.phase === "move") {
       hand.mode = "sauce-hold";
       hand.targetObject = context.object ?? hand.targetObject;

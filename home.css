@@ -1603,7 +1603,7 @@ button:focus-visible, a:focus-visible { outline: 4px solid #2167b1; outline-offs
 .home-toast {
   position: fixed;
   z-index: 120;
-  bottom: max(1.2rem, env(safe-area-inset-bottom));
+  bottom: max(5.4rem, calc(env(safe-area-inset-bottom) + 4.4rem));
   left: 50%;
   max-width: calc(100vw - 2rem);
   padding: .7rem 1rem;

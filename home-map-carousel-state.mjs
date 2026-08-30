@@ -13,11 +13,11 @@ export const HOME_MAPS = Object.freeze([
   Object.freeze({
     id: "sushi",
     title: "深夜寿司店",
-    subtitle: "有肥美鱼生，配米饭吃一套！",
-    actionLabel: "寿司店筹备中",
-    actionHint: "下一张料理地图",
-    href: "",
-    available: false,
+    subtitle: "左手捏饭，右手覆鱼，第一贯开席！",
+    actionLabel: "开始握寿司",
+    actionHint: "三文鱼握寿司 · 第一份订单",
+    href: "./sushi.html",
+    available: true,
   }),
 ]);
 

@@ -32,8 +32,8 @@ export const HOME_MODES = Object.freeze([
   }),
   Object.freeze({
     id: "sushi",
-    label: "寿司店",
-    hint: "筹备中",
+    label: "握寿司",
+    hint: "第一人称制作",
     action: "sushi",
     players: 1,
   }),

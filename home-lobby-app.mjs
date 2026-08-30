@@ -11,8 +11,9 @@ import {
   changeMapIndex,
   normalizeMapIndex,
   resolveSwipe,
-} from "./home-map-carousel-state.mjs?v=20260822-stage2";
+} from "./home-map-carousel-state.mjs?v=20260831-sushi1";
 import {
+  HOME_MAP_MODE_IDS,
   HOME_MODE_KEY,
   HOME_MODES,
   changeModeIndexForMap,
@@ -20,16 +21,11 @@ import {
   modeIndexForMap,
   normalizeModeIndex,
   resolveModeSwipe,
-} from "./home-mode-switch-state.mjs?v=20260823-conveyor39";
-import { createHomeFoodOrbit } from "./home-food-orbit-3d.mjs?v=20260822-stage2";
+} from "./home-mode-switch-state.mjs?v=20260831-sushi1";
+import { createHomeFoodOrbit } from "./home-food-orbit-3d.mjs?v=20260831-sushi1";
 
 const storage = window.localStorage;
 const layoutEditorMode = new URLSearchParams(window.location.search).get("layout") === "1";
-const playableModeIds = Object.freeze(["practice", "swipe-stack", "duel", "duo"]);
-const playableModes = Object.freeze(
-  playableModeIds.map((id) => HOME_MODES.find((mode) => mode.id === id)).filter(Boolean),
-);
-
 const energyValue = document.querySelector("#energy-value");
 const coinValue = document.querySelector("#coin-value");
 const dailyDot = document.querySelector("#daily-dot");
@@ -97,7 +93,7 @@ function writeMapIndex(value) {
 
 function readModeIndex() {
   const normalized = normalizeModeIndex(safeStorageGet(HOME_MODE_KEY));
-  return modeIndexForMap("burger", normalized);
+  return modeIndexForMap(HOME_MAPS[mapIndex]?.id ?? "burger", normalized);
 }
 
 function writeModeIndex(value) {
@@ -123,17 +119,32 @@ function showToast(message) {
   toastTimer = window.setTimeout(() => toast.classList.remove("is-visible"), 2200);
 }
 
+function activeMap() {
+  return HOME_MAPS[mapIndex] ?? HOME_MAPS[0];
+}
+
+function modesForMap(mapId = activeMap().id) {
+  const ids = HOME_MAP_MODE_IDS[mapId] ?? HOME_MAP_MODE_IDS.burger;
+  return ids.map((id) => HOME_MODES.find((mode) => mode.id === id)).filter(Boolean);
+}
+
 function activeMode() {
-  return HOME_MODES[modeIndex] ?? playableModes[0];
+  const validIndex = modeIndexForMap(activeMap().id, modeIndex);
+  return HOME_MODES[validIndex] ?? modesForMap()[0];
+}
+
+function syncModeToMap({ persist = true } = {}) {
+  modeIndex = modeIndexForMap(activeMap().id, modeIndex);
+  if (persist) writeModeIndex(modeIndex);
 }
 
 function renderTheme({ direction = 0, announce = false } = {}) {
-  const map = HOME_MAPS[mapIndex] ?? HOME_MAPS[0];
+  const map = activeMap();
   document.body.dataset.homeTheme = map.id;
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", map.id === "burger" ? "#f5a623" : "#3dbfa0");
   hudTitle.textContent = map.title;
   mapTitle.textContent = map.title;
-  mapKicker.textContent = map.id === "burger" ? "今日主题 · 汉堡" : "下一主题 · 寿司";
+  mapKicker.textContent = map.id === "burger" ? "今日主题 · 汉堡" : "今日主题 · 寿司";
   mapSubtitle.textContent = map.subtitle;
   foodCanvas?.setAttribute("aria-label", `${map.title}的旋转料理模型`);
   foodViewport?.setAttribute("aria-label", `${map.title}。左右滑动切换汉堡和寿司，上下滑动切换玩法`);
@@ -147,7 +158,7 @@ function renderTheme({ direction = 0, announce = false } = {}) {
     button.querySelector("strong").textContent = nextMap.title.replace("小馆", "").replace("深夜", "").replace("店", "");
     button.setAttribute("aria-label", `切换到${nextMap.title}`);
   });
-  startButton.textContent = map.available ? "开始游戏" : "寿司玩法筹备中";
+  startButton.textContent = map.actionLabel;
   startButton.dataset.available = String(Boolean(map.available));
   foodOrbit?.setFood(map.id, direction || 1);
   if (announce) showToast(`${map.title} · 左右滑动可继续切换`);
@@ -155,7 +166,8 @@ function renderTheme({ direction = 0, announce = false } = {}) {
 
 function renderMode({ animate = false, announce = false } = {}) {
   const mode = activeMode();
-  const position = Math.max(0, playableModeIds.indexOf(mode.id));
+  const playableModes = modesForMap();
+  const position = Math.max(0, playableModes.findIndex(({ id }) => id === mode.id));
   const previousMode = playableModes[(position - 1 + playableModes.length) % playableModes.length];
   const nextMode = playableModes[(position + 1) % playableModes.length];
   modeLabel.textContent = mode.label;
@@ -178,7 +190,9 @@ function moveTheme(direction, { persist = true, announce = true } = {}) {
   if (!step) return false;
   mapIndex = changeMapIndex(mapIndex, step);
   if (persist) writeMapIndex(mapIndex);
+  syncModeToMap({ persist });
   renderTheme({ direction: step, announce });
+  renderMode({ animate: true });
   return true;
 }
 
@@ -188,12 +202,14 @@ function selectTheme(themeId, { persist = true, announce = false } = {}) {
   const direction = changeMapIndex(mapIndex, 1) === nextIndex ? 1 : -1;
   mapIndex = nextIndex;
   if (persist) writeMapIndex(mapIndex);
+  syncModeToMap({ persist });
   renderTheme({ direction, announce });
+  renderMode({ animate: true });
   return true;
 }
 
 function moveMode(direction, { persist = true, announce = true } = {}) {
-  const nextIndex = changeModeIndexForMap("burger", modeIndex, direction);
+  const nextIndex = changeModeIndexForMap(activeMap().id, modeIndex, direction);
   if (nextIndex === modeIndex) return false;
   modeIndex = nextIndex;
   if (persist) writeModeIndex(modeIndex);
@@ -202,12 +218,13 @@ function moveMode(direction, { persist = true, announce = true } = {}) {
 }
 
 function activateCurrentMode() {
-  const map = HOME_MAPS[mapIndex] ?? HOME_MAPS[0];
+  const map = activeMap();
   const mode = activeMode();
   if (!map.available) {
-    showToast("寿司玩法还在制作，先左右滑回汉堡体验完整流程");
+    showToast(`${map.title}暂未开放`);
     return;
   }
+  if (mode.action === "sushi") window.location.href = map.href || "./sushi.html";
   if (mode.action === "practice") window.location.href = "./cooking.html?recipe=classic-beef";
   if (mode.action === "swipe-stack") window.location.href = "./swipe-stack.html?v=20260826-orderswipe49";
   if (mode.action === "duel") window.location.href = "./replica-duel.html";
