@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+		<title>翻面时刻</title>
+		<style>
+html, body, #canvas {
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+body {
+	color: white;
+	background-color: black;
+	overflow: hidden;
+	touch-action: none;
+}
+
+#canvas {
+	display: block;
+}
+
+#canvas:focus {
+	outline: none;
+}
+
+#status, #status-splash, #status-progress {
+	position: absolute;
+	left: 0;
+	right: 0;
+}
+
+#status, #status-splash {
+	top: 0;
+	bottom: 0;
+}
+
+#status {
+	background-color: #242424;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	visibility: hidden;
+}
+
+#status-splash {
+	max-height: 100%;
+	max-width: 100%;
+	margin: auto;
+}
+
+#status-splash.show-image--false {
+	display: none;
+}
+
+#status-splash.fullsize--true {
+	height: 100%;
+	width: 100%;
+	object-fit: contain;
+}
+
+#status-splash.use-filter--false {
+	image-rendering: pixelated;
+}
+
+#status-progress, #status-notice {
+	display: none;
+}
+
+#status-progress {
+	bottom: 10%;
+	width: 50%;
+	margin: 0 auto;
+}
+
+#status-notice {
+	background-color: #5b3943;
+	border-radius: 0.5rem;
+	border: 1px solid #9b3943;
+	color: #e0e0e0;
+	font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
+	line-height: 1.3;
+	margin: 0 2rem;
+	overflow: hidden;
+	padding: 1rem;
+	text-align: center;
+	z-index: 1;
+}
+		
+body { background:#342a25; color:#342a25; font-family:system-ui,sans-serif; }
+#status { background:#f3e1bb; }
+#loading-brand { text-align:center; padding:24px; }
+#loading-brand span { display:block; font-size:40px; font-weight:850; letter-spacing:.04em; }
+#loading-brand small { display:block; color:#356f66; font-size:10px; letter-spacing:.10em; margin-top:9px; }
+#loading-brand p { margin-top:34px; font-size:14px; }
+#status-progress { position:static; display:block; width:min(230px,70%); height:13px; appearance:none; border:2px solid #342a25; border-radius:9px; overflow:hidden; background:#e5d4ac; }
+#status-progress::-webkit-progress-bar { background:#e5d4ac; }
+#status-progress::-webkit-progress-value { background:#bb4335; }
+#status-progress::-moz-progress-bar { background:#bb4335; }
+#status-notice { background:#fff1d3; color:#342a25; border:2px solid #342a25; max-width:400px; font-family:inherit; line-height:1.6; }
+
+html, body { width:100%; height:100%; margin:0; overflow:hidden; overscroll-behavior:none; }
+body { position:fixed; inset:0; touch-action:auto; }
+#game-shell { position:fixed; left:0; top:0; width:100vw; height:100dvh; overflow:hidden; box-sizing:border-box; overscroll-behavior:none;
+  padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px); }
+#canvas { position:absolute; display:block; touch-action:none; overscroll-behavior:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
+#status { inset:0; padding:24px; box-sizing:border-box; }
+#status-notice { max-height:60%; overflow:auto; touch-action:pan-y; }
+#loading-brand small { display:none; }
+
+/* Lightweight loader: all six layers share one timeline and fade before restart. */
+#status { visibility:visible; }
+#loading-brand { padding:0 20px 16px; }
+#burger-loader { display:block; width:min(280px,70vw); height:auto; overflow:visible; margin:0 auto; }
+#loading-copy { margin:12px 0 4px; color:#634a36; font-size:14px; }
+#status-progress { display:block; }
+.loader-layer { transform-box:fill-box; transform-origin:center; animation-duration:6.4s; animation-iteration-count:infinite; animation-timing-function:cubic-bezier(.2,.75,.2,1); }
+.loader-layer.heel { animation-name:burger-heel; }
+@keyframes burger-heel { 0%,2% { opacity:0; transform:translateY(-170px) rotate(22deg); } 3% { opacity:1; } 14% { opacity:1; transform:translateY(3px) rotate(-2deg); } 17%,82% { opacity:1; transform:translateY(0) rotate(0); } 94%,100% { opacity:0; transform:translateY(5px) scale(.94); } }
+.loader-layer.beef { animation-name:burger-beef; }
+@keyframes burger-beef { 0%,12% { opacity:0; transform:translateY(-170px) rotate(-25deg); } 13% { opacity:1; } 24% { opacity:1; transform:translateY(3px) rotate(-2deg); } 27%,82% { opacity:1; transform:translateY(0) rotate(0); } 94%,100% { opacity:0; transform:translateY(5px) scale(.94); } }
+.loader-layer.cheese { animation-name:burger-cheese; }
+@keyframes burger-cheese { 0%,22% { opacity:0; transform:translateY(-170px) rotate(28deg); } 23% { opacity:1; } 34% { opacity:1; transform:translateY(3px) rotate(-2deg); } 37%,82% { opacity:1; transform:translateY(0) rotate(0); } 94%,100% { opacity:0; transform:translateY(5px) scale(.94); } }
+.loader-layer.pickle { animation-name:burger-pickle; }
+@keyframes burger-pickle { 0%,32% { opacity:0; transform:translateY(-170px) rotate(-31deg); } 33% { opacity:1; } 44% { opacity:1; transform:translateY(3px) rotate(-2deg); } 47%,82% { opacity:1; transform:translateY(0) rotate(0); } 94%,100% { opacity:0; transform:translateY(5px) scale(.94); } }
+.loader-layer.onion { animation-name:burger-onion; }
+@keyframes burger-onion { 0%,42% { opacity:0; transform:translateY(-170px) rotate(34deg); } 43% { opacity:1; } 54% { opacity:1; transform:translateY(3px) rotate(-2deg); } 57%,82% { opacity:1; transform:translateY(0) rotate(0); } 94%,100% { opacity:0; transform:translateY(5px) scale(.94); } }
+.loader-layer.crown { animation-name:burger-crown; }
+@keyframes burger-crown { 0%,52% { opacity:0; transform:translateY(-170px) rotate(-37deg); } 53% { opacity:1; } 64% { opacity:1; transform:translateY(3px) rotate(-2deg); } 67%,82% { opacity:1; transform:translateY(0) rotate(0); } 94%,100% { opacity:0; transform:translateY(5px) scale(.94); } }
+#status[data-failed="true"] .loader-layer { animation-play-state:paused; }
+@media (prefers-reduced-motion:reduce) { .loader-layer { animation:none; opacity:1; transform:none; } }
+</style>
+		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
+<link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
+
+
+	</head>
+	<body>
+		<main id="game-shell" aria-label="汉堡料理游戏">
+		<canvas id="canvas" tabindex="0" aria-label="料理操作台">
+			这个浏览器无法显示游戏画布。
+		</canvas>
+
+		<noscript>
+			请允许 JavaScript 后再打开游戏。
+		</noscript>
+
+		<div id="status">
+			<div id="loading-brand"><svg id="burger-loader" viewBox="0 0 280 240" role="img" aria-label="食材依次落下，叠成汉堡">
+ <ellipse cx="140" cy="213" rx="75" ry="10" fill="#57382b" opacity=".12"/>
+ <g class="loader-layer heel" stroke="#4a2b20" stroke-width="3.5" stroke-linejoin="round"><path d="M65 184 Q140 174 215 184 L211 199 Q140 220 69 199Z" fill="#cc813a"/><ellipse cx="140" cy="184" rx="75" ry="15" fill="#efb864"/><path d="M86 194 Q140 204 194 194" fill="none" stroke="#f6cf87" stroke-width="3"/></g>
+ <g class="loader-layer beef" stroke="#4a2b20" stroke-width="3.5"><path d="M63 160 Q75 150 91 153 Q116 145 140 152 Q166 146 190 153 Q211 151 219 161 L215 176 Q191 184 166 180 Q140 187 116 180 Q86 184 65 176Z" fill="#754025"/><path d="M77 160 Q139 169 204 159" fill="none" stroke="#a76636" stroke-width="5" stroke-linecap="round"/></g>
+ <g class="loader-layer cheese"><path d="M61 149 L201 143 L221 157 L164 165 L147 177 L114 166 L67 165Z" fill="#f4be3c" stroke="#9b6027" stroke-width="3.5" stroke-linejoin="round"/><path d="M80 150 L183 149" stroke="#ffdd78" stroke-width="3" stroke-linecap="round"/></g>
+ <g class="loader-layer pickle" fill="#74a54e" stroke="#365c32" stroke-width="3"><ellipse cx="96" cy="143" rx="31" ry="9" transform="rotate(-8 96 143)"/><ellipse cx="166" cy="139" rx="34" ry="10" transform="rotate(8 166 139)"/><path d="M76 142L109 140M148 137L183 141" stroke="#b4cd70" stroke-width="3"/></g>
+ <g class="loader-layer onion" fill="#fff3cf" stroke="#c1ac80" stroke-width="2.5"><path d="M98 128l16 -4 10 7 -17 5Z M140 124l14 2 -2 9 -15 -3Z M170 127l17 -3 7 8 -17 4Z M122 138l13 -3 9 8 -18 2Z"/></g>
+ <g class="loader-layer crown" stroke="#4a2b20" stroke-width="3.5"><path d="M64 120 Q68 62 140 59 Q213 63 217 120 Q144 143 64 120Z" fill="#dba052"/><path d="M76 105 Q90 71 133 72" fill="none" stroke="#f4c77e" stroke-width="8" stroke-linecap="round"/><path d="M66 119 Q140 139 215 119 L211 127 Q140 147 69 127Z" fill="#b76b30"/><g fill="#fff1bd" stroke="none"><ellipse cx="105" cy="91" rx="3" ry="7" transform="rotate(-32 105 91)"/><ellipse cx="140" cy="79" rx="3" ry="7" transform="rotate(24 140 79)"/><ellipse cx="173" cy="91" rx="3" ry="7" transform="rotate(-20 173 91)"/><ellipse cx="126" cy="111" rx="3" ry="6" transform="rotate(35 126 111)"/><ellipse cx="187" cy="110" rx="3" ry="6" transform="rotate(18 187 110)"/></g></g>
+</svg><p id="loading-copy" role="status">正在准备煎台…</p></div>
+			<progress id="status-progress" aria-label="游戏资源载入进度"></progress>
+			<div id="status-notice"></div>
+		</div>
+
+		</main>
+		<script>
+/* viewport-runtime-begin */
+/* Mobile canvas containment. No dependency on WebGL or the engine loader. */
+(function () {
+  'use strict';
+  const canvas = document.getElementById('canvas');
+  const shell = document.getElementById('game-shell');
+  let frame = 0;
+  const number = (value) => Math.max(0, parseFloat(value) || 0);
+  function cancelGesture() {
+    // The shipped Godot touch glue normalizes touchcancel to touchend. Clear
+    // world AND GUI ownership synchronously before that release can commit.
+    const cancel = window.__burgerCookingCancel || window.__burgerCookingResize;
+    if (typeof cancel === 'function') cancel();
+  }
+  function fit() {
+    frame = 0;
+    const viewport = window.visualViewport;
+    const width = Math.max(1, viewport ? viewport.width : window.innerWidth);
+    const height = Math.max(1, viewport ? viewport.height : window.innerHeight);
+    shell.style.left = `${viewport ? viewport.offsetLeft : 0}px`;
+    shell.style.top = `${viewport ? viewport.offsetTop : 0}px`;
+    shell.style.width = `${width}px`;
+    shell.style.height = `${height}px`;
+    const style = getComputedStyle(shell);
+    const left = number(style.paddingLeft), right = number(style.paddingRight);
+    const top = number(style.paddingTop), bottom = number(style.paddingBottom);
+    const usableWidth = Math.max(1, width - left - right);
+    const usableHeight = Math.max(1, height - top - bottom);
+    canvas.style.left = `${left}px`;
+    canvas.style.top = `${top}px`;
+    canvas.style.width = `${usableWidth}px`;
+    canvas.style.height = `${usableHeight}px`;
+    const ratio = Math.max(1, window.devicePixelRatio || 1);
+    const pixelsWide = Math.max(1, Math.round(usableWidth * ratio));
+    const pixelsHigh = Math.max(1, Math.round(usableHeight * ratio));
+    if (canvas.width !== pixelsWide) canvas.width = pixelsWide;
+    if (canvas.height !== pixelsHigh) canvas.height = pixelsHigh;
+    const previous = window.__cookingViewport;
+    window.__cookingViewport = Object.freeze({ width: usableWidth, height: usableHeight, pixelRatio: ratio,
+      safe: Object.freeze({ left, right, top, bottom }), visualWidth: width, visualHeight: height, offsetLeft: viewport ? viewport.offsetLeft : 0, offsetTop: viewport ? viewport.offsetTop : 0 });
+    if (previous && (previous.width !== usableWidth || previous.height !== usableHeight || previous.offsetLeft !== window.__cookingViewport.offsetLeft || previous.offsetTop !== window.__cookingViewport.offsetTop || previous.safe.left !== left || previous.safe.right !== right || previous.safe.top !== top || previous.safe.bottom !== bottom || previous.pixelRatio !== ratio) && typeof window.__burgerCookingResize === 'function') {
+      window.__burgerCookingResize();
+    }
+  }
+  function schedule() {
+    // Do not wait for the next animation frame: a release can arrive between
+    // the browser viewport event and the reflow that publishes new bounds.
+    cancelGesture();
+    if (!frame) frame = requestAnimationFrame(fit);
+  }
+  window.addEventListener('resize', schedule, { passive: true });
+  window.addEventListener('orientationchange', schedule, { passive: true });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', schedule, { passive: true });
+    window.visualViewport.addEventListener('scroll', schedule, { passive: true });
+  }
+  // Cancel only gameplay gestures. Status/error text and normal controls retain
+  // their native focus/selection/scroll behavior.
+  for (const type of ['touchstart', 'touchmove', 'wheel']) {
+    canvas.addEventListener(type, (event) => { if (event.cancelable) event.preventDefault(); }, { passive: false });
+  }
+  canvas.addEventListener('pointerdown', (event) => {
+    if (typeof canvas.setPointerCapture === 'function') {
+      try { canvas.setPointerCapture(event.pointerId); } catch (_) { /* canceled pointer */ }
+    }
+  });
+  canvas.addEventListener('touchcancel', cancelGesture, { capture: true, passive: true });
+  // Capture on the window so a canceled captured pointer is handled even if
+  // its final target moved outside the canvas. Native status UI is untouched.
+  window.addEventListener('pointercancel', (event) => {
+    if (event.target === canvas) cancelGesture();
+  }, { capture: true, passive: true });
+  canvas.addEventListener('contextmenu', (event) => event.preventDefault());
+  fit();
+  window.__fitCookingViewport = schedule;
+}());
+
+/* viewport-runtime-end */
+		</script>
+		<script src="index.js"></script>
+		<script>
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":0,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":3165924,"index.wasm":39514754},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
+GODOT_CONFIG.canvasResizePolicy = 0;
+const GODOT_THREADS_ENABLED = false;
+/* asset-loader-begin */
+/* Fetch only this export's engine/pack. Supports raw, browser-decoded gzip,
+   and gzip bytes served without Content-Encoding. No simulated progress. */
+function installBurgerAssetLoading(config) {
+  'use strict';
+  const originalFetch = window.fetch.bind(window);
+  const assets = new Map(Object.entries(config.fileSizes || {}).filter(([name]) => /\.(wasm|pck)$/.test(name)).map(([name, rawBytes]) => [new URL(name, window.location.href).href, { name, rawBytes, loaded: 0, total: null, complete: false }]));
+  function publish() {
+    const values = [...assets.values()];
+    const loaded = values.reduce((sum, item) => sum + item.loaded, 0);
+    const total = values.every(item => item.total !== null) ? values.reduce((sum, item) => sum + item.total, 0) : null;
+    const snapshot = Object.freeze({ loaded, total, phase: values.every(item => item.complete) ? 'starting' : 'loading' });
+    window.__burgerAssetTransfer = snapshot;
+    if (typeof window.__burgerTransferProgress === 'function') window.__burgerTransferProgress(snapshot);
+  }
+  window.fetch = async function (input, init) {
+    const requested = new URL(typeof input === 'string' || input instanceof URL ? input : input.url, window.location.href);
+    requested.search = ''; requested.hash = '';
+    const item = assets.get(requested.href);
+    const response = await originalFetch(input, init);
+    if (!item || !response.ok || !response.body || String((init && init.method) || (typeof input === 'object' && input.method) || 'GET').toUpperCase() !== 'GET') return response;
+    const reader = response.body.getReader();
+    const chunks = []; const prefix = []; let gzipBody = null;
+    item.loaded = 0; item.total = null; item.complete = false;
+    try {
+      while (true) {
+        const part = await reader.read();
+        if (part.done) break;
+        chunks.push(part.value); item.loaded += part.value.byteLength;
+        for (const byte of part.value) { if (prefix.length >= 2) break; prefix.push(byte); }
+        if (gzipBody === null && prefix.length === 2) {
+          gzipBody = prefix[0] === 0x1f && prefix[1] === 0x8b;
+          const contentLength = Number(response.headers.get('content-length'));
+          // Fetch has already decoded an advertised Content-Encoding. In that
+          // case count actual decoded resource bytes, not claimed wire bytes.
+          item.total = gzipBody ? (contentLength > 0 ? contentLength : null) : item.rawBytes;
+        }
+        publish();
+      }
+    } finally { reader.releaseLock(); }
+    const body = new Uint8Array(item.loaded); let cursor = 0;
+    for (const chunk of chunks) { body.set(chunk, cursor); cursor += chunk.byteLength; }
+    let decoded = body;
+    if (gzipBody) {
+      if (typeof DecompressionStream !== 'function') throw new Error('这个浏览器暂不支持资源解压，请更新浏览器后重试');
+      decoded = new Uint8Array(await new Response(new Blob([body]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+    }
+    const magic = item.name.endsWith('.wasm') ? [0,97,115,109] : [71,68,80,67];
+    if (!magic.every((value, index) => decoded[index] === value) || decoded.byteLength !== item.rawBytes) throw new Error('游戏资源不完整，请刷新后重试');
+    item.total = item.loaded; item.complete = true; publish();
+    const headers = new Headers(response.headers); headers.delete('content-encoding'); headers.set('content-length', String(decoded.byteLength));
+    headers.set('content-type', item.name.endsWith('.wasm') ? 'application/wasm' : 'application/octet-stream');
+    return new Response(decoded, { status: response.status, statusText: response.statusText, headers });
+  };
+  publish();
+}
+
+/* asset-loader-end */
+installBurgerAssetLoading(GODOT_CONFIG);
+const engine = new Engine(GODOT_CONFIG);
+
+(function () {
+	const statusOverlay = document.getElementById('status');
+	const statusProgress = document.getElementById('status-progress');
+	const statusNotice = document.getElementById('status-notice');
+
+	let initializing = true;
+	let statusMode = '';
+	window.__burgerTransferProgress = function (transfer) {
+		if (!initializing) return;
+		const copy = document.getElementById('loading-copy');
+		if (transfer.phase === 'starting') {
+			statusProgress.removeAttribute('value'); statusProgress.removeAttribute('max');
+			copy.textContent = '资源已载入，正在启动…';
+		} else if (transfer.total > 0) {
+			statusProgress.value = transfer.loaded; statusProgress.max = transfer.total;
+			copy.textContent = `已载入 ${(transfer.loaded / 1048576).toFixed(1)} / ${(transfer.total / 1048576).toFixed(1)} MB`;
+		} else {
+			statusProgress.removeAttribute('value'); statusProgress.removeAttribute('max');
+			copy.textContent = transfer.loaded > 0 ? `已接收 ${(transfer.loaded / 1048576).toFixed(1)} MB` : '正在准备煎台…';
+		}
+	};
+
+
+	function setStatusMode(mode) {
+		if (statusMode === mode || !initializing) {
+			return;
+		}
+		if (mode === 'hidden') {
+			statusOverlay.remove();
+			initializing = false;
+			return;
+		}
+		statusOverlay.style.visibility = 'visible';
+		statusProgress.style.display = mode === 'progress' ? 'block' : 'none';
+		statusNotice.style.display = mode === 'notice' ? 'block' : 'none';
+		statusMode = mode;
+	}
+
+	function setStatusNotice(text) {
+		while (statusNotice.lastChild) {
+			statusNotice.removeChild(statusNotice.lastChild);
+		}
+		const lines = text.split('\n');
+		lines.forEach((line) => {
+			statusNotice.appendChild(document.createTextNode(line));
+			statusNotice.appendChild(document.createElement('br'));
+		});
+	}
+
+	function displayFailureNotice(err) {
+		console.error(err);
+		if (err instanceof Error) {
+			setStatusNotice(err.message);
+		} else if (typeof err === 'string') {
+			setStatusNotice(err);
+		} else {
+			setStatusNotice('An unknown error occurred.');
+		}
+		document.getElementById('loading-copy').textContent = '暂时无法启动';
+		statusOverlay.dataset.failed = 'true';
+		setStatusMode('notice');
+		initializing = false;
+	}
+
+	const missing = Engine.getMissingFeatures({
+		threads: GODOT_THREADS_ENABLED,
+	});
+
+	if (missing.length !== 0) {
+		if (GODOT_CONFIG['serviceWorker'] && GODOT_CONFIG['ensureCrossOriginIsolationHeaders'] && 'serviceWorker' in navigator) {
+			let serviceWorkerRegistrationPromise;
+			try {
+				serviceWorkerRegistrationPromise = navigator.serviceWorker.getRegistration();
+			} catch (err) {
+				serviceWorkerRegistrationPromise = Promise.reject(new Error('Service worker registration failed.'));
+			}
+			// There's a chance that installing the service worker would fix the issue
+			Promise.race([
+				serviceWorkerRegistrationPromise.then((registration) => {
+					if (registration != null) {
+						return Promise.reject(new Error('Service worker already exists.'));
+					}
+					return registration;
+				}).then(() => engine.installServiceWorker()),
+				// For some reason, `getRegistration()` can stall
+				new Promise((resolve) => {
+					setTimeout(() => resolve(), 2000);
+				}),
+			]).then(() => {
+				// Reload if there was no error.
+				window.location.reload();
+			}).catch((err) => {
+				console.error('Error while registering service worker:', err);
+			});
+		} else {
+			// Display the message as usual
+			const missingMsg = '这个浏览器缺少游戏需要的图形功能。\n请用支持 WebGL 2 的浏览器打开。\n缺少：';
+			displayFailureNotice(missingMsg + missing.join('\n'));
+		}
+	} else {
+		setStatusMode('progress');
+		engine.startGame({
+			'onProgress': function (current, total) {
+				if (window.__burgerAssetTransfer) { window.__burgerTransferProgress(window.__burgerAssetTransfer); return; }
+				if (current > 0 && total > 0) {
+					statusProgress.value = current;
+					statusProgress.max = total;
+				document.getElementById('loading-copy').textContent = `已载入 ${(current / 1048576).toFixed(1)} / ${(total / 1048576).toFixed(1)} MB`;
+				} else {
+					statusProgress.removeAttribute('value');
+					statusProgress.removeAttribute('max');
+				document.getElementById('loading-copy').textContent = '正在准备煎台…';
+				}
+			},
+		}).then(() => {
+			setStatusMode('hidden');
+		}, displayFailureNotice);
+	}
+}());
+		</script>
+	</body>
+</html>
+
+

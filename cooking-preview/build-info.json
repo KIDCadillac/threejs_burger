@@ -1,0 +1,9 @@
+{
+  "build": "cooking-styles-light-v3-fix1",
+  "pck_sha256": "84d45df8e1cc5be376a57c85b6d47ef0b283385a047e2367b1a5e34952a395e3",
+  "status": "test-candidate",
+  "visual_acceptance": false,
+  "previous": "cooking-r1/",
+  "legacy": "legacy-review/",
+  "bun_review": "comic-bun/"
+}
